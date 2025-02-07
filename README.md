@@ -69,6 +69,7 @@ TODO : Mettre en place un pipeline CI/CD est en place pour garantir la stabilit�
 ✔️ Implémentation du moteur de calculs métier\
 ✔️ Intégration avec ElectriFlux\
 ⏳ CI/CD\
+⏳ Utiliser pandera https://pandera.readthedocs.io/en/stable/ pour valider les dataframes. 
 ⏳ Ajout d’un connecteur vers l’API SOAP Enedis\
 ⏳ Stockage des résultats en base de données\
 ⏳ Documentation API détaillée
