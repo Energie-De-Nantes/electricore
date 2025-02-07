@@ -2,7 +2,34 @@ import pandas as pd
 from zoneinfo import ZoneInfo
 from electricore.core.energies import diviser_lignes_mct
 
-def qui_quoi_quand(deb: pd.Timestamp, fin: pd.Timestamp, c15: pd.DataFrame) -> pd.DataFrame:
+def situation_périmetre(date: pd.Timestamp, c15: pd.DataFrame) -> pd.DataFrame:
+    """
+    Récupère la situation du périmètre fournisseur à une date donnée.
+
+    Cette fonction extrait les lignes du DataFrame `c15` où la date de l'événement
+    (`Date_Evenement`) est antérieure ou égale à la date spécifiée, puis trie ces lignes
+    par `Date_Evenement` (ordre décroissant). Enfin, elle supprime les doublons en conservant 
+    uniquement la situation la plus récente pour chaque couple (`pdl`, `Ref_Situation_Contractuelle`).
+
+    Args:
+        date (pd.Timestamp): La date de référence pour récupérer la situation du périmètre.
+        c15 (pd.DataFrame): Le DataFrame contenant l'historique des situations contractuelles
+            avec au minimum les colonnes suivantes :
+            - "pdl" (str) : Identifiant du point de livraison.
+            - "Ref_Situation_Contractuelle" (str) : Référence de la situation contractuelle.
+            - "Date_Evenement" (pd.Timestamp) : Date de l'événement contractuel.
+
+    Returns:
+        pd.DataFrame: Un DataFrame filtré et nettoyé contenant la situation du périmètre à la date donnée.
+    """
+    return (
+        c15[c15['Date_Evenement'] <= date]
+        .copy()
+        .sort_values(by='Date_Evenement', ascending=False)
+        .drop_duplicates(subset=['pdl', 'Ref_Situation_Contractuelle'], keep='first')
+    )
+
+def base_facturation_perimetre(deb: pd.Timestamp, fin: pd.Timestamp, c15: pd.DataFrame) -> pd.DataFrame:
     """
     On veut les couples (usager.e, pdl) dont on doit estimer la consommation.
 
@@ -16,7 +43,7 @@ def qui_quoi_quand(deb: pd.Timestamp, fin: pd.Timestamp, c15: pd.DataFrame) -> p
     c15_fin = c15[c15['Date_Evenement'] <= fin]
 
     c15_periode = c15_fin[c15_fin['Date_Evenement'] >= deb]
-    situation_fin = c15_fin.copy().sort_values(by='Date_Evenement', ascending=False).drop_duplicates(subset=['pdl', 'Ref_Situation_Contractuelle'], keep='first')
+    situation_fin = situation_périmetre(fin, c15)
 
     # 1)
     # on s'intéresse aux couples (usager.e, pdl) qui sont dans le C15, dont le statut actuel est 'EN SERVICE' et celleux dont le statut est 'RESILIE' et dont la date de résiliation est dans la période de calcul.
@@ -64,7 +91,7 @@ def qui_quoi_quand(deb: pd.Timestamp, fin: pd.Timestamp, c15: pd.DataFrame) -> p
     return base_de_travail
 
 
-def ajout_R151(deb: pd.Timestamp, fin: pd.Timestamp, df: pd.DataFrame, r151: pd.DataFrame) -> pd.DataFrame:
+def ajout_relevés_R151(deb: pd.Timestamp, fin: pd.Timestamp, df: pd.DataFrame, r151: pd.DataFrame) -> pd.DataFrame:
     """
     Vient ajouter les relevés issus du R151 la ou il n'y a pas de relevé.
 
@@ -119,6 +146,6 @@ def ajout_R151(deb: pd.Timestamp, fin: pd.Timestamp, df: pd.DataFrame, r151: pd.
     return r
 
 def base_from_electriflux(deb: pd.Timestamp, fin: pd.Timestamp, c15: pd.DataFrame, r151: pd.DataFrame) -> pd.DataFrame:
-    alors = qui_quoi_quand(deb, fin, c15)
-    indexes = ajout_R151(deb, fin, alors, r151)
+    alors = base_facturation_perimetre(deb, fin, c15)
+    indexes = ajout_relevés_R151(deb, fin, alors, r151)
     return indexes
