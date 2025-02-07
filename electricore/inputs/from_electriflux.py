@@ -29,6 +29,57 @@ def situation_périmetre(date: pd.Timestamp, c15: pd.DataFrame) -> pd.DataFrame:
         .drop_duplicates(subset=['pdl', 'Ref_Situation_Contractuelle'], keep='first')
     )
 
+
+def filtrer_evenements_c15(c15: pd.DataFrame, deb: pd.Timestamp, fin: pd.Timestamp, evenements: list) -> pd.DataFrame:
+    """
+    Filtre le DataFrame C15 pour ne conserver que les événements dans la période donnée
+    et correspondant aux types spécifiés dans `evenements`.
+
+    Args:
+        c15 (pd.DataFrame): Le DataFrame contenant les événements de facturation.
+        deb (pd.Timestamp): Date de début de la période de calcul.
+        fin (pd.Timestamp): Date de fin de la période de calcul.
+        evenements (list): Liste des types d'événements à conserver.
+
+    Returns:
+        pd.DataFrame: DataFrame filtré sur la période et les événements spécifiés.
+    """
+    return c15[
+        (c15['Date_Evenement'] >= deb) &
+        (c15['Date_Evenement'] <= fin) &
+        (c15['Evenement_Declencheur'].isin(evenements))
+    ].copy()
+
+def extraire_releves_c15(c15: pd.DataFrame, deb: pd.Timestamp, fin: pd.Timestamp, evenements: list, colonnes_releve: list, suffixe: str) -> pd.DataFrame:
+    """
+    Filtre et extrait les relevés d'un type d'événement donné sur une période donnée.
+    Ajoute un suffixe aux colonnes pour différencier début et fin.
+
+    Args:
+        c15 (pd.DataFrame): Le DataFrame contenant les événements.
+        deb (pd.Timestamp): Début de la période de calcul.
+        fin (pd.Timestamp): Fin de la période de calcul.
+        evenements (list): Liste des types d'événements à extraire.
+        colonnes_releve (list): Colonnes contenant les relevés à transformer.
+        suffixe (str): Suffixe à ajouter aux colonnes ("_deb" ou "_fin").
+
+    Returns:
+        pd.DataFrame: DataFrame filtré, indexé et avec colonnes suffixées.
+    """
+    releves = filtrer_evenements_c15(c15, deb, fin, evenements)
+    
+    if releves.empty:
+        return pd.DataFrame(columns=["Ref_Situation_Contractuelle"] + [f"{col}{suffixe}" for col in colonnes_releve] + [f"source_releve{suffixe}"])
+
+    releves = (
+        releves
+        .set_index("Ref_Situation_Contractuelle")[colonnes_releve]
+        .add_suffix(suffixe)
+    )
+    releves[f"source_releve{suffixe}"] = f"releve_C15_{suffixe.strip('_')}"
+    
+    return releves
+
 def base_facturation_perimetre(deb: pd.Timestamp, fin: pd.Timestamp, c15: pd.DataFrame) -> pd.DataFrame:
     """
     On veut les couples (usager.e, pdl) dont on doit estimer la consommation.
@@ -59,20 +110,9 @@ def base_facturation_perimetre(deb: pd.Timestamp, fin: pd.Timestamp, c15: pd.Dat
     )
 
     # 2) Entrées/sorties
-    entrees = (
-        c15_periode[c15_periode['Evenement_Declencheur']
-        .isin(['MES', 'PMES', 'CFNE'])]
-        .set_index('Ref_Situation_Contractuelle')[colonnes_releve]
-        .add_suffix('_deb')
-    )
-    entrees['source_releve_deb'] = 'entree_C15'
-    sorties = (
-        c15_periode[c15_periode['Evenement_Declencheur']
-        .isin(['RES', 'CFNS'])]
-        .set_index('Ref_Situation_Contractuelle')[colonnes_releve]
-        .add_suffix('_fin')
-    )
-    sorties['source_releve_fin'] = 'sortie_C15'
+    entrees = extraire_releves_c15(c15, deb, fin, ['MES', 'PMES', 'CFNE'], colonnes_releve, '_deb')
+    sorties = extraire_releves_c15(c15, deb, fin, ['RES', 'CFNS'], colonnes_releve, '_fin')
+    
     # Fusion avec la base de travail
     base_de_travail = (
         base_de_travail
@@ -132,7 +172,7 @@ def ajout_relevés_R151(deb: pd.Timestamp, fin: pd.Timestamp, df: pd.DataFrame, 
     masque_deb = (r['source_releve_deb'].isna()) | (r['source_releve_deb'] == 'R151')
     masque_fin = (r['source_releve_fin'].isna()) | (r['source_releve_fin'] == 'R151')
 
-    # MAJ des valeurs 
+    # MAJ des valeurs avec les masques
     r.loc[masque_deb, releves_deb.columns] = (
         releves_deb
         .reindex(r.loc[masque_deb, 'pdl'])

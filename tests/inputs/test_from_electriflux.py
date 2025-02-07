@@ -1,6 +1,6 @@
 import pytest
 import pandas as pd
-from electricore.inputs.from_electriflux import situation_périmetre
+from electricore.inputs.from_electriflux import situation_périmetre, filtrer_evenements_c15
 
 def test_situation_périmetre_filtrage():
     """Test que la fonction filtre correctement les événements après la date T."""
@@ -56,3 +56,27 @@ def test_situation_périmetre_un_seul_pdl():
 
     assert len(result) == 1, "Il doit rester une seule ligne après la suppression des doublons"
     assert result.iloc[0]["Date_Evenement"] == pd.Timestamp("2024-02-01"), "La ligne la plus récente avant T doit être conservée"
+
+def test_filtrer_evenements_c15():
+    """Test que la fonction filtre correctement les événements dans la période et respecte la liste des événements attendus."""
+    
+    c15 = pd.DataFrame({
+        "Ref_Situation_Contractuelle": ["S1", "S2", "S3", "S4"],
+        "pdl": ["A", "B", "C", "D"],
+        "Date_Evenement": pd.to_datetime(["2024-02-01", "2024-02-15", "2024-02-20", "2024-03-01"]),
+        "Evenement_Declencheur": ["MES", "PMES", "RES", "MCT"],
+    })
+
+    deb = pd.Timestamp("2024-02-01")
+    fin = pd.Timestamp("2024-02-28")
+    evenements_attendus = {'MES', 'PMES'}
+
+    # Test filtrage MES et PMES
+    result = filtrer_evenements_c15(c15, deb, fin, list(evenements_attendus))
+    
+    valeurs_uniques = set(result["Evenement_Declencheur"].unique())
+    assert valeurs_uniques.issubset(evenements_attendus), f"Les valeurs uniques attendues sont {evenements_attendus}, mais on a trouvé {valeurs_uniques}"
+
+    # Test qu'un événement non attendu n'est pas présent
+    assert "RES" not in valeurs_uniques, "L'événement RES ne doit pas être présent"
+    assert "MCT" not in valeurs_uniques, "L'événement MCT ne doit pas être présent"
