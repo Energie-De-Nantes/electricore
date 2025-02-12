@@ -113,6 +113,14 @@ def base_facturation_perimetre(deb: pd.Timestamp, fin: pd.Timestamp, c15: DataFr
     return base_de_travail
 
 @pa.check_types
+def conversion_vers_kwh(r151: DataFrame[R151Modèle]) -> DataFrame[R151Modèle]:
+    conso_cols = ['HP', 'HC', 'HCH', 'HPH', 'HPB', 'HCB', 'BASE']
+    mask = r151["Unité"] == "Wh"
+    r151.loc[mask, conso_cols] = (r151.loc[mask, conso_cols] / 1000).round()
+    r151.loc[mask, "Unité"] = "kWh"
+    return r151
+
+@pa.check_types
 def ajout_relevés_R151(
     deb: pd.Timestamp, fin: pd.Timestamp, df: DataFrame, r151: DataFrame[R151Modèle]
 ) -> DataFrame:
@@ -159,6 +167,6 @@ def base_from_electriflux(
     deb: pd.Timestamp, fin: pd.Timestamp, c15: DataFrame[C15Modèle], r151: DataFrame[R151Modèle]
 ) -> DataFrame[BaseFacturationModèle]:
     alors = base_facturation_perimetre(deb, fin, c15)
-    indexes = ajout_relevés_R151(deb, fin, alors, r151)
-    res = convert_base(indexes)
-    return res
+    return convert_base(
+        ajout_relevés_R151(deb, fin,alors, conversion_vers_kwh(r151))
+        )
