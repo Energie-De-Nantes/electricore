@@ -3,13 +3,13 @@ import pandas as pd
 import pandera as pa
 from pandera.typing import DataFrame, Series
 from typing import Annotated
-from icecream import ic
+# from icecream import ic
 from electricore.core.energies import diviser_lignes_mct
 
 from electricore.core.models import BaseFacturationModèle
   
 # Définition du Modèle pour le DataFrame c15
-class C15Schema(pa.DataFrameModel):
+class C15Modèle(pa.DataFrameModel):
     pdl: Series[str] = pa.Field(nullable=False,)
     Date_Evenement: Series[Annotated[pd.DatetimeTZDtype, "ns", "Europe/Paris"]] = pa.Field(nullable=True, coerce=True)
     Date_Releve: Series[Annotated[pd.DatetimeTZDtype, "ns", "Europe/Paris"]] = pa.Field(nullable=True, coerce=True)
@@ -28,7 +28,7 @@ class C15Schema(pa.DataFrameModel):
     HCB: Series[float] = pa.Field(nullable=True, coerce=True)
     BASE: Series[float] = pa.Field(nullable=True, coerce=True)
 
-class R151Schema(pa.DataFrameModel):
+class R151Modèle(pa.DataFrameModel):
     pdl: Series[str]
     Date_Releve: Series[Annotated[pd.DatetimeTZDtype, "ns", "Europe/Paris"]] = pa.Field(nullable=True, coerce=True)
     HP: Series[float] = pa.Field(nullable=True, coerce=True)
@@ -40,7 +40,7 @@ class R151Schema(pa.DataFrameModel):
     BASE: Series[float] = pa.Field(nullable=True, coerce=True)
 
 @pa.check_types
-def situation_périmetre(date: pd.Timestamp, c15: DataFrame[C15Schema]) -> DataFrame[C15Schema]:
+def situation_périmetre(date: pd.Timestamp, c15: DataFrame[C15Modèle]) -> DataFrame[C15Modèle]:
     return (
         c15[c15['Date_Evenement'] <= date]
         .copy()
@@ -50,8 +50,8 @@ def situation_périmetre(date: pd.Timestamp, c15: DataFrame[C15Schema]) -> DataF
 
 @pa.check_types
 def filtrer_evenements_c15(
-    c15: DataFrame[C15Schema], deb: pd.Timestamp, fin: pd.Timestamp, evenements: list
-) -> DataFrame[C15Schema]:
+    c15: DataFrame[C15Modèle], deb: pd.Timestamp, fin: pd.Timestamp, evenements: list
+) -> DataFrame[C15Modèle]:
     return c15[
         (c15['Date_Evenement'] >= deb) & 
         (c15['Date_Evenement'] <= fin) & 
@@ -60,7 +60,7 @@ def filtrer_evenements_c15(
 
 @pa.check_types
 def extraire_releves_c15(
-    c15: DataFrame[C15Schema], deb: pd.Timestamp, fin: pd.Timestamp, evenements: list, colonnes_releve: list, suffixe: str
+    c15: DataFrame[C15Modèle], deb: pd.Timestamp, fin: pd.Timestamp, evenements: list, colonnes_releve: list, suffixe: str
 ) -> DataFrame:
     
     releves = filtrer_evenements_c15(c15, deb, fin, evenements)
@@ -78,7 +78,7 @@ def extraire_releves_c15(
     return releves
 
 @pa.check_types
-def base_facturation_perimetre(deb: pd.Timestamp, fin: pd.Timestamp, c15: DataFrame[C15Schema]) -> DataFrame:
+def base_facturation_perimetre(deb: pd.Timestamp, fin: pd.Timestamp, c15: DataFrame[C15Modèle]) -> DataFrame:
     
     c15_fin = c15[c15['Date_Evenement'] <= fin]
     c15_periode = c15_fin[c15_fin['Date_Evenement'] >= deb]
@@ -109,12 +109,12 @@ def base_facturation_perimetre(deb: pd.Timestamp, fin: pd.Timestamp, c15: DataFr
     mct = c15_periode[c15_periode['Evenement_Declencheur'].isin(['MCT'])]
 
     base_de_travail = diviser_lignes_mct(base_de_travail, mct, colonnes_releve)
-    ic(base_de_travail)
+    # ic(base_de_travail)
     return base_de_travail
 
 @pa.check_types
 def ajout_relevés_R151(
-    deb: pd.Timestamp, fin: pd.Timestamp, df: DataFrame, r151: DataFrame[R151Schema]
+    deb: pd.Timestamp, fin: pd.Timestamp, df: DataFrame, r151: DataFrame[R151Modèle]
 ) -> DataFrame:
     
     colonnes_releve_r151 = ['Date_Releve', 'HP', 'HC', 'HCH', 'HPH', 'HPB', 'HCB', 'BASE']
@@ -156,7 +156,7 @@ def convert_base(df: DataFrame) -> DataFrame:
 
 @pa.check_types
 def base_from_electriflux(
-    deb: pd.Timestamp, fin: pd.Timestamp, c15: DataFrame[C15Schema], r151: DataFrame[R151Schema]
+    deb: pd.Timestamp, fin: pd.Timestamp, c15: DataFrame[C15Modèle], r151: DataFrame[R151Modèle]
 ) -> DataFrame[BaseFacturationModèle]:
     alors = base_facturation_perimetre(deb, fin, c15)
     indexes = ajout_relevés_R151(deb, fin, alors, r151)
