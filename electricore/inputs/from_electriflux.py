@@ -1,20 +1,24 @@
+import numpy as np
 import pandas as pd
 import pandera as pa
 from pandera.typing import DataFrame, Series
 from typing import Annotated
-
+from icecream import ic
 from electricore.core.energies import diviser_lignes_mct
 
-
+from electricore.core.models import BaseFacturationModèle
   
 # Définition du Modèle pour le DataFrame c15
 class C15Schema(pa.DataFrameModel):
-    pdl: Series[str]
+    pdl: Series[str] = pa.Field(nullable=False,)
     Date_Evenement: Series[Annotated[pd.DatetimeTZDtype, "ns", "Europe/Paris"]] = pa.Field(nullable=True, coerce=True)
     Date_Releve: Series[Annotated[pd.DatetimeTZDtype, "ns", "Europe/Paris"]] = pa.Field(nullable=True, coerce=True)
-    Ref_Situation_Contractuelle: Series[str]
-    Etat_Contractuel: Series[str]
+    Ref_Situation_Contractuelle: Series[str] = pa.Field(nullable=False,)
+    Etat_Contractuel: Series[str] = pa.Field(nullable=False,)
     Evenement_Declencheur: Series[str] = pa.Field(nullable=True)
+    Num_Depannage: Series[str] = pa.Field(nullable=False,)
+    Type_Compteur: Series[str] = pa.Field(nullable=False,)
+    Num_Compteur: Series[str] = pa.Field(nullable=False,)
     Nature_Index: Series[str] = pa.Field(nullable=True)
     HP: Series[float] = pa.Field(nullable=True)
     HC: Series[float] = pa.Field(nullable=True)
@@ -105,6 +109,7 @@ def base_facturation_perimetre(deb: pd.Timestamp, fin: pd.Timestamp, c15: DataFr
     mct = c15_periode[c15_periode['Evenement_Declencheur'].isin(['MCT'])]
 
     base_de_travail = diviser_lignes_mct(base_de_travail, mct, colonnes_releve)
+    ic(base_de_travail)
     return base_de_travail
 
 @pa.check_types
@@ -137,12 +142,23 @@ def ajout_relevés_R151(
 
     return r
 
+def convert_base(df: DataFrame) -> DataFrame:
+    to_convert = (
+        [c+'_deb' for c in ['HP', 'HC', 'HCH', 'HPH', 'HPB', 'HCB', 'BASE']]
+        + [c+'_fin' for c in ['HP', 'HC', 'HCH', 'HPH', 'HPB', 'HCB', 'BASE']]
+    )
+    to_convert = [c for c in to_convert if c in df.columns]
+    for c in to_convert:
+        df[c] = pd.to_numeric(df[c], errors="coerce")  # Convertir les valeurs
+        df[c] = df[c].replace({pd.NA: np.nan})  # Remplace <NA> par np.nan
+
+    return df
+
 @pa.check_types
 def base_from_electriflux(
     deb: pd.Timestamp, fin: pd.Timestamp, c15: DataFrame[C15Schema], r151: DataFrame[R151Schema]
-) -> DataFrame:
-    
+) -> DataFrame[BaseFacturationModèle]:
     alors = base_facturation_perimetre(deb, fin, c15)
     indexes = ajout_relevés_R151(deb, fin, alors, r151)
-    
-    return indexes
+    res = convert_base(indexes)
+    return res
