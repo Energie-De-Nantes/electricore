@@ -20,24 +20,24 @@ class C15Schema(pa.DataFrameModel):
     Type_Compteur: Series[str] = pa.Field(nullable=False,)
     Num_Compteur: Series[str] = pa.Field(nullable=False,)
     Nature_Index: Series[str] = pa.Field(nullable=True)
-    HP: Series[float] = pa.Field(nullable=True)
-    HC: Series[float] = pa.Field(nullable=True)
-    HCH: Series[float] = pa.Field(nullable=True)
-    HPH: Series[float] = pa.Field(nullable=True)
-    HPB: Series[float] = pa.Field(nullable=True)
-    HCB: Series[float] = pa.Field(nullable=True)
-    BASE: Series[float] = pa.Field(nullable=True)
+    HP: Series[float] = pa.Field(nullable=True, coerce=True)
+    HC: Series[float] = pa.Field(nullable=True, coerce=True)
+    HCH: Series[float] = pa.Field(nullable=True, coerce=True)
+    HPH: Series[float] = pa.Field(nullable=True, coerce=True)
+    HPB: Series[float] = pa.Field(nullable=True, coerce=True)
+    HCB: Series[float] = pa.Field(nullable=True, coerce=True)
+    BASE: Series[float] = pa.Field(nullable=True, coerce=True)
 
 class R151Schema(pa.DataFrameModel):
     pdl: Series[str]
     Date_Releve: Series[Annotated[pd.DatetimeTZDtype, "ns", "Europe/Paris"]] = pa.Field(nullable=True, coerce=True)
-    HP: Series[float] = pa.Field(nullable=True)
-    HC: Series[float] = pa.Field(nullable=True)
-    HCH: Series[float] = pa.Field(nullable=True)
-    HPH: Series[float] = pa.Field(nullable=True)
-    HPB: Series[float] = pa.Field(nullable=True)
-    HCB: Series[float] = pa.Field(nullable=True)
-    BASE: Series[float] = pa.Field(nullable=True)
+    HP: Series[float] = pa.Field(nullable=True, coerce=True)
+    HC: Series[float] = pa.Field(nullable=True, coerce=True)
+    HCH: Series[float] = pa.Field(nullable=True, coerce=True)
+    HPH: Series[float] = pa.Field(nullable=True, coerce=True)
+    HPB: Series[float] = pa.Field(nullable=True, coerce=True)
+    HCB: Series[float] = pa.Field(nullable=True, coerce=True)
+    BASE: Series[float] = pa.Field(nullable=True, coerce=True)
 
 @pa.check_types
 def situation_périmetre(date: pd.Timestamp, c15: DataFrame[C15Schema]) -> DataFrame[C15Schema]:
