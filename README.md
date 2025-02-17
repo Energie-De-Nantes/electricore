@@ -31,6 +31,40 @@ ElectriCore est structuré en plusieurs modules indépendants :
 ├── `outputs/` → Interfaces pour stocker/exporter (`to_odoo.py`, `to_postgres.py`…)\
 ├── `tests/` → Suite de tests unitaires et validation des algorithmes
 
+```mermaid
+graph TD
+
+    subgraph inputs ["inputs/from_electriflux"]
+        style inputs stroke-dasharray: 5 5
+        R15["R15"]
+        R151["R151"]
+        C15["C15"]
+    end
+
+    subgraph core ["core"]
+        style core stroke-dasharray: 5 5
+        Périmètre["Périmètre"]
+        Relevés["Relevés"]
+        Energies["Energies"]
+        Taxes["Taxes"]
+    end
+
+    R15 -->|Relevés| Relevés
+    R151 -->|Relevés| Relevés
+    C15 -->|HistoriquePérimètre| Périmètre
+
+    Périmètre -->|SituationPérimètre| Energies
+    Périmètre -->|VariationsMCT| Taxes
+
+    Relevés -->|Alimente| Energies
+
+    Energies -->|Alimente| Taxes
+    Energies -->|Alimente| outputs
+
+    Taxes -->|Alimente| outputs
+
+
+```
 ---
 
 ## 📊 Utilisation
@@ -63,7 +97,6 @@ pytest tests/
 TODO : Mettre en place un pipeline CI/CD est en place pour garantir la stabilité du projet et éviter les régressions.
 
 ---
-
 ## 🏗️ Roadmap
 
 ✔️ Implémentation du moteur de calculs métier\
@@ -73,4 +106,6 @@ TODO : Mettre en place un pipeline CI/CD est en place pour garantir la stabilit�
 ⏳ Ajout d’un connecteur vers l’API SOAP Enedis\
 ⏳ Stockage des résultats en base de données\
 ⏳ Documentation API détaillée
+
+
 
