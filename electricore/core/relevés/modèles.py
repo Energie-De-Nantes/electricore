@@ -20,7 +20,7 @@ class RelevéIndex(pa.DataFrameModel):
     Id_Calendrier_Distributeur: Series[str] = pa.Field(nullable=True)  # Peut être absent selon la source
     Id_Affaire: Series[str] = pa.Field(nullable=True)  # Référence de la demande associée
 
-    # ⚡ Unité de mesure
+    # 📏 Unité de mesure
     Unité: Series[str] = pa.Field(nullable=False, eq="kWh")
     Précision: Series[str] = pa.Field(nullable=False, isin=["kWh", "Wh", "MWh"])
     
