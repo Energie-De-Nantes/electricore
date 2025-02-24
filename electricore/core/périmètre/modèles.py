@@ -53,10 +53,10 @@ class HistoriquePérimètre(pa.DataFrameModel):
     Etat_Contractuel: Series[str] = pa.Field(nullable=False) # "EN SERVICE", "RESILIE", etc.
     Evenement_Declencheur: Series[str] = pa.Field(nullable=False)  # Ex: "MCT", "MES", "RES"
     Type_Evenement: Series[str] = pa.Field(nullable=False)
-    Categorie: Series[str] = pa.Field(nullable=False)
+    Categorie: Series[str] = pa.Field(nullable=True)
 
     # Infos calculs tarifs
-    Puissance_Souscrite: Series[int] = pa.Field(nullable=False, coerce=True)
+    Puissance_Souscrite: Series[float] = pa.Field(nullable=False, coerce=True)
     Formule_Tarifaire_Acheminement: Series[str] = pa.Field(nullable=False,)
 
     # Infos Compteur

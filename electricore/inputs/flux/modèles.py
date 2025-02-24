@@ -55,3 +55,84 @@ class FluxR151(pa.DataFrameModel):
 
         df["Unité"] = "kWh"
         return df
+
+
+# Définition du Modèle pour le DataFrame c15
+class FluxC15(pa.DataFrameModel):
+    # Timestamp
+    Date_Evenement: Series[Annotated[pd.DatetimeTZDtype, "ns", "Europe/Paris"]] = pa.Field(nullable=False)
+
+    # Couple d'identifiants
+    pdl: Series[str] = pa.Field(nullable=False)
+    Ref_Situation_Contractuelle: Series[str] = pa.Field(nullable=False)
+    
+    # Infos Contractuelles
+    Segment_Clientele: Series[str] = pa.Field(nullable=False)
+    Etat_Contractuel: Series[str] = pa.Field(nullable=False) # "EN SERVICE", "RESILIE", etc.
+    Evenement_Declencheur: Series[str] = pa.Field(nullable=False)  # Ex: "MCT", "MES", "RES"
+    Type_Evenement: Series[str] = pa.Field(nullable=False)
+    Categorie: Series[str] = pa.Field(nullable=True)
+
+    # Infos calculs tarifs
+    Puissance_Souscrite: Series[float] = pa.Field(nullable=False, coerce=True)
+    Formule_Tarifaire_Acheminement: Series[str] = pa.Field(nullable=False,)
+
+    # Infos Compteur
+    Type_Compteur: Series[str] = pa.Field(nullable=False)
+    Num_Compteur: Series[str] = pa.Field(nullable=False)
+
+    # Infos Demande (Optionnel)
+    Ref_Demandeur: Series[str] = pa.Field(nullable=True)
+    Id_Affaire: Series[str] = pa.Field(nullable=True)
+    
+
+
+    Date_Releve: Series[Annotated[pd.DatetimeTZDtype, "ns", "Europe/Paris"]] = pa.Field(nullable=True)
+    Nature_Index: Series[str] = pa.Field(nullable=True)
+    # 📏 Unité de mesure
+    Unité: Series[str] = pa.Field(nullable=False, default='kWh')
+
+    HP: Series[float] = pa.Field(nullable=True, coerce=True)
+    HC: Series[float] = pa.Field(nullable=True, coerce=True)
+    HCH: Series[float] = pa.Field(nullable=True, coerce=True)
+    HPH: Series[float] = pa.Field(nullable=True, coerce=True)
+    HPB: Series[float] = pa.Field(nullable=True, coerce=True)
+    HCB: Series[float] = pa.Field(nullable=True, coerce=True)
+    BASE: Series[float] = pa.Field(nullable=True, coerce=True)
+    
+    @pa.dataframe_parser
+    def add_unite(cls, df: DataFrame) -> DataFrame:
+        if "Unité" not in df.columns:
+            df["Unité"] = "kWh"
+        return df
+
+    # 📆 Parser qui converti les Dates en CET "Europe/Paris"
+    @pa.dataframe_parser
+    def parser_dates(cls, df: DataFrame) -> DataFrame:
+        df["Date_Releve"] = (
+            pd.to_datetime(df["Date_Releve"], utc=True, format="ISO8601")
+            .dt.tz_convert("Europe/Paris")
+        )
+        df["Date_Evenement"] = (
+            pd.to_datetime(df["Date_Evenement"], utc=True, format="ISO8601")
+            .dt.tz_convert("Europe/Paris")
+        )
+        return df
+    
+    # ⚡ Parser qui converti unités en kWh tout en gardant la précision
+    @pa.dataframe_parser
+    def parser_unites(cls, df: DataFrame) -> DataFrame:
+        cols_index = ["HP", "HC", "BASE", "HCH", "HPH", "HPB", "HCB"]
+        
+        # Sauvegarde unité originale
+        df["Précision"] = df["Unité"]
+        
+        # Conversion des unités
+        mask_wh = df["Unité"] == "Wh"
+        df.loc[mask_wh, cols_index] /= 1000
+
+        mask_mwh = df["Unité"] == "MWh"
+        df.loc[mask_mwh, cols_index] *= 1000
+
+        df["Unité"] = "kWh"
+        return df
