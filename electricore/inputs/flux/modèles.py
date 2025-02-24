@@ -33,8 +33,8 @@ class FluxR151(pa.DataFrameModel):
     @pa.dataframe_parser
     def parser_dates(cls, df: DataFrame) -> DataFrame:
         df["Date_Releve"] = (
-            pd.to_datetime(df["Date_Releve"], errors="coerce", utc=True)
-            .dt.tz_convert("Europe/Paris")
+            pd.to_datetime(df["Date_Releve"], errors="coerce")
+            .dt.tz_localize("Europe/Paris")
         )
         return df
 
