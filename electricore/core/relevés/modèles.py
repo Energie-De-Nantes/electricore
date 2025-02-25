@@ -20,10 +20,12 @@ class RelevéIndex(pa.DataFrameModel):
     Id_Calendrier_Distributeur: Series[str] = pa.Field(nullable=True, isin=["DI000001", "DI000002", "DI000003"])
     Id_Affaire: Series[str] = pa.Field(nullable=True)  # Référence de la demande associée
 
+    # 
+    Source: Series[str] = pa.Field(nullable=False, isin=["flux_R151", "flux_R15", "flux_C15"])
+
     # 📏 Unité de mesure
     Unité: Series[str] = pa.Field(nullable=False, eq="kWh")
     Précision: Series[str] = pa.Field(nullable=False, isin=["kWh", "Wh", "MWh"])
-    
 
     # ⚡ Mesures
     HP: Series[float] = pa.Field(nullable=True, coerce=True)
@@ -52,3 +54,17 @@ class RelevéIndex(pa.DataFrameModel):
 
         # Retourne True si toutes les conditions sont valides
         return base_valide and hp_hc_valide and hph_hch_hpb_hcb_valide
+    
+class RequêteRelevé(pa.DataFrameModel):
+    """
+    📌 Modèle Pandera pour les requêtes d'interrogation des relevés d'index.
+
+    Assure que les requêtes sont bien formatées avant d'interroger le DataFrame `RelevéIndex`.
+    """
+    # 📆 Date du relevé demandée
+    Date_Releve: Series[Annotated[pd.DatetimeTZDtype, "ns", "Europe/Paris"]] = pa.Field(nullable=False, coerce=True)
+
+    # 🔹 Identifiant du Point de Livraison (PDL)
+    pdl: Series[str] = pa.Field(nullable=False)
+
+    # 

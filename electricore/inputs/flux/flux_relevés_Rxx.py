@@ -3,7 +3,7 @@ import pandera as pa
 from pandera.typing import DataFrame
 from electricore.core.relevés.modèles import RelevéIndex
 from electricore.inputs.flux.modèles import FluxR151
-
+from icecream import ic
 
 # Flux R151 énergies quotidiennes
 @pa.check_types()
@@ -17,9 +17,9 @@ def charger_flux_r151(source: pd.DataFrame) -> DataFrame[RelevéIndex]:
     # Supprimer les lignes où 'Id_Calendrier_Distributeur' == 'INCONNU' et == 'DN999999'
     # Note : Je ne sais pas ce que DN999999 vient faire là. C'est dans ces lignes qu'on retrouve des valeurs dans la colonnes INCONNU. Pour l'instant on supprime.   
     df = df[~df['Id_Calendrier_Distributeur'].isin(['INCONNU', 'DN999999'])]
-
-    # Réordonner les colonnes pour correspondre au modèle Pandera
-    ordre_colonnes = FluxR151.to_schema().columns.keys()
+    
+    # Réordonner les colonnes pour correspondre au modèle RelevéIndex attendu
+    ordre_colonnes = RelevéIndex.to_schema().columns.keys()
     df = df[ordre_colonnes]
 
     # Supprimer des colonnes si présentes
