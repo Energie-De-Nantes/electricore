@@ -1,0 +1,1 @@
+from electricore.core.énergies.fonctions import préparer_base_énergies
