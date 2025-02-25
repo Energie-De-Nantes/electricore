@@ -3,7 +3,6 @@ import pandera as pa
 from pandera.typing import DataFrame
 from electricore.core.relevés.modèles import RelevéIndex
 from electricore.inputs.flux.modèles import FluxR151
-from icecream import ic
 
 # Flux R151 énergies quotidiennes
 @pa.check_types()
