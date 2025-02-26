@@ -88,7 +88,7 @@ class VariationsMCT(pa.DataFrameModel):
     
     Contient les variations de puissance et de tarif après un MCT.
     """
-
+    pdl: Series[str] = pa.Field(nullable=False)
     Date_MCT: Series[Annotated[pd.DatetimeTZDtype, "ns", "Europe/Paris"]] = pa.Field(nullable=False, coerce=True)
 
     Puissance_Souscrite_Avant: Series[int] = pa.Field(nullable=False, coerce=True)

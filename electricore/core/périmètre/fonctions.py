@@ -134,6 +134,7 @@ def variations_mct_dans_periode(
 
         if not previous_event.empty:
             results.append({
+                "pdl": mct_row["pdl"],
                 "Date_MCT": date_mct,
                 "Puissance_Souscrite_Avant": previous_event.iloc[0]["Puissance_Souscrite"],
                 "Puissance_Souscrite_Après": mct_row["Puissance_Souscrite"],
