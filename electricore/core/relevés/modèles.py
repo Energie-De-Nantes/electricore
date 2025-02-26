@@ -1,7 +1,7 @@
 import pandas as pd
 import pandera as pa
 from pandera.typing import Series, DataFrame
-from typing import Annotated
+from typing import Annotated, Optional
 
 class RelevéIndex(pa.DataFrameModel):
     """
@@ -16,9 +16,9 @@ class RelevéIndex(pa.DataFrameModel):
     pdl: Series[str] = pa.Field(nullable=False)
 
     # 🏢 Références Fournisseur & Distributeur
-    Id_Calendrier_Fournisseur: Series[str] = pa.Field(nullable=True)  # Peut être absent selon la source
+    Id_Calendrier_Fournisseur: Optional[Series[str]] = pa.Field(nullable=True)  # Peut être absent selon la source
     Id_Calendrier_Distributeur: Series[str] = pa.Field(nullable=True, isin=["DI000001", "DI000002", "DI000003"])
-    Id_Affaire: Series[str] = pa.Field(nullable=True)  # Référence de la demande associée
+    Id_Affaire: Optional[Series[str]] = pa.Field(nullable=True)  # Référence de la demande associée
 
     # 
     Source: Series[str] = pa.Field(nullable=False, isin=["flux_R151", "flux_R15", "flux_C15"])
