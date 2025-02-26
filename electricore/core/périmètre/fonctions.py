@@ -5,6 +5,61 @@ from pandera.typing import DataFrame
 from electricore.core.périmètre.modèles import HistoriquePérimètre, SituationPérimètre, VariationsMCT
 
 @pa.check_types
+def filtrer_evenements_periode(
+    historique: DataFrame[HistoriquePérimètre], deb: pd.Timestamp, fin: pd.Timestamp, evenements: list
+) -> DataFrame[HistoriquePérimètre]:
+    """
+    Filtre l'historique pour ne conserver que les événements spécifiques dans la période donnée.
+    """
+    return historique[
+        (historique['Date_Evenement'] >= deb) &
+        (historique['Date_Evenement'] <= fin) &
+        (historique['Evenement_Declencheur'].isin(evenements))
+    ].copy()
+
+@pa.check_types
+def extraire_colonnes_periode(
+    historique: DataFrame[HistoriquePérimètre], 
+    deb: pd.Timestamp, 
+    fin: pd.Timestamp, 
+    evenements: list, 
+    colonnes: list, 
+    # suffixe: str
+) -> DataFrame:
+    """
+    Extrait des colonnes spécifiques pour les événements donnés dans une période donnée.
+
+    Args:
+        historique (DataFrame[HistoriquePérimètre]): Historique des événements contractuels.
+        deb (pd.Timestamp): Début de la période.
+        fin (pd.Timestamp): Fin de la période.
+        evenements (list): Liste des événements à extraire.
+        colonnes (list): Colonnes à extraire.
+        suffixe (str): Suffixe à ajouter aux colonnes ("_deb" ou "_fin").
+
+    Returns:
+        pd.DataFrame: DataFrame filtré, indexé et avec colonnes suffixées.
+    """
+    # Filtrer les événements dans la période donnée
+    filtrés = filtrer_evenements_periode(historique=historique, deb=deb, fin=fin, evenements=evenements)
+    
+    if filtrés.empty:
+        return pd.DataFrame(columns=["Ref_Situation_Contractuelle", "pdl"] + colonnes)
+
+    return filtrés[["pdl"] +colonnes].copy()
+    # Extraction des colonnes et ajout d'un suffixe
+    extrait = (
+        filtrés
+        .copy()
+        # .assign(source=lambda df: "Périmètre_" + df['Evenement_Declencheur'].astype(str))
+        .set_index("Ref_Situation_Contractuelle")[["pdl"] +colonnes]
+        # .add_suffix(suffixe)
+        
+    )
+    
+    return extrait
+
+@pa.check_types
 def extraire_situation(date: pd.Timestamp, historique: DataFrame[HistoriquePérimètre]) -> DataFrame[SituationPérimètre]:
     """
     Extrait la situation du périmètre à une date donnée.
