@@ -46,7 +46,7 @@ def extraire_colonnes_periode(
     if filtrés.empty:
         return pd.DataFrame(columns=["Ref_Situation_Contractuelle", "pdl"] + colonnes)
 
-    return filtrés[["pdl"] +colonnes].copy()
+    return filtrés[["Ref_Situation_Contractuelle", "pdl"] +colonnes].copy()
     # Extraction des colonnes et ajout d'un suffixe
     extrait = (
         filtrés
