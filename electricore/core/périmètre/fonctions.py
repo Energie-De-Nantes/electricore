@@ -93,10 +93,32 @@ def extraire_modifications_impactantes(
     historique["Avant_Puissance_Souscrite"] = historique.groupby("Ref_Situation_Contractuelle")["Puissance_Souscrite"].shift(1)
     historique["Avant_Formule_Tarifaire_Acheminement"] = historique.groupby("Ref_Situation_Contractuelle")["Formule_Tarifaire_Acheminement"].shift(1)
 
-    # 📌 Filtrer uniquement les MCT dans la période donnée
-    impacts = historique[
-        (historique["Date_Evenement"] <= deb) &
-        (historique["Evenement_Declencheur"] == "MCT")
-    ].copy().rename(columns={'Puissance_Souscrite': 'Après_Puissance_Souscrite', 'Formule_Tarifaire_Acheminement':'Après_Formule_Tarifaire_Acheminement'})
 
+    # 📌 Filtrer uniquement les MCT dans la période donnée
+    impacts = (
+          historique[
+            (historique["Date_Evenement"] <= deb) &
+            (historique["Evenement_Declencheur"] == "MCT")]
+          .copy()
+          .rename(columns={'Puissance_Souscrite': 'Après_Puissance_Souscrite', 'Formule_Tarifaire_Acheminement':'Après_Formule_Tarifaire_Acheminement'})
+          .drop(columns=['Segment_Clientele', 'Num_Depannage', 'Categorie', 'Etat_Contractuel', 'Type_Compteur', 'Date_Derniere_Modification_FTA', 'Type_Evenement', 'Ref_Demandeur', 'Id_Affaire'])
+    )
+    
+    # TODO: Prendre en compte plus de cas
+    impacts['Impacte_energies'] = (
+        impacts["Avant_Id_Calendrier_Distributeur"].notna() & 
+        impacts["Après_Id_Calendrier_Distributeur"].notna() & 
+        (impacts["Avant_Id_Calendrier_Distributeur"] != impacts["Après_Id_Calendrier_Distributeur"])
+    )
+
+    # ➕ Ajout de la colonne de lisibilité du changement
+    def generer_resumé(row):
+        modifications = []
+        if row["Avant_Puissance_Souscrite"] != row["Après_Puissance_Souscrite"]:
+            modifications.append(f"P: {row['Avant_Puissance_Souscrite']} → {row['Après_Puissance_Souscrite']}")
+        if row["Avant_Formule_Tarifaire_Acheminement"] != row["Après_Formule_Tarifaire_Acheminement"]:
+            modifications.append(f"FTA: {row['Avant_Formule_Tarifaire_Acheminement']} → {row['Après_Formule_Tarifaire_Acheminement']}")
+        return ", ".join(modifications) if modifications else "Aucun changement"
+    
+    impacts["Résumé_Modification"] = impacts.apply(generer_resumé, axis=1)
     return impacts
