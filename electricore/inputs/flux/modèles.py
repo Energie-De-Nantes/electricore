@@ -85,20 +85,32 @@ class FluxC15(pa.DataFrameModel):
     Ref_Demandeur: Series[str] = pa.Field(nullable=True)
     Id_Affaire: Series[str] = pa.Field(nullable=True)
     
-
-
-    Date_Releve: Series[Annotated[pd.DatetimeTZDtype, "ns", "Europe/Paris"]] = pa.Field(nullable=True)
-    Nature_Index: Series[str] = pa.Field(nullable=True)
     # 📏 Unité de mesure
     Unité: Series[str] = pa.Field(nullable=False, default='kWh')
 
-    HP: Series[float] = pa.Field(nullable=True, coerce=True)
-    HC: Series[float] = pa.Field(nullable=True, coerce=True)
-    HCH: Series[float] = pa.Field(nullable=True, coerce=True)
-    HPH: Series[float] = pa.Field(nullable=True, coerce=True)
-    HPB: Series[float] = pa.Field(nullable=True, coerce=True)
-    HCB: Series[float] = pa.Field(nullable=True, coerce=True)
-    BASE: Series[float] = pa.Field(nullable=True, coerce=True)
+    Avant_Date_Releve: Series[Annotated[pd.DatetimeTZDtype, "ns", "Europe/Paris"]] = pa.Field(nullable=True)
+    Avant_Nature_Index: Series[str] = pa.Field(nullable=True)
+    
+    # On a parfois deux relevés, dans le cas notamment de changement de calendriers
+    Avant_HP: Series[float] = pa.Field(nullable=True, coerce=True)
+    Avant_HC: Series[float] = pa.Field(nullable=True, coerce=True)
+    Avant_HCH: Series[float] = pa.Field(nullable=True, coerce=True)
+    Avant_HPH: Series[float] = pa.Field(nullable=True, coerce=True)
+    Avant_HPB: Series[float] = pa.Field(nullable=True, coerce=True)
+    Avant_HCB: Series[float] = pa.Field(nullable=True, coerce=True)
+    Avant_BASE: Series[float] = pa.Field(nullable=True, coerce=True)
+
+    Après_Date_Releve: Series[Annotated[pd.DatetimeTZDtype, "ns", "Europe/Paris"]] = pa.Field(nullable=True)
+    Après_Nature_Index: Series[str] = pa.Field(nullable=True)
+    
+
+    Après_HP: Series[float] = pa.Field(nullable=True, coerce=True)
+    Après_HC: Series[float] = pa.Field(nullable=True, coerce=True)
+    Après_HCH: Series[float] = pa.Field(nullable=True, coerce=True)
+    Après_HPH: Series[float] = pa.Field(nullable=True, coerce=True)
+    Après_HPB: Series[float] = pa.Field(nullable=True, coerce=True)
+    Après_HCB: Series[float] = pa.Field(nullable=True, coerce=True)
+    Après_BASE: Series[float] = pa.Field(nullable=True, coerce=True)
     
     @pa.dataframe_parser
     def add_unite(cls, df: DataFrame) -> DataFrame:
@@ -109,8 +121,12 @@ class FluxC15(pa.DataFrameModel):
     # 📆 Parser qui converti les Dates en CET "Europe/Paris"
     @pa.dataframe_parser
     def parser_dates(cls, df: DataFrame) -> DataFrame:
-        df["Date_Releve"] = (
-            pd.to_datetime(df["Date_Releve"], utc=True, format="ISO8601")
+        df["Avant_Date_Releve"] = (
+            pd.to_datetime(df["Avant_Date_Releve"], utc=True, format="ISO8601")
+            .dt.tz_convert("Europe/Paris")
+        )
+        df["Après_Date_Releve"] = (
+            pd.to_datetime(df["Après_Date_Releve"], utc=True, format="ISO8601")
             .dt.tz_convert("Europe/Paris")
         )
         df["Date_Evenement"] = (
@@ -122,7 +138,11 @@ class FluxC15(pa.DataFrameModel):
     # ⚡ Parser qui converti unités en kWh tout en gardant la précision
     @pa.dataframe_parser
     def parser_unites(cls, df: DataFrame) -> DataFrame:
-        cols_index = ["HP", "HC", "BASE", "HCH", "HPH", "HPB", "HCB"]
+        classes_temporelles = ["HP", "HC", "BASE", "HCH", "HPH", "HPB", "HCB"]
+        cols_index = (
+            ['Avant_'+c for c in classes_temporelles]
+            + ['Après_'+c for c in classes_temporelles]
+        )
         
         # Sauvegarde unité originale
         df["Précision"] = df["Unité"]
