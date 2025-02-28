@@ -82,17 +82,19 @@ class SituationPérimètre(HistoriquePérimètre):
         """Vérifie que chaque Ref_Situation_Contractuelle est unique dans la situation."""
         return series.is_unique
 
-class VariationsMCT(pa.DataFrameModel):
+class ModificationContractuelleImpactante(pa.DataFrameModel):
     """
     📌 Modèle Pandera pour la sortie de `variations_mct_dans_periode`.
     
-    Contient les variations de puissance et de tarif après un MCT.
+    Contient les variations de puissance et de tarif après un MCT. (et ptet d'autres, à voir)
     """
     pdl: Series[str] = pa.Field(nullable=False)
-    Date_MCT: Series[Annotated[pd.DatetimeTZDtype, "ns", "Europe/Paris"]] = pa.Field(nullable=False, coerce=True)
+    Date_Evenement: Series[Annotated[pd.DatetimeTZDtype, "ns", "Europe/Paris"]] = pa.Field(nullable=False, coerce=True)
 
-    Puissance_Souscrite_Avant: Series[int] = pa.Field(nullable=False, coerce=True)
-    Puissance_Souscrite_Après: Series[int] = pa.Field(nullable=False, coerce=True)
+    Avant_Puissance_Souscrite: Series[float] = pa.Field(nullable=False, coerce=True)
+    Après_Puissance_Souscrite: Series[float] = pa.Field(nullable=False, coerce=True)
 
-    Formule_Tarifaire_Acheminement_Avant: Series[str] = pa.Field(nullable=False)
-    Formule_Tarifaire_Acheminement_Après: Series[str] = pa.Field(nullable=False)
+    Avant_Formule_Tarifaire_Acheminement: Series[str] = pa.Field(nullable=False)
+    Après_Formule_Tarifaire_Acheminement: Series[str] = pa.Field(nullable=False)
+
+    # +relevés avant et Après
