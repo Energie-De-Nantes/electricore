@@ -3,7 +3,7 @@ import pandas as pd
 
 from pandera.typing import DataFrame
 from electricore.core.périmètre import (
-    HistoriquePérimètre, SituationPérimètre, 
+    HistoriquePérimètre, SituationPérimètre, ModificationContractuelleImpactante,
     extraire_situation, extraire_période,
     extraite_relevés_entrées, extraite_relevés_sorties
 )
@@ -74,3 +74,65 @@ def préparer_base_énergies(
     )
 
     return base
+
+# @pa.check_types
+def découper_périodes(
+    base_énergies: DataFrame[BaseCalculEnergies],
+    modifications: DataFrame[ModificationContractuelleImpactante]
+) -> DataFrame[BaseCalculEnergies]:
+    """
+    📌 Découpe la base de calcul d'énergies en sous-périodes calculables.
+
+    Cette fonction segmente les périodes impactées par des modifications contractuelles (MCT)
+    en sous-périodes homogènes, prêtes pour les calculs d’énergies.
+
+    - Ajoute des points de découpage à chaque MCT.
+    - Génère des périodes couvrantes et calculables avec les valeurs mises à jour.
+    
+    🚀 Résultat : Des périodes propres et exploitables pour le calcul des énergies.
+    """
+
+    # 1️⃣ **Séparer les périodes impactées et non impactées**
+    impactées = base_énergies[
+        base_énergies["Ref_Situation_Contractuelle"].isin(modifications["Ref_Situation_Contractuelle"])
+    ]
+    non_impactées = base_énergies[
+        ~base_énergies["Ref_Situation_Contractuelle"].isin(modifications["Ref_Situation_Contractuelle"])
+    ]
+
+    # 2️⃣ **Générer les sous-périodes pour les lignes impactées**
+    all_periods = []
+
+    for ref_situation, modifs in modifications.groupby("Ref_Situation_Contractuelle"):
+        # Trier les modifications chronologiquement
+        modifs = modifs.sort_values(by="Date_Evenement")
+
+        # Récupérer la ligne initiale
+        base_ligne = impactées[impactées["Ref_Situation_Contractuelle"] == ref_situation].iloc[0].copy()
+
+        # Initialisation des dates de découpage
+        dates_coupure = [base_ligne["Date_Releve_deb"]] + \
+                        modifs["Date_Evenement"].tolist() + \
+                        [base_ligne["Date_Releve_fin"]]
+        dates_coupure = sorted(set(dates_coupure))
+
+        # 3️⃣ **Créer une ligne par sous-période**
+        for i in range(len(dates_coupure) - 1):
+            periode = base_ligne.copy()
+            periode["Date_Début"] = dates_coupure[i]
+            periode["Date_Fin"] = dates_coupure[i + 1]
+
+            # Appliquer la modification contractuelle si elle intervient à cette date
+            modif_courante = modifs[modifs["Date_Evenement"] == dates_coupure[i]]
+            if not modif_courante.empty:
+                modif_courante = modif_courante.iloc[0]
+                periode["Puissance_Souscrite"] = modif_courante["Avant_Puissance_Souscrite"]
+                periode["Formule_Tarifaire_Acheminement"] = modif_courante["Avant_Formule_Tarifaire_Acheminement"]
+
+            all_periods.append(periode)
+    return all_periods
+
+    # 4️⃣ **Concaténer les périodes impactées + les non impactées**
+    base_decoupée = pd.concat([non_impactées] + all_periods, ignore_index=True)
+
+    return base_decoupée
