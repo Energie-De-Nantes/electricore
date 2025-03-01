@@ -121,4 +121,8 @@ def extraire_modifications_impactantes(
         return ", ".join(modifications) if modifications else "Aucun changement"
     
     impacts["Résumé_Modification"] = impacts.apply(generer_resumé, axis=1)
+
+    ordre_colonnes = ModificationContractuelleImpactante.to_schema().columns.keys()
+    impacts = impacts[ordre_colonnes]
+    
     return impacts
