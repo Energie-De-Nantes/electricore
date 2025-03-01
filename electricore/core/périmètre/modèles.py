@@ -89,6 +89,9 @@ class ModificationContractuelleImpactante(pa.DataFrameModel):
     Contient les variations de puissance et de tarif après un MCT. (et ptet d'autres, à voir)
     """
     pdl: Series[str] = pa.Field(nullable=False)
+    Impacte_energies : Series[bool] = pa.Field(nullable=False)
+    Résumé_Modification: Series[str] = pa.Field(nullable=False)
+
     Date_Evenement: Series[Annotated[pd.DatetimeTZDtype, "ns", "Europe/Paris"]] = pa.Field(nullable=False, coerce=True)
 
     Avant_Puissance_Souscrite: Series[float] = pa.Field(nullable=False, coerce=True)
