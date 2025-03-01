@@ -18,3 +18,25 @@ def energies_et_taxes(deb: pd.Timestamp, fin: pd.Timestamp, base: pd.DataFrame) 
         supprimer_colonnes(
         fusion_des_sous_periode(turpe)))
     return final.round(2)
+
+
+from electricore.inputs.flux import (
+    FluxC15, FluxR151, 
+    lire_flux_c15, lire_flux_r151
+)
+from electricore.core.énergies.fonctions import préparer_base_énergies, ajouter_relevés
+
+# TODO rename facturation depuis flux ou un truc du genre. 
+def facturation(deb: pd.Timestamp, fin: pd.Timestamp, c15: pd.DataFrame, r151: pd.DataFrame) -> pd.DataFrame:
+    """
+    Calcule les énergies et les taxes pour une période donnée, sur l'ensemble du périmètre
+    """
+    historique = lire_flux_c15(c15)
+    relevés = lire_flux_r151(r151)
+    base = préparer_base_énergies(historique=historique, deb=deb, fin=fin)
+
+    base["Date_Releve_deb"] = base["Date_Releve_deb"].fillna(deb)
+    base["Date_Releve_fin"] = base["Date_Releve_fin"].fillna(fin)
+
+    complet = ajouter_relevés(base, relevés)
+    return complet
