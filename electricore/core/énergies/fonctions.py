@@ -7,7 +7,7 @@ from electricore.core.périmètre import (
     extraire_situation, extraire_période,
     extraite_relevés_entrées, extraite_relevés_sorties
 )
-from electricore.core.relevés import RelevéIndex
+from electricore.core.relevés import RelevéIndex, interroger_relevés
 from electricore.core.énergies.modèles import BaseCalculEnergies
 
 from icecream import ic
@@ -136,3 +136,43 @@ def découper_périodes(
     base_decoupée = pd.concat([non_impactées] + all_periods, ignore_index=True)
 
     return base_decoupée
+
+def ajouter_relevés(
+    base: DataFrame[BaseCalculEnergies], 
+    relevés: DataFrame[RelevéIndex]
+) -> DataFrame[BaseCalculEnergies]:
+    """
+    🔄 Ajoute les relevés manquants dans la base de calcul des énergies.
+
+    Args:
+        base (DataFrame[BaseCalculEnergies]): Base existante des calculs d'énergie.
+        relevés (DataFrame[RelevéIndex]): Relevés d'index disponibles.
+
+    Returns:
+        DataFrame[BaseCalculEnergies]: Base mise à jour avec les relevés ajoutés.
+    """
+    # 🏷️ Extraire les paires (Date_Releve, pdl) manquantes dans la base
+    requêtes_manquantes = (
+        base
+        .loc[base["Source_deb"].isna(), ["Date_Releve_deb", "pdl"]]
+        .drop_duplicates()
+        .rename(columns={'Date_Releve_deb': 'Date_Releve'})
+    )
+    ic(requêtes_manquantes)
+    if requêtes_manquantes.empty:
+        return base  # ✅ Rien à ajouter, on retourne la base inchangée.
+
+    # 🔍 Récupération des relevés manquants
+    relevés_trouvés = interroger_relevés(requêtes_manquantes, relevés).rename(columns={'Date_Releve': 'Date_Releve_deb'})
+    ic(relevés_trouvés)
+    # 📌 Fusionner avec la base en complétant les valeurs NaN uniquement
+    base_mise_a_jour = base.merge(
+        relevés_trouvés, 
+        on=["Date_Releve_deb", "pdl"], 
+        how="left", 
+    )
+
+    return base_mise_a_jour
+
+def calcul_énergies(base: DataFrame[BaseCalculEnergies]):
+    ...
