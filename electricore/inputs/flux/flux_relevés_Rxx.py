@@ -6,9 +6,9 @@ from electricore.inputs.flux.modèles import FluxR151
 
 # Flux R151 énergies quotidiennes
 @pa.check_types()
-def charger_flux_r151(source: pd.DataFrame) -> DataFrame[RelevéIndex]:
+def lire_flux_r151(source: DataFrame[FluxR151]) -> DataFrame[RelevéIndex]:
 
-    df: DataFrame[FluxR151] = FluxR151.validate(source)
+    df: DataFrame[FluxR151] = source.copy()
     df["Source"] = "flux_R151"
 
     # Supprimer des lignes ou 'Id_Calendrier_Distributeur' == 'INCONNU'
@@ -25,4 +25,4 @@ def charger_flux_r151(source: pd.DataFrame) -> DataFrame[RelevéIndex]:
     _to_drop: list[str] = [c for c in ['INCONNU'] if c in df.columns]
     df = df.drop(columns=_to_drop)
 
-    return RelevéIndex.validate(df)
+    return df
