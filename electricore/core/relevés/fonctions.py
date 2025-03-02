@@ -22,9 +22,12 @@ def interroger_relevés(
         DataFrame: DataFrame contenant les relevés correspondant aux requêtes.
     """
 
+    # Sauvegarde de l'index d'origine
+    requêtes_avec_index_col = requêtes.copy().reset_index()
+
     # 🔄 Jointure avec tolérance
     relevés_proches = pd.merge_asof(
-        requêtes.copy().sort_values(by=["Date_Releve"]), 
+        requêtes_avec_index_col.sort_values(by=["Date_Releve"]), 
         relevés.copy().sort_values(by=["Date_Releve"]), 
         on="Date_Releve", 
         by="pdl", 
@@ -32,4 +35,4 @@ def interroger_relevés(
         tolerance=tolérance 
     )
 
-    return relevés_proches.dropna(subset=['Source'])
+    return relevés_proches.dropna(subset=['Source']).set_index('index')
