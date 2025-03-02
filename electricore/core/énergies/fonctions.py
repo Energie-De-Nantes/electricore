@@ -55,14 +55,14 @@ def préparer_base_énergies(
         .set_index('Ref_Situation_Contractuelle')
         .drop(columns=['pdl'])
         .add_suffix('_deb')
-        .assign(E=True)
+        .assign(Entree=True)
     )
     sorties: DataFrame[RelevéIndex] = (
         extraite_relevés_sorties(période)
         .set_index('Ref_Situation_Contractuelle')
         .drop(columns=['pdl'])
         .add_suffix('_fin')
-        .assign(S=True)
+        .assign(Sortie=True)
     )
 
     # On les fusionne dans la base
@@ -70,7 +70,8 @@ def préparer_base_énergies(
         base
         .merge(entrées, how='left', left_on='Ref_Situation_Contractuelle', right_index=True)
         .merge(sorties, how='left', left_on='Ref_Situation_Contractuelle', right_index=True)
-        .fillna({'E': False, 'S': False})
+        .fillna({'Entree': False, 'Sortie': False})
+        .infer_objects(copy=False)  # Explicitly infer proper dtypes after fillna
     )
 
     return base
