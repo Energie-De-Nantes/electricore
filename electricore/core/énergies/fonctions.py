@@ -1,5 +1,6 @@
 import pandera as pa
 import pandas as pd
+import numpy as np
 
 from pandera.typing import DataFrame
 from electricore.core.périmètre import (
@@ -223,9 +224,10 @@ def calculer_energies(
         col_energie = cadran
         
         # Calculer l'énergie comme la différence entre l'index de fin et de début
+        # On arrondit à l'entier inférieur pour éviter les problèmes de précision différentes entre les relevés,
         resultat.loc[lignes_valides, col_energie] = (
-            resultat.loc[lignes_valides, col_fin] - 
-            resultat.loc[lignes_valides, col_deb]
+            np.floor(resultat.loc[lignes_valides, col_fin]) - 
+            np.floor(resultat.loc[lignes_valides, col_deb])
         )
         
         # Vérifier les valeurs négatives (anomalies potentielles)
