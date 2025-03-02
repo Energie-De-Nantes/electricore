@@ -82,6 +82,6 @@ def compute_turpe(entries: pd.DataFrame, rules: pd.DataFrame) -> pd.DataFrame:
     merged = merged.drop(columns=columns_to_drop)
 
     merged['Version_Turpe'] = merged['Version_Turpe'].dt.date
-    return merged
+    return merged.round(2)
 
     

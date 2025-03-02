@@ -31,6 +31,10 @@ from electricore.core.relevés import (
 )
 from electricore.core.énergies.fonctions import préparer_base_énergies, ajouter_relevés, calculer_energies
 
+from electricore.core.taxes.turpe import (
+    get_applicable_rules,
+    compute_turpe,
+)
 # TODO rename facturation depuis flux ou un truc du genre. 
 def facturation_flux(deb: pd.Timestamp, fin: pd.Timestamp, c15: pd.DataFrame, r151: pd.DataFrame) -> pd.DataFrame:
     """
@@ -73,5 +77,8 @@ def facturation(
 
     énergies = calculer_energies(avec_relevés)
 
+    régles_turpe = get_applicable_rules(deb, fin)
+    régles_turpe
+    turpe = compute_turpe(énergies, régles_turpe)
     # colonnes_triees = sorted(énergies.columns)
-    return énergies #.reindex(columns=colonnes_triees)
+    return turpe #.reindex(columns=colonnes_triees)
