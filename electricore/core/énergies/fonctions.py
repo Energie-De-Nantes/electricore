@@ -40,7 +40,12 @@ def préparer_base_énergies(
     _masque = (situation['Etat_Contractuel'] == 'EN SERVICE') | (
         (situation['Etat_Contractuel'] == 'RESILIE') & (situation['Date_Evenement'] >= deb)
     )
-    colonnes_évenement = ['Ref_Situation_Contractuelle', 'pdl']
+    # Ajouter ici des colonnes supp si besoin de l'info plus loin
+    colonnes_évenement = ['Ref_Situation_Contractuelle', 
+                          'pdl', 
+                          'Formule_Tarifaire_Acheminement', 
+                          'Puissance_Souscrite',
+                          'Type_Compteur', 'Num_Compteur', 'Num_Depannage']
     base = (
         situation[_masque]
         .drop(columns=[col for col in situation if col not in colonnes_évenement])
