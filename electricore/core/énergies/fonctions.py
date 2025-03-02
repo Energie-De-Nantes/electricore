@@ -28,13 +28,13 @@ def préparer_base_énergies(
     """
     colonnes_meta_releve = ['Unité', 'Précision', 'Source']
     colonnes_releve = ['Id_Calendrier_Distributeur', 'Date_Releve', 'Nature_Index', 'HP', 'HC', 'HCH', 'HPH', 'HPB', 'HCB', 'BASE']
-    
-    
-    
+
+
+
     # 1) On récupére la situation du périmètre telle qu'elle était à la date de fin
     situation = extraire_situation(fin, historique)
-    
-    # 2) On filtre pour n'avoir que les PDLs en service, ou dont le service c'est terminé dans la période. 
+
+    # 2) On filtre pour n'avoir que les PDLs en service, ou dont le service c'est terminé dans la période.
     # (car pour les autres, aka terminés avant la période, il n'y a rien a calculer pour la période)
     _masque = (situation['Etat_Contractuel'] == 'EN SERVICE') | (
         (situation['Etat_Contractuel'] == 'RESILIE') & (situation['Date_Evenement'] >= deb)
@@ -64,7 +64,7 @@ def préparer_base_énergies(
         .add_suffix('_fin')
         .assign(S=True)
     )
-    
+
     # On les fusionne dans la base
     base = (
         base
@@ -88,7 +88,7 @@ def découper_périodes(
 
     - Ajoute des points de découpage à chaque MCT.
     - Génère des périodes couvrantes et calculables avec les valeurs mises à jour.
-    
+
     🚀 Résultat : Des périodes propres et exploitables pour le calcul des énergies.
     """
 
@@ -139,7 +139,8 @@ def découper_périodes(
 
 def ajouter_relevés(
     base: DataFrame[BaseCalculEnergies], 
-    relevés: DataFrame[RelevéIndex]
+    relevés: DataFrame[RelevéIndex],
+    suffixe: str = "_deb"  # Valeur par défaut "_deb", peut être "_fin"
 ) -> DataFrame[BaseCalculEnergies]:
     """
     🔄 Ajoute les relevés manquants dans la base de calcul des énergies.
@@ -147,32 +148,103 @@ def ajouter_relevés(
     Args:
         base (DataFrame[BaseCalculEnergies]): Base existante des calculs d'énergie.
         relevés (DataFrame[RelevéIndex]): Relevés d'index disponibles.
+        suffixe (str, optional): Suffixe qui identifie s'il s'agit de relevés de début ("_deb") 
+                                ou de fin ("_fin"). Par défaut "_deb".
 
     Returns:
         DataFrame[BaseCalculEnergies]: Base mise à jour avec les relevés ajoutés.
     """
+    # Dynamiquement construire les noms de colonnes basés sur le suffixe
+    col_date_releve = f"Date_Releve{suffixe}"
+    col_source = f"Source{suffixe}"
+    
     # 🏷️ Extraire les paires (Date_Releve, pdl) manquantes dans la base
     requêtes_manquantes = (
         base
-        .loc[base["Source_deb"].isna(), ["Date_Releve_deb", "pdl"]]
+        .loc[base[col_source].isna(), [col_date_releve, "pdl"]]
+        .rename(columns={col_date_releve: 'Date_Releve'})
         .drop_duplicates()
-        .rename(columns={'Date_Releve_deb': 'Date_Releve'})
     )
-    ic(requêtes_manquantes)
     if requêtes_manquantes.empty:
         return base  # ✅ Rien à ajouter, on retourne la base inchangée.
-
+    
     # 🔍 Récupération des relevés manquants
-    relevés_trouvés = interroger_relevés(requêtes_manquantes, relevés).rename(columns={'Date_Releve': 'Date_Releve_deb'})
-    ic(relevés_trouvés)
-    # 📌 Fusionner avec la base en complétant les valeurs NaN uniquement
-    base_mise_a_jour = base.merge(
-        relevés_trouvés, 
-        on=["Date_Releve_deb", "pdl"], 
-        how="left", 
+    relevés_trouvés = (
+        interroger_relevés(requêtes_manquantes, relevés)
+        .add_suffix(suffixe)
+        .rename(columns={f'pdl{suffixe}': 'pdl'})
     )
+    
+    # Préparation pour la mise à jour
+    base_mise_a_jour = base.copy()
+    
+    # Mise à jour
+    base_mise_a_jour.update(relevés_trouvés)
 
     return base_mise_a_jour
 
-def calcul_énergies(base: DataFrame[BaseCalculEnergies]):
-    ...
+def calculer_energies(
+    base: DataFrame[BaseCalculEnergies]
+) -> DataFrame[BaseCalculEnergies]:
+    """
+    ⚡ Calcule les énergies consommées en faisant la différence entre les index de fin et de début
+    pour les lignes où les calendriers de distribution sont identiques.
+
+    Args:
+        base (DataFrame[BaseCalculEnergies]): Base contenant les relevés de début et de fin.
+
+    Returns:
+        DataFrame[BaseCalculEnergies]: Base avec les énergies calculées.
+    """
+    # Liste des cadrans d'index à traiter
+    cadrans = ['HPH', 'HPB', 'HCH', 'HCB', 'HP', 'HC', 'BASE']
+    
+    # Copie de la base pour ne pas modifier l'original
+    resultat = base.copy()
+    
+    # Vérification de l'égalité des calendriers distributeur
+    calendriers_identiques = (
+        resultat["Id_Calendrier_Distributeur_deb"] == 
+        resultat["Id_Calendrier_Distributeur_fin"]
+    )
+    
+    # On ne calcule les énergies que pour les lignes où les calendriers sont identiques
+    lignes_valides = resultat[calendriers_identiques].index
+    
+    if len(lignes_valides) == 0:
+        print("⚠️ Aucune ligne avec des calendriers identiques trouvée.")
+        return resultat
+    
+    # Pour chaque cadran, calculer l'énergie consommée
+    for cadran in cadrans:
+        col_deb = f"{cadran}_deb"
+        col_fin = f"{cadran}_fin"
+        col_energie = cadran
+        
+        # Calculer l'énergie comme la différence entre l'index de fin et de début
+        resultat.loc[lignes_valides, col_energie] = (
+            resultat.loc[lignes_valides, col_fin] - 
+            resultat.loc[lignes_valides, col_deb]
+        )
+        
+        # Vérifier les valeurs négatives (anomalies potentielles)
+        nb_negatifs = (resultat.loc[lignes_valides, col_energie] < 0).sum()
+        if nb_negatifs > 0:
+            print(f"⚠️ {nb_negatifs} valeurs négatives détectées pour {col_energie}")
+    
+    # Ajouter une colonne pour indiquer si l'énergie a été calculée
+    resultat["Energie_Calculee"] = False
+    resultat.loc[lignes_valides, "Energie_Calculee"] = True
+    
+    # Calculer la somme totale des énergies (tous cadrans confondus)
+        # Calcul du nombre de jours entre les deux relevés
+    resultat['j'] = (resultat['Date_Releve_fin'] - resultat['Date_Releve_deb']).dt.days
+
+    # Calculer HP et HC en prenant la somme des colonnes correspondantes
+    resultat['HP'] = resultat[['HPH', 'HPB', 'HP']].sum(axis=1, min_count=1)
+    resultat['HC'] = resultat[['HCH', 'HCB', 'HC']].sum(axis=1, min_count=1)
+
+    # Calculer BASE uniquement là où BASE est NaN
+    resultat.loc[resultat['BASE'].isna(), 'BASE'] = resultat[['HP', 'HC']].sum(axis=1, min_count=1)
+    
+    return resultat
