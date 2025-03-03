@@ -14,7 +14,7 @@ import pandas as pd
 #         supprimer_colonnes(
 #         fusion_des_sous_periode(turpe)))
 #     return final.round(2)
-
+from icecream import ic
 import pandera as pa
 from pandera.typing import DataFrame
 
@@ -23,14 +23,21 @@ from electricore.inputs.flux import (
     lire_flux_c15, lire_flux_r151
 )
 from electricore.core.périmètre import (
-    HistoriquePérimètre, 
-
+    HistoriquePérimètre,
+    ModificationContractuelleImpactante,
+    extraire_historique_à_date,
+    extraire_période,
+    extraire_modifications_impactantes
 )
 from electricore.core.relevés import (
     RelevéIndex, 
 )
-from electricore.core.énergies.fonctions import préparer_base_énergies, ajouter_relevés, calculer_energies
-
+from electricore.core.énergies.fonctions import (
+    BaseCalculEnergies,
+    préparer_base_énergies, 
+    ajouter_relevés, 
+    calculer_energies
+)
 from electricore.core.taxes.turpe import (
     get_applicable_rules,
     compute_turpe,
@@ -61,10 +68,18 @@ def facturation(
     """
     Calcule les énergies et les taxes pour une période donnée, sur l'ensemble du périmètre
     """
+    historique: DataFrame[HistoriquePérimètre] = extraire_historique_à_date(historique=historique, fin=fin)
     # Base = pour tous les couples (ref, pdl), on a toutes les Entrées/Sorties du périmètre et le relevés associés
-    base = préparer_base_énergies(historique=historique, deb=deb, fin=fin)
+    base: DataFrame[BaseCalculEnergies] = préparer_base_énergies(historique=historique, deb=deb, fin=fin)
 
     # TODO: Gestion des cas spécifiques
+    # Pour l'instant, on les met juste de coté.
+    cas_spécifiques: DataFrame[ModificationContractuelleImpactante] = extraire_modifications_impactantes(deb, historique)
+    # Filtrer la base pour enlever les Ref_Contractuelle présentes dans cas_spécifiques
+    if not cas_spécifiques.empty:
+        refs_à_exclure = cas_spécifiques["Ref_Situation_Contractuelle"].unique()
+        base = base[~base["Ref_Situation_Contractuelle"].isin(refs_à_exclure)]
+        print(f"Filtrage de {len(refs_à_exclure)} références contractuelles avec des modifications impactantes")
 
     # Ajouter les dates de début et de fin pour le cas général (aka les na ici)
     base["Date_Releve_deb"] = base["Date_Releve_deb"].fillna(deb)
@@ -78,7 +93,8 @@ def facturation(
     énergies = calculer_energies(avec_relevés)
 
     régles_turpe = get_applicable_rules(deb, fin)
-    régles_turpe
+
     turpe = compute_turpe(énergies, régles_turpe)
+
     # colonnes_triees = sorted(énergies.columns)
     return turpe #.reindex(columns=colonnes_triees)
