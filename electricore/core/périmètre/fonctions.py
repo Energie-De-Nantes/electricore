@@ -22,6 +22,25 @@ def extraire_situation(date: pd.Timestamp, historique: DataFrame[HistoriquePéri
         .sort_values(by="Date_Evenement", ascending=False)
         .drop_duplicates(subset=["Ref_Situation_Contractuelle"], keep="first")
     )
+@pa.check_types
+def extraire_historique_à_date(
+    historique: DataFrame[HistoriquePérimètre],
+    fin: pd.Timestamp
+) -> DataFrame[HistoriquePérimètre]:
+    """
+    Extrait uniquement les variations (changements contractuels) qui ont eu lieu dans une période donnée.
+
+    Args:
+        deb (pd.Timestamp): Début de la période.
+        fin (pd.Timestamp): Fin de la période.
+        historique (pd.DataFrame): Historique des événements contractuels.
+
+    Returns:
+        pd.DataFrame: Un sous-ensemble de l'historique contenant uniquement les variations dans la période.
+    """
+    return historique[
+        (historique["Date_Evenement"] <= fin)
+    ].sort_values(by="Date_Evenement", ascending=True)  # Trie par ordre chronologique
 
 @pa.check_types
 def extraire_période(
@@ -97,7 +116,7 @@ def extraire_modifications_impactantes(
     # 📌 Filtrer uniquement les MCT dans la période donnée
     impacts = (
           historique[
-            (historique["Date_Evenement"] <= deb) &
+            (historique["Date_Evenement"] >= deb) &
             (historique["Evenement_Declencheur"] == "MCT")]
           .copy()
           .rename(columns={'Puissance_Souscrite': 'Après_Puissance_Souscrite', 'Formule_Tarifaire_Acheminement':'Après_Formule_Tarifaire_Acheminement'})
