@@ -4,6 +4,7 @@ import pandera as pa
 from pandera.typing import DataFrame, Series
 from typing import Annotated
 
+from icecream import ic
 class FluxR151(pa.DataFrameModel):
     # 📆 Date du relevé
     Date_Releve: Series[Annotated[pd.DatetimeTZDtype, "ns", "Europe/Paris"]] = pa.Field(nullable=False)
@@ -155,4 +156,69 @@ class FluxC15(pa.DataFrameModel):
         df.loc[mask_mwh, cols_index] *= 1000
 
         df["Unité"] = "kWh"
+        return df
+    
+
+
+class FluxF15(pa.DataFrameModel):
+    
+    
+    # Qu'est-ce qui est facturé ?
+    Id_EV: Series[str] = pa.Field(nullable=False)
+    Libelle_EV: Series[str] = pa.Field(nullable=False)
+    Nature_EV: Series[str] = pa.Field(nullable=False)
+    Date_Debut: Series[Annotated[pd.DatetimeTZDtype, "ns", "Europe/Paris"]] = pa.Field(nullable=False)
+    Date_Fin: Series[Annotated[pd.DatetimeTZDtype, "ns", "Europe/Paris"]] = pa.Field(nullable=False)
+    
+    Unite: Series[str] = pa.Field(nullable=False)
+    # Quantite: Series[float] = pa.Field(nullable=False)
+    
+
+    # 💰 Taxes et Prix
+    Prix_Unitaire: Series[float] = pa.Field(nullable=False, coerce=True)
+    Montant_HT: Series[float] = pa.Field(nullable=False, coerce=True)
+    Taux_TVA_Applicable: Series[str] = pa.Field(nullable=False)
+    
+
+    # 🔹 Identifiant du Point de Livraison (PDL), aussi appelé Point Réf. Mesures (PRM)
+    pdl: Series[str] = pa.Field(nullable=False)
+    
+    # 📆 Infos sur la facture qui contient cette ligne
+    Num_Facture: Series[str] = pa.Field(nullable=False)
+    Date_Facture: Series[Annotated[pd.DatetimeTZDtype, "ns", "Europe/Paris"]] = pa.Field(nullable=False)
+    
+    Type_Facturation: Series[str] = pa.Field(nullable=False)
+
+    @pa.parser("Taux_TVA_Applicable")
+    def parse_TVA(cls, s: Series[str]) -> Series[str]:
+        return pd.to_numeric(s, errors="coerce").fillna(s).astype(str)
+
+    @pa.parser("Nature_EV")
+    def parse_nature_EV(cls, s: Series[str]) -> Series[str]:
+        ic(s)
+        mapping_catégories = {
+            "01": "Acheminement",
+            "02": "Prestations et frais",
+            "03": "Dispositions contractuelles",
+            "04": "Contributions",
+        }
+
+        return s.map(mapping_catégories)
+
+    
+    # 📆 Parser qui converti les Dates en CET "Europe/Paris"
+    @pa.dataframe_parser
+    def parser_dates(cls, df: DataFrame) -> DataFrame:
+        df["Date_Debut"] = (
+            pd.to_datetime(df["Date_Debut"])
+            .dt.tz_localize("Europe/Paris")
+        )
+        df["Date_Fin"] = (
+            pd.to_datetime(df["Date_Fin"])
+            .dt.tz_localize("Europe/Paris")
+        )
+        df["Date_Facture"] = (
+            pd.to_datetime(df["Date_Facture"])
+            .dt.tz_localize("Europe/Paris")
+        )
         return df
