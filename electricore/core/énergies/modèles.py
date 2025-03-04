@@ -15,7 +15,7 @@ class BaseCalculEnergies(pa.DataFrameModel):
     
     # Sous modèle Pèrimètre : Données contractuelles / Métadonnées
     # Timestamp
-    Date_Evenement: Series[Annotated[pd.DatetimeTZDtype, "ns", "Europe/Paris"]] = pa.Field(nullable=False, coerce=True)
+    # Date_Evenement: Series[Annotated[pd.DatetimeTZDtype, "ns", "Europe/Paris"]] = pa.Field(nullable=False, coerce=True)
 
     # Couple d'identifiants
     pdl: Series[str] = pa.Field(nullable=False)
