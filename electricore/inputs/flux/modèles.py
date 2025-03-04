@@ -4,7 +4,7 @@ import pandera as pa
 from pandera.typing import DataFrame, Series
 from typing import Annotated
 
-from icecream import ic
+
 class FluxR151(pa.DataFrameModel):
     # 📆 Date du relevé
     Date_Releve: Series[Annotated[pd.DatetimeTZDtype, "ns", "Europe/Paris"]] = pa.Field(nullable=False)
@@ -195,7 +195,7 @@ class FluxF15(pa.DataFrameModel):
 
     @pa.parser("Nature_EV")
     def parse_nature_EV(cls, s: Series[str]) -> Series[str]:
-        ic(s)
+        
         mapping_catégories = {
             "01": "Acheminement",
             "02": "Prestations et frais",
@@ -205,20 +205,12 @@ class FluxF15(pa.DataFrameModel):
 
         return s.map(mapping_catégories)
 
-    
     # 📆 Parser qui converti les Dates en CET "Europe/Paris"
     @pa.dataframe_parser
     def parser_dates(cls, df: DataFrame) -> DataFrame:
-        df["Date_Debut"] = (
-            pd.to_datetime(df["Date_Debut"])
-            .dt.tz_localize("Europe/Paris")
-        )
-        df["Date_Fin"] = (
-            pd.to_datetime(df["Date_Fin"])
-            .dt.tz_localize("Europe/Paris")
-        )
-        df["Date_Facture"] = (
-            pd.to_datetime(df["Date_Facture"])
-            .dt.tz_localize("Europe/Paris")
-        )
+        for c in ["Date_Debut", "Date_Fin", "Date_Facture"]:
+            df[c] = (
+                pd.to_datetime(df[c])
+                .dt.tz_localize("Europe/Paris")
+            )
         return df
