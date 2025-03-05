@@ -2,15 +2,16 @@ import pandas as pd
 import pandera as pa
 from pandera.typing import DataFrame
 from electricore.core.périmètre.modèles import HistoriquePérimètre
-from electricore.inputs.flux.modèles import FluxF15
+from electricore.inputs.flux.modèles import FluxF1X
 
 from icecream import ic
 
 @pa.check_types()
-def lire_flux_f15(f15: DataFrame[FluxF15]): # -> DataFrame[HistoriquePérimètre]:
+def lire_flux_f1x(f1x: DataFrame[FluxF1X]): # -> DataFrame[HistoriquePérimètre]:
 
-    df: DataFrame[FluxF15] = f15.copy()
+    df: DataFrame[FluxF1X] = f1x.copy()
     # FluxF15.validate(source)
-    df["Source"] = "flux_F15"
     df.sort_values(by=["pdl", "Date_Facture"], inplace=True)
+    ordre_colonnes = FluxF1X.to_schema().columns.keys()
+    df = df[ordre_colonnes]
     return df

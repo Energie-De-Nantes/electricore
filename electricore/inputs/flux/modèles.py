@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pandera as pa
 from pandera.typing import DataFrame, Series
-from typing import Annotated
+from typing import Annotated, Optional
 
 
 class FluxR151(pa.DataFrameModel):
@@ -160,24 +160,26 @@ class FluxC15(pa.DataFrameModel):
     
 
 
-class FluxF15(pa.DataFrameModel):
+class FluxF1X(pa.DataFrameModel):
     
     
     # Qu'est-ce qui est facturé ?
     Id_EV: Series[str] = pa.Field(nullable=False)
     Libelle_EV: Series[str] = pa.Field(nullable=False)
-    Nature_EV: Series[str] = pa.Field(nullable=False)
+    Nature_EV: Optional[Series[str]] = pa.Field(nullable=True) # pas dans le F12
     Date_Debut: Series[Annotated[pd.DatetimeTZDtype, "ns", "Europe/Paris"]] = pa.Field(nullable=False)
     Date_Fin: Series[Annotated[pd.DatetimeTZDtype, "ns", "Europe/Paris"]] = pa.Field(nullable=False)
     
     Unite: Series[str] = pa.Field(nullable=False)
-    # Quantite: Series[float] = pa.Field(nullable=False)
+    Quantite: Series[float] = pa.Field(nullable=False, coerce=True)
     
 
     # 💰 Taxes et Prix
     Prix_Unitaire: Series[float] = pa.Field(nullable=False, coerce=True)
     Montant_HT: Series[float] = pa.Field(nullable=False, coerce=True)
     Taux_TVA_Applicable: Series[str] = pa.Field(nullable=False)
+
+    Formule_Tarifaire_Acheminement: Series[str] = pa.Field(nullable=True)
     
 
     # 🔹 Identifiant du Point de Livraison (PDL), aussi appelé Point Réf. Mesures (PRM)
@@ -189,6 +191,32 @@ class FluxF15(pa.DataFrameModel):
     
     Type_Facturation: Series[str] = pa.Field(nullable=False)
 
+    Source: Series[str] = pa.Field(nullable=False)
+    @pa.dataframe_parser
+    def parser_source(cls, df: DataFrame) -> DataFrame:
+        df["Source"] = "Flux_"+df["Flux"]
+        return df
+    
+    @pa.dataframe_parser
+    def parser_colonnes_exclusives(cls, df: DataFrame) -> DataFrame:
+        # 🛠️ Transformation spécifique F12
+        df_f12 = df[df["Flux"] == "F12"].copy()
+        if not df_f12.empty:
+            df_f12["Formule_Tarifaire_Acheminement"] = df_f12["Tarif_Souscrit"]
+            df_f12["Segment_Clientele"] = df_f12["Code_Segmentation_ERDF"]
+            df_f12["Nature_EV"] = None  # Ce champ n'existe pas en F12
+
+        # 🛠️ Transformation spécifique F15
+        df_f15 = df[df["Flux"] == "F15"].copy()
+        if not df_f15.empty:
+            df_f15["Segment_Clientele"] = "C2"  # les F15 sont toujours en C2
+            df_f15["CSPE_Applicable"] = True
+
+        # Fusionner les deux sous-DataFrames après transformation
+        df_transformed = pd.concat([df_f12, df_f15], ignore_index=True)
+
+        return df_transformed
+    
     @pa.parser("Taux_TVA_Applicable")
     def parse_TVA(cls, s: Series[str]) -> Series[str]:
         return pd.to_numeric(s, errors="coerce").fillna(s).astype(str)
