@@ -56,7 +56,7 @@ graph TD
     Périmètre -->|SituationPérimètre| Energies
     Périmètre -->|VariationsMCT| Taxes
 
-    Relevés -->|Alimente| Energies
+    Relevés -->| RelevéIndex | Energies
 
     Energies -->|Alimente| Taxes
     Energies -->|Alimente| outputs
@@ -69,19 +69,28 @@ graph TD
 
 ## 📊 Utilisation
 
-### Exemple d’appel à **ElectriCore** pour transformer des données :
+### Exemple d’appel à **ElectriCore** pour facturer depuis les flux :
+
+Nécéssite electriflux, et le chargement de certain secrets dans des variables d'environnement (cf Doc ElectriFlux)
 
 ```python
-from electricore.core import process_data
+from electriflux.simple_reader import process_flux
 
-# Chargement des données brutes
-data = [...]  # Données en provenance d'ElectriFlux ou de l'API Enedis
+from electricore.inputs.flux import lire_flux_c15
+historique = lire_flux_c15(process_flux('C15', flux_path / 'C15'))
 
-# Traitement par ElectriCore
-result = process_data(data)
+from electricore.inputs.flux import lire_flux_r151
+relevés = lire_flux_r151(process_flux('R151', flux_path / 'R151'))
 
-# Résultat des calculs métier
-print(result)
+
+from zoneinfo import ZoneInfo
+PARIS_TZ = ZoneInfo("Europe/Paris")
+deb = pd.to_datetime('2025-01-01').tz_localize(PARIS_TZ)
+fin = pd.to_datetime('2025-02-01').tz_localize(PARIS_TZ)
+
+from electricore.core.services import facturation
+factu = facturation(deb, fin, historique, relevés)
+
 ```
 
 ---
@@ -101,8 +110,8 @@ TODO : Mettre en place un pipeline CI/CD est en place pour garantir la stabilit�
 
 ✔️ Implémentation du moteur de calculs métier\
 ✔️ Intégration avec ElectriFlux\
+✔️ Utiliser pandera https://pandera.readthedocs.io/en/stable/ pour valider les dataframes\
 ⏳ CI/CD\
-⏳ Utiliser pandera https://pandera.readthedocs.io/en/stable/ pour valider les dataframes. 
 ⏳ Ajout d’un connecteur vers l’API SOAP Enedis\
 ⏳ Stockage des résultats en base de données\
 ⏳ Documentation API détaillée
