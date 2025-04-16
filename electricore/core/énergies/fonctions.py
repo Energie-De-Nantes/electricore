@@ -191,7 +191,8 @@ def ajouter_relevés(
     return base_mise_a_jour
 
 def calculer_energies(
-    base: DataFrame[BaseCalculEnergies]
+    base: DataFrame[BaseCalculEnergies],
+    inclure_jour_fin: bool=False
 ) -> DataFrame[BaseCalculEnergies]:
     """
     ⚡ Calcule les énergies consommées en faisant la différence entre les index de fin et de début
@@ -246,7 +247,9 @@ def calculer_energies(
     
     # Calculer la somme totale des énergies (tous cadrans confondus)
         # Calcul du nombre de jours entre les deux relevés
-    resultat['j'] = (resultat['Date_Releve_fin'] - resultat['Date_Releve_deb']).dt.days
+    resultat['j'] = (
+        resultat['Date_Releve_fin'].dt.floor("d") - resultat['Date_Releve_deb'].dt.floor("d")
+        ).dt.days + (1 if inclure_jour_fin else 0)
 
     # Calculer HP et HC en prenant la somme des colonnes correspondantes
     resultat['HP'] = resultat[['HPH', 'HPB', 'HP']].sum(axis=1, min_count=1)

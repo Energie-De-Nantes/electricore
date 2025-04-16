@@ -63,7 +63,8 @@ def facturation(
         deb: pd.Timestamp, 
         fin: pd.Timestamp, 
         historique: DataFrame[HistoriquePérimètre], 
-        relevés: DataFrame[RelevéIndex]
+        relevés: DataFrame[RelevéIndex],
+        inclure_jour_fin: bool=False
         ) -> pd.DataFrame:
     """
     Calcule les énergies et les taxes pour une période donnée, sur l'ensemble du périmètre
@@ -90,7 +91,7 @@ def facturation(
     avec_relevés = ajouter_relevés(avec_relevés, relevés, '_deb')
     avec_relevés = ajouter_relevés(avec_relevés, relevés, '_fin')
 
-    énergies = calculer_energies(avec_relevés)
+    énergies = calculer_energies(avec_relevés, inclure_jour_fin)
 
     régles_turpe = get_applicable_rules(deb, fin)
 
