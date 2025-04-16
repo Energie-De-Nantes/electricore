@@ -111,10 +111,18 @@ TODO : Mettre en place un pipeline CI/CD est en place pour garantir la stabilit�
 ✔️ Implémentation du moteur de calculs métier\
 ✔️ Intégration avec ElectriFlux\
 ✔️ Utiliser pandera https://pandera.readthedocs.io/en/stable/ pour valider les dataframes\
+⏳ Implémentation des tests (délégué)\
 ⏳ CI/CD\
 ⏳ Ajout d’un connecteur vers l’API SOAP Enedis\
 ⏳ Stockage des résultats en base de données\
 ⏳ Documentation API détaillée
 
+### Ajout de fonctionnalités : 
 
+✔️ Traitement des flux Facturants Fxx\
+⏳ Calcul automatique des cas compliqués (MCT et co)\
+⏳ Gestion des prestations\
+⏳ Traitement des Affaires, lecture\
+⏳ Traitement des Affaires, écriture\
+⏳ Suivi et maintien des souscriptions aux services de données\
 
