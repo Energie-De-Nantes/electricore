@@ -248,7 +248,7 @@ def calculer_energies(
     # Calculer la somme totale des énergies (tous cadrans confondus)
         # Calcul du nombre de jours entre les deux relevés
     resultat['j'] = (
-        resultat["Date_Releve_fin"].dt.date - resultat["Date_Releve_debut"].dt.date
+        resultat["Date_Releve_fin"].dt.date - resultat["Date_Releve_deb"].dt.date
     ).apply(lambda x: x.days + (1 if inclure_jour_fin else 0))
 
     # Calculer HP et HC en prenant la somme des colonnes correspondantes

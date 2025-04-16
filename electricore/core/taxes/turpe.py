@@ -67,7 +67,7 @@ def compute_turpe(entries: pd.DataFrame, rules: pd.DataFrame) -> pd.DataFrame:
         merged[f"turpe_{col}"] =  pd.to_numeric(merged[f"{col}_entry"] * merged[f"{col}_rule"] / 100, errors='coerce')
 
     merged["turpe_fixe_annuel"] = merged["CS_fixe"] + merged["cg"] + merged["cc"]
-    merged["turpe_fixe_j"] = merged["turpe_fixe_annuel"] / 366
+    merged["turpe_fixe_j"] = merged["turpe_fixe_annuel"] / 365
 
     merged["turpe_fixe"] = merged["turpe_fixe_j"] * merged["j"]
 
