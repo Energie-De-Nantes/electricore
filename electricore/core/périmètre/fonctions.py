@@ -183,7 +183,11 @@ def detecter_points_de_rupture(historique: DataFrame[HistoriquePérimètre]) -> 
         ], axis=1).any(axis=1)
     )
 
-    impact_turpe_variable = impact_turpe_fixe | impact_energie
+    impact_turpe_variable = (
+      (impact_energie) |
+      (historique["Avant_Formule_Tarifaire_Acheminement"].notna() &
+         (historique["Avant_Formule_Tarifaire_Acheminement"] != historique["Formule_Tarifaire_Acheminement"]))
+    )
 
     historique["impact_turpe_fixe"] = impact_turpe_fixe
     historique["impact_energie"] = impact_energie
