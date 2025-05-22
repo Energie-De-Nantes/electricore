@@ -145,3 +145,61 @@ def extraire_modifications_impactantes(
     impacts = impacts[ordre_colonnes]
     
     return impacts
+
+@pa.check_types
+def detecter_points_de_rupture(historique: DataFrame[HistoriquePérimètre]) -> DataFrame[HistoriquePérimètre]:
+    """
+    Enrichit l'historique avec les colonnes d'impact (turpe, énergie, turpe_variable) et un résumé des modifications.
+    Toutes les lignes sont conservées.
+
+    Args:
+        historique (pd.DataFrame): Historique complet des événements contractuels.
+
+    Returns:
+        pd.DataFrame: Historique enrichi avec détection des ruptures et résumé humain.
+    """
+    index_cols = ['BASE', 'HP', 'HC', 'HPH', 'HCH', 'HPB', 'HCB']
+
+    historique = historique.sort_values(by=["Ref_Situation_Contractuelle", "Date_Evenement"]).copy()
+    historique["Avant_Puissance_Souscrite"] = historique.groupby("Ref_Situation_Contractuelle")["Puissance_Souscrite"].shift(1)
+    historique["Avant_Formule_Tarifaire_Acheminement"] = historique.groupby("Ref_Situation_Contractuelle")["Formule_Tarifaire_Acheminement"].shift(1)
+
+    impact_turpe_fixe = (
+        (historique["Avant_Puissance_Souscrite"].notna() &
+         (historique["Avant_Puissance_Souscrite"] != historique["Puissance_Souscrite"])) |
+        (historique["Avant_Formule_Tarifaire_Acheminement"].notna() &
+         (historique["Avant_Formule_Tarifaire_Acheminement"] != historique["Formule_Tarifaire_Acheminement"]))
+    )
+
+    impact_energie = (
+        (historique["Avant_Id_Calendrier_Distributeur"].notna() &
+         historique["Après_Id_Calendrier_Distributeur"].notna() &
+         (historique["Avant_Id_Calendrier_Distributeur"] != historique["Après_Id_Calendrier_Distributeur"])) |
+        pd.concat([
+            (historique[f"Avant_{col}"].notna() &
+             historique[f"Après_{col}"].notna() &
+             (historique[f"Avant_{col}"] != historique[f"Après_{col}"]))
+            for col in index_cols
+        ], axis=1).any(axis=1)
+    )
+
+    impact_turpe_variable = impact_turpe_fixe | impact_energie
+
+    historique["impact_turpe_fixe"] = impact_turpe_fixe
+    historique["impact_energie"] = impact_energie
+    historique["impact_turpe_variable"] = impact_turpe_variable
+
+    def generer_resume(row):
+        modifs = []
+        if row["impact_turpe_fixe"]:
+            if pd.notna(row.get("Avant_Puissance_Souscrite")) and row["Avant_Puissance_Souscrite"] != row["Puissance_Souscrite"]:
+                modifs.append(f"P: {row['Avant_Puissance_Souscrite']} → {row['Puissance_Souscrite']}")
+            if pd.notna(row.get("Avant_Formule_Tarifaire_Acheminement")) and row["Avant_Formule_Tarifaire_Acheminement"] != row["Formule_Tarifaire_Acheminement"]:
+                modifs.append(f"FTA: {row['Avant_Formule_Tarifaire_Acheminement']} → {row['Formule_Tarifaire_Acheminement']}")
+        if row["impact_energie"]:
+            modifs.append("rupture index")
+        return ", ".join(modifs) if modifs else ""
+
+    historique["resume_modification"] = historique.apply(generer_resume, axis=1)
+
+    return historique.reset_index(drop=True)

@@ -6,4 +6,5 @@ from electricore.core.périmètre.fonctions import (
     extraite_relevés_entrées,
     extraite_relevés_sorties,
     extraire_modifications_impactantes,
+    detecter_points_de_rupture
 )
