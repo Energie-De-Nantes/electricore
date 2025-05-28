@@ -170,18 +170,21 @@ def detecter_points_de_rupture(historique: DataFrame[HistoriquePérimètre]) -> 
         (historique["Avant_Formule_Tarifaire_Acheminement"].notna() &
          (historique["Avant_Formule_Tarifaire_Acheminement"] != historique["Formule_Tarifaire_Acheminement"]))
     )
-
-    impact_energie = (
-        (historique["Avant_Id_Calendrier_Distributeur"].notna() &
-         historique["Après_Id_Calendrier_Distributeur"].notna() &
-         (historique["Avant_Id_Calendrier_Distributeur"] != historique["Après_Id_Calendrier_Distributeur"])) |
-        pd.concat([
-            (historique[f"Avant_{col}"].notna() &
-             historique[f"Après_{col}"].notna() &
-             (historique[f"Avant_{col}"] != historique[f"Après_{col}"]))
-            for col in index_cols
-        ], axis=1).any(axis=1)
+    
+    changement_calendrier = (
+        historique["Avant_Id_Calendrier_Distributeur"].notna() &
+        historique["Après_Id_Calendrier_Distributeur"].notna() &
+        (historique["Avant_Id_Calendrier_Distributeur"] != historique["Après_Id_Calendrier_Distributeur"])
     )
+    
+    changement_index = pd.concat([
+        (historique[f"Avant_{col}"].notna() &
+         historique[f"Après_{col}"].notna() &
+         (historique[f"Avant_{col}"] != historique[f"Après_{col}"]))
+        for col in index_cols
+    ], axis=1).any(axis=1)
+
+    impact_energie = changement_calendrier | changement_index
 
     impact_turpe_variable = (
       (impact_energie) |
@@ -202,8 +205,79 @@ def detecter_points_de_rupture(historique: DataFrame[HistoriquePérimètre]) -> 
                 modifs.append(f"FTA: {row['Avant_Formule_Tarifaire_Acheminement']} → {row['Formule_Tarifaire_Acheminement']}")
         if row["impact_energie"]:
             modifs.append("rupture index")
+        if changement_calendrier.loc[row.name]:
+            modifs.append(f"Cal: {row['Avant_Id_Calendrier_Distributeur']} → {row['Après_Id_Calendrier_Distributeur']}")
         return ", ".join(modifs) if modifs else ""
 
     historique["resume_modification"] = historique.apply(generer_resume, axis=1)
 
     return historique.reset_index(drop=True)
+
+
+@pa.check_types
+def inserer_evenements_facturation(historique: DataFrame[HistoriquePérimètre]) -> DataFrame[HistoriquePérimètre]:
+
+    tz = "Europe/Paris"
+
+    # Étape 1 : détecter les dates d'entrée et de sortie
+    entrees = historique[historique['Evenement_Declencheur'].isin(['CFNE', 'MES', 'PMES'])]
+    debuts = entrees.groupby('Ref_Situation_Contractuelle')['Date_Evenement'].min()
+
+    sorties = historique[historique['Evenement_Declencheur'].isin(['RES', 'CFNS'])]
+    fins = sorties.groupby('Ref_Situation_Contractuelle')['Date_Evenement'].min()
+    today = pd.Timestamp.now(tz=tz).to_period("M").start_time.tz_localize(tz)
+
+    periodes = pd.DataFrame({
+        "start": debuts,
+        "end": fins
+    }).fillna(today)
+
+    # Étape 2 : générer tous les 1ers du mois entre min(start) et max(end)
+    min_date = periodes["start"].min()
+    max_date = periodes["end"].max()
+    all_months = pd.date_range(start=min_date, end=max_date, freq="MS", tz=tz)
+
+    # Étape 3 : associer à chaque ref les mois valides (entre son start et end)
+    ref_mois = (
+        periodes.reset_index()
+        .merge(pd.DataFrame({"Date_Evenement": all_months}), how="cross")
+    )
+    ref_mois = ref_mois[(ref_mois["Date_Evenement"] >= ref_mois["start"]) & (ref_mois["Date_Evenement"] <= ref_mois["end"])]
+
+    # Étape 4 : créer les événements à ajouter
+    evenements = ref_mois.copy()
+    evenements["Evenement_Declencheur"] = "FACTURATION"
+    evenements["Type_Evenement"] = "artificiel"
+    evenements["Source"] = "synthese_mensuelle"
+    evenements["resume_modification"] = "Facturation mensuelle"
+
+    evenements = evenements[[
+        "Ref_Situation_Contractuelle", "Date_Evenement",
+        "Evenement_Declencheur", "Type_Evenement", "Source", "resume_modification"
+    ]]
+
+    # Étape 5 : concaténer et propager les infos par ffill sur colonnes non-nullables
+    fusion = pd.concat([historique, evenements], ignore_index=True).sort_values(
+        ["Ref_Situation_Contractuelle", "Date_Evenement"]
+    ).reset_index(drop=True)
+    
+    # Extraire les colonnes non-nullables du modèle Pandera
+    colonnes_ffill = [
+        name for name, annotation in HistoriquePérimètre.__annotations__.items()
+        if name in fusion.columns and HistoriquePérimètre.__fields__[name][1].nullable is False
+    ]
+
+    fusion[colonnes_ffill] = (
+        fusion.groupby("Ref_Situation_Contractuelle")[colonnes_ffill]
+        .ffill()
+    )
+
+    # Étape 6 : filtrer uniquement les événements FACTURATION
+    ajout = fusion[fusion["Evenement_Declencheur"] == "FACTURATION"]
+
+    # Étape 7 : concat final
+    historique_etendu = pd.concat([historique, ajout], ignore_index=True).sort_values(
+        ["Ref_Situation_Contractuelle", "Date_Evenement"]
+    ).reset_index(drop=True)
+
+    return historique_etendu
