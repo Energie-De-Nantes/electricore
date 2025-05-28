@@ -250,10 +250,14 @@ def inserer_evenements_facturation(historique: DataFrame[HistoriquePérimètre])
     evenements["Type_Evenement"] = "artificiel"
     evenements["Source"] = "synthese_mensuelle"
     evenements["resume_modification"] = "Facturation mensuelle"
+    evenements["impact_turpe_fixe"] = True
+    evenements["impact_energie"] = True
+    evenements["impact_turpe_variable"] = True
 
     evenements = evenements[[
         "Ref_Situation_Contractuelle", "Date_Evenement",
-        "Evenement_Declencheur", "Type_Evenement", "Source", "resume_modification"
+        "Evenement_Declencheur", "Type_Evenement", "Source", "resume_modification",
+        "impact_turpe_fixe", "impact_energie", "impact_turpe_variable"
     ]]
 
     # Étape 5 : concaténer et propager les infos par ffill sur colonnes non-nullables
