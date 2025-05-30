@@ -1,5 +1,5 @@
 import pandas as pd
-import pandera as pa
+import pandera.pandas as pa
 from pandera.typing import DataFrame
 from babel.dates import format_date
 
@@ -196,6 +196,12 @@ def detecter_points_de_rupture(historique: DataFrame[HistoriquePérimètre]) -> 
     historique["impact_turpe_fixe"] = impact_turpe_fixe
     historique["impact_energie"] = impact_energie
     historique["impact_turpe_variable"] = impact_turpe_variable
+
+    # Forcer les impacts à True pour les événements d’entrée et de sortie
+    evenements_entree_sortie = ["CFNE", "MES", "PMES", "CFNS", "RES"]
+    mask_entree_sortie = historique["Evenement_Declencheur"].isin(evenements_entree_sortie)
+
+    historique.loc[mask_entree_sortie, ["impact_turpe_fixe", "impact_energie", "impact_turpe_variable"]] = True
 
     def generer_resume(row):
         modifs = []
