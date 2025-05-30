@@ -1,5 +1,5 @@
 import pandas as pd
-import pandera as pa
+import pandera.pandas as pa
 from pandera.typing import Series, DataFrame
 from typing import Annotated, Optional
 
@@ -9,8 +9,12 @@ class RelevéIndex(pa.DataFrameModel):
 
     Ce modèle permet de valider les relevés de compteurs avec leurs métadonnées.
     """
+    # 
+    id: Series[str] = pa.Field(nullable=False)
+
     # 📆 Date du relevé
     Date_Releve: Series[Annotated[pd.DatetimeTZDtype, "ns", "Europe/Paris"]] = pa.Field(nullable=False, coerce=True)
+    ordre_index: Series[bool] = pa.Field(default=0)
 
     # 🔹 Identifiant du Point de Livraison (PDL)
     pdl: Series[str] = pa.Field(nullable=False)
@@ -36,6 +40,26 @@ class RelevéIndex(pa.DataFrameModel):
     HCB: Series[float] = pa.Field(nullable=True, coerce=True)
     BASE: Series[float] = pa.Field(nullable=True, coerce=True)
 
+    @pa.dataframe_parser
+    def parser_ordre_index(cls, df: pd.DataFrame) -> pd.DataFrame:
+        if "ordre_index" not in df.columns:
+            df["ordre_index"] = False
+        else:
+            df["ordre_index"] = df["ordre_index"].fillna(False).astype(bool)
+        return df
+    
+    @pa.dataframe_parser
+    def parser_id(cls, df: pd.DataFrame) -> pd.DataFrame:
+        # Génère un id lisible à partir des colonnes clés
+        df["id"] = df[["pdl", "Date_Releve", "Source", "ordre_index"]].astype(str).agg("-".join, axis=1)
+        return df
+    
+    @pa.dataframe_parser
+    def parser_colonnes(cls, df: pd.DataFrame) -> pd.DataFrame:
+        ordre = list(cls.to_schema().columns.keys())
+        df = df[[col for col in ordre if col in df.columns]]
+        return df
+    
     @pa.dataframe_check
     def verifier_présence_mesures(cls, df: DataFrame) -> bool:
         """Vérifie que les mesures attendues sont présentes selon l'Id_Calendrier_Distributeur."""
