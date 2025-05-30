@@ -1,5 +1,5 @@
 import pandas as pd
-import pandera as pa
+import pandera.pandas as pa
 from pandera.typing import DataFrame
 from electricore.core.relevés.modèles import RelevéIndex
 from electricore.inputs.flux.modèles import FluxR151
@@ -18,8 +18,8 @@ def lire_flux_r151(source: DataFrame[FluxR151]) -> DataFrame[RelevéIndex]:
     df = df[~df['Id_Calendrier_Distributeur'].isin(['INCONNU', 'DN999999'])]
     
     # Réordonner les colonnes pour correspondre au modèle RelevéIndex attendu
-    ordre_colonnes = RelevéIndex.to_schema().columns.keys()
-    df = df[ordre_colonnes]
+    # ordre_colonnes = RelevéIndex.to_schema().columns.keys()
+    # df = df[ordre_colonnes]
 
     # Supprimer des colonnes si présentes
     _to_drop: list[str] = [c for c in ['INCONNU'] if c in df.columns]

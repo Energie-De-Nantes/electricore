@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-import pandera as pa
+import pandera.pandas as pa
 from pandera.typing import DataFrame, Series
 from typing import Annotated, Optional
 
@@ -43,11 +43,13 @@ class FluxR151(pa.DataFrameModel):
     @pa.dataframe_parser
     def parser_unites(cls, df: DataFrame) -> DataFrame:
         cols_index = ["HP", "HC", "BASE", "HCH", "HPH", "HPB", "HCB"]
+        df[cols_index] = df[cols_index].apply(pd.to_numeric, errors="coerce")
         
         # Sauvegarde unité originale
         df["Précision"] = df["Unité"]
         
         # Conversion des unités
+        
         mask_wh = df["Unité"] == "Wh"
         df.loc[mask_wh, cols_index] /= 1000
 
@@ -144,7 +146,7 @@ class FluxC15(pa.DataFrameModel):
             ['Avant_'+c for c in classes_temporelles]
             + ['Après_'+c for c in classes_temporelles]
         )
-        
+        df[cols_index] = df[cols_index].apply(pd.to_numeric, errors="coerce")
         # Sauvegarde unité originale
         df["Précision"] = df["Unité"]
         

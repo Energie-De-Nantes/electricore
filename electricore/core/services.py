@@ -15,7 +15,7 @@ import pandas as pd
 #         fusion_des_sous_periode(turpe)))
 #     return final.round(2)
 from icecream import ic
-import pandera as pa
+import pandera.pandas as pa
 from pandera.typing import DataFrame
 
 from electricore.inputs.flux import (

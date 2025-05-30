@@ -1,5 +1,5 @@
 import pandas as pd
-import pandera as pa
+import pandera.pandas as pa
 from pandera.typing import DataFrame
 
 from electricore.core.relevés.modèles import RelevéIndex, RequêteRelevé

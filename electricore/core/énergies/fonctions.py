@@ -1,4 +1,4 @@
-import pandera as pa
+import pandera.pandas as pa
 import pandas as pd
 import numpy as np
 
