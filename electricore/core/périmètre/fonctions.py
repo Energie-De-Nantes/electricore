@@ -294,7 +294,7 @@ def inserer_evenements_facturation(historique: DataFrame[HistoriquePérimètre])
     return historique_etendu
 
 
-def generer_periodes_abonnement(historique_etendu: pd.DataFrame) -> pd.DataFrame:
+def generer_periodes_abonnement(historique_etendu: DataFrame[HistoriquePérimètre]) -> pd.DataFrame:
     """
     Génère les périodes d'abonnement à partir des événements impactant le TURPE fixe.
     """
@@ -346,3 +346,46 @@ def generer_periodes_abonnement(historique_etendu: pd.DataFrame) -> pd.DataFrame
         "nb_jours",
         "periode_debut",
     ]].reset_index(drop=True)
+
+@pa.check_types
+def extraire_releves_evenements(historique: DataFrame[HistoriquePérimètre]) -> DataFrame[RelevéIndex]:
+    """
+    Génère des relevés d'index (avant/après) à partir d'un historique enrichi des événements contractuels.
+
+    - Un relevé "avant" (ordre_index=0) est créé à partir des index Avant_*
+    - Un relevé "après" (ordre_index=1) est créé à partir des index Après_*
+    - La colonne 'ordre_index' permet de trier correctement les relevés successifs.
+
+    Args:
+        historique (pd.DataFrame): Historique enrichi (HistoriquePérimètreÉtendu).
+
+    Returns:
+        pd.DataFrame: Relevés d’index conformes au modèle RelevéIndex.
+    """
+    index_cols = ["BASE", "HP", "HC", "HCH", "HPH", "HPB", "HCB", "Id_Calendrier_Distributeur"]
+    identifiants = ["pdl"]
+
+    # Créer relevés "avant"
+    avant = historique[identifiants + ["Date_Evenement"] + [f"Avant_{col}" for col in index_cols]].copy()
+    avant = avant.rename(columns={f"Avant_{col}": col for col in index_cols})
+    avant["ordre_index"] = 0
+
+    # Créer relevés "après"
+    apres = historique[identifiants + ["Date_Evenement"] + [f"Après_{col}" for col in index_cols]].copy()
+    apres = apres.rename(columns={f"Après_{col}": col for col in index_cols})
+    apres["ordre_index"] = 1
+
+    # Concaténer
+    resultats = pd.concat([avant, apres], ignore_index=True)
+    resultats = resultats.dropna(subset=index_cols, how="all")
+    resultats["Source"] = "flux_C15"
+    resultats["Unité"] = "kWh" 
+    resultats["Précision"] = "kWh"
+
+    resultats = resultats.rename(columns={"Date_Evenement": "Date_Releve"})
+
+    # Réordonner selon modèle RelevéIndex (on ne garde que les colonnes présentes)
+    colonnes_finales = [col for col in RelevéIndex.to_schema().columns.keys() if col in resultats.columns]
+    resultats = resultats[colonnes_finales]
+
+    return resultats
