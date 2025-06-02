@@ -293,60 +293,6 @@ def inserer_evenements_facturation(historique: DataFrame[HistoriquePérimètre])
 
     return historique_etendu
 
-
-def generer_periodes_abonnement(historique_etendu: DataFrame[HistoriquePérimètre]) -> pd.DataFrame:
-    """
-    Génère les périodes d'abonnement à partir des événements impactant le TURPE fixe.
-    """
-    # 1. Filtrer les événements pertinents
-    filtres = (
-        (historique_etendu["impact_turpe_fixe"] == True) &
-        (historique_etendu["Ref_Situation_Contractuelle"].notna())
-    )
-    abonnements = historique_etendu[filtres].copy()
-
-    # 2. Trier par ref et date
-    abonnements = abonnements.sort_values(["Ref_Situation_Contractuelle", "Date_Evenement"])
-
-    # 3. Construire les débuts et fins de période
-    abonnements["periode_debut"] = abonnements["Date_Evenement"]
-    abonnements["periode_fin"] = abonnements.groupby("Ref_Situation_Contractuelle")["Date_Evenement"].shift(-1)
-
-    # 4. Ne garder que les lignes valides
-    periodes = abonnements.dropna(subset=["periode_fin"]).copy()
-
-    # 5. Ajouter FTA, Puissance, et nb jours (arrondi à la journée, pas de time)
-    periodes["Formule_Tarifaire_Acheminement"] = periodes["Formule_Tarifaire_Acheminement"]
-    periodes["Puissance_Souscrite"] = periodes["Puissance_Souscrite"]
-    periodes["nb_jours"] = (periodes["periode_fin"].dt.normalize() - periodes["periode_debut"].dt.normalize()).dt.days
-
-    # 5. Ajouter FTA, Puissance, et nb jours (arrondi à la journée, pas de time)
-    periodes["Formule_Tarifaire_Acheminement"] = periodes["Formule_Tarifaire_Acheminement"]
-    periodes["Puissance_Souscrite"] = periodes["Puissance_Souscrite"]
-    periodes["nb_jours"] = (periodes["periode_fin"].dt.normalize() - periodes["periode_debut"].dt.normalize()).dt.days
-
-    # 6. Ajout lisibles
-    periodes['periode_debut_lisible'] = periodes['periode_debut'].apply(
-        lambda d: format_date(d, "d MMMM yyyy", locale="fr_FR") if not pd.isna(d) else None
-    )
-    periodes['periode_fin_lisible'] = periodes['periode_fin'].apply(
-        lambda d: format_date(d, "d MMMM yyyy", locale="fr_FR") if not pd.isna(d) else "en cours"
-    )
-
-    periodes['mois_annee'] = periodes['periode_debut'].apply(
-        lambda d: format_date(d, "LLLL yyyy", locale="fr_FR")
-    )
-    return periodes[[
-        "Ref_Situation_Contractuelle",
-        "mois_annee",
-        "periode_debut_lisible",
-        "periode_fin_lisible",
-        "Formule_Tarifaire_Acheminement",
-        "Puissance_Souscrite",
-        "nb_jours",
-        "periode_debut",
-    ]].reset_index(drop=True)
-
 @pa.check_types
 def extraire_releves_evenements(historique: DataFrame[HistoriquePérimètre]) -> DataFrame[RelevéIndex]:
     """
