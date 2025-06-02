@@ -3,6 +3,7 @@ import pandera.pandas as pa
 from pandera.typing import Series, DataFrame
 from typing import Annotated, Optional
 
+from icecream import ic
 class RelevéIndex(pa.DataFrameModel):
     """
     📌 Modèle Pandera pour les relevés d’index issus de différentes sources.
@@ -18,6 +19,7 @@ class RelevéIndex(pa.DataFrameModel):
 
     # 🔹 Identifiant du Point de Livraison (PDL)
     pdl: Series[str] = pa.Field(nullable=False)
+    Ref_Situation_Contractuelle: Optional[Series[str]]
 
     # 🏢 Références Fournisseur & Distributeur
     Id_Calendrier_Fournisseur: Optional[Series[str]] = pa.Field(nullable=True)  # Peut être absent selon la source
