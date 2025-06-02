@@ -3,6 +3,13 @@ from pathlib import Path
 
 from zoneinfo import ZoneInfo
 
+import pandera.pandas as pa
+from pandera.typing import DataFrame
+from electricore.core.abonnements.modèles import PeriodeAbonnement
+
+from icecream import ic
+PARIS_TZ = ZoneInfo("Europe/Paris")
+
 def load_turpe_rules() -> pd.DataFrame:
     """
     Charge les règles TURPE à partir du fichier CSV.
@@ -11,7 +18,7 @@ def load_turpe_rules() -> pd.DataFrame:
     turpe_rules = pd.read_csv(file_path, parse_dates=["start", "end"])
 
     # Convertir en date avec fuseau horaire
-    PARIS_TZ = ZoneInfo("Europe/Paris")
+    
     turpe_rules["start"] = pd.to_datetime(turpe_rules["start"]).dt.tz_localize(PARIS_TZ)
     turpe_rules["end"] = pd.to_datetime(turpe_rules["end"]).dt.tz_localize(PARIS_TZ, ambiguous='NaT')
 
@@ -84,4 +91,41 @@ def compute_turpe(entries: pd.DataFrame, rules: pd.DataFrame) -> pd.DataFrame:
     merged['Version_Turpe'] = merged['Version_Turpe'].dt.date
     return merged.round(2)
 
+@pa.check_types
+def ajouter_turpe_fixe(
+    periodes: DataFrame[PeriodeAbonnement],
+    regles: pd.DataFrame
+) -> DataFrame[PeriodeAbonnement]:
+    """
+    Calcule le TURPE fixe pour chaque période d'abonnement, selon les règles tarifaires.
+
+    Args:
+        periodes: Périodes d'abonnement homogènes (Formule_Tarifaire_Acheminement, Puissance_Souscrite, nb_jours)
+        regles: Règles tarifaires TURPE, avec colonnes : FTA, b, cg, cc
+
+    Returns:
+        Périodes enrichies avec `turpe_fixe_journalier` et `turpe_fixe`
+    """
+
+    # Réplication croisée FTA entre périodes et règles
+    df = pd.merge(
+        periodes,
+        regles,
+        on="Formule_Tarifaire_Acheminement",
+        how="left",
+        suffixes=("", "_regle")
+    )
+
+    # Filtrage temporel
+    df["end"] = df["end"].fillna(pd.Timestamp("2100-01-01").tz_localize(PARIS_TZ))
+
+    mask = (df["periode_debut"] >= df["start"]) & (df["periode_debut"] < df["end"])
+    df = df[mask].copy()
+
+    # Calculs
+    df["turpe_fixe_annuel"] = (df["b"] * df["Puissance_Souscrite"]) + df["cg"] + df["cc"]
+    df["turpe_fixe_journalier"] = df["turpe_fixe_annuel"] / 365
+    df["turpe_fixe"] = (df["turpe_fixe_journalier"] * df["nb_jours"]).round(2)
+
+    return df[PeriodeAbonnement.to_schema().columns.keys()]
     

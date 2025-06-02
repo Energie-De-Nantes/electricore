@@ -16,3 +16,7 @@ class PeriodeAbonnement(pa.DataFrameModel):
     Puissance_Souscrite: Series[float]
     nb_jours: Series[int]
     periode_debut: Series[Annotated[pd.DatetimeTZDtype, "ns", "Europe/Paris"]] = pa.Field(nullable=False, coerce=True)
+
+    # Champs de sortie (optionnels)
+    turpe_fixe_journalier: Optional[Series[float]] = pa.Field(nullable=True)
+    turpe_fixe: Optional[Series[float]] = pa.Field(nullable=True)
