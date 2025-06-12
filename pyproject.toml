@@ -1,6 +1,6 @@
 [project]
 name = "electricore"
-version = "0.2.4"
+version = "0.2.5"
 description = ""
 authors = [
     {name = "Virgile"}
@@ -20,4 +20,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.4"
+
+[test]
+command = "poetry run pytest -q"
 
