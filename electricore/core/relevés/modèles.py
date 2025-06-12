@@ -44,6 +44,7 @@ class RelevéIndex(pa.DataFrameModel):
 
     @pa.dataframe_parser
     def parser_ordre_index(cls, df: pd.DataFrame) -> pd.DataFrame:
+        df = df.copy()
         if "ordre_index" not in df.columns:
             df["ordre_index"] = False
         else:
@@ -52,6 +53,7 @@ class RelevéIndex(pa.DataFrameModel):
     
     @pa.dataframe_parser
     def parser_id(cls, df: pd.DataFrame) -> pd.DataFrame:
+        df = df.copy()
         # Génère un id lisible à partir des colonnes clés
         df["id"] = df[["pdl", "Date_Releve", "Source", "ordre_index"]].astype(str).agg("-".join, axis=1)
         return df
@@ -59,6 +61,7 @@ class RelevéIndex(pa.DataFrameModel):
     @pa.dataframe_parser
     def parser_colonnes(cls, df: pd.DataFrame) -> pd.DataFrame:
         ordre = list(cls.to_schema().columns.keys())
+        df = df.copy()
         df = df[[col for col in ordre if col in df.columns]]
         return df
     
