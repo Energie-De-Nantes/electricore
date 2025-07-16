@@ -9,6 +9,7 @@ class PeriodeAbonnement(pa.DataFrameModel):
     pour une situation contractuelle donnée.
     """
     Ref_Situation_Contractuelle: Series[str]
+    pdl: Series[str]
     mois_annee: Series[str]  # ex: "mars 2025"
     periode_debut_lisible: Series[str]  # ex: "1 mars 2025"
     periode_fin_lisible: Series[str]    # ex: "31 mars 2025" ou "en cours"

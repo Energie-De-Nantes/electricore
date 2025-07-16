@@ -406,7 +406,7 @@ def inserer_evenements_facturation(historique: DataFrame[HistoriquePérimètre])
     print(f"✅ Historique étendu : {len(historique_etendu)} événements total")
     print(f"   - Événements originaux : {len(historique)}")
     print(f"   - Événements artificiels : {len(ajout)}")
-    historique_etendu.to_csv('coucou.csv')
+    
     return historique_etendu
 
 @pa.check_types

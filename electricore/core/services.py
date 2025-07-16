@@ -41,6 +41,15 @@ from electricore.core.énergies.fonctions import (
 from electricore.core.taxes.turpe import (
     get_applicable_rules,
     compute_turpe,
+    load_turpe_rules,
+    ajouter_turpe_fixe
+)
+from electricore.core.périmètre.fonctions import (
+    detecter_points_de_rupture,
+    inserer_evenements_facturation
+)
+from electricore.core.abonnements.fonctions import (
+    generer_periodes_abonnement
 )
 # TODO rename facturation depuis flux ou un truc du genre. 
 def facturation_flux(deb: pd.Timestamp, fin: pd.Timestamp, c15: pd.DataFrame, r151: pd.DataFrame) -> pd.DataFrame:
@@ -99,3 +108,36 @@ def facturation(
 
     # colonnes_triees = sorted(énergies.columns)
     return turpe #.reindex(columns=colonnes_triees)
+
+
+@pa.check_types
+def generer_periodes_completes(historique: DataFrame[HistoriquePérimètre]) -> pd.DataFrame:
+    """
+    Pipeline complète pour générer les périodes d'abonnement avec TURPE.
+    
+    Orchestre toute la chaîne de traitement :
+    1. Détection des points de rupture
+    2. Insertion des événements de facturation
+    3. Génération des périodes d'abonnement
+    4. Ajout du TURPE fixe
+    
+    Args:
+        historique: DataFrame contenant l'historique des événements contractuels
+        
+    Returns:
+        DataFrame avec les périodes d'abonnement enrichies du TURPE fixe
+    """
+    # Étape 1 : Détecter les points de rupture
+    historique_ruptures = detecter_points_de_rupture(historique)
+    
+    # Étape 2 : Insérer les événements de facturation
+    historique_etendu = inserer_evenements_facturation(historique_ruptures)
+    
+    # Étape 3 : Générer les périodes d'abonnement
+    periodes = generer_periodes_abonnement(historique_etendu)
+    
+    # Étape 4 : Ajouter le TURPE fixe
+    regles = load_turpe_rules()
+    periodes_turpe = ajouter_turpe_fixe(periodes, regles)
+    
+    return periodes_turpe

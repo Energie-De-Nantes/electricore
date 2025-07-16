@@ -30,14 +30,7 @@ def generer_periodes_abonnement(historique: DataFrame[HistoriquePérimètre]) ->
     # 4. Ne garder que les lignes valides
     periodes = abonnements.dropna(subset=["periode_fin"]).copy()
 
-    # 5. Ajouter FTA, Puissance, et nb jours (arrondi à la journée, pas de time)
-    periodes["Formule_Tarifaire_Acheminement"] = periodes["Formule_Tarifaire_Acheminement"]
-    periodes["Puissance_Souscrite"] = periodes["Puissance_Souscrite"]
-    periodes["nb_jours"] = (periodes["periode_fin"].dt.normalize() - periodes["periode_debut"].dt.normalize()).dt.days
-
-    # 5. Ajouter FTA, Puissance, et nb jours (arrondi à la journée, pas de time)
-    periodes["Formule_Tarifaire_Acheminement"] = periodes["Formule_Tarifaire_Acheminement"]
-    periodes["Puissance_Souscrite"] = periodes["Puissance_Souscrite"]
+    # 5. Ajouter nb jours (arrondi à la journée, pas de time)
     periodes["nb_jours"] = (periodes["periode_fin"].dt.normalize() - periodes["periode_debut"].dt.normalize()).dt.days
 
     # 6. Ajout lisibles
@@ -53,6 +46,7 @@ def generer_periodes_abonnement(historique: DataFrame[HistoriquePérimètre]) ->
     )
     return periodes[[
         "Ref_Situation_Contractuelle",
+        "pdl",
         "mois_annee",
         "periode_debut_lisible",
         "periode_fin_lisible",
