@@ -37,7 +37,7 @@ from electricore.core.énergies.fonctions import (
     préparer_base_énergies, 
     ajouter_relevés, 
     calculer_energies,
-    combiner_releves_evenements,
+    ajouter_releves_mensuels,
     generer_grille_facturation,
     calculer_periodes_energie
 )
@@ -175,7 +175,7 @@ def pipeline_energie(
     # Pipeline avec pandas pipe et curryfication
     return (
         evenements_impactants
-        .pipe(combiner_releves_evenements(relevés))
+        .pipe(ajouter_releves_mensuels(relevés))
         .pipe(generer_grille_facturation)
         .pipe(calculer_periodes_energie)
     )
@@ -223,7 +223,7 @@ def calculer_abonnements_et_energies(
     periodes_energie = (
         historique_etendu
         .pipe(lambda df: df.query("impact_energie or impact_turpe_variable"))
-        .pipe(combiner_releves_evenements(relevés))
+        .pipe(ajouter_releves_mensuels(relevés))
         .pipe(generer_grille_facturation)
         .pipe(calculer_periodes_energie)
     )

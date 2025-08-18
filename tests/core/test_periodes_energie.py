@@ -6,8 +6,7 @@ from hypothesis.extra.pandas import data_frames, columns
 from pandera.typing import DataFrame
 
 from electricore.core.énergies.fonctions import (
-    extraire_releves_mensuels, 
-    combiner_releves_evenements,
+    ajouter_releves_mensuels,
     generer_grille_facturation,
     calculer_periodes_energie
 )
@@ -135,21 +134,6 @@ def test_extraire_releves_mensuels_basic():
     assert all(result['Date_Releve'].dt.day == 1)
     assert all(result['source'] == 'regular')
     assert all(result['ordre_index'] == 0)
-
-
-@given(releves_index_strategy())
-def test_extraire_releves_mensuels_property(releves_data):
-    """Test basé sur propriétés : tous les relevés mensuels extraits sont des premiers du mois."""
-    result = extraire_releves_mensuels(releves_data)
-    
-    # Propriété : tous les relevés extraits doivent être des premiers du mois
-    assert all(result['Date_Releve'].dt.day == 1)
-    
-    # Propriété : la source doit être 'regular'
-    assert all(result['source'] == 'regular')
-    
-    # Propriété : pas plus de relevés que d'originaux
-    assert len(result) <= len(releves_data)
 
 
 def test_calculer_periodes_energie_coherence():

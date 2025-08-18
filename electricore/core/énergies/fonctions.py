@@ -262,59 +262,31 @@ def calculer_energies(
     return resultat
 
 
-@pa.check_types
-def extraire_releves_mensuels(relevés: DataFrame[RelevéIndex]) -> pd.DataFrame:
-    """
-    Extrait les relevés mensuels (premiers du mois) avec source et ordre_index.
-    
-    Args:
-        relevés: DataFrame des relevés d'index
-        
-    Returns:
-        DataFrame avec les relevés mensuels enrichis
-    """
-    rel_mensuels = relevés[relevés['Date_Releve'].dt.day == 1].copy()
-    rel_mensuels['source'] = 'regular'
-    rel_mensuels['ordre_index'] = 0
-    
-    return rel_mensuels
-
-
 @curry
-def combiner_releves_evenements(relevés: DataFrame[RelevéIndex],
-                               evenements_impactants: DataFrame[HistoriquePérimètre]) -> pd.DataFrame:
+def ajouter_releves_mensuels(relevés: DataFrame[RelevéIndex],
+                            evenements_impactants: DataFrame[HistoriquePérimètre]) -> pd.DataFrame:
     """
-    Combine les relevés d'événements avec les relevés mensuels, gérant les doublons.
+    Ajoute les relevés mensuels aux événements impactants, gérant les doublons.
     
     Args:
-        relevés: Relevés mensuels
+        relevés: Relevés d'index complets
         evenements_impactants: Événements ayant un impact sur l'énergie
         
     Returns:
-        DataFrame combiné sans doublons, priorisé par source event
+        DataFrame enrichi avec relevés mensuels, flux_C15 prioritaire sur flux_R151
     """
     from electricore.core.périmètre import extraire_releves_evenements
     
-    # Extraire les relevés d'événements
-    rel_evenements = extraire_releves_evenements(evenements_impactants).copy()
-    rel_evenements['source'] = 'event'
-    
-    # Extraire les relevés mensuels
-    rel_mensuels = extraire_releves_mensuels(relevés)
-    
-    # Combiner avec gestion des doublons
-    rel_combines = pd.concat([rel_evenements, rel_mensuels], ignore_index=True)
-    rel_combines = rel_combines.sort_values(['pdl', 'Date_Releve', 'source']).reset_index(drop=True)
-    
-    # Supprimer les lignes regular quand il y a un event le même jour
-    duplicates_mask = rel_combines.duplicated(subset=['pdl', 'Date_Releve'], keep=False)
-    mask_regular_to_remove = (
-        duplicates_mask & 
-        (rel_combines['source'] == 'regular') &
-        rel_combines.groupby(['pdl', 'Date_Releve'])['source'].transform(lambda x: 'event' in x.values)
+    # Pipeline de combinaison et déduplication avec pandas natif
+    return (
+        pd.concat([
+            extraire_releves_evenements(evenements_impactants), 
+            relevés[relevés['Date_Releve'].dt.day == 1]  # Relevés mensuels (premiers du mois)
+        ], ignore_index=True)
+        .sort_values(['pdl', 'Date_Releve', 'Source'])  # flux_C15 < flux_R151 alphabétiquement
+        .drop_duplicates(subset=['pdl', 'Date_Releve'], keep='first')  # Garde flux_C15 prioritaire
+        .reset_index(drop=True)
     )
-    
-    return rel_combines[~mask_regular_to_remove].reset_index(drop=True)
 
 
 @curry
