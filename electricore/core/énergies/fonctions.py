@@ -1,6 +1,7 @@
 import pandera.pandas as pa
 import pandas as pd
 import numpy as np
+from toolz import curry
 
 from pandera.typing import DataFrame
 from electricore.core.périmètre import (
@@ -9,7 +10,7 @@ from electricore.core.périmètre import (
     extraite_relevés_entrées, extraite_relevés_sorties
 )
 from electricore.core.relevés import RelevéIndex, interroger_relevés
-from electricore.core.énergies.modèles import BaseCalculEnergies
+from electricore.core.énergies.modèles import BaseCalculEnergies, PeriodeEnergie
 
 from icecream import ic
 
@@ -259,3 +260,188 @@ def calculer_energies(
     resultat.loc[resultat['BASE'].isna(), 'BASE'] = resultat[['HP', 'HC']].sum(axis=1, min_count=1)
     
     return resultat
+
+
+@pa.check_types
+def extraire_releves_mensuels(relevés: DataFrame[RelevéIndex]) -> pd.DataFrame:
+    """
+    Extrait les relevés mensuels (premiers du mois) avec source et ordre_index.
+    
+    Args:
+        relevés: DataFrame des relevés d'index
+        
+    Returns:
+        DataFrame avec les relevés mensuels enrichis
+    """
+    rel_mensuels = relevés[relevés['Date_Releve'].dt.day == 1].copy()
+    rel_mensuels['source'] = 'regular'
+    rel_mensuels['ordre_index'] = 0
+    
+    return rel_mensuels
+
+
+@curry
+def combiner_releves_evenements(relevés: DataFrame[RelevéIndex],
+                               evenements_impactants: DataFrame[HistoriquePérimètre]) -> pd.DataFrame:
+    """
+    Combine les relevés d'événements avec les relevés mensuels, gérant les doublons.
+    
+    Args:
+        relevés: Relevés mensuels
+        evenements_impactants: Événements ayant un impact sur l'énergie
+        
+    Returns:
+        DataFrame combiné sans doublons, priorisé par source event
+    """
+    from electricore.core.périmètre import extraire_releves_evenements
+    
+    # Extraire les relevés d'événements
+    rel_evenements = extraire_releves_evenements(evenements_impactants).copy()
+    rel_evenements['source'] = 'event'
+    
+    # Extraire les relevés mensuels
+    rel_mensuels = extraire_releves_mensuels(relevés)
+    
+    # Combiner avec gestion des doublons
+    rel_combines = pd.concat([rel_evenements, rel_mensuels], ignore_index=True)
+    rel_combines = rel_combines.sort_values(['pdl', 'Date_Releve', 'source']).reset_index(drop=True)
+    
+    # Supprimer les lignes regular quand il y a un event le même jour
+    duplicates_mask = rel_combines.duplicated(subset=['pdl', 'Date_Releve'], keep=False)
+    mask_regular_to_remove = (
+        duplicates_mask & 
+        (rel_combines['source'] == 'regular') &
+        rel_combines.groupby(['pdl', 'Date_Releve'])['source'].transform(lambda x: 'event' in x.values)
+    )
+    
+    return rel_combines[~mask_regular_to_remove].reset_index(drop=True)
+
+
+@curry
+def generer_grille_facturation(rel_combines: pd.DataFrame) -> pd.DataFrame:
+    """
+    Génère la grille complète de facturation mensuelle pour chaque PDL.
+    
+    Args:
+        rel_combines: DataFrame des relevés combinés
+        
+    Returns:
+        DataFrame avec grille complète incluant points de facturation
+    """
+    # Déterminer la période couverte pour chaque PDL
+    pdl_periods = rel_combines.groupby('pdl')['Date_Releve'].agg(['min', 'max']).reset_index()
+    
+    # Générer toutes les dates de premier du mois pour chaque PDL
+    grille_facturation = []
+    
+    for _, row in pdl_periods.iterrows():
+        pdl = row['pdl']
+        start_date = row['min'].replace(day=1)  
+        end_date = row['max'].replace(day=1)   
+        
+        # Générer les premiers du mois entre start et end
+        dates_facturation = pd.date_range(start=start_date, end=end_date, freq='MS')
+        
+        for date_fact in dates_facturation:
+            grille_facturation.append({
+                'pdl': pdl,
+                'Date_Releve': date_fact,
+                'source': 'facturation',
+                'ordre_index': 0
+            })
+    
+    grille_facturation_df = pd.DataFrame(grille_facturation)
+    
+    # Fusionner avec les relevés existants
+    rel_complets = pd.merge(
+        grille_facturation_df,
+        rel_combines,
+        on=['pdl', 'Date_Releve'],
+        how='left',
+        suffixes=('_grid', '_data')
+    )
+    
+    # Nettoyer les colonnes
+    cadrans = ['BASE', 'HP', 'HC', 'HPH', 'HPB', 'HCH', 'HCB']
+    rel_complets['source'] = rel_complets['source_data'].fillna('facturation')
+    rel_complets['ordre_index'] = rel_complets['ordre_index_data'].fillna(0)
+    rel_complets['has_data'] = rel_complets['source_data'].notna()
+    
+    # Conserver les colonnes essentielles
+    colonnes_finales = ['pdl', 'Date_Releve', 'source', 'ordre_index', 'has_data'] + \
+                      [col for col in cadrans if col in rel_complets.columns]
+    
+    return rel_complets[colonnes_finales].sort_values(['pdl', 'Date_Releve', 'ordre_index']).reset_index(drop=True)
+
+
+@pa.check_types
+def calculer_periodes_energie(relevés_complets: pd.DataFrame) -> DataFrame[PeriodeEnergie]:
+    """
+    Calcule les périodes d'énergie avec IDs et flags de qualité des données.
+    
+    Args:
+        relevés_complets: DataFrame avec colonnes pdl, Date_Releve, source, has_data, cadrans
+        
+    Returns:
+        DataFrame[PeriodeEnergie] avec périodes d'énergie incluant les références d'index
+    """
+    cadrans = ["BASE", "HP", "HC", "HPH", "HPB", "HCH", "HCB"]
+    
+    # Ajouter un ID temporaire pour chaque relevé
+    relevés = relevés_complets.copy()
+    relevés = relevés.sort_values(['pdl', 'Date_Releve', 'ordre_index']).reset_index(drop=True)
+    relevés['index_id'] = range(len(relevés))
+    
+    # Calculer les décalages pour les relevés précédents
+    relevés_décalés = relevés.groupby('pdl').shift(1)
+    
+    # Préparer le résultat
+    résultat = relevés.copy()
+    résultat['Date_Debut'] = relevés_décalés['Date_Releve']
+    résultat['source_avant'] = relevés_décalés['source']
+    résultat['has_data_avant'] = relevés_décalés['has_data']
+    résultat['id_index_avant'] = relevés_décalés['index_id']
+    
+    # Renommer pour clarifier
+    résultat = résultat.rename(columns={
+        'Date_Releve': 'Date_Fin',
+        'source': 'source_apres',
+        'has_data': 'has_data_apres',
+        'index_id': 'id_index_apres'
+    })
+    
+    # Calculer les énergies
+    for cadran in cadrans:
+        if cadran in relevés.columns:
+            résultat[f'{cadran}_energie'] = relevés[cadran] - relevés_décalés[cadran]
+        else:
+            résultat[f'{cadran}_energie'] = np.nan
+    
+    # Calculer les flags de qualité
+    résultat['data_complete'] = résultat['has_data_avant'] & résultat['has_data_apres']
+    résultat['duree_jours'] = (résultat['Date_Fin'] - résultat['Date_Debut']).dt.days
+    résultat['periode_irreguliere'] = résultat['duree_jours'] > 35
+    
+    # Colonnes finales
+    colonnes_energie = [f'{cadran}_energie' for cadran in cadrans if f'{cadran}_energie' in résultat.columns]
+    colonnes_finales = [
+        'pdl', 'Date_Debut', 'Date_Fin', 'duree_jours',
+        'id_index_avant', 'id_index_apres',
+        'source_avant', 'source_apres', 
+        'data_complete', 'periode_irreguliere'
+    ] + colonnes_energie
+    
+    résultat = résultat[colonnes_finales]
+    
+    # Filtrer les lignes sans date de début (premier relevé de chaque PDL)
+    résultat = résultat.dropna(subset=['Date_Debut'])
+    
+    # Filtrer les périodes de durée zéro
+    résultat = résultat[résultat['Date_Debut'] != résultat['Date_Fin']]
+    
+    # Convertir les IDs en object pour préserver le type attendu par Pandera
+    if not résultat.empty:
+        résultat['id_index_avant'] = résultat['id_index_avant'].astype('object')
+        résultat['id_index_apres'] = résultat['id_index_apres'].astype('object')
+    
+    return résultat.reset_index(drop=True)

@@ -36,8 +36,12 @@ from electricore.core.énergies.fonctions import (
     BaseCalculEnergies,
     préparer_base_énergies, 
     ajouter_relevés, 
-    calculer_energies
+    calculer_energies,
+    combiner_releves_evenements,
+    generer_grille_facturation,
+    calculer_periodes_energie
 )
+from electricore.core.énergies.modèles import PeriodeEnergie
 from electricore.core.taxes.turpe import (
     get_applicable_rules,
     compute_turpe,
@@ -111,7 +115,7 @@ def facturation(
 
 
 @pa.check_types
-def generer_periodes_completes(historique: DataFrame[HistoriquePérimètre]) -> pd.DataFrame:
+def generer_periodes_abonnement(historique: DataFrame[HistoriquePérimètre]) -> pd.DataFrame:
     """
     Pipeline complète pour générer les périodes d'abonnement avec TURPE.
     
@@ -141,3 +145,43 @@ def generer_periodes_completes(historique: DataFrame[HistoriquePérimètre]) -> 
     periodes_turpe = ajouter_turpe_fixe(periodes, regles)
     
     return periodes_turpe
+
+
+@pa.check_types
+def generer_periodes_energie(
+    historique: DataFrame[HistoriquePérimètre], 
+    relevés: DataFrame[RelevéIndex]
+) -> DataFrame[PeriodeEnergie]:
+    """
+    Pipeline complète pour générer les périodes d'énergie avec approche pipe + curry.
+    
+    Orchestre toute la chaîne de traitement :
+    1. Détection des points de rupture
+    2. Insertion des événements de facturation  
+    3. Combinaison des relevés événements + mensuels
+    4. Génération de la grille complète de facturation
+    5. Calcul des périodes d'énergie avec flags qualité
+    
+    Args:
+        historique: DataFrame contenant l'historique des événements contractuels
+        relevés: DataFrame contenant les relevés d'index R151
+        
+    Returns:
+        DataFrame[PeriodeEnergie] avec les périodes d'énergie calculées
+    """
+    # Étape 1-2 : Détecter les points de rupture et insérer les événements de facturation
+    historique_ruptures = detecter_points_de_rupture(historique)
+    historique_etendu = inserer_evenements_facturation(historique_ruptures)
+    
+    # Étape 3 : Filtrer les événements impactant l'énergie
+    evenements_impactants = historique_etendu[
+        historique_etendu["impact_energie"] | historique_etendu["impact_turpe_variable"]
+    ].copy()
+    
+    # Pipeline avec pandas pipe et curryfication
+    return (
+        evenements_impactants
+        .pipe(combiner_releves_evenements(relevés))
+        .pipe(generer_grille_facturation)
+        .pipe(calculer_periodes_energie)
+    )

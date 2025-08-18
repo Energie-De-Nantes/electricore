@@ -169,3 +169,8 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Codanna code intelligence cache
+.codanna/
+.codannaignore
+.fastembed_cache/
