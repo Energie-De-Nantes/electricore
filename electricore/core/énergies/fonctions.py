@@ -10,6 +10,7 @@ from electricore.core.périmètre import (
     extraite_relevés_entrées, extraite_relevés_sorties
 )
 from electricore.core.relevés import RelevéIndex, interroger_relevés
+from electricore.core.relevés.modèles import RequêteRelevé
 from electricore.core.énergies.modèles import BaseCalculEnergies, PeriodeEnergie
 
 from icecream import ic
@@ -264,86 +265,49 @@ def calculer_energies(
 
 @curry
 def ajouter_releves_mensuels(relevés: DataFrame[RelevéIndex],
-                            evenements_impactants: DataFrame[HistoriquePérimètre]) -> pd.DataFrame:
+                            événements: DataFrame[HistoriquePérimètre]) -> pd.DataFrame:
     """
-    Ajoute les relevés mensuels aux événements impactants, gérant les doublons.
+    Combine relevés d'événements, mensuels et points de facturation.
     
     Args:
-        relevés: Relevés d'index complets
-        evenements_impactants: Événements ayant un impact sur l'énergie
+        relevés: Relevés d'index complets (flux R151)
+        événements: Événements contractuels + événements FACTURATION
         
     Returns:
-        DataFrame enrichi avec relevés mensuels, flux_C15 prioritaire sur flux_R151
+        DataFrame enrichi, priorité: flux_C15 > flux_R151 > facturation
     """
     from electricore.core.périmètre import extraire_releves_evenements
     
-    # Pipeline de combinaison et déduplication avec pandas natif
+    # 1. Séparer les événements contractuels des événements FACTURATION
+    evt_contractuels = événements[événements['Evenement_Declencheur'] != 'FACTURATION']
+    evt_facturation = événements[événements['Evenement_Declencheur'] == 'FACTURATION']
+    
+    # 2. Extraire les relevés des événements contractuels
+    rel_evenements = extraire_releves_evenements(evt_contractuels) if not evt_contractuels.empty else pd.DataFrame()
+    
+    # 3. Pour FACTURATION : construire requête et interroger les relevés existants
+    if not evt_facturation.empty:
+        requete = RequêteRelevé.validate(
+            evt_facturation[['pdl', 'Date_Evenement']].rename(columns={'Date_Evenement': 'Date_Releve'})
+        )
+        rel_facturation = interroger_relevés(requete, relevés)
+        if not rel_facturation.empty:
+            # rel_facturation['Source'] = 'facturation'
+            ...
+    else:
+        rel_facturation = pd.DataFrame()
+    
+    # 4. Extraire relevés mensuels
+    rel_mensuels = relevés[relevés['Date_Releve'].dt.day == 1]
+    
+    # 5. Combiner avec priorité alphabétique
     return (
-        pd.concat([
-            extraire_releves_evenements(evenements_impactants), 
-            relevés[relevés['Date_Releve'].dt.day == 1]  # Relevés mensuels (premiers du mois)
-        ], ignore_index=True)
-        .sort_values(['pdl', 'Date_Releve', 'Source'])  # flux_C15 < flux_R151 alphabétiquement
-        .drop_duplicates(subset=['pdl', 'Date_Releve'], keep='first')  # Garde flux_C15 prioritaire
+        pd.concat([rel_evenements, rel_mensuels, rel_facturation], ignore_index=True)
+        .sort_values(['pdl', 'Date_Releve', 'Source'])
+        .drop_duplicates(subset=['pdl', 'Date_Releve'], keep='first')
         .reset_index(drop=True)
     )
 
-
-@curry
-def generer_grille_facturation(rel_combines: pd.DataFrame) -> pd.DataFrame:
-    """
-    Génère la grille complète de facturation mensuelle pour chaque PDL.
-    
-    Args:
-        rel_combines: DataFrame des relevés combinés
-        
-    Returns:
-        DataFrame avec grille complète incluant points de facturation
-    """
-    # Déterminer la période couverte pour chaque PDL
-    pdl_periods = rel_combines.groupby('pdl')['Date_Releve'].agg(['min', 'max']).reset_index()
-    
-    # Générer toutes les dates de premier du mois pour chaque PDL
-    grille_facturation = []
-    
-    for _, row in pdl_periods.iterrows():
-        pdl = row['pdl']
-        start_date = row['min'].replace(day=1)  
-        end_date = row['max'].replace(day=1)   
-        
-        # Générer les premiers du mois entre start et end
-        dates_facturation = pd.date_range(start=start_date, end=end_date, freq='MS')
-        
-        for date_fact in dates_facturation:
-            grille_facturation.append({
-                'pdl': pdl,
-                'Date_Releve': date_fact,
-                'source': 'facturation',
-                'ordre_index': 0
-            })
-    
-    grille_facturation_df = pd.DataFrame(grille_facturation)
-    
-    # Fusionner avec les relevés existants
-    rel_complets = pd.merge(
-        grille_facturation_df,
-        rel_combines,
-        on=['pdl', 'Date_Releve'],
-        how='left',
-        suffixes=('_grid', '_data')
-    )
-    
-    # Nettoyer les colonnes
-    cadrans = ['BASE', 'HP', 'HC', 'HPH', 'HPB', 'HCH', 'HCB']
-    rel_complets['source'] = rel_complets['source_data'].fillna('facturation')
-    rel_complets['ordre_index'] = rel_complets['ordre_index_data'].fillna(0)
-    rel_complets['has_data'] = rel_complets['source_data'].notna()
-    
-    # Conserver les colonnes essentielles
-    colonnes_finales = ['pdl', 'Date_Releve', 'source', 'ordre_index', 'has_data'] + \
-                      [col for col in cadrans if col in rel_complets.columns]
-    
-    return rel_complets[colonnes_finales].sort_values(['pdl', 'Date_Releve', 'ordre_index']).reset_index(drop=True)
 
 
 @pa.check_types

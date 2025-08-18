@@ -38,7 +38,6 @@ from electricore.core.énergies.fonctions import (
     ajouter_relevés, 
     calculer_energies,
     ajouter_releves_mensuels,
-    generer_grille_facturation,
     calculer_periodes_energie
 )
 from electricore.core.énergies.modèles import PeriodeEnergie
@@ -167,16 +166,17 @@ def pipeline_energie(
     historique_ruptures = detecter_points_de_rupture(historique)
     historique_etendu = inserer_evenements_facturation(historique_ruptures)
     
-    # Étape 3 : Filtrer les événements impactant l'énergie
-    evenements_impactants = historique_etendu[
-        historique_etendu["impact_energie"] | historique_etendu["impact_turpe_variable"]
+    # Étape 3 : Filtrer les événements pour l'énergie + événements FACTURATION
+    événements = historique_etendu[
+        (historique_etendu["impact_energie"]) | 
+        (historique_etendu["impact_turpe_variable"]) |
+        (historique_etendu["Evenement_Declencheur"] == "FACTURATION")
     ].copy()
     
-    # Pipeline avec pandas pipe et curryfication
+    # Pipeline avec pandas pipe et curryfication (plus de generer_grille_facturation)
     return (
-        evenements_impactants
+        événements
         .pipe(ajouter_releves_mensuels(relevés))
-        .pipe(generer_grille_facturation)
         .pipe(calculer_periodes_energie)
     )
 
@@ -222,9 +222,8 @@ def calculer_abonnements_et_energies(
     # Branche 2 : Périodes d'énergie
     periodes_energie = (
         historique_etendu
-        .pipe(lambda df: df.query("impact_energie or impact_turpe_variable"))
+        .pipe(lambda df: df.query("impact_energie or impact_turpe_variable or Evenement_Declencheur == 'FACTURATION'"))
         .pipe(ajouter_releves_mensuels(relevés))
-        .pipe(generer_grille_facturation)
         .pipe(calculer_periodes_energie)
     )
     

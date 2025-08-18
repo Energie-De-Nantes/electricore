@@ -86,11 +86,11 @@ class PeriodeEnergie(pa.DataFrameModel):
     # Période
     Date_Debut: Series[Annotated[pd.DatetimeTZDtype, "ns", "Europe/Paris"]] = pa.Field(nullable=False, coerce=True)
     Date_Fin: Series[Annotated[pd.DatetimeTZDtype, "ns", "Europe/Paris"]] = pa.Field(nullable=False, coerce=True)
-    duree_jours: Series[float] = pa.Field(nullable=True, ge=0)
+    duree_jours: Series[int] = pa.Field(nullable=True, ge=0)
     
     # Sources des relevés
-    source_avant: Series[str] = pa.Field(nullable=False, isin=["event", "regular", "facturation"])
-    source_apres: Series[str] = pa.Field(nullable=False, isin=["event", "regular", "facturation"])
+    source_avant: Series[str] = pa.Field(nullable=False)
+    source_apres: Series[str] = pa.Field(nullable=False)
     
     # Flags de qualité des données
     data_complete: Series[bool] = pa.Field(nullable=False)

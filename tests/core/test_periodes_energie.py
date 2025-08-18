@@ -7,7 +7,6 @@ from pandera.typing import DataFrame
 
 from electricore.core.énergies.fonctions import (
     ajouter_releves_mensuels,
-    generer_grille_facturation,
     calculer_periodes_energie
 )
 from electricore.core.énergies.modèles import PeriodeEnergie
