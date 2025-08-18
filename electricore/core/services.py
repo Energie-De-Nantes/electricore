@@ -228,7 +228,7 @@ def calculer_abonnements_et_energies(
     # Branche 2 : Périodes d'énergie
     periodes_energie = (
         historique_etendu
-        .pipe(lambda df: df[df["impact_energie"] | df["impact_turpe_variable"]].copy())
+        .pipe(lambda df: df.query("impact_energie or impact_turpe_variable"))
         .pipe(combiner_releves_evenements(relevés))
         .pipe(generer_grille_facturation)
         .pipe(calculer_periodes_energie)
