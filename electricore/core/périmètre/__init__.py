@@ -8,5 +8,6 @@ from electricore.core.périmètre.fonctions import (
     extraire_modifications_impactantes,
     detecter_points_de_rupture,
     inserer_evenements_facturation,
-    extraire_releves_evenements
+    extraire_releves_evenements,
+    enrichir_historique_périmètre
 )

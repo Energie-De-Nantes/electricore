@@ -451,3 +451,27 @@ def extraire_releves_evenements(historique: DataFrame[HistoriquePérimètre]) ->
     resultats = resultats[colonnes_finales]
 
     return resultats
+
+
+@pa.check_types
+def enrichir_historique_périmètre(historique: DataFrame[HistoriquePérimètre]) -> DataFrame[HistoriquePérimètre]:
+    """
+    Enrichit l'historique du périmètre avec les points de rupture et les événements de facturation.
+    
+    Cette fonction combine deux traitements essentiels sur l'historique du périmètre :
+    1. Détection des points de rupture (changements de périodes)
+    2. Insertion des événements de facturation synthétiques (1er du mois)
+    
+    Utilisée comme étape préparatoire dans les pipelines de calcul d'abonnements et d'énergies.
+    
+    Args:
+        historique: Historique des événements contractuels du périmètre
+        
+    Returns:
+        DataFrame enrichi avec points de rupture détectés et événements de facturation
+    """
+    return (
+        historique
+        .pipe(detecter_points_de_rupture)
+        .pipe(inserer_evenements_facturation)
+    )

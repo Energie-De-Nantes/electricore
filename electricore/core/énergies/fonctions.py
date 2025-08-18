@@ -264,17 +264,21 @@ def calculer_energies(
 
 
 @curry
-def ajouter_releves_mensuels(relevés: DataFrame[RelevéIndex],
-                            événements: DataFrame[HistoriquePérimètre]) -> pd.DataFrame:
+def reconstituer_chronologie_relevés(relevés: DataFrame[RelevéIndex],
+                                    événements: DataFrame[HistoriquePérimètre]) -> pd.DataFrame:
     """
-    Combine relevés d'événements, mensuels et points de facturation.
+    Reconstitue la chronologie complète des relevés nécessaires pour la facturation.
+    
+    Assemble tous les relevés aux dates pertinentes en combinant :
+    - Les relevés aux dates d'événements contractuels (flux C15 : MES, RES, MCT)
+    - Les relevés aux dates de facturation (dates prises dans événements et mesures dans le flux R151 : dates spécifiques de facturation)
     
     Args:
-        relevés: Relevés d'index complets (flux R151)
+        relevés: Relevés d'index quotidiens complets (flux R151)
         événements: Événements contractuels + événements FACTURATION
         
     Returns:
-        DataFrame enrichi, priorité: flux_C15 > flux_R151 > facturation
+        DataFrame chronologique avec priorité: flux_C15 > flux_R151
     """
     from electricore.core.périmètre import extraire_releves_evenements
     
@@ -296,27 +300,25 @@ def ajouter_releves_mensuels(relevés: DataFrame[RelevéIndex],
             ...
     else:
         rel_facturation = pd.DataFrame()
-    
-    # 4. Extraire relevés mensuels
-    rel_mensuels = relevés[relevés['Date_Releve'].dt.day == 1]
-    
-    # 5. Combiner avec priorité alphabétique
+
+    # 4. Combiner avec priorité alphabétique
     return (
-        pd.concat([rel_evenements, rel_mensuels, rel_facturation], ignore_index=True)
-        .sort_values(['pdl', 'Date_Releve', 'Source'])
-        .drop_duplicates(subset=['pdl', 'Date_Releve'], keep='first')
+        pd.concat([rel_evenements, rel_facturation], ignore_index=True)
+        .sort_values(['pdl', 'Date_Releve', 'Source']) # Flux_C15 < Flux_Rxx Alphabétiquement
+        .drop_duplicates(subset=['pdl', 'Date_Releve', 'ordre_index'], keep='first')
+        .sort_values(['pdl', 'Date_Releve', 'ordre_index'])
         .reset_index(drop=True)
     )
 
 
 
 @pa.check_types
-def calculer_periodes_energie(relevés_complets: pd.DataFrame) -> DataFrame[PeriodeEnergie]:
+def calculer_periodes_energie(relevés: pd.DataFrame) -> DataFrame[PeriodeEnergie]:
     """
     Calcule les périodes d'énergie avec IDs et flags de qualité des données.
     
     Args:
-        relevés_complets: DataFrame avec colonnes pdl, Date_Releve, source, has_data, cadrans
+        relevés: DataFrame avec colonnes pdl, Date_Releve, Source, cadrans d'index
         
     Returns:
         DataFrame[PeriodeEnergie] avec périodes d'énergie incluant les références d'index
@@ -324,7 +326,9 @@ def calculer_periodes_energie(relevés_complets: pd.DataFrame) -> DataFrame[Peri
     cadrans = ["BASE", "HP", "HC", "HPH", "HPB", "HCH", "HCB"]
     
     # Ajouter un ID temporaire pour chaque relevé
-    relevés = relevés_complets.copy()
+    relevés = relevés.copy()
+    # Gérer ordre_index manquant : 0 par défaut pour les relevés FACTURATION
+    
     relevés = relevés.sort_values(['pdl', 'Date_Releve', 'ordre_index']).reset_index(drop=True)
     relevés['index_id'] = range(len(relevés))
     
@@ -334,32 +338,31 @@ def calculer_periodes_energie(relevés_complets: pd.DataFrame) -> DataFrame[Peri
     # Préparer le résultat
     résultat = relevés.copy()
     résultat['Date_Debut'] = relevés_décalés['Date_Releve']
-    résultat['source_avant'] = relevés_décalés['source']
-    résultat['has_data_avant'] = relevés_décalés['has_data']
+    résultat['source_avant'] = relevés_décalés['Source']
     résultat['id_index_avant'] = relevés_décalés['index_id']
     
     # Renommer pour clarifier
     résultat = résultat.rename(columns={
         'Date_Releve': 'Date_Fin',
-        'source': 'source_apres',
-        'has_data': 'has_data_apres',
+        'Source': 'source_apres',
         'index_id': 'id_index_apres'
     })
     
-    # Calculer les énergies
+    # Calculer les énergies pour tous les cadrans
     for cadran in cadrans:
         if cadran in relevés.columns:
             résultat[f'{cadran}_energie'] = relevés[cadran] - relevés_décalés[cadran]
         else:
             résultat[f'{cadran}_energie'] = np.nan
     
-    # Calculer les flags de qualité
-    résultat['data_complete'] = résultat['has_data_avant'] & résultat['has_data_apres']
+    # Calculer les flags de qualité basés sur les données réelles
+    # data_complete = True si au moins une énergie est calculable (non NaN)
+    colonnes_energie = [f'{cadran}_energie' for cadran in cadrans if f'{cadran}_energie' in résultat.columns]
+    résultat['data_complete'] = résultat[colonnes_energie].notna().any(axis=1)
     résultat['duree_jours'] = (résultat['Date_Fin'] - résultat['Date_Debut']).dt.days
     résultat['periode_irreguliere'] = résultat['duree_jours'] > 35
     
     # Colonnes finales
-    colonnes_energie = [f'{cadran}_energie' for cadran in cadrans if f'{cadran}_energie' in résultat.columns]
     colonnes_finales = [
         'pdl', 'Date_Debut', 'Date_Fin', 'duree_jours',
         'id_index_avant', 'id_index_apres',

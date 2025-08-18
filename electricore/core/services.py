@@ -37,7 +37,7 @@ from electricore.core.énergies.fonctions import (
     préparer_base_énergies, 
     ajouter_relevés, 
     calculer_energies,
-    ajouter_releves_mensuels,
+    reconstituer_chronologie_relevés,
     calculer_periodes_energie
 )
 from electricore.core.énergies.modèles import PeriodeEnergie
@@ -49,7 +49,8 @@ from electricore.core.taxes.turpe import (
 )
 from electricore.core.périmètre.fonctions import (
     detecter_points_de_rupture,
-    inserer_evenements_facturation
+    inserer_evenements_facturation,
+    enrichir_historique_périmètre
 )
 from electricore.core.abonnements.fonctions import (
     generer_periodes_abonnement
@@ -133,14 +134,13 @@ def pipeline_abonnement(historique: DataFrame[HistoriquePérimètre]) -> pd.Data
     # Pipeline avec pandas pipe
     return (
         historique
-        .pipe(detecter_points_de_rupture)
-        .pipe(inserer_evenements_facturation)
+        .pipe(enrichir_historique_périmètre)
         .pipe(generer_periodes_abonnement)
         .pipe(ajouter_turpe_fixe(load_turpe_rules()))
     )
 
 
-@pa.check_types
+# @pa.check_types
 def pipeline_energie(
     historique: DataFrame[HistoriquePérimètre], 
     relevés: DataFrame[RelevéIndex]
@@ -162,9 +162,8 @@ def pipeline_energie(
     Returns:
         DataFrame[PeriodeEnergie] avec les périodes d'énergie calculées
     """
-    # Étape 1-2 : Détecter les points de rupture et insérer les événements de facturation
-    historique_ruptures = detecter_points_de_rupture(historique)
-    historique_etendu = inserer_evenements_facturation(historique_ruptures)
+    # Étape 1-2 : Enrichir l'historique du périmètre  
+    historique_etendu = enrichir_historique_périmètre(historique)
     
     # Étape 3 : Filtrer les événements pour l'énergie + événements FACTURATION
     événements = historique_etendu[
@@ -172,12 +171,12 @@ def pipeline_energie(
         (historique_etendu["impact_turpe_variable"]) |
         (historique_etendu["Evenement_Declencheur"] == "FACTURATION")
     ].copy()
-    
+    print(len(événements))
     # Pipeline avec pandas pipe et curryfication (plus de generer_grille_facturation)
     return (
         événements
-        .pipe(ajouter_releves_mensuels(relevés))
-        .pipe(calculer_periodes_energie)
+        .pipe(reconstituer_chronologie_relevés(relevés))
+        #.pipe(calculer_periodes_energie)
     )
 
 
@@ -205,12 +204,8 @@ def calculer_abonnements_et_energies(
         - 'energies': périodes d'énergie calculées  
         - 'historique_etendu': historique enrichi avec événements de facturation
     """
-    # Étapes 1-2 communes : Détecter les points de rupture et insérer les événements
-    historique_etendu = (
-        historique
-        .pipe(detecter_points_de_rupture)
-        .pipe(inserer_evenements_facturation)
-    )
+    # Étapes 1-2 communes : Enrichir l'historique du périmètre
+    historique_etendu = enrichir_historique_périmètre(historique)
     
     # Branche 1 : Périodes d'abonnement + TURPE fixe
     periodes_abonnement = (
@@ -223,7 +218,7 @@ def calculer_abonnements_et_energies(
     periodes_energie = (
         historique_etendu
         .pipe(lambda df: df.query("impact_energie or impact_turpe_variable or Evenement_Declencheur == 'FACTURATION'"))
-        .pipe(ajouter_releves_mensuels(relevés))
+        .pipe(reconstituer_chronologie_relevés(relevés))
         .pipe(calculer_periodes_energie)
     )
     
