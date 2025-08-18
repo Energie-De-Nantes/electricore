@@ -115,7 +115,7 @@ def facturation(
 
 
 @pa.check_types
-def generer_periodes_abonnement(historique: DataFrame[HistoriquePérimètre]) -> pd.DataFrame:
+def pipeline_abonnement(historique: DataFrame[HistoriquePérimètre]) -> pd.DataFrame:
     """
     Pipeline complète pour générer les périodes d'abonnement avec TURPE.
     
@@ -137,7 +137,7 @@ def generer_periodes_abonnement(historique: DataFrame[HistoriquePérimètre]) ->
     # Étape 2 : Insérer les événements de facturation
     historique_etendu = inserer_evenements_facturation(historique_ruptures)
     
-    # Étape 3 : Générer les périodes d'abonnement
+    # Étape 3 : Générer les périodes d'abonnement  
     periodes = generer_periodes_abonnement(historique_etendu)
     
     # Étape 4 : Ajouter le TURPE fixe
@@ -148,7 +148,7 @@ def generer_periodes_abonnement(historique: DataFrame[HistoriquePérimètre]) ->
 
 
 @pa.check_types
-def generer_periodes_energie(
+def pipeline_energie(
     historique: DataFrame[HistoriquePérimètre], 
     relevés: DataFrame[RelevéIndex]
 ) -> DataFrame[PeriodeEnergie]:
@@ -185,3 +185,57 @@ def generer_periodes_energie(
         .pipe(generer_grille_facturation)
         .pipe(calculer_periodes_energie)
     )
+
+
+@pa.check_types
+def calculer_abonnements_et_energies(
+    historique: DataFrame[HistoriquePérimètre], 
+    relevés: DataFrame[RelevéIndex]
+) -> dict:
+    """
+    Pipeline complet unifié partant de l'historique comme source unique.
+    
+    Orchestre toute la chaîne de traitement :
+    1. Détection des points de rupture
+    2. Insertion des événements de facturation
+    3. Génération des périodes d'abonnement + TURPE fixe
+    4. Génération des périodes d'énergie
+    
+    Args:
+        historique: DataFrame contenant l'historique des événements contractuels
+        relevés: DataFrame contenant les relevés d'index R151
+        
+    Returns:
+        dict contenant tous les résultats :
+        - 'abonnements': périodes d'abonnement avec TURPE fixe
+        - 'energies': périodes d'énergie calculées  
+        - 'historique_etendu': historique enrichi avec événements de facturation
+    """
+    # Étapes 1-2 communes : Détecter les points de rupture et insérer les événements
+    historique_etendu = (
+        historique
+        .pipe(detecter_points_de_rupture)
+        .pipe(inserer_evenements_facturation)
+    )
+    
+    # Branche 1 : Périodes d'abonnement + TURPE fixe
+    periodes_abonnement = (
+        historique_etendu
+        .pipe(generer_periodes_abonnement)
+        .pipe(lambda df: ajouter_turpe_fixe(df, load_turpe_rules())) # Besoin de curry plus tard.
+    )
+    
+    # Branche 2 : Périodes d'énergie
+    periodes_energie = (
+        historique_etendu
+        .pipe(lambda df: df[df["impact_energie"] | df["impact_turpe_variable"]].copy())
+        .pipe(combiner_releves_evenements(relevés))
+        .pipe(generer_grille_facturation)
+        .pipe(calculer_periodes_energie)
+    )
+    
+    return {
+        'abonnements': periodes_abonnement,
+        'energies': periodes_energie,
+        'historique_etendu': historique_etendu
+    }
