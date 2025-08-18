@@ -131,20 +131,14 @@ def pipeline_abonnement(historique: DataFrame[HistoriquePérimètre]) -> pd.Data
     Returns:
         DataFrame avec les périodes d'abonnement enrichies du TURPE fixe
     """
-    # Étape 1 : Détecter les points de rupture
-    historique_ruptures = detecter_points_de_rupture(historique)
-    
-    # Étape 2 : Insérer les événements de facturation
-    historique_etendu = inserer_evenements_facturation(historique_ruptures)
-    
-    # Étape 3 : Générer les périodes d'abonnement  
-    periodes = generer_periodes_abonnement(historique_etendu)
-    
-    # Étape 4 : Ajouter le TURPE fixe
-    regles = load_turpe_rules()
-    periodes_turpe = ajouter_turpe_fixe(periodes, regles)
-    
-    return periodes_turpe
+    # Pipeline avec pandas pipe
+    return (
+        historique
+        .pipe(detecter_points_de_rupture)
+        .pipe(inserer_evenements_facturation)
+        .pipe(generer_periodes_abonnement)
+        .pipe(ajouter_turpe_fixe(load_turpe_rules()))
+    )
 
 
 @pa.check_types
@@ -222,7 +216,7 @@ def calculer_abonnements_et_energies(
     periodes_abonnement = (
         historique_etendu
         .pipe(generer_periodes_abonnement)
-        .pipe(lambda df: ajouter_turpe_fixe(df, load_turpe_rules())) # Besoin de curry plus tard.
+        .pipe(ajouter_turpe_fixe(load_turpe_rules())) # Besoin de curry plus tard.
     )
     
     # Branche 2 : Périodes d'énergie

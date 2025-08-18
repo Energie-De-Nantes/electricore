@@ -2,6 +2,7 @@ import pandas as pd
 from pathlib import Path
 
 from zoneinfo import ZoneInfo
+from toolz import curry
 
 import pandera.pandas as pa
 from pandera.typing import DataFrame
@@ -91,17 +92,18 @@ def compute_turpe(entries: pd.DataFrame, rules: pd.DataFrame) -> pd.DataFrame:
     merged['Version_Turpe'] = merged['Version_Turpe'].dt.date
     return merged.round(2)
 
+@curry
 @pa.check_types
 def ajouter_turpe_fixe(
-    periodes: DataFrame[PeriodeAbonnement],
-    regles: pd.DataFrame
+    regles: pd.DataFrame,
+    periodes: DataFrame[PeriodeAbonnement]
 ) -> DataFrame[PeriodeAbonnement]:
     """
     Calcule le TURPE fixe pour chaque période d'abonnement, selon les règles tarifaires.
 
     Args:
-        periodes: Périodes d'abonnement homogènes (Formule_Tarifaire_Acheminement, Puissance_Souscrite, nb_jours)
         regles: Règles tarifaires TURPE, avec colonnes : FTA, b, cg, cc
+        periodes: Périodes d'abonnement homogènes (Formule_Tarifaire_Acheminement, Puissance_Souscrite, nb_jours)
 
     Returns:
         Périodes enrichies avec `turpe_fixe_journalier` et `turpe_fixe`
