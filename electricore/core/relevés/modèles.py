@@ -11,7 +11,7 @@ class RelevéIndex(pa.DataFrameModel):
     Ce modèle permet de valider les relevés de compteurs avec leurs métadonnées.
     """
     # 
-    id: Series[str] = pa.Field(nullable=False)
+    # id: Series[str] = pa.Field(nullable=False)
 
     # 📆 Date du relevé
     Date_Releve: Series[Annotated[pd.DatetimeTZDtype, "ns", "Europe/Paris"]] = pa.Field(nullable=False, coerce=True)
@@ -51,12 +51,12 @@ class RelevéIndex(pa.DataFrameModel):
             df["ordre_index"] = df["ordre_index"].fillna(False).astype(bool)
         return df
     
-    @pa.dataframe_parser
-    def parser_id(cls, df: pd.DataFrame) -> pd.DataFrame:
-        df = df.copy()
-        # Génère un id lisible à partir des colonnes clés
-        df["id"] = df[["pdl", "Date_Releve", "Source", "ordre_index"]].astype(str).agg("-".join, axis=1)
-        return df
+    # @pa.dataframe_parser
+    # def parser_id(cls, df: pd.DataFrame) -> pd.DataFrame:
+    #     df = df.copy()
+    #     # Génère un id lisible à partir des colonnes clés
+    #     df["id"] = df[["pdl", "Date_Releve", "Source", "ordre_index"]].astype(str).agg("-".join, axis=1)
+    #     return df
     
     @pa.dataframe_parser
     def parser_colonnes(cls, df: pd.DataFrame) -> pd.DataFrame:
