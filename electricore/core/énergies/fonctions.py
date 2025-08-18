@@ -305,7 +305,7 @@ def reconstituer_chronologie_relevés(relevés: DataFrame[RelevéIndex],
     return (
         pd.concat([rel_evenements, rel_facturation], ignore_index=True)
         .sort_values(['pdl', 'Date_Releve', 'Source']) # Flux_C15 < Flux_Rxx Alphabétiquement
-        .drop_duplicates(subset=['pdl', 'Date_Releve', 'ordre_index'], keep='first')
+        .drop_duplicates(subset=['pdl', 'Date_Releve', 'ordre_index'], keep='first') # ordre_index est là pour permettre le double relevé lors d'événements
         .sort_values(['pdl', 'Date_Releve', 'ordre_index'])
         .reset_index(drop=True)
     )
@@ -359,8 +359,8 @@ def calculer_periodes_energie(relevés: pd.DataFrame) -> DataFrame[PeriodeEnergi
     # data_complete = True si au moins une énergie est calculable (non NaN)
     colonnes_energie = [f'{cadran}_energie' for cadran in cadrans if f'{cadran}_energie' in résultat.columns]
     résultat['data_complete'] = résultat[colonnes_energie].notna().any(axis=1)
-    résultat['duree_jours'] = (résultat['Date_Fin'] - résultat['Date_Debut']).dt.days
-    résultat['periode_irreguliere'] = résultat['duree_jours'] > 35
+    résultat['duree_jours'] = (résultat['Date_Fin'] - résultat['Date_Debut']).dt.days.astype('Int64')
+    résultat['periode_irreguliere'] = (résultat['duree_jours'] > 35).fillna(False).astype(bool)
     
     # Colonnes finales
     colonnes_finales = [

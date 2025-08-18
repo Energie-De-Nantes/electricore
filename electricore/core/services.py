@@ -162,21 +162,13 @@ def pipeline_energie(
     Returns:
         DataFrame[PeriodeEnergie] avec les périodes d'énergie calculées
     """
-    # Étape 1-2 : Enrichir l'historique du périmètre  
-    historique_etendu = enrichir_historique_périmètre(historique)
-    
-    # Étape 3 : Filtrer les événements pour l'énergie + événements FACTURATION
-    événements = historique_etendu[
-        (historique_etendu["impact_energie"]) | 
-        (historique_etendu["impact_turpe_variable"]) |
-        (historique_etendu["Evenement_Declencheur"] == "FACTURATION")
-    ].copy()
-    print(len(événements))
-    # Pipeline avec pandas pipe et curryfication (plus de generer_grille_facturation)
+    # Pipeline avec pandas pipe intégrant enrichissement et filtrage
     return (
-        événements
+        historique
+        .pipe(enrichir_historique_périmètre)
+        .query("impact_energie or impact_turpe_variable")
         .pipe(reconstituer_chronologie_relevés(relevés))
-        #.pipe(calculer_periodes_energie)
+        .pipe(calculer_periodes_energie)
     )
 
 
