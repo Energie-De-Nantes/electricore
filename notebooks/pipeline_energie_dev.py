@@ -7,23 +7,11 @@ app = marimo.App(width="medium")
 @app.cell
 def _():
     import marimo as mo
-    mo.md(
-        r"""
-        # Pipeline Énergies - Développement et Validation
-
-        Ce notebook permet de développer et valider interactivement le pipeline `pipeline_energie` d'ElectriCore.
-
-        ## Architecture ETL
-        1. **Extract** (ElectriFlux): XML → raw DataFrames
-        2. **Transform** (ElectriCore/inputs): raw DataFrames → Pandera models  
-        3. **Process** (ElectriCore/core): business logic sur données typées
-        """
-    )
     return (mo,)
 
 
 @app.cell
-def _(mo):
+def _():
     # Imports pour le pipeline complet
     from pathlib import Path
     import pandas as pd
@@ -36,13 +24,19 @@ def _(mo):
     from electricore.inputs.flux import lire_flux_c15, lire_flux_r151
 
     # ElectriCore - Process
-    from electricore.core.services import pipeline_energie
+    from electricore.core.services import pipeline_abonnement, pipeline_energie
 
     # Debugging
     from icecream import ic
 
-    mo.md("✅ **Imports réalisés avec succès**")
-    return Path, lire_flux_c15, lire_flux_r151, pipeline_energie, process_flux
+    return (
+        Path,
+        lire_flux_c15,
+        lire_flux_r151,
+        pipeline_abonnement,
+        pipeline_energie,
+        process_flux,
+    )
 
 
 @app.cell(hide_code=True)
@@ -52,68 +46,44 @@ def _(Path, mo):
     c15_path = data_path / 'C15'
     r151_path = data_path / 'R151'
 
-    mo.md(f"""
+    _status_message = mo.md(f"""
     ## Configuration des chemins
 
     - **Répertoire principal**: `{data_path}`
     - **Flux C15**: `{c15_path}` {'✅' if c15_path.exists() else '❌ (non trouvé)'}
     - **Flux R151**: `{r151_path}` {'✅' if r151_path.exists() else '❌ (non trouvé)'}
     """)
+
+    _status_message
     return c15_path, r151_path
 
 
 @app.cell(hide_code=True)
 def _(c15_path, mo, process_flux, r151_path):
     # Étape 1: Extract - Chargement des données brutes avec ElectriFlux
+    raw_c15, raw_r151, _extract_status = None, None, None
+
     try:
         raw_c15 = process_flux('C15', c15_path)
         raw_r151 = process_flux('R151', r151_path)
-
-        mo.md(f"""
+        _extract_status = mo.md(f"""
         ## 📁 **Extract - Données brutes chargées**
 
         - **C15 (Contrats)**: {len(raw_c15)} lignes, {len(raw_c15.columns)} colonnes
         - **R151 (Relevés)**: {len(raw_r151)} lignes, {len(raw_r151.columns)} colonnes
         """)
     except Exception as e:
-        raw_c15 = None
-        raw_r151 = None
-        mo.md(f"❌ **Erreur lors du chargement**: {str(e)}")
+        _extract_status = mo.md(f"❌ **Erreur lors du chargement**: {str(e)}")
 
+    _extract_status
     return raw_c15, raw_r151
 
 
-@app.cell
-def _(mo, raw_c15):
-    # Inspection des données C15
-    if raw_c15 is not None:
-        mo.md("### Aperçu des données C15")
-        display_c15 = raw_c15.head()
-    else:
-        display_c15 = None
-        mo.md("❌ Données C15 non disponibles")
-
-    display_c15
-    return
-
-
-@app.cell
-def _(mo, raw_r151):
-    # Inspection des données R151
-    if raw_r151 is not None:
-        mo.md("### Aperçu des données R151")
-        display_r151 = raw_r151.head()
-    else:
-        display_r151 = None
-        mo.md("❌ Données R151 non disponibles")
-
-    display_r151
-    return
-
-
-@app.cell
+@app.cell(hide_code=True)
 def _(lire_flux_c15, lire_flux_r151, mo, raw_c15, raw_r151):
     # Étape 2: Transform - Conversion vers les modèles Pandera
+    historique, releves, transform_status, transform_success = None, None, None, False
+
     if raw_c15 is not None and raw_r151 is not None:
         try:
             # Transformation C15 → HistoriquePérimètre
@@ -122,7 +92,7 @@ def _(lire_flux_c15, lire_flux_r151, mo, raw_c15, raw_r151):
             # Transformation R151 → RelevéIndex
             releves = lire_flux_r151(raw_r151)
 
-            mo.md(f"""
+            _transform_status = mo.md(f"""
             ## 🔄 **Transform - Données typées**
 
             - **HistoriquePérimètre**: {len(historique)} lignes validées ✅
@@ -132,55 +102,53 @@ def _(lire_flux_c15, lire_flux_r151, mo, raw_c15, raw_r151):
             """)
             transform_success = True
         except Exception as e:
-            historique = None
-            releves = None
-            transform_success = False
-            mo.md(f"❌ **Erreur de transformation**: {str(e)}")
+            _transform_status = mo.md(f"❌ **Erreur de transformation**: {str(e)}")
     else:
-        historique = None
-        releves = None
-        transform_success = False
-        mo.md("⏭️ Étape Transform ignorée (données brutes manquantes)")
+        _transform_status = mo.md("⏭️ Étape Transform ignorée (données brutes manquantes)")
 
+    _transform_status
     return historique, releves, transform_success
 
 
 @app.cell
 def _(historique, mo):
     # Inspection de l'historique du périmètre
-    if historique is not None:
-        mo.md("### Historique du Périmètre (sample)")
-        display_historique = historique.head()
-    else:
-        display_historique = None
-        mo.md("❌ Historique non disponible")
-
-    display_historique
+    _historique_display = (
+        mo.vstack([mo.md("### Historique du Périmètre (sample)"), historique.head()]) 
+        if historique is not None 
+        else mo.md("❌ Historique non disponible")
+    )
+    _historique_display
     return
 
 
 @app.cell
 def _(mo, releves):
     # Inspection des relevés
-    if releves is not None:
-        mo.md("### Relevés Index (sample)")
-        display_releves = releves.head()
-    else:
-        display_releves = None
-        mo.md("❌ Relevés non disponibles")
-
-    display_releves
+    _releves_display = (
+        mo.vstack([mo.md("### Relevés Index (sample)"), releves]) 
+        if releves is not None 
+        else mo.md("❌ Relevés non disponibles")
+    )
+    _releves_display
     return
 
 
 @app.cell
+def _(pipeline_abonnement):
+    pipeline_abonnement
+    return
+
+
+@app.cell(hide_code=True)
 def _(historique, mo, pipeline_energie, releves, transform_success):
     # Étape 3: Process - Exécution du pipeline_energie
+    periodes_energie, pipeline_status, pipeline_success = None, None, False
+
     if transform_success and historique is not None and releves is not None:
         try:
             periodes_energie = pipeline_energie(historique, releves)
-
-            mo.md(f"""
+            _pipeline_status = mo.md(f"""
             ## ⚡ **Process - Pipeline Énergies**
 
             - **Périodes d'énergie calculées**: {len(periodes_energie)} lignes ✅
@@ -190,34 +158,31 @@ def _(historique, mo, pipeline_energie, releves, transform_success):
             """)
             pipeline_success = True
         except Exception as e:
-            periodes_energie = None
-            pipeline_success = False
-            mo.md(f"❌ **Erreur pipeline_energie**: {str(e)}")
+            _pipeline_status = mo.md(f"❌ **Erreur pipeline_energie**: {str(e)}")
     else:
-        periodes_energie = None
-        pipeline_success = False
-        mo.md("⏭️ Pipeline ignoré (données transformées manquantes)")
+        _pipeline_status = mo.md("⏭️ Pipeline ignoré (données transformées manquantes)")
 
+    _pipeline_status
     return (periodes_energie,)
 
 
 @app.cell
 def _(mo, periodes_energie):
     # Résultats du pipeline
-    if periodes_energie is not None:
-        mo.md("### Périodes d'Énergie (résultat final)")
-        display_periodes = periodes_energie.head(10)
-    else:
-        display_periodes = None
-        mo.md("❌ Périodes d'énergie non disponibles")
-
-    display_periodes
+    _periodes_display = (
+        mo.vstack([mo.md("### Périodes d'Énergie (résultat final)"), periodes_energie]) 
+        if periodes_energie is not None 
+        else mo.md("❌ Périodes d'énergie non disponibles")
+    )
+    _periodes_display
     return
 
 
 @app.cell
 def _(mo, periodes_energie):
     # Validation et métriques de qualité
+    quality_metrics = None
+
     if periodes_energie is not None:
         # Statistiques de base
         total_periodes = len(periodes_energie)
@@ -227,7 +192,7 @@ def _(mo, periodes_energie):
         # PDLs uniques
         pdls_uniques = periodes_energie['pdl'].nunique() if 'pdl' in periodes_energie.columns else "N/A"
 
-        mo.md(f"""
+        _quality_metrics = mo.md(f"""
         ## 📊 **Métriques de Qualité**
 
         - **Total des périodes**: {total_periodes}
@@ -236,23 +201,27 @@ def _(mo, periodes_energie):
         - **Périodes irrégulières**: {periodes_irregulieres}
         """)
     else:
-        mo.md("⏭️ Métriques non disponibles")
+        _quality_metrics = mo.md("⏭️ Métriques non disponibles")
+
+    _quality_metrics
     return
 
 
 @app.cell
 def _(mo, periodes_energie):
     # Colonnes disponibles pour inspection
+    columns_info = None
+
     if periodes_energie is not None:
         colonnes = list(periodes_energie.columns)
-        mo.md(f"""
+        _columns_info = mo.md(f"""
         ### Colonnes disponibles
         {', '.join(colonnes)}
         """)
     else:
-        colonnes = []
-        mo.md("❌ Pas de colonnes à afficher")
+        _columns_info = mo.md("❌ Pas de colonnes à afficher")
 
+    _columns_info
     return
 
 
@@ -279,19 +248,21 @@ def _(mo):
 @app.cell
 def _(mo, pdl_input, periodes_energie):
     # Analyse détaillée d'un PDL spécifique
+    pdl_analysis = None
+
     if periodes_energie is not None and pdl_input.value:
         pdl_data = periodes_energie[periodes_energie['pdl'] == pdl_input.value]
         if len(pdl_data) > 0:
-            mo.md(f"### Analyse détaillée du PDL: {pdl_input.value}")
-            display_pdl = pdl_data
+            _pdl_analysis = mo.vstack([
+                mo.md(f"### Analyse détaillée du PDL: {pdl_input.value}"),
+                pdl_data
+            ])
         else:
-            mo.md(f"❌ Aucune donnée trouvée pour le PDL: {pdl_input.value}")
-            display_pdl = None
+            _pdl_analysis = mo.md(f"❌ Aucune donnée trouvée pour le PDL: {pdl_input.value}")
     else:
-        display_pdl = None
-        mo.md("💡 Entrez un PDL ci-dessus pour voir l'analyse détaillée")
+        _pdl_analysis = mo.md("💡 Entrez un PDL ci-dessus pour voir l'analyse détaillée")
 
-    display_pdl
+    _pdl_analysis
     return
 
 
