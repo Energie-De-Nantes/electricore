@@ -115,6 +115,24 @@ def facturation(
 
 
 @pa.check_types
+def pipeline_commun(historique: DataFrame[HistoriquePérimètre]) -> DataFrame[HistoriquePérimètre]:
+    """
+    Pipeline commun qui prépare l'historique pour tous les calculs.
+    
+    Étapes communes à tous les pipelines :
+    1. Détection des points de rupture
+    2. Insertion des événements de facturation
+    
+    Args:
+        historique: DataFrame contenant l'historique des événements contractuels
+        
+    Returns:
+        DataFrame[HistoriquePérimètre] enrichi avec événements de facturation
+    """
+    return enrichir_historique_périmètre(historique)
+
+
+@pa.check_types
 def pipeline_abonnement(historique: DataFrame[HistoriquePérimètre]) -> pd.DataFrame:
     """
     Pipeline complète pour générer les périodes d'abonnement avec TURPE.
@@ -131,10 +149,10 @@ def pipeline_abonnement(historique: DataFrame[HistoriquePérimètre]) -> pd.Data
     Returns:
         DataFrame avec les périodes d'abonnement enrichies du TURPE fixe
     """
-    # Pipeline avec pandas pipe
+    # Pipeline avec pandas pipe utilisant pipeline_commun
     return (
         historique
-        .pipe(enrichir_historique_périmètre)
+        .pipe(pipeline_commun)
         .pipe(generer_periodes_abonnement)
         .pipe(ajouter_turpe_fixe(load_turpe_rules()))
     )
@@ -162,10 +180,10 @@ def pipeline_energie(
     Returns:
         DataFrame[PeriodeEnergie] avec les périodes d'énergie calculées
     """
-    # Pipeline avec pandas pipe intégrant enrichissement et filtrage
+    # Pipeline avec pandas pipe utilisant pipeline_commun
     return (
         historique
-        .pipe(enrichir_historique_périmètre)
+        .pipe(pipeline_commun)
         .query("impact_energie or impact_turpe_variable")
         .pipe(reconstituer_chronologie_relevés(relevés))
         .pipe(calculer_periodes_energie)
@@ -196,8 +214,8 @@ def calculer_abonnements_et_energies(
         - 'energies': périodes d'énergie calculées  
         - 'historique_etendu': historique enrichi avec événements de facturation
     """
-    # Étapes 1-2 communes : Enrichir l'historique du périmètre
-    historique_etendu = enrichir_historique_périmètre(historique)
+    # Étapes 1-2 communes : Pipeline commun d'enrichissement
+    historique_etendu = pipeline_commun(historique)
     
     # Branche 1 : Périodes d'abonnement + TURPE fixe
     periodes_abonnement = (
