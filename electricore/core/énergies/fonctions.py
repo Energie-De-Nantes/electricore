@@ -295,9 +295,24 @@ def reconstituer_chronologie_relevés(relevés: DataFrame[RelevéIndex],
             evt_facturation[['pdl', 'Date_Evenement']].rename(columns={'Date_Evenement': 'Date_Releve'})
         )
         rel_facturation = interroger_relevés(requete, relevés)
-        if not rel_facturation.empty:
-            # rel_facturation['Source'] = 'facturation'
-            ...
+        
+        # Si certains événements FACTURATION n'ont pas de relevé, créer des entrées factices
+        facturation_avec_releves = rel_facturation['pdl'].astype(str) + '_' + rel_facturation['Date_Releve'].astype(str) if not rel_facturation.empty else set()
+        requetes_manquantes = requete[~(requete['pdl'].astype(str) + '_' + requete['Date_Releve'].astype(str)).isin(facturation_avec_releves)]
+        
+        if not requetes_manquantes.empty:
+            # Créer des relevés factices avec tous les index à NaN mais la structure complète
+            index_cols = ['BASE', 'HP', 'HC', 'HCH', 'HPH', 'HPB', 'HCB']
+            rel_factices = requetes_manquantes.copy()
+            for col in index_cols + ['Id_Calendrier_Distributeur', 'Nature_Index']:
+                rel_factices[col] = np.nan
+            rel_factices['Source'] = 'facturation_sans_releve'
+            rel_factices['Unité'] = 'kWh'
+            rel_factices['Précision'] = 'kWh'
+            rel_factices['ordre_index'] = 0
+            
+            # Combiner relevés trouvés + relevés factices
+            rel_facturation = pd.concat([rel_facturation, rel_factices], ignore_index=True) if not rel_facturation.empty else rel_factices
     else:
         rel_facturation = pd.DataFrame()
 

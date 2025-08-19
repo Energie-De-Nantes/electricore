@@ -184,7 +184,7 @@ def pipeline_energie(
     return (
         historique
         .pipe(pipeline_commun)
-        .query("impact_energie or impact_turpe_variable")
+        .query("impact_energie or impact_turpe_variable or Evenement_Declencheur == 'FACTURATION'")
         .pipe(reconstituer_chronologie_relevés(relevés))
         .pipe(calculer_periodes_energie)
     )
