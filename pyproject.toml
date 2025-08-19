@@ -31,6 +31,7 @@ icecream = "^2.1.5"
 marimo = "^0.14.11"
 altair = "^5.5.0"
 plotly = "^6.2.0"
+electriflux = ">=1.1.0, <2.0.0"
 
 [test]
 command = "poetry run pytest -q"
