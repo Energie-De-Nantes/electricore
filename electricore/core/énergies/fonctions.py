@@ -9,7 +9,8 @@ from electricore.core.périmètre import (
     extraite_relevés_entrées, extraite_relevés_sorties
 )
 from electricore.core.relevés import RelevéIndex, interroger_relevés
-from electricore.core.énergies.modèles import BaseCalculEnergies, PeriodeEnergie
+from electricore.core.énergies.modèles import BaseCalculEnergies
+from electricore.core.models.periode_energie import PeriodeEnergie
 
 from icecream import ic
 

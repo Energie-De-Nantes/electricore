@@ -38,7 +38,7 @@ from electricore.core.énergies.fonctions import (
     ajouter_relevés, 
     calculer_energies
 )
-from electricore.core.énergies.modèles import PeriodeEnergie
+from electricore.core.models.periode_energie import PeriodeEnergie
 from electricore.core.taxes.turpe import (
     get_applicable_rules,
     compute_turpe,

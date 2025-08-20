@@ -26,7 +26,7 @@ from pandera.typing import DataFrame
 from electricore.core.périmètre import HistoriquePérimètre, extraire_releves_evenements
 from electricore.core.relevés import RelevéIndex, interroger_relevés
 from electricore.core.relevés.modèles import RequêteRelevé
-from electricore.core.énergies.modèles import PeriodeEnergie
+from electricore.core.models.periode_energie import PeriodeEnergie
 
 
 @curry

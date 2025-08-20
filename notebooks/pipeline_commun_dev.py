@@ -145,7 +145,7 @@ def inspect_original_historique(historique_original, mo):
             **Événements FACTURATION existants:** {evenements_par_type.get('FACTURATION', 0)}
             """),
             mo.md("### 📋 Échantillon des données"),
-            historique_original.head(10)
+            historique_original
         ])
     else:
         _original_display = mo.md("❌ Historique original non disponible")
@@ -186,6 +186,12 @@ def execute_pipeline_commun(
 
     _pipeline_status
     return historique_enrichi, pipeline_success
+
+
+@app.cell
+def _(historique_enrichi):
+    historique_enrichi
+    return
 
 
 @app.cell
