@@ -19,7 +19,8 @@ class RelevéIndex(pa.DataFrameModel):
 
     # 🔹 Identifiant du Point de Livraison (PDL)
     pdl: Series[str] = pa.Field(nullable=False)
-    Ref_Situation_Contractuelle: Optional[Series[str]]
+    Ref_Situation_Contractuelle: Optional[Series[str]] = pa.Field(nullable=True)
+    Formule_Tarifaire_Acheminement: Optional[Series[str]] = pa.Field(nullable=True)
 
     # 🏢 Références Fournisseur & Distributeur
     Id_Calendrier_Fournisseur: Optional[Series[str]] = pa.Field(nullable=True)  # Peut être absent selon la source

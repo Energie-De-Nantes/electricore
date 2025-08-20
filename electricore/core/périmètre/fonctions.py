@@ -425,7 +425,7 @@ def extraire_releves_evenements(historique: DataFrame[HistoriquePérimètre]) ->
         pd.DataFrame: Relevés d’index conformes au modèle RelevéIndex.
     """
     index_cols = ["BASE", "HP", "HC", "HCH", "HPH", "HPB", "HCB", "Id_Calendrier_Distributeur"]
-    identifiants = ["pdl"]
+    identifiants = ["pdl", "Ref_Situation_Contractuelle", "Formule_Tarifaire_Acheminement"]
 
     # Créer relevés "avant"
     avant = historique[identifiants + ["Date_Evenement"] + [f"Avant_{col}" for col in index_cols]].copy()
