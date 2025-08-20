@@ -6,7 +6,8 @@ from hypothesis.extra.pandas import data_frames, columns
 from pandera.typing import DataFrame
 
 from electricore.core.énergies.fonctions import (
-    calculer_periodes_energie
+    calculer_periodes_energie,
+    enrichir_cadrans_principaux
 )
 from electricore.core.énergies.modèles import PeriodeEnergie
 from electricore.core.relevés.modèles import RelevéIndex
@@ -328,6 +329,174 @@ def test_pipeline_complet_minimal():
         assert isinstance(result, pd.DataFrame)
     except Exception as e:
         pytest.fail(f"calculer_periodes_energie failed with error: {e}")
+
+
+# === TESTS D'ENRICHISSEMENT DES CADRANS ===
+
+def test_enrichissement_sous_cadrans_vers_principaux():
+    """Test de synthèse des sous-cadrans vers HC et HP."""
+    # Données avec seulement les sous-cadrans
+    data = pd.DataFrame({
+        'pdl': ['test_pdl'],
+        'Date_Debut': [pd.Timestamp("2024-01-01", tz="Europe/Paris")],
+        'Date_Fin': [pd.Timestamp("2024-02-01", tz="Europe/Paris")],
+        'duree_jours': [31],
+        'source_avant': ['flux_R151'],
+        'source_apres': ['flux_R151'],
+        'data_complete': [True],
+        'periode_irreguliere': [False],
+        'HPH_energie': [100.0],
+        'HPB_energie': [200.0],
+        'HCH_energie': [150.0],
+        'HCB_energie': [250.0],
+        'BASE_energie': [np.nan]  # Pas de BASE initial
+    })
+    
+    result = enrichir_cadrans_principaux(data)
+    
+    # Vérifications
+    assert result.iloc[0]['HP_energie'] == 300.0  # 100 + 200
+    assert result.iloc[0]['HC_energie'] == 400.0  # 150 + 250
+    assert result.iloc[0]['BASE_energie'] == 700.0  # 300 + 400
+
+
+def test_enrichissement_cadrans_principaux_vers_base():
+    """Test de synthèse de HP et HC vers BASE."""
+    data = pd.DataFrame({
+        'pdl': ['test_pdl'],
+        'Date_Debut': [pd.Timestamp("2024-01-01", tz="Europe/Paris")],
+        'Date_Fin': [pd.Timestamp("2024-02-01", tz="Europe/Paris")],
+        'duree_jours': [31],
+        'source_avant': ['flux_R151'],
+        'source_apres': ['flux_R151'],
+        'data_complete': [True],
+        'periode_irreguliere': [False],
+        'HP_energie': [500.0],
+        'HC_energie': [600.0],
+        'BASE_energie': [np.nan]  # Pas de BASE initial
+    })
+    
+    result = enrichir_cadrans_principaux(data)
+    
+    # Vérifications
+    assert result.iloc[0]['HP_energie'] == 500.0  # Inchangé
+    assert result.iloc[0]['HC_energie'] == 600.0  # Inchangé  
+    assert result.iloc[0]['BASE_energie'] == 1100.0  # 500 + 600
+
+
+def test_enrichissement_avec_valeurs_partielles_nan():
+    """Test avec des valeurs NaN partielles."""
+    data = pd.DataFrame({
+        'pdl': ['test_pdl'],
+        'Date_Debut': [pd.Timestamp("2024-01-01", tz="Europe/Paris")],
+        'Date_Fin': [pd.Timestamp("2024-02-01", tz="Europe/Paris")],
+        'duree_jours': [31],
+        'source_avant': ['flux_R151'],
+        'source_apres': ['flux_R151'],
+        'data_complete': [True],
+        'periode_irreguliere': [False],
+        'HPH_energie': [100.0],
+        'HPB_energie': [np.nan],  # NaN partiel
+        'HCH_energie': [np.nan],  # NaN partiel
+        'HCB_energie': [200.0],
+        'BASE_energie': [np.nan]
+    })
+    
+    result = enrichir_cadrans_principaux(data)
+    
+    # Vérifications : min_count=1 doit gérer les NaN correctement
+    assert result.iloc[0]['HP_energie'] == 100.0  # Seulement HPH
+    assert result.iloc[0]['HC_energie'] == 200.0  # Seulement HCB
+    assert result.iloc[0]['BASE_energie'] == 300.0  # 100 + 200
+
+
+def test_enrichissement_toutes_valeurs_nan():
+    """Test avec toutes les valeurs NaN."""
+    data = pd.DataFrame({
+        'pdl': ['test_pdl'],
+        'Date_Debut': [pd.Timestamp("2024-01-01", tz="Europe/Paris")],
+        'Date_Fin': [pd.Timestamp("2024-02-01", tz="Europe/Paris")],
+        'duree_jours': [31],
+        'source_avant': ['flux_R151'],
+        'source_apres': ['flux_R151'],
+        'data_complete': [False],
+        'periode_irreguliere': [False],
+        'HPH_energie': [np.nan],
+        'HPB_energie': [np.nan],
+        'HCH_energie': [np.nan],
+        'HCB_energie': [np.nan],
+        'BASE_energie': [np.nan]
+    })
+    
+    result = enrichir_cadrans_principaux(data)
+    
+    # Vérifications : tout doit rester NaN
+    assert pd.isna(result.iloc[0]['HP_energie'])
+    assert pd.isna(result.iloc[0]['HC_energie'])
+    assert pd.isna(result.iloc[0]['BASE_energie'])
+
+
+def test_enrichissement_base_existant():
+    """Test quand BASE existe déjà avec HP et HC."""
+    data = pd.DataFrame({
+        'pdl': ['test_pdl'],
+        'Date_Debut': [pd.Timestamp("2024-01-01", tz="Europe/Paris")],
+        'Date_Fin': [pd.Timestamp("2024-02-01", tz="Europe/Paris")],
+        'duree_jours': [31],
+        'source_avant': ['flux_R151'],
+        'source_apres': ['flux_R151'],
+        'data_complete': [True],
+        'periode_irreguliere': [False],
+        'HP_energie': [500.0],
+        'HC_energie': [600.0],
+        'BASE_energie': [50.0]  # BASE existant (cas théorique)
+    })
+    
+    result = enrichir_cadrans_principaux(data)
+    
+    # Vérifications : BASE enrichi = BASE + HP + HC
+    assert result.iloc[0]['BASE_energie'] == 1150.0  # 50 + 500 + 600
+
+
+def test_enrichissement_integration_pipeline():
+    """Test d'intégration de l'enrichissement dans le pipeline complet."""
+    # Données de test avec sous-cadrans uniquement
+    releves_data = pd.DataFrame({
+        'pdl': ['12345678901234', '12345678901234'],
+        'Date_Releve': [
+            pd.Timestamp("2024-01-01", tz="Europe/Paris"),
+            pd.Timestamp("2024-02-01", tz="Europe/Paris"),
+        ],
+        'BASE': [np.nan, np.nan],  # Pas de BASE dans les relevés
+        'HP': [np.nan, np.nan],    # Pas de HP dans les relevés
+        'HC': [np.nan, np.nan],    # Pas de HC dans les relevés
+        'HPH': [600.0, 900.0],     # Seulement les sous-cadrans
+        'HPB': [400.0, 600.0],
+        'HCH': [300.0, 450.0],
+        'HCB': [200.0, 300.0],
+        'Source': ['flux_R151'] * 2,
+        'Unité': ['kWh'] * 2,
+        'Précision': ['kWh'] * 2,
+        'Id_Calendrier_Distributeur': ['DI000001'] * 2,
+        'ordre_index': [0] * 2
+    })
+    
+    result = calculer_periodes_energie(releves_data)
+    
+    # Vérifications de l'enrichissement
+    assert len(result) == 1  # Une période entre deux relevés
+    
+    # Vérifier que HP a été synthétisé depuis HPH et HPB
+    hp_attendu = (900.0 + 600.0) - (600.0 + 400.0)  # 300
+    assert result.iloc[0]['HP_energie'] == hp_attendu
+    
+    # Vérifier que HC a été synthétisé depuis HCH et HCB  
+    hc_attendu = (450.0 + 300.0) - (300.0 + 200.0)  # 250
+    assert result.iloc[0]['HC_energie'] == hc_attendu
+    
+    # Vérifier que BASE a été synthétisé depuis HP et HC
+    base_attendu = hp_attendu + hc_attendu  # 550
+    assert result.iloc[0]['BASE_energie'] == base_attendu
 
 
 if __name__ == "__main__":

@@ -426,6 +426,49 @@ def filtrer_periodes_valides(data: pd.DataFrame) -> pd.DataFrame:
     )
 
 @pa.check_types
+def enrichir_cadrans_principaux(data: DataFrame[PeriodeEnergie]) -> DataFrame[PeriodeEnergie]:
+    """
+    Enrichit les cadrans principaux avec synthèse hiérarchique des énergies.
+    
+    Effectue une synthèse en cascade pour créer une hiérarchie complète des cadrans :
+    1. HC_energie = somme(HC_energie, HCH_energie, HCB_energie) si au moins une valeur
+    2. HP_energie = somme(HP_energie, HPH_energie, HPB_energie) si au moins une valeur  
+    3. BASE_energie = somme(BASE_energie, HP_energie, HC_energie) si au moins une valeur
+    
+    Cette fonction gère les différents niveaux de précision des compteurs :
+    - Compteurs 4 cadrans : HPH/HPB + HCH/HCB → HP + HC → BASE
+    - Compteurs HP/HC : HP + HC → BASE
+    - Compteurs simples : BASE inchangé
+    
+    Args:
+        data: DataFrame[PeriodeEnergie] avec les énergies calculées
+        
+    Returns:
+        DataFrame[PeriodeEnergie] avec les cadrans principaux enrichis
+    """
+    résultat = data.copy()
+    
+    # Étape 1 : Synthèse HC depuis les sous-cadrans HCH et HCB
+    colonnes_hc = ['HC_energie', 'HCH_energie', 'HCB_energie']
+    colonnes_hc_présentes = [col for col in colonnes_hc if col in résultat.columns]
+    if colonnes_hc_présentes:
+        résultat['HC_energie'] = résultat[colonnes_hc_présentes].sum(axis=1, min_count=1)
+    
+    # Étape 2 : Synthèse HP depuis les sous-cadrans HPH et HPB  
+    colonnes_hp = ['HP_energie', 'HPH_energie', 'HPB_energie']
+    colonnes_hp_présentes = [col for col in colonnes_hp if col in résultat.columns]
+    if colonnes_hp_présentes:
+        résultat['HP_energie'] = résultat[colonnes_hp_présentes].sum(axis=1, min_count=1)
+    
+    # Étape 3 : Synthèse BASE depuis HP et HC (utilise les valeurs enrichies des étapes précédentes)
+    colonnes_base = ['BASE_energie', 'HP_energie', 'HC_energie']
+    colonnes_base_présentes = [col for col in colonnes_base if col in résultat.columns]
+    if colonnes_base_présentes:
+        résultat['BASE_energie'] = résultat[colonnes_base_présentes].sum(axis=1, min_count=1)
+    
+    return résultat
+
+@pa.check_types
 def calculer_periodes_energie(relevés: DataFrame[RelevéIndex]) -> DataFrame[PeriodeEnergie]:
     """
     Calcule les périodes d'énergie avec flags de qualité des données.
@@ -444,6 +487,7 @@ def calculer_periodes_energie(relevés: DataFrame[RelevéIndex]) -> DataFrame[Pe
     4. `calculer_flags_qualite()` - Indicateurs de qualité vectorisés
     5. `filtrer_periodes_valides()` - Filtrage déclaratif avec query()
     6. `formater_colonnes_finales()` - Sélection et formatage final
+    7. `enrichir_cadrans_principaux()` - Enrichissement hiérarchique HC, HP, BASE
     
     Args:
         relevés: DataFrame[RelevéIndex] avec relevés d'index chronologiques
@@ -465,4 +509,5 @@ def calculer_periodes_energie(relevés: DataFrame[RelevéIndex]) -> DataFrame[Pe
         .pipe(calculer_flags_qualite, cadrans=cadrans)
         .pipe(filtrer_periodes_valides)  # Filtrer avant le formatage
         .pipe(formater_colonnes_finales, cadrans=cadrans)
+        .pipe(enrichir_cadrans_principaux)  # Enrichissement hiérarchique des cadrans
     )

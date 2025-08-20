@@ -29,14 +29,7 @@ def _():
     # Debugging
     from icecream import ic
 
-    return (
-        Path,
-        lire_flux_c15,
-        lire_flux_r151,
-        pipeline_abonnement,
-        pipeline_energie,
-        process_flux,
-    )
+    return Path, lire_flux_c15, lire_flux_r151, pipeline_energie, process_flux
 
 
 @app.cell(hide_code=True)
@@ -131,12 +124,6 @@ def _(mo, releves):
         else mo.md("❌ Relevés non disponibles")
     )
     _releves_display
-    return
-
-
-@app.cell
-def _(pipeline_abonnement):
-    pipeline_abonnement
     return
 
 
@@ -237,7 +224,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     # Interface pour sélectionner un PDL spécifique à inspecter
     pdl_input = mo.ui.text(placeholder="Entrez un PDL à inspecter", label="PDL à analyser")
