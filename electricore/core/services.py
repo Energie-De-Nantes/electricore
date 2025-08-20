@@ -36,9 +36,7 @@ from electricore.core.énergies.fonctions import (
     BaseCalculEnergies,
     préparer_base_énergies, 
     ajouter_relevés, 
-    calculer_energies,
-    reconstituer_chronologie_relevés,
-    calculer_periodes_energie
+    calculer_energies
 )
 from electricore.core.énergies.modèles import PeriodeEnergie
 from electricore.core.taxes.turpe import (
@@ -158,36 +156,6 @@ def pipeline_abonnement(historique: DataFrame[HistoriquePérimètre]) -> pd.Data
     )
 
 
-# @pa.check_types
-def pipeline_energie(
-    historique: DataFrame[HistoriquePérimètre], 
-    relevés: DataFrame[RelevéIndex]
-) -> DataFrame[PeriodeEnergie]:
-    """
-    Pipeline complète pour générer les périodes d'énergie avec approche pipe + curry.
-    
-    Orchestre toute la chaîne de traitement :
-    1. Détection des points de rupture
-    2. Insertion des événements de facturation  
-    3. Combinaison des relevés événements + mensuels
-    4. Génération de la grille complète de facturation
-    5. Calcul des périodes d'énergie avec flags qualité
-    
-    Args:
-        historique: DataFrame contenant l'historique des événements contractuels
-        relevés: DataFrame contenant les relevés d'index R151
-        
-    Returns:
-        DataFrame[PeriodeEnergie] avec les périodes d'énergie calculées
-    """
-    # Pipeline avec pandas pipe utilisant pipeline_commun
-    return (
-        historique
-        .pipe(pipeline_commun)
-        .query("impact_energie or impact_turpe_variable or Evenement_Declencheur == 'FACTURATION'")
-        .pipe(reconstituer_chronologie_relevés(relevés))
-        .pipe(calculer_periodes_energie)
-    )
 
 
 @pa.check_types

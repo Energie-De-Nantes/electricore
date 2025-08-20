@@ -5,7 +5,7 @@ from hypothesis import given, strategies as st, assume
 from hypothesis.extra.pandas import data_frames, columns
 from pandera.typing import DataFrame
 
-from electricore.core.énergies.fonctions import (
+from electricore.core.pipeline_energie import (
     calculer_periodes_energie,
     enrichir_cadrans_principaux
 )
