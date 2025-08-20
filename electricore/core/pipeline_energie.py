@@ -27,6 +27,7 @@ from electricore.core.périmètre import HistoriquePérimètre, extraire_releves
 from electricore.core.relevés import RelevéIndex, interroger_relevés
 from electricore.core.relevés.modèles import RequêteRelevé
 from electricore.core.models.periode_energie import PeriodeEnergie
+from electricore.core.taxes.turpe import ajouter_turpe_variable, load_turpe_rules
 
 
 @curry
@@ -80,11 +81,16 @@ def reconstituer_chronologie_relevés(relevés: DataFrame[RelevéIndex],
     else:
         rel_facturation = pd.DataFrame()
 
-    # 4. Combiner avec priorité alphabétique
+    # 4. Combiner, propager les références contractuelles, puis appliquer priorité alphabétique
     return (
         pd.concat([rel_evenements, rel_facturation], ignore_index=True)
+        .sort_values(['pdl', 'Date_Releve', 'ordre_index'])  # Tri chronologique pour ffill
+        .pipe(lambda df: df.assign(
+            Ref_Situation_Contractuelle=df.groupby('pdl')['Ref_Situation_Contractuelle'].ffill(),
+            Formule_Tarifaire_Acheminement=df.groupby('pdl')['Formule_Tarifaire_Acheminement'].ffill()
+        ))
         .sort_values(['pdl', 'Date_Releve', 'Source']) # Flux_C15 < Flux_Rxx Alphabétiquement
-        .drop_duplicates(subset=['pdl', 'Date_Releve', 'ordre_index'], keep='first') # ordre_index est là pour permettre le double relevé lors d'événements
+        .drop_duplicates(subset=['Ref_Situation_Contractuelle', 'Date_Releve', 'ordre_index'], keep='first') # Déduplication par contrat
         .sort_values(['pdl', 'Date_Releve', 'ordre_index'])
         .reset_index(drop=True)
     )
@@ -108,9 +114,12 @@ def preparer_releves(relevés: DataFrame[RelevéIndex]) -> DataFrame[RelevéInde
 
 @pa.check_types
 def calculer_decalages_par_pdl(relevés: DataFrame[RelevéIndex]) -> pd.DataFrame:
-    """Calcule les décalages des relevés précédents par PDL et enrichit le DataFrame."""
+    """Calcule les décalages des relevés précédents par contrat (ou PDL) et enrichit le DataFrame."""
+    # Déterminer la clé de groupement selon la présence de Ref_Situation_Contractuelle
+    cle_groupement = 'Ref_Situation_Contractuelle' if 'Ref_Situation_Contractuelle' in relevés.columns else 'pdl'
+    
     # Calculer les décalages pour les relevés précédents
-    relevés_décalés = relevés.groupby('pdl').shift(1)
+    relevés_décalés = relevés.groupby(cle_groupement).shift(1)
     
     # Enrichir avec les données décalées et renommer
     return (
@@ -131,8 +140,11 @@ def calculer_differences_cadrans(data: pd.DataFrame, cadrans: list) -> pd.DataFr
     """Vectorise le calcul des énergies pour tous les cadrans présents."""
     résultat = data.copy()
     
+    # Déterminer la clé de groupement selon la présence de Ref_Situation_Contractuelle
+    cle_groupement = 'Ref_Situation_Contractuelle' if 'Ref_Situation_Contractuelle' in data.columns else 'pdl'
+    
     # Récupérer les relevés décalés pour le calcul vectorisé
-    relevés_décalés = data.groupby('pdl').shift(1)
+    relevés_décalés = data.groupby(cle_groupement).shift(1)
     
     # Calculer les différences pour tous les cadrans en une seule opération
     cadrans_présents = [c for c in cadrans if c in data.columns]
@@ -177,6 +189,12 @@ def formater_colonnes_finales(data: pd.DataFrame, cadrans: list) -> DataFrame[Pe
         'data_complete', 'periode_irreguliere'
     ]
     
+    # Ajouter les colonnes contractuelles si présentes
+    colonnes_contractuelles = ['Ref_Situation_Contractuelle', 'Formule_Tarifaire_Acheminement']
+    for col in colonnes_contractuelles:
+        if col in data.columns:
+            colonnes_base.append(col)
+    
     colonnes_energie = [f'{cadran}_energie' for cadran in cadrans if f'{cadran}_energie' in data.columns]
     colonnes_finales = colonnes_base + colonnes_energie
     
@@ -192,6 +210,7 @@ def filtrer_periodes_valides(data: pd.DataFrame) -> pd.DataFrame:
         .query('Date_Debut != Date_Fin')  # Éliminer les périodes de durée zéro
         .reset_index(drop=True)
     )
+
 
 
 @pa.check_types
@@ -288,7 +307,7 @@ def pipeline_energie(
     relevés: DataFrame[RelevéIndex]
 ) -> DataFrame[PeriodeEnergie]:
     """
-    Pipeline complète pour générer les périodes d'énergie avec approche pipe + curry.
+    Pipeline complète pour générer les périodes d'énergie avec calcul TURPE optionnel.
     
     Orchestre toute la chaîne de traitement :
     1. Détection des points de rupture
@@ -296,21 +315,26 @@ def pipeline_energie(
     3. Combinaison des relevés événements + mensuels
     4. Génération de la grille complète de facturation
     5. Calcul des périodes d'énergie avec flags qualité
+    6. Enrichissement avec FTA et calcul TURPE variable (optionnel)
     
     Args:
         historique: DataFrame contenant l'historique des événements contractuels
         relevés: DataFrame contenant les relevés d'index R151
+        avec_turpe: Si True, enrichit avec le calcul du TURPE variable
         
     Returns:
-        DataFrame[PeriodeEnergie] avec les périodes d'énergie calculées
+        DataFrame[PeriodeEnergie] avec les périodes d'énergie calculées et optionnellement le TURPE
     """
     from electricore.core.pipeline_commun import pipeline_commun
     
-    # Pipeline avec pandas pipe utilisant pipeline_commun
-    return (
+    # Préparer l'historique filtré
+    periodes_energie = (
         historique
         .pipe(pipeline_commun)
         .query("impact_energie or impact_turpe_variable or Evenement_Declencheur == 'FACTURATION'")
         .pipe(reconstituer_chronologie_relevés(relevés))
         .pipe(calculer_periodes_energie)
+        .pipe(ajouter_turpe_variable(load_turpe_rules()))
     )
+    
+    return periodes_energie

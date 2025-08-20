@@ -1,7 +1,7 @@
 import pandas as pd
 import pandera.pandas as pa
 from pandera.typing import Series
-from typing import Annotated
+from typing import Annotated, Optional
 
 
 class PeriodeEnergie(pa.DataFrameModel):
@@ -13,6 +13,7 @@ class PeriodeEnergie(pa.DataFrameModel):
     """
     # Identifiants
     pdl: Series[str] = pa.Field(nullable=False)
+    Ref_Situation_Contractuelle: Optional[Series[str]] = pa.Field(nullable=True)
     
     # Période
     Date_Debut: Series[Annotated[pd.DatetimeTZDtype, "ns", "Europe/Paris"]] = pa.Field(nullable=False, coerce=True)
@@ -35,3 +36,14 @@ class PeriodeEnergie(pa.DataFrameModel):
     HPB_energie: Series[float] = pa.Field(nullable=True, coerce=True)
     HCH_energie: Series[float] = pa.Field(nullable=True, coerce=True)
     HCB_energie: Series[float] = pa.Field(nullable=True, coerce=True)
+    
+    # Informations contractuelles pour calcul TURPE (colonnes optionnelles)
+    Formule_Tarifaire_Acheminement: Optional[Series[str]] = pa.Field(nullable=True)
+    
+    # Calculs TURPE (colonnes optionnelles)
+    turpe_variable: Optional[Series[float]] = pa.Field(nullable=True, coerce=True)
+    turpe_total: Optional[Series[float]] = pa.Field(nullable=True, coerce=True)
+    
+    class Config:
+        """Configuration pour permettre des colonnes supplémentaires."""
+        strict = False
