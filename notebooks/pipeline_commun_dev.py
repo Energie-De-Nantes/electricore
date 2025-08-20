@@ -50,7 +50,7 @@ def imports():
     from electricore.inputs.flux import lire_flux_c15
 
     # ElectriCore - Process (notre fonction à tester)
-    from electricore.core.services import pipeline_commun
+    from electricore.core.pipeline_commun import pipeline_commun
 
     # Debugging & utilities
     from icecream import ic

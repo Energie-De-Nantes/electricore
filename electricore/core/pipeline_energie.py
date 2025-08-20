@@ -304,7 +304,7 @@ def pipeline_energie(
     Returns:
         DataFrame[PeriodeEnergie] avec les périodes d'énergie calculées
     """
-    from electricore.core.services import pipeline_commun
+    from electricore.core.pipeline_commun import pipeline_commun
     
     # Pipeline avec pandas pipe utilisant pipeline_commun
     return (

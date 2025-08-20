@@ -53,6 +53,7 @@ from electricore.core.périmètre.fonctions import (
 from electricore.core.abonnements.fonctions import (
     generer_periodes_abonnement
 )
+from electricore.core.pipeline_commun import pipeline_commun
 # TODO rename facturation depuis flux ou un truc du genre. 
 def facturation_flux(deb: pd.Timestamp, fin: pd.Timestamp, c15: pd.DataFrame, r151: pd.DataFrame) -> pd.DataFrame:
     """
@@ -112,22 +113,6 @@ def facturation(
     return turpe #.reindex(columns=colonnes_triees)
 
 
-@pa.check_types
-def pipeline_commun(historique: DataFrame[HistoriquePérimètre]) -> DataFrame[HistoriquePérimètre]:
-    """
-    Pipeline commun qui prépare l'historique pour tous les calculs.
-    
-    Étapes communes à tous les pipelines :
-    1. Détection des points de rupture
-    2. Insertion des événements de facturation
-    
-    Args:
-        historique: DataFrame contenant l'historique des événements contractuels
-        
-    Returns:
-        DataFrame[HistoriquePérimètre] enrichi avec événements de facturation
-    """
-    return enrichir_historique_périmètre(historique)
 
 
 @pa.check_types
