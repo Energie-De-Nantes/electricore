@@ -50,10 +50,6 @@ from electricore.core.périmètre.fonctions import (
     inserer_evenements_facturation,
     enrichir_historique_périmètre
 )
-from electricore.core.abonnements.fonctions import (
-    generer_periodes_abonnement
-)
-from electricore.core.pipeline_commun import pipeline_commun
 # TODO rename facturation depuis flux ou un truc du genre. 
 def facturation_flux(deb: pd.Timestamp, fin: pd.Timestamp, c15: pd.DataFrame, r151: pd.DataFrame) -> pd.DataFrame:
     """
@@ -115,30 +111,6 @@ def facturation(
 
 
 
-@pa.check_types
-def pipeline_abonnement(historique: DataFrame[HistoriquePérimètre]) -> pd.DataFrame:
-    """
-    Pipeline complète pour générer les périodes d'abonnement avec TURPE.
-    
-    Orchestre toute la chaîne de traitement :
-    1. Détection des points de rupture
-    2. Insertion des événements de facturation
-    3. Génération des périodes d'abonnement
-    4. Ajout du TURPE fixe
-    
-    Args:
-        historique: DataFrame contenant l'historique des événements contractuels
-        
-    Returns:
-        DataFrame avec les périodes d'abonnement enrichies du TURPE fixe
-    """
-    # Pipeline avec pandas pipe utilisant pipeline_commun
-    return (
-        historique
-        .pipe(pipeline_commun)
-        .pipe(generer_periodes_abonnement)
-        .pipe(ajouter_turpe_fixe(load_turpe_rules()))
-    )
 
 
 

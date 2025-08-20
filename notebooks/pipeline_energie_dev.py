@@ -24,7 +24,7 @@ def _():
     from electricore.inputs.flux import lire_flux_c15, lire_flux_r151
 
     # ElectriCore - Process
-    from electricore.core.services import pipeline_abonnement
+    from electricore.core.pipeline_abonnements import pipeline_abonnement
     from electricore.core.pipeline_energie import pipeline_energie
 
     # Debugging
