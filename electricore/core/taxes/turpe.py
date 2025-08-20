@@ -7,6 +7,7 @@ from toolz import curry
 import pandera.pandas as pa
 from pandera.typing import DataFrame
 from electricore.core.abonnements.modèles import PeriodeAbonnement
+from electricore.core.taxes.modeles import RegleTurpe
 
 from icecream import ic
 PARIS_TZ = ZoneInfo("Europe/Paris")
@@ -130,4 +131,100 @@ def ajouter_turpe_fixe(
     df["turpe_fixe"] = (df["turpe_fixe_journalier"] * df["nb_jours"]).round(2)
 
     return df[PeriodeAbonnement.to_schema().columns.keys()]
+
+
+def calculer_turpe_variable_series(
+    regles: pd.DataFrame, 
+    periodes: pd.DataFrame
+) -> pd.Series:
+    """
+    Calcule le TURPE variable sans modifier les DataFrames d'entrée.
+    
+    Args:
+        regles: Règles tarifaires TURPE
+        periodes: Périodes d'énergie avec consommations par cadran et FTA
+        
+    Returns:
+        Series contenant les valeurs de TURPE variable calculées
+        
+    Raises:
+        ValueError: Si FTA manquant ou règles TURPE introuvables
+    """
+    if periodes.empty:
+        return pd.Series(dtype=float, name='turpe_variable')
+    
+    # Validation colonne FTA requise
+    if 'Formule_Tarifaire_Acheminement' not in periodes.columns:
+        raise ValueError("❌ La colonne 'Formule_Tarifaire_Acheminement' est requise")
+    
+    # Préserver l'index original avant le merge
+    periodes_avec_index = periodes.reset_index(names='_index_original')
+    
+    # Merge avec les règles TURPE
+    df = pd.merge(
+        periodes_avec_index, 
+        regles, 
+        on="Formule_Tarifaire_Acheminement", 
+        how="left"
+    )
+    
+    # Vérifier que toutes les FTA ont des règles
+    regles_manquantes = df["start"].isna()
+    if regles_manquantes.any():
+        fta_manquants = df[regles_manquantes]['Formule_Tarifaire_Acheminement'].unique()
+        raise ValueError(f"❌ Règles TURPE manquantes pour : {list(fta_manquants)}")
+    
+    # Filtrage temporel simple (Date_Debut seulement)
+    df["end"] = df["end"].fillna(pd.Timestamp("2100-01-01").tz_localize(PARIS_TZ))
+    mask = (df["Date_Debut"] >= df["start"]) & (df["Date_Debut"] < df["end"])
+    
+    if not mask.any():
+        raise ValueError("❌ Aucune période ne correspond aux règles TURPE temporelles")
+    
+    # Calcul du TURPE variable avec indices préservés
+    turpe_var = pd.Series(0.0, index=periodes.index, name='turpe_variable')
+    cadrans = ["HPH", "HCH", "HPB", "HCB", "HP", "HC", "BASE"]
+    
+    for cadran in cadrans:
+        energie_col = f"{cadran}_energie"
+        if energie_col in df.columns and cadran in df.columns:
+            # Calcul : énergie * tarif / 100 (tarifs en c€/kWh)
+            contribution = pd.to_numeric(
+                df[energie_col] * df[cadran] / 100, 
+                errors='coerce'
+            ).fillna(0)
+            
+            # Accumulation par index original
+            for idx_original in df.loc[mask, '_index_original'].unique():
+                mask_idx = (df['_index_original'] == idx_original) & mask
+                if mask_idx.any():
+                    turpe_var.iloc[idx_original] += contribution[mask_idx].sum()
+    
+    return turpe_var.round(2)
+
+
+@curry
+@pa.check_types
+def ajouter_turpe_variable(
+    regles: pd.DataFrame,
+    periodes: pd.DataFrame
+) -> pd.DataFrame:
+    """
+    Ajoute la colonne turpe_variable au DataFrame des périodes.
+    
+    Version simplifiée qui utilise une fonction pure de calcul.
+    
+    Args:
+        regles: Règles tarifaires TURPE
+        periodes: Périodes d'énergie avec consommations par cadran et FTA
+        
+    Returns:
+        DataFrame des périodes enrichi avec la colonne turpe_variable
+    """
+    if periodes.empty:
+        return periodes
+    
+    return periodes.assign(
+        turpe_variable=calculer_turpe_variable_series(regles, periodes)
+    )
     
