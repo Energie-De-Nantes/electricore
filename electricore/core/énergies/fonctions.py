@@ -10,7 +10,7 @@ from electricore.core.périmètre import (
     extraite_relevés_entrées, extraite_relevés_sorties
 )
 from electricore.core.relevés import RelevéIndex, interroger_relevés
-from electricore.core.relevés.modèles import RequêteRelevé
+from electricore.core.relevés.modèles import RequêteRelevé, RelevéIndex
 from electricore.core.énergies.modèles import BaseCalculEnergies, PeriodeEnergie
 
 from icecream import ic
@@ -306,7 +306,7 @@ def reconstituer_chronologie_relevés(relevés: DataFrame[RelevéIndex],
             rel_factices = requetes_manquantes.copy()
             for col in index_cols + ['Id_Calendrier_Distributeur', 'Nature_Index']:
                 rel_factices[col] = np.nan
-            rel_factices['Source'] = 'facturation_sans_releve'
+            rel_factices['Source'] = 'FACTURATION'
             rel_factices['Unité'] = 'kWh'
             rel_factices['Précision'] = 'kWh'
             rel_factices['ordre_index'] = 0
@@ -328,74 +328,141 @@ def reconstituer_chronologie_relevés(relevés: DataFrame[RelevéIndex],
 
 
 @pa.check_types
-def calculer_periodes_energie(relevés: pd.DataFrame) -> DataFrame[PeriodeEnergie]:
-    """
-    Calcule les périodes d'énergie avec IDs et flags de qualité des données.
+def preparer_releves(relevés: DataFrame[RelevéIndex]) -> DataFrame[RelevéIndex]:
+    """Prépare les relevés pour le calcul : tri et reset de l'index."""
+    # Colonnes de tri : ordre_index est optionnel
+    colonnes_tri = ['pdl', 'Date_Releve']
+    if 'ordre_index' in relevés.columns:
+        colonnes_tri.append('ordre_index')
     
-    Args:
-        relevés: DataFrame avec colonnes pdl, Date_Releve, Source, cadrans d'index
-        
-    Returns:
-        DataFrame[PeriodeEnergie] avec périodes d'énergie incluant les références d'index
-    """
-    cadrans = ["BASE", "HP", "HC", "HPH", "HPB", "HCH", "HCB"]
-    
-    # Ajouter un ID temporaire pour chaque relevé
-    relevés = relevés.copy()
-    # Gérer ordre_index manquant : 0 par défaut pour les relevés FACTURATION
-    
-    relevés = relevés.sort_values(['pdl', 'Date_Releve', 'ordre_index']).reset_index(drop=True)
-    relevés['index_id'] = range(len(relevés))
-    
+    return (
+        relevés
+        .copy()
+        .sort_values(colonnes_tri)
+        .reset_index(drop=True)
+    )
+
+@pa.check_types
+def calculer_decalages_par_pdl(relevés: DataFrame[RelevéIndex]) -> pd.DataFrame:
+    """Calcule les décalages des relevés précédents par PDL et enrichit le DataFrame."""
     # Calculer les décalages pour les relevés précédents
     relevés_décalés = relevés.groupby('pdl').shift(1)
     
-    # Préparer le résultat
-    résultat = relevés.copy()
-    résultat['Date_Debut'] = relevés_décalés['Date_Releve']
-    résultat['source_avant'] = relevés_décalés['Source']
-    résultat['id_index_avant'] = relevés_décalés['index_id']
+    # Enrichir avec les données décalées et renommer
+    return (
+        relevés
+        .assign(
+            Date_Debut=relevés_décalés['Date_Releve'],
+            source_avant=relevés_décalés['Source']
+        )
+        .rename(columns={
+            'Date_Releve': 'Date_Fin',
+            'Source': 'source_apres'
+        })
+    )
+
+@pa.check_types
+def calculer_differences_cadrans(data: pd.DataFrame, cadrans: list) -> pd.DataFrame:
+    """Vectorise le calcul des énergies pour tous les cadrans présents."""
+    résultat = data.copy()
     
-    # Renommer pour clarifier
-    résultat = résultat.rename(columns={
-        'Date_Releve': 'Date_Fin',
-        'Source': 'source_apres',
-        'index_id': 'id_index_apres'
-    })
+    # Récupérer les relevés décalés pour le calcul vectorisé
+    relevés_décalés = data.groupby('pdl').shift(1)
     
-    # Calculer les énergies pour tous les cadrans
-    for cadran in cadrans:
-        if cadran in relevés.columns:
-            résultat[f'{cadran}_energie'] = relevés[cadran] - relevés_décalés[cadran]
-        else:
-            résultat[f'{cadran}_energie'] = np.nan
+    # Calculer les différences pour tous les cadrans en une seule opération
+    cadrans_présents = [c for c in cadrans if c in data.columns]
     
-    # Calculer les flags de qualité basés sur les données réelles
-    # data_complete = True si au moins une énergie est calculable (non NaN)
-    colonnes_energie = [f'{cadran}_energie' for cadran in cadrans if f'{cadran}_energie' in résultat.columns]
-    résultat['data_complete'] = résultat[colonnes_energie].notna().any(axis=1)
-    résultat['duree_jours'] = (résultat['Date_Fin'] - résultat['Date_Debut']).dt.days.astype('Int64')
-    résultat['periode_irreguliere'] = (résultat['duree_jours'] > 35).fillna(False).astype(bool)
+    if cadrans_présents:
+        # Calcul vectorisé des différences
+        différences = data[cadrans_présents].subtract(relevés_décalés[cadrans_présents], fill_value=np.nan)
+        # Ajouter le suffixe _energie
+        différences.columns = [f'{col}_energie' for col in différences.columns]
+        résultat = pd.concat([résultat, différences], axis=1)
     
-    # Colonnes finales
-    colonnes_finales = [
+    # Ajouter les colonnes manquantes avec NaN
+    cadrans_manquants = [c for c in cadrans if c not in data.columns]
+    for cadran in cadrans_manquants:
+        résultat[f'{cadran}_energie'] = np.nan
+    
+    return résultat
+
+@pa.check_types
+def calculer_flags_qualite(data: pd.DataFrame, cadrans: list) -> pd.DataFrame:
+    """Calcule les flags de qualité des données de manière vectorisée."""
+    colonnes_energie = [f'{cadran}_energie' for cadran in cadrans]
+    colonnes_energie_présentes = [col for col in colonnes_energie if col in data.columns]
+    
+    return (
+        data
+        .assign(
+            data_complete=data[colonnes_energie_présentes].notna().any(axis=1) if colonnes_energie_présentes else False,
+            duree_jours=(data['Date_Fin'] - data['Date_Debut']).dt.days.astype('Int64')
+        )
+        .assign(periode_irreguliere=lambda df: (df['duree_jours'] > 35).fillna(False).astype(bool))
+    )
+
+@pa.check_types
+def formater_colonnes_finales(data: pd.DataFrame, cadrans: list) -> DataFrame[PeriodeEnergie]:
+    """Sélectionne et formate les colonnes finales du résultat."""
+    colonnes_base = [
         'pdl', 'Date_Debut', 'Date_Fin', 'duree_jours',
-        'id_index_avant', 'id_index_apres',
         'source_avant', 'source_apres', 
         'data_complete', 'periode_irreguliere'
-    ] + colonnes_energie
+    ]
     
-    résultat = résultat[colonnes_finales]
+    colonnes_energie = [f'{cadran}_energie' for cadran in cadrans if f'{cadran}_energie' in data.columns]
+    colonnes_finales = colonnes_base + colonnes_energie
     
-    # Filtrer les lignes sans date de début (premier relevé de chaque PDL)
-    résultat = résultat.dropna(subset=['Date_Debut'])
+    return data[colonnes_finales].copy()
+
+@pa.check_types
+def filtrer_periodes_valides(data: pd.DataFrame) -> pd.DataFrame:
+    """Filtre les périodes invalides de manière déclarative."""
+    return (
+        data
+        .dropna(subset=['Date_Debut'])  # Éliminer les premiers relevés sans début
+        .query('Date_Debut != Date_Fin')  # Éliminer les périodes de durée zéro
+        .reset_index(drop=True)
+    )
+
+@pa.check_types
+def calculer_periodes_energie(relevés: DataFrame[RelevéIndex]) -> DataFrame[PeriodeEnergie]:
+    """
+    Calcule les périodes d'énergie avec flags de qualité des données.
     
-    # Filtrer les périodes de durée zéro
-    résultat = résultat[résultat['Date_Debut'] != résultat['Date_Fin']]
+    🔄 **Version refactorisée** - Approche fonctionnelle optimisée :
+    - **Pipeline déclaratif** avec pandas.pipe() pour une meilleure lisibilité
+    - **Vectorisation maximale** des calculs d'énergies (élimination des boucles explicites)
+    - **Typage Pandera strict** avec validation automatique des données
+    - **Fonctions pures** facilement testables et maintenables
+    - **Performance améliorée** grâce aux optimisations vectorielles
     
-    # Convertir les IDs en object pour préserver le type attendu par Pandera
-    if not résultat.empty:
-        résultat['id_index_avant'] = résultat['id_index_avant'].astype('object')
-        résultat['id_index_apres'] = résultat['id_index_apres'].astype('object')
+    Pipeline de transformation :
+    1. `preparer_releves()` - Tri et normalisation des relevés
+    2. `calculer_decalages_par_pdl()` - Calcul des décalages par PDL avec groupby
+    3. `calculer_differences_cadrans()` - Calcul vectorisé des énergies tous cadrans
+    4. `calculer_flags_qualite()` - Indicateurs de qualité vectorisés
+    5. `filtrer_periodes_valides()` - Filtrage déclaratif avec query()
+    6. `formater_colonnes_finales()` - Sélection et formatage final
     
-    return résultat.reset_index(drop=True)
+    Args:
+        relevés: DataFrame[RelevéIndex] avec relevés d'index chronologiques
+        
+    Returns:
+        DataFrame[PeriodeEnergie] avec périodes d'énergie calculées et validées
+        
+    Raises:
+        SchemaError: Si les données d'entrée ne respectent pas le modèle RelevéIndex
+    """
+    # Cadrans d'index électriques standard
+    cadrans = ["BASE", "HP", "HC", "HPH", "HPB", "HCH", "HCB"]
+    
+    return (
+        relevés
+        .pipe(preparer_releves)
+        .pipe(calculer_decalages_par_pdl)
+        .pipe(calculer_differences_cadrans, cadrans=cadrans)
+        .pipe(calculer_flags_qualite, cadrans=cadrans)
+        .pipe(filtrer_periodes_valides)  # Filtrer avant le formatage
+        .pipe(formater_colonnes_finales, cadrans=cadrans)
+    )

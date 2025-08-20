@@ -80,8 +80,6 @@ class PeriodeEnergie(pa.DataFrameModel):
     """
     # Identifiants
     pdl: Series[str] = pa.Field(nullable=False)
-    id_index_avant: Series[object] = pa.Field(nullable=False)  # int ou str
-    id_index_apres: Series[object] = pa.Field(nullable=False)  # int ou str
     
     # Période
     Date_Debut: Series[Annotated[pd.DatetimeTZDtype, "ns", "Europe/Paris"]] = pa.Field(nullable=False, coerce=True)

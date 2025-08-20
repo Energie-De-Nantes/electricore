@@ -27,7 +27,7 @@ class RelevéIndex(pa.DataFrameModel):
     Id_Affaire: Optional[Series[str]] = pa.Field(nullable=True)  # Référence de la demande associée
 
     # 
-    Source: Series[str] = pa.Field(nullable=False, isin=["flux_R151", "flux_R15", "flux_C15"])
+    Source: Series[str] = pa.Field(nullable=False, isin=["flux_R151", "flux_R15", "flux_C15", "FACTURATION"])
 
     # 📏 Unité de mesure
     Unité: Series[str] = pa.Field(nullable=False, eq="kWh")
