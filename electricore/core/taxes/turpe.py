@@ -139,7 +139,7 @@ def ajouter_turpe_fixe(
 # ==================================================================================
 
 @curry
-def joindre_avec_regles(regles: DataFrame[RegleTurpe], periodes: pd.DataFrame) -> pd.DataFrame:
+def joindre_avec_regles(regles: DataFrame[RegleTurpe], periodes: DataFrame[PeriodeEnergie]) -> pd.DataFrame:
     """Joint les périodes avec les règles TURPE basées sur FTA."""
     return pd.merge(
         periodes.reset_index(names='_index_original'),
