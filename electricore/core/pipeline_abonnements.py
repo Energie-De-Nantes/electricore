@@ -19,47 +19,29 @@ from electricore.core.périmètre import HistoriquePérimètre
 from electricore.core.pipeline_commun import pipeline_commun
 from electricore.core.models import PeriodeAbonnement
 from electricore.core.taxes.turpe import ajouter_turpe_fixe, load_turpe_rules
+from electricore.core.utils.formatage import formater_date_francais
 
-from babel.dates import format_date
 
-
-@pa.check_types
-def generer_periodes_abonnement(historique: DataFrame[HistoriquePérimètre]) -> DataFrame[PeriodeAbonnement]:
+def calculer_bornes_periodes(abonnements: pd.DataFrame) -> pd.DataFrame:
     """
-    Génère les périodes homogènes d'abonnement à partir des événements impactant le TURPE fixe.
+    Calcule les bornes de début et fin de période pour chaque contrat.
+    
+    Trie par contrat et date, puis utilise shift(-1) pour déterminer
+    la fin de chaque période.
     """
-    # 1. Filtrer les événements pertinents
-    filtres = (
-        (historique["impact_turpe_fixe"] == True) &
-        (historique["Ref_Situation_Contractuelle"].notna())
-    )
-    abonnements = historique[filtres].copy()
-
-    # 2. Trier par ref et date
-    abonnements = abonnements.sort_values(["Ref_Situation_Contractuelle", "Date_Evenement"])
-
-    # 3. Construire les débuts et fins de période
-    abonnements["periode_debut"] = abonnements["Date_Evenement"]
-    abonnements["periode_fin"] = abonnements.groupby("Ref_Situation_Contractuelle")["Date_Evenement"].shift(-1)
-
-    # 4. Ne garder que les lignes valides
-    periodes = abonnements.dropna(subset=["periode_fin"]).copy()
-
-    # 5. Ajouter nb jours (arrondi à la journée, pas de time)
-    periodes["nb_jours"] = (periodes["periode_fin"].dt.normalize() - periodes["periode_debut"].dt.normalize()).dt.days
-
-    # 6. Ajout lisibles
-    periodes['periode_debut_lisible'] = periodes['periode_debut'].apply(
-        lambda d: format_date(d, "d MMMM yyyy", locale="fr_FR") if not pd.isna(d) else None
-    )
-    periodes['periode_fin_lisible'] = periodes['periode_fin'].apply(
-        lambda d: format_date(d, "d MMMM yyyy", locale="fr_FR") if not pd.isna(d) else "en cours"
+    df = abonnements.sort_values(["Ref_Situation_Contractuelle", "Date_Evenement"])
+    
+    return df.assign(
+        periode_debut=df["Date_Evenement"],
+        periode_fin=df.groupby("Ref_Situation_Contractuelle")["Date_Evenement"].shift(-1)
     )
 
-    periodes['mois_annee'] = periodes['periode_debut'].apply(
-        lambda d: format_date(d, "LLLL yyyy", locale="fr_FR")
-    )
-    return periodes[[
+
+def selectionner_colonnes_abonnement(periodes: pd.DataFrame) -> pd.DataFrame:
+    """
+    Sélectionne et réordonne les colonnes finales pour les périodes d'abonnement.
+    """
+    colonnes_finales = [
         "Ref_Situation_Contractuelle",
         "pdl",
         "mois_annee",
@@ -69,7 +51,39 @@ def generer_periodes_abonnement(historique: DataFrame[HistoriquePérimètre]) ->
         "Puissance_Souscrite",
         "nb_jours",
         "periode_debut",
-    ]].reset_index(drop=True)
+    ]
+    return periodes[colonnes_finales].reset_index(drop=True)
+
+
+@pa.check_types
+def generer_periodes_abonnement(historique: DataFrame[HistoriquePérimètre]) -> DataFrame[PeriodeAbonnement]:
+    """
+    Génère les périodes homogènes d'abonnement à partir des événements impactant le TURPE fixe.
+    
+    Pipeline de transformation :
+    1. Filtre les événements pertinents avec query
+    2. Calcule les bornes de période (début/fin)
+    3. Élimine les périodes incomplètes
+    4. Enrichit avec les données calculées et formatées
+    5. Sélectionne les colonnes finales
+    """
+    return (
+        historique
+        .query("impact_turpe_fixe == True and Ref_Situation_Contractuelle.notna()")
+        .pipe(calculer_bornes_periodes)
+        .dropna(subset=["periode_fin"])
+        .assign(
+            nb_jours=lambda df: (df["periode_fin"].dt.normalize() - df["periode_debut"].dt.normalize()).dt.days,
+            periode_debut_lisible=lambda df: df["periode_debut"].apply(formater_date_francais),
+            periode_fin_lisible=lambda df: df["periode_fin"].apply(
+                lambda d: formater_date_francais(d) if pd.notna(d) else "en cours"
+            ),
+            mois_annee=lambda df: df["periode_debut"].apply(
+                lambda d: formater_date_francais(d, "LLLL yyyy")
+            )
+        )
+        .pipe(selectionner_colonnes_abonnement)
+    )
 
 
 @pa.check_types
