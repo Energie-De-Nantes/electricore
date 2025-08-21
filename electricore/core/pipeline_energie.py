@@ -28,6 +28,7 @@ from electricore.core.relevés import RelevéIndex, interroger_relevés
 from electricore.core.relevés.modèles import RequêteRelevé
 from electricore.core.models.periode_energie import PeriodeEnergie
 from electricore.core.taxes.turpe import calculer_turpe_variable, load_turpe_rules
+from electricore.core.utils.formatage import formater_date_francais
 
 
 @curry
@@ -298,6 +299,13 @@ def calculer_periodes_energie(relevés: DataFrame[RelevéIndex]) -> DataFrame[Pe
         .pipe(calculer_flags_qualite, cadrans=cadrans)
         .pipe(filtrer_periodes_valides)  # Filtrer avant le formatage
         .pipe(formater_colonnes_finales, cadrans=cadrans)
+        .assign(
+            date_debut_lisible=lambda df: df["Date_Debut"].apply(formater_date_francais),
+            date_fin_lisible=lambda df: df["Date_Fin"].apply(formater_date_francais),
+            mois_annee=lambda df: df["Date_Debut"].apply(
+                lambda d: formater_date_francais(d, "LLLL yyyy")
+            )
+        )
         .pipe(enrichir_cadrans_principaux)  # Enrichissement hiérarchique des cadrans
     )
 
