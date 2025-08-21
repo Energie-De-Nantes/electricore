@@ -65,12 +65,10 @@ def agreger_abonnements_mensuel(abonnements: DataFrame[PeriodeAbonnement]) -> pd
         .assign(
             # Calcul final de la puissance moyenne
             puissance_moyenne=lambda x: x['puissance_ponderee'] / x['nb_jours'],
-            debut_mois=lambda x: x['debut'],
-            fin_mois=lambda x: x['fin'],
             # Flag de changement si plus d'une sous-période
             has_changement_abo=lambda x: x['nb_sous_periodes_abo'] > 1
         )
-        .drop(columns=['puissance_ponderee', 'debut', 'fin'])
+        .drop(columns=['puissance_ponderee'])
         .reset_index()
     )
 
@@ -100,6 +98,8 @@ def agreger_energies_mensuel(energies: DataFrame[PeriodeEnergie]) -> pd.DataFram
         col: 'sum' for col in colonnes_energie_presentes
     }
     agg_dict.update({
+        'debut': 'min',
+        'fin': 'max',
         'turpe_variable': 'sum',
         'Ref_Situation_Contractuelle': 'size'  # Temporaire pour compter
     })
@@ -141,18 +141,34 @@ def joindre_agregats(ener_mensuel: pd.DataFrame, abo_mensuel: pd.DataFrame) -> p
         suffixes=('_abo', '_energie')
     )
     
-    # Gestion des valeurs manquantes
+    # Gestion des valeurs manquantes et réconciliation des colonnes de dates
     return (
         meta_periodes
         .assign(
+            # Réconcilier les colonnes de dates (priorité aux abonnements)
+            debut=lambda x: x['debut_abo'].fillna(x['debut_energie']) if 'debut_energie' in x.columns else x['debut_abo'],
+            fin=lambda x: x['fin_abo'].fillna(x['fin_energie']) if 'fin_energie' in x.columns else x['fin_abo'],
+            
+            # Réconcilier nb_jours (calculer si manquant)
+            nb_jours=lambda x: x['nb_jours'].fillna(
+                (x['fin'].dt.normalize() - x['debut'].dt.normalize()).dt.days
+            ).astype(int),
+            
+            # Réconcilier les autres colonnes d'abonnement manquantes
+            puissance_moyenne=lambda x: x['puissance_moyenne'].fillna(0),
+            Formule_Tarifaire_Acheminement=lambda x: x['Formule_Tarifaire_Acheminement'].fillna('INCONNU'),
+            turpe_fixe=lambda x: x['turpe_fixe'].fillna(0),
+            
             # Si pas de sous-périodes d'énergie, mettre 0 au lieu de NaN
             nb_sous_periodes_energie=lambda x: x['nb_sous_periodes_energie'].fillna(0).astype(int),
+            nb_sous_periodes_abo=lambda x: x['nb_sous_periodes_abo'].fillna(1).astype(int),
             has_changement_energie=lambda x: x['has_changement_energie'].fillna(False),
+            has_changement_abo=lambda x: x['has_changement_abo'].fillna(False),
             
             # Flag de changement global
             has_changement=lambda x: x['has_changement_abo'] | x['has_changement_energie']
         )
-        .drop(columns=['has_changement_abo', 'has_changement_energie'], errors='ignore')
+        .drop(columns=['has_changement_abo', 'has_changement_energie', 'debut_abo', 'debut_energie', 'fin_abo', 'fin_energie'], errors='ignore')
     )
 
 
@@ -192,8 +208,8 @@ def pipeline_facturation(
         agreger_abonnements_mensuel(periodes_abonnement)
         .pipe(joindre_agregats(agreger_energies_mensuel(periodes_energie)))
         .assign(
-            debut_lisible=lambda x: x['debut_mois'].apply(formater_date_francais),
-            fin_lisible=lambda x: x['fin_mois'].apply(formater_date_francais)
+            debut_lisible=lambda x: x['debut'].apply(formater_date_francais),
+            fin_lisible=lambda x: x['fin'].apply(formater_date_francais)
         )
     )
     

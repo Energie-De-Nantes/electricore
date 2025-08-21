@@ -23,20 +23,22 @@ class PeriodeMeta(pa.DataFrameModel):
     mois_annee: Series[str] = pa.Field(nullable=False)  # ex: "mars 2025"
     
     # Période globale du mois
-    debut_mois: Series[Annotated[pd.DatetimeTZDtype, "ns", "Europe/Paris"]] = pa.Field(nullable=False, coerce=True)
-    fin_mois: Series[Annotated[pd.DatetimeTZDtype, "ns", "Europe/Paris"]] = pa.Field(nullable=False, coerce=True)
+    debut: Series[Annotated[pd.DatetimeTZDtype, "ns", "Europe/Paris"]] = pa.Field(nullable=False, coerce=True)
+    fin: Series[Annotated[pd.DatetimeTZDtype, "ns", "Europe/Paris"]] = pa.Field(nullable=False, coerce=True)
     nb_jours: Series[int] = pa.Field(nullable=False, ge=0)
     
     # Données agrégées depuis abonnements
     puissance_moyenne: Series[float] = pa.Field(nullable=False, ge=0)
     Formule_Tarifaire_Acheminement: Series[str] = pa.Field(nullable=False)
-    turpe_fixe: Series[float] = pa.Field(nullable=True, ge=0)
+    turpe_fixe: Series[float] = pa.Field(nullable=True)
     
     # Données agrégées depuis énergies
     BASE_energie: Series[float] = pa.Field(nullable=True, coerce=True)
     HP_energie: Series[float] = pa.Field(nullable=True, coerce=True)
     HC_energie: Series[float] = pa.Field(nullable=True, coerce=True)
-    turpe_variable: Series[float] = pa.Field(nullable=True, ge=0)
+    turpe_variable: Series[float] = pa.Field(nullable=True)
+
+    #turpe: Series[float] = pa.Field(nullable=True)
     
     # Métadonnées de traçabilité
     nb_sous_periodes_abo: Series[int] = pa.Field(nullable=False, ge=1)

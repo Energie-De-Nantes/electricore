@@ -32,6 +32,8 @@ class TestAgregerAbonnementsMensuel:
             'mois_annee': ['janvier 2024'],
             'debut': [pd.Timestamp('2024-01-01', tz='Europe/Paris')],
             'fin': [pd.Timestamp('2024-01-31', tz='Europe/Paris')],
+            'debut_lisible': ['1 janvier 2024'],
+            'fin_lisible': ['31 janvier 2024'],
             'nb_jours': [31],
             'Puissance_Souscrite': [6.0],
             'Formule_Tarifaire_Acheminement': ['BASE'],
@@ -62,6 +64,8 @@ class TestAgregerAbonnementsMensuel:
                 pd.Timestamp('2024-01-15', tz='Europe/Paris'),
                 pd.Timestamp('2024-01-31', tz='Europe/Paris')
             ],
+            'debut_lisible': ['1 janvier 2024', '15 janvier 2024'],
+            'fin_lisible': ['15 janvier 2024', '31 janvier 2024'],
             'nb_jours': [14, 17],
             'Puissance_Souscrite': [6.0, 9.0],
             'Formule_Tarifaire_Acheminement': ['BASE', 'BASE'],
@@ -100,9 +104,20 @@ class TestAgregerEnergiesMensuel:
             'Ref_Situation_Contractuelle': ['PDL001'],
             'pdl': ['PDL001'],
             'mois_annee': ['janvier 2024'],
+            'debut': [pd.Timestamp('2024-01-01', tz='Europe/Paris')],
+            'fin': [pd.Timestamp('2024-01-31', tz='Europe/Paris')],
+            'nb_jours': [31],
+            'source_avant': ['Flux_C15'],
+            'source_apres': ['Flux_C15'],
+            'data_complete': [True],
+            'periode_irreguliere': [False],
             'BASE_energie': [1000.0],
             'HP_energie': [600.0],
             'HC_energie': [400.0],
+            'HPH_energie': [None],
+            'HPB_energie': [None],
+            'HCH_energie': [None],
+            'HCB_energie': [None],
             'turpe_variable': [50.0]
         })
         
@@ -123,9 +138,26 @@ class TestAgregerEnergiesMensuel:
             'Ref_Situation_Contractuelle': ['PDL001', 'PDL001'],
             'pdl': ['PDL001', 'PDL001'],
             'mois_annee': ['janvier 2024', 'janvier 2024'],
+            'debut': [
+                pd.Timestamp('2024-01-01', tz='Europe/Paris'),
+                pd.Timestamp('2024-01-15', tz='Europe/Paris')
+            ],
+            'fin': [
+                pd.Timestamp('2024-01-15', tz='Europe/Paris'),
+                pd.Timestamp('2024-01-31', tz='Europe/Paris')
+            ],
+            'nb_jours': [14, 17],
+            'source_avant': ['Flux_C15', 'Flux_C15'],
+            'source_apres': ['Flux_C15', 'Flux_C15'],
+            'data_complete': [True, True],
+            'periode_irreguliere': [False, False],
             'BASE_energie': [600.0, 400.0],
             'HP_energie': [300.0, 300.0],
             'HC_energie': [300.0, 100.0],
+            'HPH_energie': [None, None],
+            'HPB_energie': [None, None],
+            'HCH_energie': [None, None],
+            'HCB_energie': [None, None],
             'turpe_variable': [30.0, 20.0]
         })
         
@@ -154,8 +186,8 @@ class TestJoindreAgregats:
             'puissance_moyenne': [6.5],
             'turpe_fixe': [150.0],
             'Formule_Tarifaire_Acheminement': ['BASE'],
-            'debut_mois': [pd.Timestamp('2024-01-01', tz='Europe/Paris')],
-            'fin_mois': [pd.Timestamp('2024-01-31', tz='Europe/Paris')],
+            'debut': [pd.Timestamp('2024-01-01', tz='Europe/Paris')],
+            'fin': [pd.Timestamp('2024-01-31', tz='Europe/Paris')],
             'nb_sous_periodes_abo': [2],
             'has_changement_abo': [True]
         })
@@ -189,8 +221,8 @@ class TestJoindreAgregats:
             'puissance_moyenne': [6.0],
             'turpe_fixe': [150.0],
             'Formule_Tarifaire_Acheminement': ['BASE'],
-            'debut_mois': [pd.Timestamp('2024-01-01', tz='Europe/Paris')],
-            'fin_mois': [pd.Timestamp('2024-01-31', tz='Europe/Paris')],
+            'debut': [pd.Timestamp('2024-01-01', tz='Europe/Paris')],
+            'fin': [pd.Timestamp('2024-01-31', tz='Europe/Paris')],
             'nb_sous_periodes_abo': [1],
             'has_changement_abo': [False]
         })
@@ -325,8 +357,8 @@ class TestPipelineComplet:
             'Ref_Situation_Contractuelle': ['PDL001'],
             'pdl': ['PDL001'],
             'mois_annee': ['janvier 2024'],
-            'debut_mois': [pd.Timestamp('2024-01-01', tz='Europe/Paris')],
-            'fin_mois': [pd.Timestamp('2024-01-31', tz='Europe/Paris')],
+            'debut': [pd.Timestamp('2024-01-01', tz='Europe/Paris')],
+            'fin': [pd.Timestamp('2024-01-31', tz='Europe/Paris')],
             'nb_jours': [31],
             'puissance_moyenne': [6.0],
             'Formule_Tarifaire_Acheminement': ['BASE'],
