@@ -1,7 +1,7 @@
 """
-Modèles Pandera pour les données fiscales (TURPE).
+Modèle Pandera pour les règles tarifaires TURPE.
 
-Ce module définit les structures de validation des données utilisées
+Ce module définit la structure de validation des données TURPE utilisées
 dans les calculs de taxes et redevances pour l'énergie électrique.
 """
 
