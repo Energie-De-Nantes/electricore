@@ -7,8 +7,10 @@ utilisés dans les différents modules du projet.
 
 from .periode_energie import PeriodeEnergie
 from .regle_turpe import RegleTurpe
+from .periode_abonnement import PeriodeAbonnement
 
 __all__ = [
     'PeriodeEnergie',
     'RegleTurpe',
+    'PeriodeAbonnement',
 ]

@@ -108,7 +108,7 @@ def _(lire_flux_c15, lire_flux_r151, mo, raw_c15, raw_r151):
 def _(historique, mo):
     # Inspection de l'historique du périmètre
     _historique_display = (
-        mo.vstack([mo.md("### Historique du Périmètre (sample)"), historique.head()]) 
+        mo.vstack([mo.md("### Historique du Périmètre (sample)"), historique]) 
         if historique is not None 
         else mo.md("❌ Historique non disponible")
     )
@@ -154,7 +154,7 @@ def _(historique, mo, pipeline_energie, releves, transform_success):
     return (periodes_energie,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo, periodes_energie):
     # Résultats du pipeline
     _periodes_display = (
@@ -166,7 +166,7 @@ def _(mo, periodes_energie):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo, periodes_energie):
     # Validation et métriques de qualité
     quality_metrics = None
@@ -195,7 +195,7 @@ def _(mo, periodes_energie):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo, periodes_energie):
     # Colonnes disponibles pour inspection
     columns_info = None
@@ -213,7 +213,7 @@ def _(mo, periodes_energie):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     mo.md(
         """
@@ -233,7 +233,7 @@ def _(mo):
     return (pdl_input,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo, pdl_input, periodes_energie):
     # Analyse détaillée d'un PDL spécifique
     pdl_analysis = None
@@ -254,7 +254,7 @@ def _(mo, pdl_input, periodes_energie):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     mo.md(
         """

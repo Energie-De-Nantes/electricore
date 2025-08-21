@@ -36,7 +36,7 @@ def __():
 
     # Imports ElectriCore
     from electricore.core.périmètre.fonctions import detecter_points_de_rupture, inserer_evenements_facturation
-    from electricore.core.abonnements.fonctions import generer_periodes_abonnement
+    from electricore.core.pipeline_abonnements import generer_periodes_abonnement
 
     return (
         datetime,

@@ -6,7 +6,7 @@ from toolz import curry
 
 import pandera.pandas as pa
 from pandera.typing import DataFrame
-from electricore.core.abonnements.modèles import PeriodeAbonnement
+from electricore.core.models import PeriodeAbonnement
 from electricore.core.models.regle_turpe import RegleTurpe
 from electricore.core.models.periode_energie import PeriodeEnergie
 

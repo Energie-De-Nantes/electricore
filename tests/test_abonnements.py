@@ -3,8 +3,8 @@ import pandas as pd
 from pandera.typing import DataFrame
 from electricore.core.périmètre.fonctions import detecter_points_de_rupture, inserer_evenements_facturation
 from electricore.core.périmètre.modèles import HistoriquePérimètre
-from electricore.core.abonnements.fonctions import generer_periodes_abonnement
-from electricore.core.abonnements.modèles import PeriodeAbonnement
+from electricore.core.pipeline_abonnements import generer_periodes_abonnement
+from electricore.core.models import PeriodeAbonnement
 
 
 def create_historique_data(base_data: dict) -> pd.DataFrame:
