@@ -126,11 +126,11 @@ def calculer_decalages_par_pdl(relevés: DataFrame[RelevéIndex]) -> pd.DataFram
     return (
         relevés
         .assign(
-            Date_Debut=relevés_décalés['Date_Releve'],
+            debut=relevés_décalés['Date_Releve'],
             source_avant=relevés_décalés['Source']
         )
         .rename(columns={
-            'Date_Releve': 'Date_Fin',
+            'Date_Releve': 'fin',
             'Source': 'source_apres'
         })
     )
@@ -175,9 +175,9 @@ def calculer_flags_qualite(data: pd.DataFrame, cadrans: list) -> pd.DataFrame:
         data
         .assign(
             data_complete=data[colonnes_energie_présentes].notna().any(axis=1) if colonnes_energie_présentes else False,
-            duree_jours=(data['Date_Fin'] - data['Date_Debut']).dt.days.astype('Int64')
+            nb_jours=(data['fin'] - data['debut']).dt.days.astype('Int64')
         )
-        .assign(periode_irreguliere=lambda df: (df['duree_jours'] > 35).fillna(False).astype(bool))
+        .assign(periode_irreguliere=lambda df: (df['nb_jours'] > 35).fillna(False).astype(bool))
     )
 
 
@@ -185,7 +185,7 @@ def calculer_flags_qualite(data: pd.DataFrame, cadrans: list) -> pd.DataFrame:
 def formater_colonnes_finales(data: pd.DataFrame, cadrans: list) -> DataFrame[PeriodeEnergie]:
     """Sélectionne et formate les colonnes finales du résultat."""
     colonnes_base = [
-        'pdl', 'Date_Debut', 'Date_Fin', 'duree_jours',
+        'pdl', 'debut', 'fin', 'nb_jours',
         'source_avant', 'source_apres', 
         'data_complete', 'periode_irreguliere'
     ]
@@ -207,8 +207,8 @@ def filtrer_periodes_valides(data: pd.DataFrame) -> pd.DataFrame:
     """Filtre les périodes invalides de manière déclarative."""
     return (
         data
-        .dropna(subset=['Date_Debut'])  # Éliminer les premiers relevés sans début
-        .query('Date_Debut != Date_Fin')  # Éliminer les périodes de durée zéro
+        .dropna(subset=['debut'])  # Éliminer les premiers relevés sans début
+        .query('debut != fin')  # Éliminer les périodes de durée zéro
         .reset_index(drop=True)
     )
 
@@ -300,9 +300,9 @@ def calculer_periodes_energie(relevés: DataFrame[RelevéIndex]) -> DataFrame[Pe
         .pipe(filtrer_periodes_valides)  # Filtrer avant le formatage
         .pipe(formater_colonnes_finales, cadrans=cadrans)
         .assign(
-            date_debut_lisible=lambda df: df["Date_Debut"].apply(formater_date_francais),
-            date_fin_lisible=lambda df: df["Date_Fin"].apply(formater_date_francais),
-            mois_annee=lambda df: df["Date_Debut"].apply(
+            debut_lisible=lambda df: df["debut"].apply(formater_date_francais),
+            fin_lisible=lambda df: df["fin"].apply(formater_date_francais),
+            mois_annee=lambda df: df["debut"].apply(
                 lambda d: formater_date_francais(d, "LLLL yyyy")
             )
         )

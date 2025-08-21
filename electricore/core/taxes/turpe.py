@@ -123,7 +123,7 @@ def ajouter_turpe_fixe(
     # Filtrage temporel
     df["end"] = df["end"].fillna(pd.Timestamp("2100-01-01").tz_localize(PARIS_TZ))
 
-    mask = (df["periode_debut"] >= df["start"]) & (df["periode_debut"] < df["end"])
+    mask = (df["debut"] >= df["start"]) & (df["debut"] < df["end"])
     df = df[mask].copy()
 
     # Calculs
@@ -160,7 +160,7 @@ def valider_regles_presentes(df: pd.DataFrame) -> pd.DataFrame:
 def filtrer_validite_temporelle(df: pd.DataFrame) -> pd.DataFrame:
     """Filtre les périodes selon leur validité temporelle."""
     df["end"] = df["end"].fillna(pd.Timestamp("2100-01-01").tz_localize(PARIS_TZ))
-    mask = (df["Date_Debut"] >= df["start"]) & (df["Date_Debut"] < df["end"])
+    mask = (df["debut"] >= df["start"]) & (df["debut"] < df["end"])
     df_filtre = df[mask]
     if df_filtre.empty:
         raise ValueError("❌ Aucune période ne correspond aux règles TURPE temporelles")

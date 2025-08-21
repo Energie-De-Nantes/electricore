@@ -185,7 +185,7 @@ def __(
     print(f"   - Total: {periodes_abonnement['nb_jours'].sum()} jours")
 
     # Afficher les périodes
-    colonnes_periodes = ['mois_annee', 'periode_debut_lisible', 'periode_fin_lisible', 
+    colonnes_periodes = ['mois_annee', 'debut_lisible', 'fin_lisible', 
                         'Puissance_Souscrite', 'nb_jours']
     
     periodes_abonnement[colonnes_periodes]
@@ -290,11 +290,11 @@ def __(go, pd, periodes_abonnement):
     fig_puissance = go.Figure()
 
     periodes_viz = periodes_abonnement.copy()
-    periodes_viz['periode_debut_date'] = pd.to_datetime(periodes_viz['periode_debut'])
+    periodes_viz['debut_date'] = pd.to_datetime(periodes_viz['debut'])
 
     fig_puissance.add_trace(
         go.Scatter(
-            x=periodes_viz['periode_debut_date'],
+            x=periodes_viz['debut_date'],
             y=periodes_viz['Puissance_Souscrite'],
             mode='lines+markers',
             name='Puissance souscrite',

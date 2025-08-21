@@ -170,7 +170,7 @@ def test_calculer_periodes_energie_coherence():
     
     # Test flags qualité
     assert all(result['data_complete'] == True)
-    assert all(result['duree_jours'] > 0)
+    assert all(result['nb_jours'] > 0)
 
 
 @given(st.integers(min_value=28, max_value=35))
@@ -199,7 +199,7 @@ def test_periode_irreguliere_detection(duree):
     # Propriété : période irrégulière ssi durée > 35
     expected_irregular = duree > 35
     assert result.iloc[0]['periode_irreguliere'] == expected_irregular
-    assert result.iloc[0]['duree_jours'] == duree
+    assert result.iloc[0]['nb_jours'] == duree
 
 
 def test_periodes_sans_chevauchement():
@@ -230,7 +230,7 @@ def test_periodes_sans_chevauchement():
     
     # Propriété : pas de chevauchement
     for i in range(len(result) - 1):
-        assert result.iloc[i]['Date_Fin'] <= result.iloc[i + 1]['Date_Debut']
+        assert result.iloc[i]['fin'] <= result.iloc[i + 1]['debut']
 
 
 def test_conservation_energie_totale():
@@ -338,9 +338,9 @@ def test_enrichissement_sous_cadrans_vers_principaux():
     # Données avec seulement les sous-cadrans
     data = pd.DataFrame({
         'pdl': ['test_pdl'],
-        'Date_Debut': [pd.Timestamp("2024-01-01", tz="Europe/Paris")],
-        'Date_Fin': [pd.Timestamp("2024-02-01", tz="Europe/Paris")],
-        'duree_jours': [31],
+        'debut': [pd.Timestamp("2024-01-01", tz="Europe/Paris")],
+        'fin': [pd.Timestamp("2024-02-01", tz="Europe/Paris")],
+        'nb_jours': [31],
         'source_avant': ['flux_R151'],
         'source_apres': ['flux_R151'],
         'data_complete': [True],
@@ -364,9 +364,9 @@ def test_enrichissement_cadrans_principaux_vers_base():
     """Test de synthèse de HP et HC vers BASE."""
     data = pd.DataFrame({
         'pdl': ['test_pdl'],
-        'Date_Debut': [pd.Timestamp("2024-01-01", tz="Europe/Paris")],
-        'Date_Fin': [pd.Timestamp("2024-02-01", tz="Europe/Paris")],
-        'duree_jours': [31],
+        'debut': [pd.Timestamp("2024-01-01", tz="Europe/Paris")],
+        'fin': [pd.Timestamp("2024-02-01", tz="Europe/Paris")],
+        'nb_jours': [31],
         'source_avant': ['flux_R151'],
         'source_apres': ['flux_R151'],
         'data_complete': [True],
@@ -388,9 +388,9 @@ def test_enrichissement_avec_valeurs_partielles_nan():
     """Test avec des valeurs NaN partielles."""
     data = pd.DataFrame({
         'pdl': ['test_pdl'],
-        'Date_Debut': [pd.Timestamp("2024-01-01", tz="Europe/Paris")],
-        'Date_Fin': [pd.Timestamp("2024-02-01", tz="Europe/Paris")],
-        'duree_jours': [31],
+        'debut': [pd.Timestamp("2024-01-01", tz="Europe/Paris")],
+        'fin': [pd.Timestamp("2024-02-01", tz="Europe/Paris")],
+        'nb_jours': [31],
         'source_avant': ['flux_R151'],
         'source_apres': ['flux_R151'],
         'data_complete': [True],
@@ -414,9 +414,9 @@ def test_enrichissement_toutes_valeurs_nan():
     """Test avec toutes les valeurs NaN."""
     data = pd.DataFrame({
         'pdl': ['test_pdl'],
-        'Date_Debut': [pd.Timestamp("2024-01-01", tz="Europe/Paris")],
-        'Date_Fin': [pd.Timestamp("2024-02-01", tz="Europe/Paris")],
-        'duree_jours': [31],
+        'debut': [pd.Timestamp("2024-01-01", tz="Europe/Paris")],
+        'fin': [pd.Timestamp("2024-02-01", tz="Europe/Paris")],
+        'nb_jours': [31],
         'source_avant': ['flux_R151'],
         'source_apres': ['flux_R151'],
         'data_complete': [False],
@@ -440,9 +440,9 @@ def test_enrichissement_base_existant():
     """Test quand BASE existe déjà avec HP et HC."""
     data = pd.DataFrame({
         'pdl': ['test_pdl'],
-        'Date_Debut': [pd.Timestamp("2024-01-01", tz="Europe/Paris")],
-        'Date_Fin': [pd.Timestamp("2024-02-01", tz="Europe/Paris")],
-        'duree_jours': [31],
+        'debut': [pd.Timestamp("2024-01-01", tz="Europe/Paris")],
+        'fin': [pd.Timestamp("2024-02-01", tz="Europe/Paris")],
+        'nb_jours': [31],
         'source_avant': ['flux_R151'],
         'source_apres': ['flux_R151'],
         'data_complete': [True],

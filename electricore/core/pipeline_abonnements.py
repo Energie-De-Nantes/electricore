@@ -32,8 +32,8 @@ def calculer_bornes_periodes(abonnements: pd.DataFrame) -> pd.DataFrame:
     df = abonnements.sort_values(["Ref_Situation_Contractuelle", "Date_Evenement"])
     
     return df.assign(
-        periode_debut=df["Date_Evenement"],
-        periode_fin=df.groupby("Ref_Situation_Contractuelle")["Date_Evenement"].shift(-1)
+        debut=df["Date_Evenement"],
+        fin=df.groupby("Ref_Situation_Contractuelle")["Date_Evenement"].shift(-1)
     )
 
 
@@ -45,12 +45,13 @@ def selectionner_colonnes_abonnement(periodes: pd.DataFrame) -> pd.DataFrame:
         "Ref_Situation_Contractuelle",
         "pdl",
         "mois_annee",
-        "periode_debut_lisible",
-        "periode_fin_lisible",
+        "debut_lisible",
+        "fin_lisible",
         "Formule_Tarifaire_Acheminement",
         "Puissance_Souscrite",
         "nb_jours",
-        "periode_debut",
+        "debut",
+        "fin",
     ]
     return periodes[colonnes_finales].reset_index(drop=True)
 
@@ -71,14 +72,14 @@ def generer_periodes_abonnement(historique: DataFrame[HistoriquePérimètre]) ->
         historique
         .query("impact_turpe_fixe == True and Ref_Situation_Contractuelle.notna()")
         .pipe(calculer_bornes_periodes)
-        .dropna(subset=["periode_fin"])
+        .dropna(subset=["fin"])
         .assign(
-            nb_jours=lambda df: (df["periode_fin"].dt.normalize() - df["periode_debut"].dt.normalize()).dt.days,
-            periode_debut_lisible=lambda df: df["periode_debut"].apply(formater_date_francais),
-            periode_fin_lisible=lambda df: df["periode_fin"].apply(
+            nb_jours=lambda df: (df["fin"].dt.normalize() - df["debut"].dt.normalize()).dt.days,
+            debut_lisible=lambda df: df["debut"].apply(formater_date_francais),
+            fin_lisible=lambda df: df["fin"].apply(
                 lambda d: formater_date_francais(d) if pd.notna(d) else "en cours"
             ),
-            mois_annee=lambda df: df["periode_debut"].apply(
+            mois_annee=lambda df: df["debut"].apply(
                 lambda d: formater_date_francais(d, "LLLL yyyy")
             )
         )

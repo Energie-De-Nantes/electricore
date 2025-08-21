@@ -163,17 +163,17 @@ def periodes_energie_strategy(draw, ftas=None, nb_periodes=None, date_base=None)
     current_date = start_date
     
     for i in range(nb_periodes):
-        duree_jours = draw(st.integers(min_value=1, max_value=31))
-        date_fin = current_date + timedelta(days=duree_jours)
+        nb_jours = draw(st.integers(min_value=1, max_value=31))
+        date_fin = current_date + timedelta(days=nb_jours)
         fta = draw(st.sampled_from(ftas))
         
         energies = generer_energies_coherentes(draw, fta)
         
         periode = {
             'pdl': f"PDL{i:03d}",
-            'Date_Debut': current_date,
-            'Date_Fin': date_fin,
-            'duree_jours': duree_jours,
+            'debut': current_date,
+            'fin': date_fin,
+            'nb_jours': nb_jours,
             'Formule_Tarifaire_Acheminement': fta,
             **energies
         }
@@ -300,7 +300,7 @@ class TestFiltrerValiditeTemporelle:
         df_data = []
         for date_debut in dates_debut:
             df_data.append({
-                'Date_Debut': date_debut,
+                'debut': date_debut,
                 'start': start_validite,
                 'end': end_validite
             })
@@ -314,8 +314,8 @@ class TestFiltrerValiditeTemporelle:
             # Propriétés : toutes les dates sont dans la plage
             end_effective = end_validite if end_validite else pd.Timestamp("2100-01-01").tz_localize(PARIS_TZ)
             
-            assert all(result['Date_Debut'] >= result['start'])
-            assert all(result['Date_Debut'] < end_effective)
+            assert all(result['debut'] >= result['start'])
+            assert all(result['debut'] < end_effective)
             
         except ValueError:
             # Si aucune période valide, c'est normal
@@ -328,7 +328,7 @@ class TestFiltrerValiditeTemporelle:
         start_validite = data.draw(dates_paris_strategy())
         
         df = pd.DataFrame({
-            'Date_Debut': [date_debut],
+            'debut': [date_debut],
             'start': [start_validite], 
             'end': [None]  # end null
         })

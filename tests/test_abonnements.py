@@ -295,14 +295,14 @@ class TestGenererPeriodesAbonnement:
         
         # Première période : janvier
         assert periodes.iloc[0]["nb_jours"] == 31
-        assert periodes.iloc[0]["periode_debut_lisible"] == "1 janvier 2024"
-        assert periodes.iloc[0]["periode_fin_lisible"] == "1 février 2024"
+        assert periodes.iloc[0]["debut_lisible"] == "1 janvier 2024"
+        assert periodes.iloc[0]["fin_lisible"] == "1 février 2024"
         assert periodes.iloc[0]["mois_annee"] == "janvier 2024"
         
         # Deuxième période : février
         assert periodes.iloc[1]["nb_jours"] == 29  # 2024 est bissextile
-        assert periodes.iloc[1]["periode_debut_lisible"] == "1 février 2024"
-        assert periodes.iloc[1]["periode_fin_lisible"] == "1 mars 2024"
+        assert periodes.iloc[1]["debut_lisible"] == "1 février 2024"
+        assert periodes.iloc[1]["fin_lisible"] == "1 mars 2024"
         assert periodes.iloc[1]["mois_annee"] == "février 2024"
     
     def test_generation_avec_changement_puissance(self):
@@ -347,12 +347,12 @@ class TestGenererPeriodesAbonnement:
         colonnes_attendues = [
             "Ref_Situation_Contractuelle",
             "mois_annee",
-            "periode_debut_lisible",
-            "periode_fin_lisible",
+            "debut_lisible",
+            "fin_lisible",
             "Formule_Tarifaire_Acheminement",
             "Puissance_Souscrite",
             "nb_jours",
-            "periode_debut"
+            "debut"
         ]
         
         for col in colonnes_attendues:
@@ -422,9 +422,9 @@ class TestIntegrationChaineAbonnements:
         premiere_periode = periodes_abonnement.iloc[0]
         derniere_periode = periodes_abonnement.iloc[-1]
         
-        assert premiere_periode["periode_debut"].date() == debut_contrat
+        assert premiere_periode["debut"].date() == debut_contrat
         # La dernière période devrait commencer avant ou à la fin du contrat
-        assert derniere_periode["periode_debut"].date() <= fin_contrat
+        assert derniere_periode["debut"].date() <= fin_contrat
         
         # Vérifier que chaque période a un nombre de jours cohérent
         for _, periode in periodes_abonnement.iterrows():
@@ -435,12 +435,12 @@ class TestIntegrationChaineAbonnements:
         colonnes_attendues = [
             "Ref_Situation_Contractuelle",
             "mois_annee",
-            "periode_debut_lisible",
-            "periode_fin_lisible",
+            "debut_lisible",
+            "fin_lisible",
             "Formule_Tarifaire_Acheminement",
             "Puissance_Souscrite",
             "nb_jours",
-            "periode_debut"
+            "debut"
         ]
         
         for col in colonnes_attendues:
@@ -511,7 +511,7 @@ class TestIntegrationChaineAbonnements:
         assert len(periodes_abonnement) > 0
         
         # La dernière période devrait avoir la puissance et FTA finales
-        derniere_periode = periodes_abonnement[periodes_abonnement["periode_debut"] == periodes_abonnement["periode_debut"].max()]
+        derniere_periode = periodes_abonnement[periodes_abonnement["debut"] == periodes_abonnement["debut"].max()]
         if len(derniere_periode) > 0:
             assert derniere_periode.iloc[0]["Puissance_Souscrite"] == 12.0
             assert derniere_periode.iloc[0]["Formule_Tarifaire_Acheminement"] == "HPHC"

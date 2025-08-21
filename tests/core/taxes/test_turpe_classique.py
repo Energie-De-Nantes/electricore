@@ -33,9 +33,9 @@ class TestTurpeVariable:
         # Périodes d'énergie avec FTA (ordonnées chronologiquement pour merge_asof)
         self.periodes_avec_fta = pd.DataFrame({
             'pdl': ['PDL001', 'PDL002', 'PDL001'],  # Réorganisé pour ordre chronologique
-            'Date_Debut': pd.to_datetime(['2024-01-01', '2024-01-15', '2024-02-01']).tz_localize('Europe/Paris'),
-            'Date_Fin': pd.to_datetime(['2024-02-01', '2024-02-15', '2024-03-01']).tz_localize('Europe/Paris'),
-            'duree_jours': [31, 31, 29],  # Réajusté selon nouveau ordre
+            'debut': pd.to_datetime(['2024-01-01', '2024-01-15', '2024-02-01']).tz_localize('Europe/Paris'),
+            'fin': pd.to_datetime(['2024-02-01', '2024-02-15', '2024-03-01']).tz_localize('Europe/Paris'),
+            'nb_jours': [31, 31, 29],  # Réajusté selon nouveau ordre
             'source_avant': ['flux_C15', 'flux_R151', 'flux_C15'],
             'source_apres': ['flux_C15', 'flux_R151', 'flux_C15'],
             'data_complete': [True, True, True],
@@ -67,7 +67,7 @@ class TestTurpeVariable:
         # HPB: 150 * 1.43 / 100 = 2.145 ≈ 2.15
         # HCB: 100 * 0.88 / 100 = 0.88
         # Total attendu ≈ 32.16
-        turpe_var_pdl001_jan = result[(result['pdl'] == 'PDL001') & (result['Date_Debut'].dt.month == 1)].iloc[0]['turpe_variable']
+        turpe_var_pdl001_jan = result[(result['pdl'] == 'PDL001') & (result['debut'].dt.month == 1)].iloc[0]['turpe_variable']
         assert abs(turpe_var_pdl001_jan - 32.16) < 0.01
 
     def test_ajouter_turpe_variable_base_simple(self):
@@ -114,8 +114,8 @@ class TestCalculerTurpeVariable:
         # Périodes simples pour test
         self.periodes = pd.DataFrame({
             'pdl': ['PDL001', 'PDL002'],
-            'Date_Debut': pd.to_datetime(['2024-01-01', '2024-01-15']).tz_localize('Europe/Paris'),
-            'Date_Fin': pd.to_datetime(['2024-02-01', '2024-02-15']).tz_localize('Europe/Paris'),
+            'debut': pd.to_datetime(['2024-01-01', '2024-01-15']).tz_localize('Europe/Paris'),
+            'fin': pd.to_datetime(['2024-02-01', '2024-02-15']).tz_localize('Europe/Paris'),
             'BASE_energie': [1000.0, 500.0],
             'HPH_energie': [300.0, 0.0],
             'HCH_energie': [200.0, 0.0],

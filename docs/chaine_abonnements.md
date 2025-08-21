@@ -88,12 +88,13 @@ Cette fonction convertit les événements enrichis en périodes homogènes de fa
 class PeriodeAbonnement:
     Ref_Situation_Contractuelle: str
     mois_annee: str                    # "janvier 2024"
-    periode_debut_lisible: str         # "15 janvier 2024"
-    periode_fin_lisible: str           # "1 février 2024"
+    debut_lisible: str                 # "15 janvier 2024"
+    fin_lisible: str                   # "1 février 2024"
     Formule_Tarifaire_Acheminement: str
     Puissance_Souscrite: float
     nb_jours: int
-    periode_debut: pd.Timestamp
+    debut: pd.Timestamp
+    fin: pd.Timestamp
 ```
 
 ## Utilisation

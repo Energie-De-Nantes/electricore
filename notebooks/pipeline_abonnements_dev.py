@@ -185,13 +185,13 @@ def _(mo, periodes_abonnement):
         - `Ref_Situation_Contractuelle`, `pdl`
 
         **Informations lisibles**:
-        - `mois_annee`, `periode_debut_lisible`, `periode_fin_lisible`
+        - `mois_annee`, `debut_lisible`, `fin_lisible`
 
         **Données techniques**:
         - `Formule_Tarifaire_Acheminement`, `Puissance_Souscrite`, `nb_jours`
 
         **Données brutes**:
-        - `periode_debut`
+        - `debut`, `fin`
 
         **Colonnes TURPE (si présentes)**:
         - `turpe_fixe_journalier`, `turpe_fixe`
@@ -271,7 +271,7 @@ def _(formater_date_francais, mo, periodes_abonnement):
 
     if periodes_abonnement is not None and len(periodes_abonnement) > 0:
         # Prendre la première période comme exemple
-        exemple_debut = periodes_abonnement.iloc[0]['periode_debut'] if 'periode_debut' in periodes_abonnement.columns else None
+        exemple_debut = periodes_abonnement.iloc[0]['debut'] if 'debut' in periodes_abonnement.columns else None
 
         if exemple_debut is not None:
 
