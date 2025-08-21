@@ -27,7 +27,7 @@ from electricore.core.périmètre import HistoriquePérimètre, extraire_releves
 from electricore.core.relevés import RelevéIndex, interroger_relevés
 from electricore.core.relevés.modèles import RequêteRelevé
 from electricore.core.models.periode_energie import PeriodeEnergie
-from electricore.core.taxes.turpe import ajouter_turpe_variable, load_turpe_rules
+from electricore.core.taxes.turpe import calculer_turpe_variable, load_turpe_rules
 
 
 @curry
@@ -334,7 +334,7 @@ def pipeline_energie(
         .query("impact_energie or impact_turpe_variable or Evenement_Declencheur == 'FACTURATION'")
         .pipe(reconstituer_chronologie_relevés(relevés))
         .pipe(calculer_periodes_energie)
-        .pipe(ajouter_turpe_variable(load_turpe_rules()))
+        .assign(turpe_variable=calculer_turpe_variable(load_turpe_rules()))
     )
     
     return periodes_energie

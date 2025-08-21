@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 
-from electricore.core.taxes.turpe import ajouter_turpe_variable, calculer_turpe_variable_series, load_turpe_rules
+from electricore.core.taxes.turpe import calculer_turpe_variable, load_turpe_rules
 
 
 class TestTurpeVariable:
@@ -52,7 +52,9 @@ class TestTurpeVariable:
 
     def test_ajouter_turpe_variable_cas_nominal(self):
         """Test nominal : calcul TURPE variable avec énergies et FTA."""
-        result = ajouter_turpe_variable(self.regles_turpe, self.periodes_avec_fta)
+        result = self.periodes_avec_fta.assign(
+            turpe_variable=calculer_turpe_variable(self.regles_turpe, self.periodes_avec_fta)
+        )
         
         # Vérifications de base
         assert 'turpe_variable' in result.columns
@@ -70,7 +72,9 @@ class TestTurpeVariable:
 
     def test_ajouter_turpe_variable_base_simple(self):
         """Test avec compteur BASE simple (BTINFCUST)."""
-        result = ajouter_turpe_variable(self.regles_turpe, self.periodes_avec_fta)
+        result = self.periodes_avec_fta.assign(
+            turpe_variable=calculer_turpe_variable(self.regles_turpe, self.periodes_avec_fta)
+        )
         
         # Pour PDL002 avec BTINFCUST : 500 * 4.37 / 100 = 21.85
         turpe_var_pdl002 = result[result['pdl'] == 'PDL002'].iloc[0]['turpe_variable']
@@ -81,7 +85,7 @@ class TestTurpeVariable:
         periodes_sans_fta = self.periodes_avec_fta.drop(columns=['Formule_Tarifaire_Acheminement'])
         
         with pytest.raises(ValueError, match="Formule_Tarifaire_Acheminement.*requise"):
-            ajouter_turpe_variable(self.regles_turpe, periodes_sans_fta)
+            calculer_turpe_variable(self.regles_turpe, periodes_sans_fta)
 
     def test_ajouter_turpe_variable_regle_manquante(self):
         """Test erreur quand règle TURPE manquante pour un FTA."""
@@ -89,11 +93,11 @@ class TestTurpeVariable:
         periodes_fta_inconnu.iloc[0, periodes_fta_inconnu.columns.get_loc('Formule_Tarifaire_Acheminement')] = 'FTA_INEXISTANT'
         
         with pytest.raises(ValueError, match="Règles.*manquantes pour.*FTA_INEXISTANT"):
-            ajouter_turpe_variable(self.regles_turpe, periodes_fta_inconnu)
+            calculer_turpe_variable(self.regles_turpe, periodes_fta_inconnu)
 
 
-class TestCalculerTurpeVariableSeries:
-    """Tests pour la fonction pure calculer_turpe_variable_series."""
+class TestCalculerTurpeVariable:
+    """Tests pour la fonction pure calculer_turpe_variable."""
     
     def setup_method(self):
         """Prépare les données de test communes."""
@@ -120,17 +124,17 @@ class TestCalculerTurpeVariableSeries:
             'Formule_Tarifaire_Acheminement': ['BTINFCU4', 'BTINFCUST']
         })
 
-    def test_calculer_turpe_variable_series_retourne_series(self):
+    def test_calculer_turpe_variable_retourne_series(self):
         """Test que la fonction retourne bien une Series."""
-        result = calculer_turpe_variable_series(self.regles_turpe, self.periodes)
+        result = calculer_turpe_variable(self.regles_turpe, self.periodes)
         
         assert isinstance(result, pd.Series)
         assert result.name == 'turpe_variable'
         assert len(result) == len(self.periodes)
 
-    def test_calculer_turpe_variable_series_calcul_correct(self):
+    def test_calculer_turpe_variable_calcul_correct(self):
         """Test que les calculs sont corrects."""
-        result = calculer_turpe_variable_series(self.regles_turpe, self.periodes)
+        result = calculer_turpe_variable(self.regles_turpe, self.periodes)
         
         # PDL001 (BTINFCU4): HPH=300*6.67/100 + HCH=200*4.56/100 + HPB=150*1.43/100 + HCB=100*0.88/100
         # = 20.01 + 9.12 + 2.145 + 0.88 = 32.155 ≈ 32.16
@@ -142,19 +146,19 @@ class TestCalculerTurpeVariableSeries:
         assert abs(result.iloc[0] - expected_pdl001) < 0.01
         assert abs(result.iloc[1] - expected_pdl002) < 0.01
 
-    def test_calculer_turpe_variable_series_periodes_vides(self):
+    def test_calculer_turpe_variable_periodes_vides(self):
         """Test avec DataFrame vide."""
         periodes_vides = pd.DataFrame()
-        result = calculer_turpe_variable_series(self.regles_turpe, periodes_vides)
+        result = calculer_turpe_variable(self.regles_turpe, periodes_vides)
         
         assert isinstance(result, pd.Series)
         assert len(result) == 0
         assert result.dtype == float
 
-    def test_calculer_turpe_variable_series_fta_manquant(self):
+    def test_calculer_turpe_variable_fta_manquant(self):
         """Test erreur avec colonne FTA manquante."""
         periodes_sans_fta = self.periodes.drop(columns=['Formule_Tarifaire_Acheminement'])
         
         with pytest.raises(ValueError, match="Formule_Tarifaire_Acheminement.*requise"):
-            calculer_turpe_variable_series(self.regles_turpe, periodes_sans_fta)
+            calculer_turpe_variable(self.regles_turpe, periodes_sans_fta)
 
