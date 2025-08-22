@@ -27,6 +27,37 @@ from electricore.core.pipeline_energie import pipeline_energie
 from electricore.core.utils.formatage import formater_date_francais
 
 
+def _construire_memo_puissance(group_memo_values: pd.Series) -> str:
+    """
+    Construit un mémo lisible des périodes d'abonnement.
+    
+    Ne génère un mémo que s'il y a des changements de puissance réels.
+    
+    Args:
+        group_memo_values: Série des valeurs memo_puissance pour un groupe
+        
+    Returns:
+        Chaîne vide si pas de changement de puissance, historique détaillé sinon
+    """
+    if len(group_memo_values) <= 1:
+        return ""
+    
+    # Extraire les puissances de chaque mémo pour vérifier s'il y a changement
+    puissances = []
+    for memo in group_memo_values:
+        # Extraire la puissance du format "14j à 6kVA"
+        if "à " in memo and "kVA" in memo:
+            puissance_str = memo.split("à ")[1].replace("kVA", "")
+            puissances.append(float(puissance_str))
+    
+    # Si toutes les puissances sont identiques, pas de mémo
+    if len(set(puissances)) <= 1:
+        return ""
+    
+    # Sinon, joindre tous les mémos
+    return ", ".join(group_memo_values)
+
+
 def agreger_abonnements_mensuel(abonnements: DataFrame[PeriodeAbonnement]) -> pd.DataFrame:
     """
     Agrège les périodes d'abonnement par mois avec puissance moyenne pondérée.
@@ -48,7 +79,9 @@ def agreger_abonnements_mensuel(abonnements: DataFrame[PeriodeAbonnement]) -> pd
         abonnements
         .assign(
             # Calcul intermédiaire pour la moyenne pondérée
-            puissance_ponderee=lambda x: x['Puissance_Souscrite'] * x['nb_jours']
+            puissance_ponderee=lambda x: x['Puissance_Souscrite'] * x['nb_jours'],
+            # Colonne pour le mémo (sera agrégée après)
+            memo_puissance=lambda x: x.apply(lambda row: f"{row['nb_jours']}j à {int(row['Puissance_Souscrite'])}kVA", axis=1)
         )
         .groupby(['Ref_Situation_Contractuelle', 'pdl', 'mois_annee'])
         .agg({
@@ -59,7 +92,9 @@ def agreger_abonnements_mensuel(abonnements: DataFrame[PeriodeAbonnement]) -> pd
             'debut': 'min',
             'fin': 'max',
             # Comptage des sous-périodes pour métadonnées
-            'Ref_Situation_Contractuelle': 'size'  # Temporaire pour compter
+            'Ref_Situation_Contractuelle': 'size',  # Temporaire pour compter
+            # Mémo d'historique des puissances (si changements réels) 
+            'memo_puissance': lambda x: _construire_memo_puissance(x)
         })
         .rename(columns={'Ref_Situation_Contractuelle': 'nb_sous_periodes_abo'})
         .assign(
@@ -211,6 +246,7 @@ def pipeline_facturation(
             debut_lisible=lambda x: x['debut'].apply(formater_date_francais),
             fin_lisible=lambda x: x['fin'].apply(formater_date_francais)
         )
+        .sort_values(['Ref_Situation_Contractuelle','debut'])
     )
     
     return meta_periodes

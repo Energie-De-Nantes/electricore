@@ -49,6 +49,7 @@ class TestAgregerAbonnementsMensuel:
         assert result.iloc[0]['turpe_fixe'] == 100.0
         assert result.iloc[0]['nb_sous_periodes_abo'] == 1
         assert not result.iloc[0]['has_changement_abo']
+        assert result.iloc[0]['memo_puissance'] == ""  # Pas de mémo pour une période unique
     
     def test_cas_mct_changement_puissance(self):
         """Test avec changement de puissance (MCT) en cours de mois."""
@@ -86,7 +87,39 @@ class TestAgregerAbonnementsMensuel:
         assert result.iloc[0]['turpe_fixe'] == 155.0  # 70 + 85
         assert result.iloc[0]['nb_sous_periodes_abo'] == 2
         assert result.iloc[0]['has_changement_abo']
+        assert result.iloc[0]['memo_puissance'] == "14j à 6kVA, 17j à 9kVA"  # Mémo des changements
     
+    def test_cas_meme_puissance_pas_de_memo(self):
+        """Test avec plusieurs périodes mais même puissance (pas de mémo)."""
+        data = pd.DataFrame({
+            'Ref_Situation_Contractuelle': ['PDL001', 'PDL001'],
+            'pdl': ['PDL001', 'PDL001'],
+            'mois_annee': ['janvier 2024', 'janvier 2024'],
+            'debut': [
+                pd.Timestamp('2024-01-01', tz='Europe/Paris'),
+                pd.Timestamp('2024-01-15', tz='Europe/Paris')
+            ],
+            'fin': [
+                pd.Timestamp('2024-01-15', tz='Europe/Paris'),
+                pd.Timestamp('2024-01-31', tz='Europe/Paris')
+            ],
+            'debut_lisible': ['1 janvier 2024', '15 janvier 2024'],
+            'fin_lisible': ['15 janvier 2024', '31 janvier 2024'],
+            'nb_jours': [14, 17],
+            'Puissance_Souscrite': [6.0, 6.0],  # Même puissance
+            'Formule_Tarifaire_Acheminement': ['BASE', 'BASE'],
+            'turpe_fixe': [70.0, 85.0]
+        })
+        
+        abonnements = PeriodeAbonnement.validate(data)
+        result = agreger_abonnements_mensuel(abonnements)
+        
+        assert len(result) == 1
+        assert result.iloc[0]['puissance_moyenne'] == 6.0  # Même puissance
+        assert result.iloc[0]['nb_sous_periodes_abo'] == 2
+        assert result.iloc[0]['has_changement_abo']
+        assert result.iloc[0]['memo_puissance'] == ""  # Pas de mémo car même puissance
+
     def test_dataframe_vide(self):
         """Test avec DataFrame vide."""
         abonnements = pd.DataFrame()
