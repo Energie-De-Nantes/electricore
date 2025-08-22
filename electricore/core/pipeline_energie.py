@@ -339,7 +339,7 @@ def pipeline_energie(
     periodes_energie = (
         historique
         .pipe(pipeline_commun)
-        .query("impact_energie or impact_turpe_variable or Evenement_Declencheur == 'FACTURATION'")
+        .query("impacte_energie or Evenement_Declencheur == 'FACTURATION'")
         .pipe(reconstituer_chronologie_relevés(relevés))
         .pipe(calculer_periodes_energie)
         .assign(turpe_variable=calculer_turpe_variable(load_turpe_rules()))

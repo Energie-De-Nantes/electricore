@@ -90,8 +90,8 @@ class TestDetecterPointsDeRupture:
         
         # Vérifications
         assert len(resultat) == 2
-        assert resultat.iloc[0]["impact_turpe_fixe"] == True  # MES a toujours un impact
-        assert resultat.iloc[1]["impact_turpe_fixe"] == True  # Changement de puissance
+        assert resultat.iloc[0]["impacte_abonnement"] == True  # MES a toujours un impact
+        assert resultat.iloc[1]["impacte_abonnement"] == True  # Changement de puissance
         assert "P: 6.0 → 9.0" in resultat.iloc[1]["resume_modification"]
     
     def test_detecte_changement_fta(self):
@@ -113,8 +113,7 @@ class TestDetecterPointsDeRupture:
         df = create_historique_data(data)
         resultat = detecter_points_de_rupture(df)
         
-        assert resultat.iloc[1]["impact_turpe_fixe"] == True
-        assert resultat.iloc[1]["impact_turpe_variable"] == True
+        assert resultat.iloc[1]["impacte_abonnement"] == True
         assert "FTA: BASE → HPHC" in resultat.iloc[1]["resume_modification"]
         assert "Cal: CAL001 → CAL002" in resultat.iloc[1]["resume_modification"]
     
@@ -141,9 +140,8 @@ class TestDetecterPointsDeRupture:
         resultat = detecter_points_de_rupture(df)
         
         for i, evt in enumerate(evenements):
-            assert resultat.iloc[i]["impact_turpe_fixe"] == True
-            assert resultat.iloc[i]["impact_energie"] == True
-            assert resultat.iloc[i]["impact_turpe_variable"] == True
+            assert resultat.iloc[i]["impacte_abonnement"] == True
+            assert resultat.iloc[i]["impacte_energie"] == True
 
 
 class TestInsererEvenementsFacturation:
@@ -158,9 +156,8 @@ class TestInsererEvenementsFacturation:
             "Evenement_Declencheur": ["MES", "RES"],
             "Type_Evenement": ["contractuel", "contractuel"],
             "Source": ["flux_C15", "flux_C15"],
-            "impact_turpe_fixe": [True, True],
-            "impact_energie": [True, True],
-            "impact_turpe_variable": [True, True],
+            "impacte_abonnement": [True, True],
+            "impacte_energie": [True, True],
             "resume_modification": ["Mise en service", "Résiliation"],
             "Puissance_Souscrite": [6.0, 6.0],
             "Formule_Tarifaire_Acheminement": ["BASE", "BASE"],
@@ -192,9 +189,8 @@ class TestInsererEvenementsFacturation:
         for _, evt in evenements_facturation.iterrows():
             assert evt["Type_Evenement"] == "artificiel"
             assert evt["Source"] == "synthese_mensuelle"
-            assert evt["impact_turpe_fixe"] == True
-            assert evt["impact_energie"] == True
-            assert evt["impact_turpe_variable"] == True
+            assert evt["impacte_abonnement"] == True
+            assert evt["impacte_energie"] == True
     
     def test_propagation_donnees_contractuelles(self):
         """Test que les données contractuelles sont correctement propagées par ffill"""
@@ -206,9 +202,8 @@ class TestInsererEvenementsFacturation:
             "Formule_Tarifaire_Acheminement": ["BASE", "HPHC"],
             "Type_Evenement": ["contractuel", "contractuel"],
             "Source": ["flux_C15", "flux_C15"],
-            "impact_turpe_fixe": [True, True],
-            "impact_energie": [True, True],
-            "impact_turpe_variable": [True, True],
+            "impacte_abonnement": [True, True],
+            "impacte_energie": [True, True],
             "resume_modification": ["Mise en service", "Changement FTA"],
         }
         
@@ -242,9 +237,8 @@ class TestInsererEvenementsFacturation:
             "Formule_Tarifaire_Acheminement": ["BASE", "BASE"],
             "Type_Evenement": ["contractuel", "contractuel"],
             "Source": ["flux_C15", "flux_C15"],
-            "impact_turpe_fixe": [True, True],
-            "impact_energie": [True, True],
-            "impact_turpe_variable": [True, True],
+            "impacte_abonnement": [True, True],
+            "impacte_energie": [True, True],
             "resume_modification": ["Mise en service", "Résiliation"],
             "Etat_Contractuel": ["SERVC", "RESIL"],
         }
@@ -280,7 +274,7 @@ class TestGenererPeriodesAbonnement:
             "Ref_Situation_Contractuelle": ["PDL001", "PDL001", "PDL001"],
             "Date_Evenement": pd.to_datetime(["2024-01-01", "2024-02-01", "2024-03-01"], utc=True).tz_convert("Europe/Paris"),
             "Evenement_Declencheur": ["FACTURATION", "FACTURATION", "FACTURATION"],
-            "impact_turpe_fixe": [True, True, True],
+            "impacte_abonnement": [True, True, True],
             "Puissance_Souscrite": [6.0, 6.0, 6.0],
             "Formule_Tarifaire_Acheminement": ["BASE", "BASE", "BASE"],
         }
@@ -311,7 +305,7 @@ class TestGenererPeriodesAbonnement:
             "Ref_Situation_Contractuelle": ["PDL001", "PDL001", "PDL001", "PDL001"],
             "Date_Evenement": pd.to_datetime(["2024-01-01", "2024-01-15", "2024-02-01", "2024-03-01"], utc=True).tz_convert("Europe/Paris"),
             "Evenement_Declencheur": ["FACTURATION", "MCT", "FACTURATION", "FACTURATION"],
-            "impact_turpe_fixe": [True, True, True, True],
+            "impacte_abonnement": [True, True, True, True],
             "Puissance_Souscrite": [6.0, 9.0, 9.0, 9.0],
             "Formule_Tarifaire_Acheminement": ["BASE", "BASE", "BASE", "BASE"],
         }
@@ -336,7 +330,7 @@ class TestGenererPeriodesAbonnement:
             "Ref_Situation_Contractuelle": ["PDL001", "PDL001"],
             "Date_Evenement": pd.to_datetime(["2024-01-01", "2024-02-01"], utc=True).tz_convert("Europe/Paris"),
             "Evenement_Declencheur": ["FACTURATION", "FACTURATION"],
-            "impact_turpe_fixe": [True, True],
+            "impacte_abonnement": [True, True],
             "Puissance_Souscrite": [6.0, 6.0],
             "Formule_Tarifaire_Acheminement": ["BASE", "BASE"],
         }
@@ -387,7 +381,7 @@ class TestIntegrationChaineAbonnements:
         
         # Vérifications de l'étape 1
         assert len(historique_enrichi) == 3
-        assert all(historique_enrichi["impact_turpe_fixe"] == True)
+        assert all(historique_enrichi["impacte_abonnement"] == True)
         assert "P: 6.0 → 9.0" in historique_enrichi.iloc[1]["resume_modification"]
         
         # Étape 2 : Insérer les événements de facturation

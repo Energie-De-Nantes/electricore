@@ -165,11 +165,15 @@ def detecter_points_de_rupture(historique: DataFrame[HistoriquePérimètre]) -> 
     historique["Avant_Puissance_Souscrite"] = historique.groupby("Ref_Situation_Contractuelle")["Puissance_Souscrite"].shift(1)
     historique["Avant_Formule_Tarifaire_Acheminement"] = historique.groupby("Ref_Situation_Contractuelle")["Formule_Tarifaire_Acheminement"].shift(1)
 
-    impact_turpe_fixe = (
+    changement_fta = (
+        historique["Avant_Formule_Tarifaire_Acheminement"].notna() &
+        (historique["Avant_Formule_Tarifaire_Acheminement"] != historique["Formule_Tarifaire_Acheminement"])
+    )
+    
+    impacte_abonnement = (
         (historique["Avant_Puissance_Souscrite"].notna() &
          (historique["Avant_Puissance_Souscrite"] != historique["Puissance_Souscrite"])) |
-        (historique["Avant_Formule_Tarifaire_Acheminement"].notna() &
-         (historique["Avant_Formule_Tarifaire_Acheminement"] != historique["Formule_Tarifaire_Acheminement"]))
+        changement_fta
     )
     
     changement_calendrier = (
@@ -185,32 +189,26 @@ def detecter_points_de_rupture(historique: DataFrame[HistoriquePérimètre]) -> 
         for col in index_cols
     ], axis=1).any(axis=1)
 
-    impact_energie = changement_calendrier | changement_index
+    impacte_energie = changement_calendrier | changement_index | changement_fta
 
-    impact_turpe_variable = (
-      (impact_energie) |
-      (historique["Avant_Formule_Tarifaire_Acheminement"].notna() &
-         (historique["Avant_Formule_Tarifaire_Acheminement"] != historique["Formule_Tarifaire_Acheminement"]))
-    )
 
-    historique["impact_turpe_fixe"] = impact_turpe_fixe
-    historique["impact_energie"] = impact_energie
-    historique["impact_turpe_variable"] = impact_turpe_variable
+    historique["impacte_abonnement"] = impacte_abonnement
+    historique["impacte_energie"] = impacte_energie
 
     # Forcer les impacts à True pour les événements d’entrée et de sortie
     evenements_entree_sortie = ["CFNE", "MES", "PMES", "CFNS", "RES"]
     mask_entree_sortie = historique["Evenement_Declencheur"].isin(evenements_entree_sortie)
 
-    historique.loc[mask_entree_sortie, ["impact_turpe_fixe", "impact_energie", "impact_turpe_variable"]] = True
+    historique.loc[mask_entree_sortie, ["impacte_abonnement", "impacte_energie"]] = True
 
     def generer_resume(row):
         modifs = []
-        if row["impact_turpe_fixe"]:
+        if row["impacte_abonnement"]:
             if pd.notna(row.get("Avant_Puissance_Souscrite")) and row["Avant_Puissance_Souscrite"] != row["Puissance_Souscrite"]:
                 modifs.append(f"P: {row['Avant_Puissance_Souscrite']} → {row['Puissance_Souscrite']}")
             if pd.notna(row.get("Avant_Formule_Tarifaire_Acheminement")) and row["Avant_Formule_Tarifaire_Acheminement"] != row["Formule_Tarifaire_Acheminement"]:
                 modifs.append(f"FTA: {row['Avant_Formule_Tarifaire_Acheminement']} → {row['Formule_Tarifaire_Acheminement']}")
-        if row["impact_energie"]:
+        if row["impacte_energie"]:
             modifs.append("rupture index")
         if changement_calendrier.loc[row.name]:
             modifs.append(f"Cal: {row['Avant_Id_Calendrier_Distributeur']} → {row['Après_Id_Calendrier_Distributeur']}")
@@ -352,15 +350,14 @@ def inserer_evenements_facturation(historique: DataFrame[HistoriquePérimètre])
     evenements["Type_Evenement"] = "artificiel"
     evenements["Source"] = "synthese_mensuelle"
     evenements["resume_modification"] = "Facturation mensuelle"
-    evenements["impact_turpe_fixe"] = True
-    evenements["impact_energie"] = True
-    evenements["impact_turpe_variable"] = True
+    evenements["impacte_abonnement"] = True
+    evenements["impacte_energie"] = True
 
     # 4B. Sélectionner les colonnes nécessaires (inclure pdl pour éviter les NaN)
     evenements = evenements[[
         "Ref_Situation_Contractuelle", "pdl", "Date_Evenement",
         "Evenement_Declencheur", "Type_Evenement", "Source", "resume_modification",
-        "impact_turpe_fixe", "impact_energie", "impact_turpe_variable"
+        "impacte_abonnement", "impacte_energie"
     ]]
     print(f"   - {len(evenements)} événements de facturation créés")
 

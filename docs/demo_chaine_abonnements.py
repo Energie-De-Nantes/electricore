@@ -168,9 +168,8 @@ def __(
     # Étape 1 : Détecter les points de rupture
     historique_enrichi = detecter_points_de_rupture(historique_initial)
     print("🔍 Points de rupture détectés")
-    print(f"   - {historique_enrichi['impact_turpe_fixe'].sum()} impacts TURPE fixe")
-    print(f"   - {historique_enrichi['impact_energie'].sum()} impacts énergie")
-    print(f"   - {historique_enrichi['impact_turpe_variable'].sum()} impacts TURPE variable")
+    print(f"   - {historique_enrichi['impacte_abonnement'].sum()} impacts abonnement")
+    print(f"   - {historique_enrichi['impacte_energie'].sum()} impacts énergie")
 
     # Étape 2 : Insérer les événements de facturation
     historique_etendu = inserer_evenements_facturation(historique_enrichi)

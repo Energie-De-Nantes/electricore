@@ -17,26 +17,20 @@ HistoriquePérimètre → Points de rupture → Événements de facturation → 
 **Fichier :** `electricore/core/périmètre/fonctions.py:151`
 
 Cette fonction enrichit l'historique périmètre avec trois types d'impacts :
-- **`impact_turpe_fixe`** : Changements affectant la part fixe du TURPE (puissance, FTA)
-- **`impact_energie`** : Changements affectant le calcul des énergies (calendrier, index)
-- **`impact_turpe_variable`** : Changements affectant la part variable du TURPE
+- **`impacte_abonnement`** : Changements affectant l'abonnement (puissance, FTA)
+- **`impacte_energie`** : Changements affectant le calcul des énergies (calendrier, index, FTA)
 
 #### Logique de détection
 
 ```python
-# Impact TURPE fixe
-impact_turpe_fixe = (
+# Impact abonnement
+impacte_abonnement = (
     changement_puissance_souscrite OR changement_formule_tarifaire_acheminement
 )
 
 # Impact énergie
-impact_energie = (
-    changement_calendrier_distributeur OR changement_index_compteur
-)
-
-# Impact TURPE variable
-impact_turpe_variable = (
-    impact_energie OR changement_formule_tarifaire_acheminement
+impacte_energie = (
+    changement_calendrier_distributeur OR changement_index_compteur OR changement_formule_tarifaire_acheminement
 )
 ```
 
@@ -76,7 +70,7 @@ Cette fonction convertit les événements enrichis en périodes homogènes de fa
 
 #### Algorithme
 
-1. **Filtrage** : Sélectionner uniquement les événements avec `impact_turpe_fixe == True`
+1. **Filtrage** : Sélectionner uniquement les événements avec `impacte_abonnement == True`
 2. **Tri** : Ordonner par `Ref_Situation_Contractuelle` et `Date_Evenement`
 3. **Construction des périodes** : Utiliser `shift(-1)` pour créer des paires début/fin
 4. **Calcul des durées** : Calculer `nb_jours` entre début et fin de période
@@ -215,7 +209,7 @@ for _, periode in periodes_abonnement.iterrows():
 Les impacts détectés permettent de savoir quand recalculer les énergies :
 
 ```python
-ruptures_energie = historique_enrichi[historique_enrichi["impact_energie"] == True]
+ruptures_energie = historique_enrichi[historique_enrichi["impacte_energie"] == True]
 ```
 
 ## Fichiers impliqués

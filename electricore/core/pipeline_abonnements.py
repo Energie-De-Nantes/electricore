@@ -70,7 +70,7 @@ def generer_periodes_abonnement(historique: DataFrame[HistoriquePérimètre]) ->
     """
     return (
         historique
-        .query("impact_turpe_fixe == True and Ref_Situation_Contractuelle.notna()")
+        .query("impacte_abonnement == True and Ref_Situation_Contractuelle.notna()")
         .pipe(calculer_bornes_periodes)
         .dropna(subset=["fin"])
         .assign(

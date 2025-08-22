@@ -125,7 +125,7 @@ def _(historique, mo, pd):
 
     if historique is not None:
         # Filtre les événements TURPE fixe
-        evenements_turpe = historique[historique["impact_turpe_fixe"] == True] if "impact_turpe_fixe" in historique.columns else pd.DataFrame()
+        evenements_turpe = historique[historique["impacte_abonnement"] == True] if "impacte_abonnement" in historique.columns else pd.DataFrame()
 
         if len(evenements_turpe) > 0:
             by_type = evenements_turpe.groupby("Evenement_Declencheur").size().to_dict()
