@@ -125,7 +125,6 @@ def transform_data_models(
 @app.cell(hide_code=True)
 def pipeline_facturation_primary(historique, pipeline_facturation, releves):
     meta_periodes_primary = pipeline_facturation(historique, releves)
-
     return (meta_periodes_primary,)
 
 
@@ -192,13 +191,13 @@ def analyze_aggregations(meta_periodes_primary, mo):
         ## 🔧 **Analyse des Agrégations**
 
         ### Sous-périodes agrégées
-        - **Abonnements** - Moyenne: {avg_sous_periodes_abo:.1f}, Maximum: {max_sous_periodes_abo}
-        - **Énergies** - Moyenne: {avg_sous_periodes_energie:.1f}, Maximum: {max_sous_periodes_energie}
+        - **Abonnements** - Moyenne: {avg_sous_periodes_abo:.2f}, Maximum: {max_sous_periodes_abo}
+        - **Énergies** - Moyenne: {avg_sous_periodes_energie:.2f}, Maximum: {max_sous_periodes_energie}
 
         ### Puissances moyennes pondérées
-        - **Min**: {puissance_min:.1f} kVA
-        - **Moyenne**: {puissance_avg:.1f} kVA  
-        - **Max**: {puissance_max:.1f} kVA
+        - **Min**: {puissance_min:.2f} kVA
+        - **Moyenne**: {puissance_avg:.2f} kVA  
+        - **Max**: {puissance_max:.2f} kVA
         """)
     else:
         _analyse_agregation = mo.md("⏭️ Analyse des agrégations non disponible")
