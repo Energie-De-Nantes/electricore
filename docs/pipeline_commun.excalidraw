@@ -6,9 +6,9 @@
     {
       "id": "Lmnd6_fE38HP3DrWHZSy7",
       "type": "rectangle",
-      "x": 256.9018503615672,
+      "x": 320.9655924223314,
       "y": -137.8288623840029,
-      "width": 931.3562442897089,
+      "width": 930.3853529686573,
       "height": 1162.6443946533705,
       "angle": 0,
       "strokeColor": "#868e96",
@@ -25,11 +25,11 @@
         "type": 3
       },
       "seed": 831143168,
-      "version": 257,
-      "versionNonce": 209720064,
+      "version": 383,
+      "versionNonce": 99564800,
       "isDeleted": false,
       "boundElements": null,
-      "updated": 1755855890034,
+      "updated": 1755864394881,
       "link": null,
       "locked": false
     },
@@ -1964,10 +1964,10 @@
     {
       "id": "u9mC67qWeQYaVdh9EwAnh",
       "type": "text",
-      "x": 430.6035877887076,
-      "y": 203.96187424752958,
-      "width": 316.09967041015625,
-      "height": 25,
+      "x": 437.0210577685149,
+      "y": 191.12711883357827,
+      "width": 219.83812162270465,
+      "height": 50,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -1981,30 +1981,35 @@
       "index": "b34",
       "roundness": null,
       "seed": 679736064,
-      "version": 151,
-      "versionNonce": 674657024,
+      "version": 253,
+      "versionNonce": 1805767424,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1755855489372,
+      "boundElements": [
+        {
+          "id": "KpvPEQQ526FWdbvRzBHI9",
+          "type": "arrow"
+        }
+      ],
+      "updated": 1755864526541,
       "link": null,
       "locked": false,
-      "text": "Détection des points de rupture",
+      "text": "Détection des points\nde rupture",
       "fontSize": 20,
       "fontFamily": 5,
       "textAlign": "left",
       "verticalAlign": "top",
       "containerId": null,
       "originalText": "Détection des points de rupture",
-      "autoResize": true,
+      "autoResize": false,
       "lineHeight": 1.25
     },
     {
       "id": "EjcOf2HwBShHQdgW-JdVT",
       "type": "text",
-      "x": 423.3358093603604,
-      "y": 585.5108205826206,
-      "width": 438.799560546875,
-      "height": 25,
+      "x": 435.12085036163626,
+      "y": 571.1639208647894,
+      "width": 311.9625656616529,
+      "height": 50,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -2018,21 +2023,21 @@
       "index": "b35",
       "roundness": null,
       "seed": 707181824,
-      "version": 196,
-      "versionNonce": 350139136,
+      "version": 258,
+      "versionNonce": 565244672,
       "isDeleted": false,
       "boundElements": null,
-      "updated": 1755855487274,
+      "updated": 1755864508443,
       "link": null,
       "locked": false,
-      "text": "Ajout d'événements artificiels de facturation",
+      "text": "Ajout d'événements de\nfacturation",
       "fontSize": 20,
       "fontFamily": 5,
       "textAlign": "left",
       "verticalAlign": "top",
       "containerId": null,
-      "originalText": "Ajout d'événements artificiels de facturation",
-      "autoResize": true,
+      "originalText": "Ajout d'événements de facturation",
+      "autoResize": false,
       "lineHeight": 1.25
     },
     {
@@ -4095,8 +4100,8 @@
     {
       "id": "8VFnBS7JfW0L9For-t-qF",
       "type": "text",
-      "x": 458.9678321020956,
-      "y": -127.16296806573621,
+      "x": 606.9112842130736,
+      "y": -130.2688353310588,
       "width": 350.82012939453125,
       "height": 45,
       "angle": 0,
@@ -4112,11 +4117,11 @@
       "index": "b49",
       "roundness": null,
       "seed": 741823232,
-      "version": 110,
-      "versionNonce": 643366144,
+      "version": 190,
+      "versionNonce": 2135053056,
       "isDeleted": false,
       "boundElements": null,
-      "updated": 1755855777275,
+      "updated": 1755864628946,
       "link": null,
       "locked": false,
       "text": "PIPELINE COMMUN",
@@ -4132,10 +4137,10 @@
     {
       "id": "nrFfVFAgKascjS-yKL2CV",
       "type": "text",
-      "x": 651.84098782679,
-      "y": -20.16864023398466,
-      "width": 362.5493736815284,
-      "height": 120,
+      "x": 664.3012966368096,
+      "y": -65.40947488741392,
+      "width": 413.2291585289483,
+      "height": 240,
       "angle": 0,
       "strokeColor": "#868e96",
       "backgroundColor": "transparent",
@@ -4149,22 +4154,609 @@
       "index": "b4A",
       "roundness": null,
       "seed": 1937044224,
-      "version": 503,
-      "versionNonce": 1032311552,
+      "version": 923,
+      "versionNonce": 1681502976,
       "isDeleted": false,
       "boundElements": null,
-      "updated": 1755856291141,
+      "updated": 1755863460749,
       "link": null,
       "locked": false,
-      "text": "Historique horodaté des événements\ncontractuels (Mises en services, Modif\ntarifaires, résiliations...) par point de livraison\n(PDL), incluant les caractéristiques tarifaires\net techniques de chaque situation\ncontractuelle.",
+      "text": "Historique horodaté des événements contractuels\n(Mises en services, Modif tarifaires, résiliations...)\npar point de livraison (PDL), incluant les\ncaractéristiques tarifaires et techniques de chaque\nsituation contractuelle.\n\nCes événements peuvent avoir des relevés d'index\nattachés. Un seul dans les cas classiques comme une\nMise en Service, et jusqu'à deux dans les cas plus\ncoplexe comme un changement physique de compteur.\nIls sont alors préfixés Avant_ et Après dans\nl'événement.",
       "fontSize": 16,
       "fontFamily": 5,
       "textAlign": "left",
       "verticalAlign": "top",
       "containerId": null,
-      "originalText": "Historique horodaté des événements contractuels (Mises en services, Modif tarifaires, résiliations...) par point de livraison (PDL), incluant les caractéristiques tarifaires et techniques de chaque situation contractuelle.",
+      "originalText": "Historique horodaté des événements contractuels (Mises en services, Modif tarifaires, résiliations...) par point de livraison (PDL), incluant les caractéristiques tarifaires et techniques de chaque situation contractuelle.\n\nCes événements peuvent avoir des relevés d'index attachés. Un seul dans les cas classiques comme une Mise en Service, et jusqu'à deux dans les cas plus coplexe comme un changement physique de compteur. Ils sont alors préfixés Avant_ et Après dans l'événement.",
       "autoResize": false,
       "lineHeight": 1.25
+    },
+    {
+      "id": "XaKvk_f4zjI6wNTp0Nh6Z",
+      "type": "text",
+      "x": 760.143183963975,
+      "y": 215.43674909837665,
+      "width": 421.03406252815915,
+      "height": 320,
+      "angle": 0,
+      "strokeColor": "#868e96",
+      "backgroundColor": "transparent",
+      "fillStyle": "hachure",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [
+        "VBp3UhQpP8vQachwGC-Ie"
+      ],
+      "frameId": null,
+      "index": "b4F",
+      "roundness": null,
+      "seed": 566858496,
+      "version": 697,
+      "versionNonce": 739824384,
+      "isDeleted": false,
+      "boundElements": null,
+      "updated": 1755864581965,
+      "link": null,
+      "locked": false,
+      "text": "La détection des ruptures fonctionne selon trois\nmodes complémentaires :\n\n  1. Comparaison intra-événement : \nCompare les   index Avant_* vs Après_* au sein du\nmême événement pour détecter les ruptures\nd'index/calendrier\n\n  2. Comparaison inter-événements : \nCompare avec la situation précédente du même PDL\n(puissance, FTA) via groupby().shift(1)\n\n  3. Détection par type d'événement : \nForce les impacts à True pour les événements\nstructurants (MES, RES, etc.) indépendamment des\ndonnées",
+      "fontSize": 16,
+      "fontFamily": 5,
+      "textAlign": "left",
+      "verticalAlign": "top",
+      "containerId": null,
+      "originalText": "La détection des ruptures fonctionne selon trois modes complémentaires :\n\n  1. Comparaison intra-événement : \nCompare les   index Avant_* vs Après_* au sein du même événement pour détecter les ruptures d'index/calendrier\n\n  2. Comparaison inter-événements : \nCompare avec la situation précédente du même PDL (puissance, FTA) via groupby().shift(1)\n\n  3. Détection par type d'événement : \nForce les impacts à True pour les événements structurants (MES, RES, etc.) indépendamment des données",
+      "autoResize": false,
+      "lineHeight": 1.25
+    },
+    {
+      "id": "VjEnrBRTK6x5KB9TDiRaf",
+      "type": "line",
+      "x": 1014.0847118545266,
+      "y": 297.34176543012984,
+      "width": 237.95366383895464,
+      "height": 0.9653771068932997,
+      "angle": 0,
+      "strokeColor": "#2f9e44",
+      "backgroundColor": "transparent",
+      "fillStyle": "hachure",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [
+        "VBp3UhQpP8vQachwGC-Ie"
+      ],
+      "frameId": null,
+      "index": "b4G",
+      "roundness": {
+        "type": 2
+      },
+      "seed": 1687117056,
+      "version": 222,
+      "versionNonce": 1827951360,
+      "isDeleted": false,
+      "boundElements": null,
+      "updated": 1755864228750,
+      "link": null,
+      "locked": false,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -237.95366383895464,
+          -0.9653771068932997
+        ]
+      ],
+      "lastCommittedPoint": null,
+      "startBinding": null,
+      "endBinding": null,
+      "startArrowhead": null,
+      "endArrowhead": null
+    },
+    {
+      "id": "c0v5HEdsdbfS4b06aJtnT",
+      "type": "line",
+      "x": 1023.3155099852614,
+      "y": 396.13373469144824,
+      "width": 242.96681145706884,
+      "height": 1.4377833859844031,
+      "angle": 0,
+      "strokeColor": "#2f9e44",
+      "backgroundColor": "transparent",
+      "fillStyle": "hachure",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [
+        "VBp3UhQpP8vQachwGC-Ie"
+      ],
+      "frameId": null,
+      "index": "b4H",
+      "roundness": {
+        "type": 2
+      },
+      "seed": 1339667200,
+      "version": 237,
+      "versionNonce": 284291840,
+      "isDeleted": false,
+      "boundElements": null,
+      "updated": 1755864228750,
+      "link": null,
+      "locked": false,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -242.96681145706884,
+          1.4377833859844031
+        ]
+      ],
+      "lastCommittedPoint": null,
+      "startBinding": null,
+      "endBinding": null,
+      "startArrowhead": null,
+      "endArrowhead": null
+    },
+    {
+      "id": "hiCHW_wFPWnj0IGnUs6ku",
+      "type": "line",
+      "x": 1037.692307314308,
+      "y": 475.2057936859533,
+      "width": 258.781296197026,
+      "height": 0.7189300830216894,
+      "angle": 0,
+      "strokeColor": "#2f9e44",
+      "backgroundColor": "transparent",
+      "fillStyle": "hachure",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [
+        "VBp3UhQpP8vQachwGC-Ie"
+      ],
+      "frameId": null,
+      "index": "b4I",
+      "roundness": {
+        "type": 2
+      },
+      "seed": 1839144192,
+      "version": 215,
+      "versionNonce": 607884032,
+      "isDeleted": false,
+      "boundElements": null,
+      "updated": 1755864228750,
+      "link": null,
+      "locked": false,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -258.781296197026,
+          0.7189300830216894
+        ]
+      ],
+      "lastCommittedPoint": null,
+      "startBinding": null,
+      "endBinding": null,
+      "startArrowhead": null,
+      "endArrowhead": null
+    },
+    {
+      "id": "O7-K5mNifgc1cxj3UpFlz",
+      "type": "rectangle",
+      "x": 753.0184108179886,
+      "y": 203.48125906374486,
+      "width": 421.5695814858939,
+      "height": 366.2506685354566,
+      "angle": 0,
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "transparent",
+      "fillStyle": "hachure",
+      "strokeWidth": 2,
+      "strokeStyle": "dotted",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [
+        "VBp3UhQpP8vQachwGC-Ie"
+      ],
+      "frameId": null,
+      "index": "b4J",
+      "roundness": {
+        "type": 3
+      },
+      "seed": 1295536896,
+      "version": 214,
+      "versionNonce": 1971917568,
+      "isDeleted": false,
+      "boundElements": [
+        {
+          "id": "KpvPEQQ526FWdbvRzBHI9",
+          "type": "arrow"
+        }
+      ],
+      "updated": 1755864526541,
+      "link": null,
+      "locked": false
+    },
+    {
+      "id": "R4cVuJxLQRsjxGhGvCViI",
+      "type": "text",
+      "x": 764.0511186560285,
+      "y": 589.3834197285815,
+      "width": 446.75280965776307,
+      "height": 440,
+      "angle": 0,
+      "strokeColor": "#868e96",
+      "backgroundColor": "transparent",
+      "fillStyle": "hachure",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [
+        "jlWXTvpQOWJrZYLVu5Gf1"
+      ],
+      "frameId": null,
+      "index": "b4X",
+      "roundness": null,
+      "seed": 228569856,
+      "version": 1055,
+      "versionNonce": 1490154240,
+      "isDeleted": false,
+      "boundElements": [],
+      "updated": 1755864610855,
+      "link": null,
+      "locked": false,
+      "text": "L'nsertion des événements de facturation suit une\n  logique en plusieurs étapes :\n\n  1. Détection des périodes d'activité : Identifie pour\nchaque PDL les dates d'entrée (MES, CFNE, PMES) et\nde sortie (RES, CFNS)\n\n  2. Génération temporelle : Crée tous les 1ers du mois\ndans la plage d'activité de chaque PDL\n\n  3. Propagation contractuelle : Utilise groupby().ffill()\npour hériter des caractéristiques du dernier événement\nréel (puissance, FTA, etc.)\n\n  4. Marquage des impacts : Assigne automatiquement\nimpacte_abonnement=True et impacte_energie=True à\nces événements synthétiques\n\n  Cette approche permet de \"découper\" les contrats en\npériodes mensuelles, facilitant ainsi les calculs de\nfacturation sans modifier les données contractuelles.\n",
+      "fontSize": 16,
+      "fontFamily": 5,
+      "textAlign": "left",
+      "verticalAlign": "top",
+      "containerId": null,
+      "originalText": "L'nsertion des événements de facturation suit une\n  logique en plusieurs étapes :\n\n  1. Détection des périodes d'activité : Identifie pour chaque PDL les dates d'entrée (MES, CFNE, PMES) et de sortie (RES, CFNS)\n\n  2. Génération temporelle : Crée tous les 1ers du mois dans la plage d'activité de chaque PDL\n\n  3. Propagation contractuelle : Utilise groupby().ffill() pour hériter des caractéristiques du dernier événement réel (puissance, FTA, etc.)\n\n  4. Marquage des impacts : Assigne automatiquement impacte_abonnement=True et impacte_energie=True à ces événements synthétiques\n\n  Cette approche permet de \"découper\" les contrats en périodes mensuelles, facilitant ainsi les calculs de facturation sans modifier les données contractuelles.\n",
+      "autoResize": false,
+      "lineHeight": 1.25
+    },
+    {
+      "id": "PWg0ucj0LqYwQT1OrPHPB",
+      "type": "line",
+      "x": 1036.9491900069497,
+      "y": 668.1384397324513,
+      "width": 242.96681145706884,
+      "height": 1.4377833859844031,
+      "angle": 0,
+      "strokeColor": "#2f9e44",
+      "backgroundColor": "transparent",
+      "fillStyle": "hachure",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [
+        "jlWXTvpQOWJrZYLVu5Gf1"
+      ],
+      "frameId": null,
+      "index": "b4Y",
+      "roundness": {
+        "type": 2
+      },
+      "seed": 1502540544,
+      "version": 582,
+      "versionNonce": 1946710784,
+      "isDeleted": false,
+      "boundElements": [],
+      "updated": 1755864557535,
+      "link": null,
+      "locked": false,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -242.96681145706884,
+          1.4377833859844031
+        ]
+      ],
+      "lastCommittedPoint": null,
+      "startBinding": null,
+      "endBinding": null,
+      "startArrowhead": null,
+      "endArrowhead": null
+    },
+    {
+      "id": "Rr1JrTL0UxKdpYFfNVHMc",
+      "type": "line",
+      "x": 970.8992515364012,
+      "y": 746.6558165176465,
+      "width": 187.66552706823438,
+      "height": 0.7189300830216894,
+      "angle": 0,
+      "strokeColor": "#2f9e44",
+      "backgroundColor": "transparent",
+      "fillStyle": "hachure",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [
+        "jlWXTvpQOWJrZYLVu5Gf1"
+      ],
+      "frameId": null,
+      "index": "b4Z",
+      "roundness": {
+        "type": 2
+      },
+      "seed": 1362662144,
+      "version": 697,
+      "versionNonce": 86785280,
+      "isDeleted": false,
+      "boundElements": [],
+      "updated": 1755864557535,
+      "link": null,
+      "locked": false,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -187.66552706823438,
+          0.7189300830216894
+        ]
+      ],
+      "lastCommittedPoint": null,
+      "startBinding": null,
+      "endBinding": null,
+      "startArrowhead": null,
+      "endArrowhead": null
+    },
+    {
+      "id": "WfQw_mNNOI2VxtwEO-UFv",
+      "type": "rectangle",
+      "x": 746.7596460130204,
+      "y": 579.3968680222159,
+      "width": 471.43239450256505,
+      "height": 439.8042952965125,
+      "angle": 0,
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "transparent",
+      "fillStyle": "hachure",
+      "strokeWidth": 2,
+      "strokeStyle": "dotted",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [
+        "jlWXTvpQOWJrZYLVu5Gf1"
+      ],
+      "frameId": null,
+      "index": "b4a",
+      "roundness": {
+        "type": 3
+      },
+      "seed": 1655583488,
+      "version": 612,
+      "versionNonce": 2129575168,
+      "isDeleted": false,
+      "boundElements": [
+        {
+          "id": "iT64n06dEwgJSuFp9s_x7",
+          "type": "arrow"
+        }
+      ],
+      "updated": 1755864563442,
+      "link": null,
+      "locked": false
+    },
+    {
+      "id": "UedcnYYM4l_sAiGQIg0Ve",
+      "type": "line",
+      "x": 984.3522639358165,
+      "y": 806.7959239200445,
+      "width": 187.66552706823438,
+      "height": 0.7189300830216894,
+      "angle": 0,
+      "strokeColor": "#2f9e44",
+      "backgroundColor": "transparent",
+      "fillStyle": "hachure",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [
+        "P9K2ATI6OeQ9Sa6_qIab7",
+        "jlWXTvpQOWJrZYLVu5Gf1"
+      ],
+      "frameId": null,
+      "index": "b4b",
+      "roundness": {
+        "type": 2
+      },
+      "seed": 1742803712,
+      "version": 745,
+      "versionNonce": 1855757568,
+      "isDeleted": false,
+      "boundElements": [],
+      "updated": 1755864557535,
+      "link": null,
+      "locked": false,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -187.66552706823438,
+          0.7189300830216894
+        ]
+      ],
+      "lastCommittedPoint": null,
+      "startBinding": null,
+      "endBinding": null,
+      "startArrowhead": null,
+      "endArrowhead": null
+    },
+    {
+      "id": "WMlKnRJOCfJh1THAmQzD2",
+      "type": "line",
+      "x": 958.2175617120748,
+      "y": 886.7533512476583,
+      "width": 169.81984977679747,
+      "height": 2.8185798229638976,
+      "angle": 0,
+      "strokeColor": "#2f9e44",
+      "backgroundColor": "transparent",
+      "fillStyle": "hachure",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [
+        "gx8Ap_H5XHrEZJTGI9jC3",
+        "jlWXTvpQOWJrZYLVu5Gf1"
+      ],
+      "frameId": null,
+      "index": "b4c",
+      "roundness": {
+        "type": 2
+      },
+      "seed": 1943294720,
+      "version": 755,
+      "versionNonce": 1288155904,
+      "isDeleted": false,
+      "boundElements": [],
+      "updated": 1755864557535,
+      "link": null,
+      "locked": false,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -169.81984977679747,
+          2.8185798229638976
+        ]
+      ],
+      "lastCommittedPoint": null,
+      "startBinding": null,
+      "endBinding": null,
+      "startArrowhead": null,
+      "endArrowhead": null
+    },
+    {
+      "id": "KpvPEQQ526FWdbvRzBHI9",
+      "type": "arrow",
+      "x": 652.3954564956913,
+      "y": 209.35625778449196,
+      "width": 104.65363099881472,
+      "height": 12.341253947142775,
+      "angle": 0,
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "transparent",
+      "fillStyle": "hachure",
+      "strokeWidth": 2,
+      "strokeStyle": "dotted",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "index": "b4d",
+      "roundness": {
+        "type": 2
+      },
+      "seed": 1897009920,
+      "version": 62,
+      "versionNonce": 607597312,
+      "isDeleted": false,
+      "boundElements": null,
+      "updated": 1755864531103,
+      "link": null,
+      "locked": false,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          104.65363099881472,
+          12.341253947142775
+        ]
+      ],
+      "lastCommittedPoint": null,
+      "startBinding": {
+        "elementId": "u9mC67qWeQYaVdh9EwAnh",
+        "focus": -0.5059418837518107,
+        "gap": 4.463722895528235
+      },
+      "endBinding": {
+        "elementId": "O7-K5mNifgc1cxj3UpFlz",
+        "focus": 0.6756719303547996,
+        "gap": 1.9917030769640431
+      },
+      "startArrowhead": null,
+      "endArrowhead": "arrow",
+      "elbowed": false
+    },
+    {
+      "id": "iT64n06dEwgJSuFp9s_x7",
+      "type": "arrow",
+      "x": 666.2176630255844,
+      "y": 596.8702766323349,
+      "width": 79.8146138953656,
+      "height": 13.156449158032729,
+      "angle": 0,
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "transparent",
+      "fillStyle": "hachure",
+      "strokeWidth": 2,
+      "strokeStyle": "dotted",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "index": "b4e",
+      "roundness": {
+        "type": 2
+      },
+      "seed": 1477565696,
+      "version": 197,
+      "versionNonce": 202317056,
+      "isDeleted": false,
+      "boundElements": null,
+      "updated": 1755864563442,
+      "link": null,
+      "locked": false,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          79.8146138953656,
+          13.156449158032729
+        ]
+      ],
+      "lastCommittedPoint": null,
+      "startBinding": null,
+      "endBinding": {
+        "elementId": "WfQw_mNNOI2VxtwEO-UFv",
+        "focus": 0.5808441054596092,
+        "gap": 1
+      },
+      "startArrowhead": null,
+      "endArrowhead": "arrow",
+      "elbowed": false
     }
   ],
   "appState": {
