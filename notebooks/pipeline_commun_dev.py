@@ -128,7 +128,7 @@ def transform_data(extract_success, lire_flux_c15, mo, raw_c15):
     return historique_original, transform_success
 
 
-@app.cell
+@app.cell(hide_code=True)
 def inspect_original_historique(historique_original, mo):
     # Inspection de l'historique original
     if historique_original is not None:
