@@ -208,44 +208,47 @@ def analyze_aggregations(meta_periodes_primary, mo):
 
 @app.cell(hide_code=True)
 def financial_analysis_turpe(meta_periodes_primary, mo):
-    # Analyse financière TURPE
-    if meta_periodes_primary is not None and 'turpe_fixe' in meta_periodes_primary.columns and 'turpe_variable' in meta_periodes_primary.columns:
-        # Montants TURPE
-        turpe_fixe_total = meta_periodes_primary['turpe_fixe'].sum()
-        turpe_variable_total = meta_periodes_primary['turpe_variable'].sum()
-        turpe_total = turpe_fixe_total + turpe_variable_total
-        ratio_fixe_variable = turpe_fixe_total / turpe_variable_total if turpe_variable_total > 0 else float('inf')
+    def _():
+        # Analyse financière TURPE
+        if meta_periodes_primary is not None and 'turpe_fixe' in meta_periodes_primary.columns and 'turpe_variable' in meta_periodes_primary.columns:
+            # Montants TURPE
+            turpe_fixe_total = meta_periodes_primary['turpe_fixe'].sum()
+            turpe_variable_total = meta_periodes_primary['turpe_variable'].sum()
+            turpe_total = turpe_fixe_total + turpe_variable_total
+            ratio_fixe_variable = turpe_fixe_total / turpe_variable_total if turpe_variable_total > 0 else float('inf')
 
-        # Top 10 PDL par montant TURPE
-        meta_periodes_avec_total = meta_periodes_primary.assign(
-            turpe_total=meta_periodes_primary['turpe_fixe'] + meta_periodes_primary['turpe_variable']
-        )
-        top_pdl_turpe = (
-            meta_periodes_avec_total
-            .groupby('pdl')['turpe_total']
-            .sum()
-            .sort_values(ascending=False)
-            .head(10)
-        )
+            # Top 10 PDL par montant TURPE
+            meta_periodes_avec_total = meta_periodes_primary.assign(
+                turpe_total=meta_periodes_primary['turpe_fixe'] + meta_periodes_primary['turpe_variable']
+            )
+            top_pdl_turpe = (
+                meta_periodes_avec_total
+                .groupby('pdl')['turpe_total']
+                .sum()
+                .sort_values(ascending=False)
+                .head(10)
+            )
 
-        _analyse_financiere = mo.vstack([
-            mo.md(f"""
-            ## 💰 **Analyse Financière TURPE**
+            _analyse_financiere = mo.vstack([
+                mo.md(f"""
+                ## 💰 **Analyse Financière TURPE**
 
-            ### Montants totaux
-            - **TURPE Fixe**: {turpe_fixe_total:,.2f} €
-            - **TURPE Variable**: {turpe_variable_total:,.2f} €
-            - **TURPE Total**: {turpe_total:,.2f} €
-            - **Ratio Fixe/Variable**: {ratio_fixe_variable:.2f}
+                ### Montants totaux
+                - **TURPE Fixe**: {turpe_fixe_total:,.2f} €
+                - **TURPE Variable**: {turpe_variable_total:,.2f} €
+                - **TURPE Total**: {turpe_total:,.2f} €
+                - **Ratio Fixe/Variable**: {ratio_fixe_variable:.2f}
 
-            ### Top 10 PDL par montant TURPE total
-            """),
-            top_pdl_turpe.to_frame('TURPE Total (€)')
-        ])
-    else:
-        _analyse_financiere = mo.md("⏭️ Analyse financière non disponible (colonnes TURPE manquantes)")
+                ### Top 10 PDL par montant TURPE total
+                """),
+                top_pdl_turpe.to_frame('TURPE Total (€)')
+            ])
+        else:
+            _analyse_financiere = mo.md("⏭️ Analyse financière non disponible (colonnes TURPE manquantes)")
+        return _analyse_financiere
 
-    _analyse_financiere
+
+    _()
     return
 
 
@@ -254,14 +257,14 @@ def energy_analysis(meta_periodes_primary, mo):
     # Analyse énergétique
     if meta_periodes_primary is not None:
         # Colonnes d'énergie disponibles
-        colonnes_energie = [col for col in ['BASE_energie', 'HP_energie', 'HC_energie'] if col in meta_periodes_primary.columns]
+        _colonnes_energie = [_col for _col in ['BASE_energie', 'HP_energie', 'HC_energie'] if _col in meta_periodes_primary.columns]
 
-        if colonnes_energie:
+        if _colonnes_energie:
             # Calcul des totaux d'énergie
             totaux_energie = {}
-            for col in colonnes_energie:
-                total = meta_periodes_primary[col].sum() if meta_periodes_primary[col].notna().any() else 0
-                totaux_energie[col.replace('_energie', '')] = total
+            for _col in _colonnes_energie:
+                total = meta_periodes_primary[_col].sum() if meta_periodes_primary[_col].notna().any() else 0
+                totaux_energie[_col.replace('_energie', '')] = total
 
             # Consommation totale
             consommation_totale = sum(totaux_energie.values())
@@ -269,7 +272,7 @@ def energy_analysis(meta_periodes_primary, mo):
             # Top 10 PDL par consommation
             meta_avec_total_energie = meta_periodes_primary.copy()
             meta_avec_total_energie['energie_totale'] = sum(
-                meta_periodes_primary[col].fillna(0) for col in colonnes_energie
+                meta_periodes_primary[_col].fillna(0) for _col in _colonnes_energie
             )
 
             top_pdl_energie = (
@@ -334,7 +337,7 @@ def turpe_visualizations(meta_periodes_primary, mo, px):
         )
         fig_turpe_temps.update_layout(legend_title_text='Type TURPE')
 
-        _viz_turpe = mo.plotly(fig_turpe_temps)
+        _viz_turpe = fig_turpe_temps
     else:
         _viz_turpe = mo.md("⏭️ Visualisation TURPE non disponible")
 
@@ -356,7 +359,7 @@ def power_distribution_visualization(meta_periodes_primary, mo, px):
         )
         fig_puissance_fta.update_layout(xaxis_tickangle=-45)
 
-        _viz_puissance = mo.plotly(fig_puissance_fta)
+        _viz_puissance = fig_puissance_fta
     else:
         _viz_puissance = mo.md("⏭️ Visualisation puissances non disponible")
 
@@ -368,12 +371,12 @@ def power_distribution_visualization(meta_periodes_primary, mo, px):
 def energy_turpe_scatter(meta_periodes_primary, mo, px):
     # Scatter plot énergie vs TURPE
     if (meta_periodes_primary is not None and 'turpe_fixe' in meta_periodes_primary.columns 
-        and any(col in meta_periodes_primary.columns for col in ['BASE_energie', 'HP_energie', 'HC_energie'])):
+        and any(_col in meta_periodes_primary.columns for _col in ['BASE_energie', 'HP_energie', 'HC_energie'])):
 
         # Calculer énergie totale et TURPE total
-        colonnes_energie = [col for col in ['BASE_energie', 'HP_energie', 'HC_energie'] if col in meta_periodes_primary.columns]
+        _colonnes_energie = [_col for _col in ['BASE_energie', 'HP_energie', 'HC_energie'] if _col in meta_periodes_primary.columns]
         meta_viz = meta_periodes_primary.copy()
-        meta_viz['energie_totale'] = sum(meta_periodes_primary[col].fillna(0) for col in colonnes_energie)
+        meta_viz['energie_totale'] = sum(meta_periodes_primary[_col].fillna(0) for _col in _colonnes_energie)
         meta_viz['turpe_total'] = meta_periodes_primary['turpe_fixe'] + meta_periodes_primary['turpe_variable']
 
         # Filtrer les valeurs nulles et aberrantes
@@ -394,7 +397,7 @@ def energy_turpe_scatter(meta_periodes_primary, mo, px):
             hover_data=['pdl', 'mois_annee']
         )
 
-        _viz_scatter = mo.plotly(fig_scatter)
+        _viz_scatter = fig_scatter
     else:
         _viz_scatter = mo.md("⏭️ Visualisation énergie/TURPE non disponible")
 
@@ -415,7 +418,10 @@ def synthesis_tables(meta_periodes_primary, mo):
                 'puissance_moyenne': 'mean',
                 'turpe_fixe': 'sum',
                 'turpe_variable': 'sum',
-                'has_changement': 'sum'
+                'has_changement': 'sum', 
+                'HP_energie': 'sum',
+                'HC_energie': 'sum',
+                'BASE_energie': 'sum',
             })
             .round(2)
             .rename(columns={
@@ -436,7 +442,10 @@ def synthesis_tables(meta_periodes_primary, mo):
                 'puissance_moyenne': 'mean',
                 'turpe_fixe': 'sum',
                 'turpe_variable': 'sum',
-                'nb_jours': 'sum'
+                'nb_jours': 'sum',
+                'HP_energie': 'sum',
+                'HC_energie': 'sum',
+                'BASE_energie': 'sum',
             })
             .round(2)
             .rename(columns={
@@ -546,12 +555,12 @@ def validation_and_anomalies(meta_periodes_primary, mo):
             anomalies.append(f"❌ {jours_zero} périodes avec nb_jours <= 0")
 
         # Colonnes avec trop de NaN
-        for col in ['turpe_fixe', 'turpe_variable']:
-            if col in meta_periodes_primary.columns:
-                nan_count = meta_periodes_primary[col].isna().sum()
+        for _col in ['turpe_fixe', 'turpe_variable']:
+            if _col in meta_periodes_primary.columns:
+                nan_count = meta_periodes_primary[_col].isna().sum()
                 nan_pct = nan_count / len(meta_periodes_primary) * 100
                 if nan_pct > 10:
-                    anomalies.append(f"⚠️ {col}: {nan_pct:.1f}% de valeurs manquantes")
+                    anomalies.append(f"⚠️ {_col}: {nan_pct:.1f}% de valeurs manquantes")
 
         if anomalies:
             _validation = mo.md(f"""
