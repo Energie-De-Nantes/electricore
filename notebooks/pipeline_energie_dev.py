@@ -31,7 +31,7 @@ def _():
     # Debugging
     from icecream import ic
 
-    return Path, calculer_energie, lire_flux_c15, lire_flux_r151, pipeline_energie, process_flux
+    return Path, lire_flux_c15, lire_flux_r151, pipeline_energie, process_flux
 
 
 @app.cell(hide_code=True)
@@ -105,7 +105,7 @@ def _(lire_flux_c15, lire_flux_r151, mo, raw_c15, raw_r151):
     return historique, releves, transform_success
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(historique, mo):
     # Inspection de l'historique du périmètre
     _historique_display = (
@@ -117,7 +117,7 @@ def _(historique, mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo, releves):
     # Inspection des relevés
     _releves_display = (

@@ -26,7 +26,6 @@ def _():
     from icecream import ic
     return (
         Path,
-        calculer_abonnements,
         formater_date_francais,
         lire_flux_c15,
         lire_flux_r151,
@@ -108,7 +107,7 @@ def _(lire_flux_c15, lire_flux_r151, mo, raw_c15, raw_r151):
     return historique, transform_success
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(historique, mo):
     # Inspection de l'historique du périmètre
     _historique_display = (
