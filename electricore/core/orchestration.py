@@ -10,6 +10,7 @@ intermédiaires sont accessibles via le container ResultatFacturation.
 """
 
 from typing import NamedTuple, Optional
+import pandas as pd
 import pandera.pandas as pa
 from pandera.typing import DataFrame
 
@@ -52,7 +53,10 @@ class ResultatFacturation(NamedTuple):
     facturation: Optional[DataFrame] = None  # [PeriodeMeta]
 
 
-def calculer_historique_enrichi(historique: DataFrame[HistoriquePérimètre]) -> ResultatFacturation:
+def calculer_historique_enrichi(
+    historique: DataFrame[HistoriquePérimètre],
+    date_limite: Optional[pd.Timestamp] = None
+) -> ResultatFacturation:
     """
     Calcule uniquement l'historique enrichi (pipeline commun).
     
@@ -61,16 +65,21 @@ def calculer_historique_enrichi(historique: DataFrame[HistoriquePérimètre]) ->
     
     Args:
         historique: DataFrame contenant l'historique des événements contractuels
+        date_limite: Si fourni, exclut tous les événements après cette date
+                    (défaut: 1er du mois courant)
         
     Returns:
         ResultatFacturation avec historique_enrichi seulement
     """
-    historique_enrichi = pipeline_commun(historique)
+    historique_enrichi = pipeline_commun(historique, date_limite=date_limite)
     return ResultatFacturation(historique_enrichi=historique_enrichi)
 
 
 @pa.check_types
-def calculer_abonnements(historique: DataFrame[HistoriquePérimètre]) -> ResultatFacturation:
+def calculer_abonnements(
+    historique: DataFrame[HistoriquePérimètre],
+    date_limite: Optional[pd.Timestamp] = None
+) -> ResultatFacturation:
     """
     Calcule les abonnements avec leur contexte (historique enrichi).
     
@@ -79,11 +88,13 @@ def calculer_abonnements(historique: DataFrame[HistoriquePérimètre]) -> Result
     
     Args:
         historique: DataFrame contenant l'historique des événements contractuels
+        date_limite: Si fourni, exclut tous les événements après cette date
+                    (défaut: 1er du mois courant)
         
     Returns:
         ResultatFacturation avec historique_enrichi + abonnements
     """
-    historique_enrichi = pipeline_commun(historique)
+    historique_enrichi = pipeline_commun(historique, date_limite=date_limite)
     abonnements = pipeline_abonnement(historique_enrichi)
     
     return ResultatFacturation(
@@ -95,7 +106,8 @@ def calculer_abonnements(historique: DataFrame[HistoriquePérimètre]) -> Result
 @pa.check_types
 def calculer_energie(
     historique: DataFrame[HistoriquePérimètre], 
-    relevés: DataFrame[RelevéIndex]
+    relevés: DataFrame[RelevéIndex],
+    date_limite: Optional[pd.Timestamp] = None
 ) -> ResultatFacturation:
     """
     Calcule l'énergie avec son contexte (historique enrichi).
@@ -106,11 +118,13 @@ def calculer_energie(
     Args:
         historique: DataFrame contenant l'historique des événements contractuels
         relevés: DataFrame contenant les relevés d'index R151
+        date_limite: Si fourni, exclut tous les événements après cette date
+                    (défaut: 1er du mois courant)
         
     Returns:
         ResultatFacturation avec historique_enrichi + energie
     """
-    historique_enrichi = pipeline_commun(historique)
+    historique_enrichi = pipeline_commun(historique, date_limite=date_limite)
     energie = pipeline_energie(historique_enrichi, relevés)
     
     return ResultatFacturation(
@@ -122,7 +136,8 @@ def calculer_energie(
 @pa.check_types
 def facturation(
     historique: DataFrame[HistoriquePérimètre], 
-    relevés: DataFrame[RelevéIndex]
+    relevés: DataFrame[RelevéIndex],
+    date_limite: Optional[pd.Timestamp] = None
 ) -> ResultatFacturation:
     """
     Pipeline complet de facturation avec méta-périodes mensuelles.
@@ -137,6 +152,8 @@ def facturation(
     Args:
         historique: DataFrame contenant l'historique des événements contractuels
         relevés: DataFrame contenant les relevés d'index R151
+        date_limite: Si fourni, exclut tous les événements après cette date
+                    (défaut: 1er du mois courant)
         
     Returns:
         ResultatFacturation avec tous les résultats (historique_enrichi, 
@@ -157,7 +174,7 @@ def facturation(
         hist, abo, ener, fact = result
     """
     # Une seule fois pipeline_commun - évite la duplication
-    historique_enrichi = pipeline_commun(historique)
+    historique_enrichi = pipeline_commun(historique, date_limite=date_limite)
     
     # Calculs en parallèle possibles (même historique enrichi)
     abonnements = pipeline_abonnement(historique_enrichi)

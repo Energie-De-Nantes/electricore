@@ -32,6 +32,7 @@ from electricore.core.relevés.modèles import RequêteRelevé
 from electricore.core.models.periode_energie import PeriodeEnergie
 from electricore.core.taxes.turpe import calculer_turpe_variable, load_turpe_rules
 from electricore.core.utils.formatage import formater_date_francais
+from electricore.core.périmètre.fonctions import enrichir_historique_périmètre
 
 
 @curry
@@ -314,31 +315,35 @@ def calculer_periodes_energie(relevés: DataFrame[RelevéIndex]) -> DataFrame[Pe
 
 
 def pipeline_energie(
-    historique_enrichi: DataFrame[HistoriquePérimètre], 
+    historique: DataFrame[HistoriquePérimètre], 
     relevés: DataFrame[RelevéIndex]
 ) -> DataFrame[PeriodeEnergie]:
     """
-    Pipeline pur pour générer les périodes d'énergie avec TURPE variable.
+    Pipeline pour générer les périodes d'énergie avec TURPE variable.
     
-    ⚠️  ATTEND un historique déjà enrichi (après pipeline_commun).
-        Pour l'orchestration complète, utiliser orchestration.calculer_energie()
+    Enrichit automatiquement l'historique si les colonnes d'impact manquent.
     
     Pipeline de transformation :
-    1. Filtrage des événements impactant l'énergie
-    2. Combinaison des relevés événements + mensuels  
-    3. Calcul des périodes d'énergie avec flags qualité
-    4. Enrichissement avec calcul TURPE variable
+    1. Enrichissement de l'historique (si nécessaire)
+    2. Filtrage des événements impactant l'énergie
+    3. Combinaison des relevés événements + mensuels  
+    4. Calcul des périodes d'énergie avec flags qualité
+    5. Enrichissement avec calcul TURPE variable
     
     Args:
-        historique_enrichi: DataFrame enrichi avec événements de facturation
+        historique: DataFrame contenant l'historique des événements contractuels
         relevés: DataFrame contenant les relevés d'index R151
         
     Returns:
         DataFrame[PeriodeEnergie] avec les périodes d'énergie et TURPE variable
     """
-    # Pipeline pur - pas d'appel à pipeline_commun
+    # Vérifier si l'historique est déjà enrichi (contient les colonnes d'impact)
+    if 'impacte_energie' not in historique.columns:
+        # Enrichir l'historique si les colonnes d'impact manquent
+        historique = enrichir_historique_périmètre(historique)
+    
     periodes_energie = (
-        historique_enrichi
+        historique
         .query("impacte_energie or Evenement_Declencheur == 'FACTURATION'")
         .pipe(reconstituer_chronologie_relevés(relevés))
         .pipe(calculer_periodes_energie)

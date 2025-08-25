@@ -9,6 +9,8 @@ Fonctions principales:
 - pipeline_commun() - Pipeline de préparation commun à tous les calculs
 """
 
+from typing import Optional
+import pandas as pd
 import pandera.pandas as pa
 from pandera.typing import DataFrame
 
@@ -17,18 +19,29 @@ from electricore.core.périmètre.fonctions import enrichir_historique_périmèt
 
 
 @pa.check_types
-def pipeline_commun(historique: DataFrame[HistoriquePérimètre]) -> DataFrame[HistoriquePérimètre]:
+def pipeline_commun(
+    historique: DataFrame[HistoriquePérimètre],
+    date_limite: Optional[pd.Timestamp] = None
+) -> DataFrame[HistoriquePérimètre]:
     """
     Pipeline commun qui prépare l'historique pour tous les calculs.
     
     Étapes communes à tous les pipelines :
-    1. Détection des points de rupture
-    2. Insertion des événements de facturation
+    1. Filtrage des événements par date limite (optionnel)
+    2. Détection des points de rupture
+    3. Insertion des événements de facturation
     
     Args:
         historique: DataFrame contenant l'historique des événements contractuels
+        date_limite: Si fourni, exclut tous les événements après cette date
+                    (défaut: 1er du mois courant)
         
     Returns:
         DataFrame[HistoriquePérimètre] enrichi avec événements de facturation
     """
+    if date_limite is None:
+        date_limite = pd.Timestamp.now(tz="Europe/Paris").to_period("M").start_time.tz_localize("Europe/Paris")
+    
+    historique = historique[historique["Date_Evenement"] <= date_limite]
+    
     return enrichir_historique_périmètre(historique)
