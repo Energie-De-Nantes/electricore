@@ -50,6 +50,14 @@ from electricore.core.périmètre.fonctions import (
     inserer_evenements_facturation,
     enrichir_historique_périmètre
 )
+
+# Import de la nouvelle API d'orchestration
+from electricore.core.orchestration import (
+    facturation,
+    calculer_abonnements,
+    calculer_energie,
+    calculer_historique_enrichi
+)
 # TODO rename facturation depuis flux ou un truc du genre. 
 def facturation_flux(deb: pd.Timestamp, fin: pd.Timestamp, c15: pd.DataFrame, r151: pd.DataFrame) -> pd.DataFrame:
     """
@@ -65,7 +73,8 @@ def facturation_flux(deb: pd.Timestamp, fin: pd.Timestamp, c15: pd.DataFrame, r1
     complet = ajouter_relevés(base, relevés)
     return complet
 
-# TODO rename facturation depuis flux ou un truc du genre.
+# NOTE: Cette fonction utilise l'ancienne approche avec gestion de dates spécifiques
+# Pour les nouveaux développements, considérer orchestration.facturation() qui offre une API plus moderne
 @pa.check_types
 def facturation(
         deb: pd.Timestamp, 
@@ -75,7 +84,10 @@ def facturation(
         inclure_jour_fin: bool=False
         ) -> pd.DataFrame:
     """
-    Calcule les énergies et les taxes pour une période donnée, sur l'ensemble du périmètre
+    Calcule les énergies et les taxes pour une période donnée, sur l'ensemble du périmètre.
+    
+    NOTE: Ancienne approche avec gestion manuelle des dates et cas spécifiques.
+    Pour une approche plus moderne, voir orchestration.facturation().
     """
     historique: DataFrame[HistoriquePérimètre] = extraire_historique_à_date(historique=historique, fin=fin)
     # Base = pour tous les couples (ref, pdl), on a toutes les Entrées/Sorties du périmètre et le relevés associés
@@ -115,50 +127,12 @@ def facturation(
 
 
 
-@pa.check_types
-def calculer_abonnements_et_energies(
-    historique: DataFrame[HistoriquePérimètre], 
-    relevés: DataFrame[RelevéIndex]
-) -> dict:
-    """
-    Pipeline complet unifié partant de l'historique comme source unique.
-    
-    Orchestre toute la chaîne de traitement :
-    1. Détection des points de rupture
-    2. Insertion des événements de facturation
-    3. Génération des périodes d'abonnement + TURPE fixe
-    4. Génération des périodes d'énergie
-    
-    Args:
-        historique: DataFrame contenant l'historique des événements contractuels
-        relevés: DataFrame contenant les relevés d'index R151
-        
-    Returns:
-        dict contenant tous les résultats :
-        - 'abonnements': périodes d'abonnement avec TURPE fixe
-        - 'energies': périodes d'énergie calculées  
-        - 'historique_etendu': historique enrichi avec événements de facturation
-    """
-    # Étapes 1-2 communes : Pipeline commun d'enrichissement
-    historique_etendu = pipeline_commun(historique)
-    
-    # Branche 1 : Périodes d'abonnement + TURPE fixe
-    periodes_abonnement = (
-        historique_etendu
-        .pipe(generer_periodes_abonnement)
-        .pipe(ajouter_turpe_fixe(load_turpe_rules())) # Besoin de curry plus tard.
-    )
-    
-    # Branche 2 : Périodes d'énergie
-    periodes_energie = (
-        historique_etendu
-        .pipe(lambda df: df.query("impact_energie or impact_turpe_variable or Evenement_Declencheur == 'FACTURATION'"))
-        .pipe(reconstituer_chronologie_relevés(relevés))
-        .pipe(calculer_periodes_energie)
-    )
-    
-    return {
-        'abonnements': periodes_abonnement,
-        'energies': periodes_energie,
-        'historique_etendu': historique_etendu
-    }
+# ======================================================================
+# FONCTION SUPPRIMÉE - calculer_abonnements_et_energies()
+# 
+# Cette fonction legacy a été remplacée par l'orchestration moderne.
+# Utiliser à la place :
+#   - orchestration.facturation() pour le pipeline complet
+#   - orchestration.calculer_abonnements() pour juste les abonnements  
+#   - orchestration.calculer_energie() pour juste l'énergie
+# ======================================================================

@@ -361,27 +361,57 @@ class TestPipelineComplet:
             'ordre_index': [0, 0]
         })
     
-    def test_integration_pipeline_facturation(self, historique_simple, releves_simples):
-        """Test d'intégration du pipeline complet."""
-        # Note: Ce test nécessite que tous les modules soient correctement intégrés
-        # Pour l'instant, on teste juste que la fonction ne lève pas d'erreur
+    def test_architecture_pipeline_pur(self):
+        """Test que pipeline_facturation accepte les DataFrames directement (architecture pure)."""
+        # Test de la nouvelle signature du pipeline pur
+        from electricore.core.pipeline_facturation import pipeline_facturation
         
-        try:
-            from electricore.core.périmètre import HistoriquePérimètre
-            from electricore.core.relevés import RelevéIndex
-            
-            historique = HistoriquePérimètre.validate(historique_simple)
-            releves = RelevéIndex.validate(releves_simples)
-            
-            result = pipeline_facturation(historique, releves)
-            
-            # Vérifications basiques
-            assert not result.empty
-            assert 'puissance_moyenne' in result.columns
-            assert 'turpe_fixe' in result.columns
-            
-        except ImportError:
-            pytest.skip("Modules de dépendances non disponibles pour test d'intégration")
+        # Données d'abonnement conformes au modèle PeriodeAbonnement
+        abonnements = pd.DataFrame({
+            'Ref_Situation_Contractuelle': ['PDL001'],
+            'pdl': ['PDL001'],
+            'mois_annee': ['janvier 2024'],
+            'debut_lisible': ['1 janvier 2024'],
+            'fin_lisible': ['31 janvier 2024'],
+            'debut': [pd.Timestamp('2024-01-01', tz='Europe/Paris')],
+            'fin': [pd.Timestamp('2024-01-31', tz='Europe/Paris')],
+            'nb_jours': [31],
+            'Puissance_Souscrite': [6.0],
+            'Formule_Tarifaire_Acheminement': ['BASE'],
+            'turpe_fixe': [100.0]
+        })
+        
+        # Données d'énergie conformes au modèle PeriodeEnergie  
+        energies = pd.DataFrame({
+            'Ref_Situation_Contractuelle': ['PDL001'],
+            'pdl': ['PDL001'],
+            'debut': [pd.Timestamp('2024-01-01', tz='Europe/Paris')],
+            'fin': [pd.Timestamp('2024-01-31', tz='Europe/Paris')],
+            'nb_jours': [31],
+            'debut_lisible': ['1 janvier 2024'],
+            'fin_lisible': ['31 janvier 2024'],
+            'mois_annee': ['janvier 2024'],
+            'source_avant': ['Flux_C15'],
+            'source_apres': ['Flux_C15'],
+            'data_complete': [True],
+            'periode_irreguliere': [False],
+            'BASE_energie': [1000.0],
+            'HP_energie': [np.nan],
+            'HC_energie': [np.nan],
+            'HPH_energie': [np.nan],
+            'HPB_energie': [np.nan],
+            'HCH_energie': [np.nan],
+            'HCB_energie': [np.nan],
+            'turpe_variable': [50.0]
+        })
+        
+        # Test de la nouvelle architecture pure
+        result = pipeline_facturation(abonnements, energies)
+        
+        # Vérifications
+        assert not result.empty
+        assert 'puissance_moyenne' in result.columns
+        assert 'turpe_fixe' in result.columns
     
     def test_coherence_modele_periode_meta(self):
         """Test que le résultat respecte le modèle PeriodeMeta."""

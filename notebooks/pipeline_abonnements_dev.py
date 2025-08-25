@@ -17,14 +17,16 @@ def _():
     # ElectriCore - Transform
     from electricore.inputs.flux import lire_flux_c15, lire_flux_r151
 
-    # ElectriCore - Process
+    # ElectriCore - Process : Pipeline pur + orchestration moderne
     from electricore.core.pipeline_abonnements import pipeline_abonnement, generer_periodes_abonnement
+    from electricore.core.orchestration import calculer_abonnements
     from electricore.core.utils.formatage import formater_date_francais
 
     # Debugging
     from icecream import ic
     return (
         Path,
+        calculer_abonnements,
         formater_date_francais,
         lire_flux_c15,
         lire_flux_r151,

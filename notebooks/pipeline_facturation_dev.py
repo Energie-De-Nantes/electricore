@@ -26,8 +26,8 @@ def import_dependencies():
     # ElectriCore - Transform
     from electricore.inputs.flux import lire_flux_c15, lire_flux_r151
 
-    # ElectriCore - Process : Pipeline de facturation
-    from electricore.core.pipeline_facturation import pipeline_facturation
+    # ElectriCore - Process : Orchestration de facturation (nouvelle architecture)
+    from electricore.core.orchestration import facturation
 
     # Debugging
     from icecream import ic
@@ -37,7 +37,7 @@ def import_dependencies():
         Path,
         lire_flux_c15,
         lire_flux_r151,
-        pipeline_facturation,
+        facturation,
         process_flux,
         px,
     )
@@ -123,8 +123,10 @@ def transform_data_models(
 
 
 @app.cell(hide_code=True)
-def pipeline_facturation_primary(historique, pipeline_facturation, releves):
-    meta_periodes_primary = pipeline_facturation(historique, releves)
+def pipeline_facturation_primary(historique, facturation, releves):
+    # Utilisation de l'orchestration complète qui retourne un ResultatFacturation
+    resultat_facturation = facturation(historique, releves)
+    meta_periodes_primary = resultat_facturation.facturation
     return (meta_periodes_primary,)
 
 
@@ -604,11 +606,13 @@ def development_notes(mo):
     ## 📝 **Notes de Développement**
 
     ### Pipeline testé
-    **`pipeline_facturation()`** - Pipeline complet avec méta-périodes mensuelles :
-    1. Génère périodes d'abonnement détaillées (pipeline_abonnement)
-    2. Génère périodes d'énergie détaillées (pipeline_energie)  
-    3. Agrégation mensuelle avec puissance moyenne pondérée (mathématiquement équivalente)
-    4. Somme simple des énergies et montants TURPE
+    **`facturation()`** - Pipeline complet orchestré avec méta-périodes mensuelles :
+    1. Enrichissement historique (pipeline_commun) - une seule fois
+    2. Génère périodes d'abonnement détaillées (pipeline_abonnement pur)
+    3. Génère périodes d'énergie détaillées (pipeline_energie pur)  
+    4. Agrégation mensuelle avec puissance moyenne pondérée (pipeline_facturation pur)
+    
+    ✅ **Architecture refactorisée** : pipelines purs + orchestration avec ResultatFacturation
 
     ### Avantages de l'approche méta-périodes
     - **Simplification**: Une ligne par mois et par référence contractuelle

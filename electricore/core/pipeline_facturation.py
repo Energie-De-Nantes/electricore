@@ -1,15 +1,18 @@
 """
-Pipeline de facturation agrégée en méta-périodes mensuelles.
+Pipeline pur d'agrégation de facturation en méta-périodes mensuelles.
 
-Ce module orchestre les pipelines d'abonnement et d'énergie pour produire
-des méta-périodes mensuelles optimisées pour la facturation.
+Ce module agrège les périodes d'abonnement et d'énergie déjà calculées 
+pour produire des méta-périodes mensuelles optimisées pour la facturation.
 
 L'agrégation utilise une puissance moyenne pondérée par nombre de jours,
 mathématiquement équivalente au calcul détaillé grâce à la linéarité
 de la formule de tarification.
 
 Pipeline principal:
-- pipeline_facturation() - Pipeline complet produisant les méta-périodes
+- pipeline_facturation() - Pipeline pur d'agrégation des méta-périodes
+
+⚠️ Ce pipeline attend des périodes déjà calculées.
+   Pour l'orchestration complète, voir orchestration.py
 """
 
 import pandas as pd
@@ -17,13 +20,9 @@ import pandera.pandas as pa
 from pandera.typing import DataFrame
 from toolz import curry
 
-from electricore.core.périmètre import HistoriquePérimètre
-from electricore.core.relevés import RelevéIndex
 from electricore.core.models.periode_abonnement import PeriodeAbonnement
 from electricore.core.models.periode_energie import PeriodeEnergie
 from electricore.core.models.periode_meta import PeriodeMeta
-from electricore.core.pipeline_abonnements import pipeline_abonnement
-from electricore.core.pipeline_energie import pipeline_energie
 from electricore.core.utils.formatage import formater_date_francais
 
 
@@ -209,36 +208,29 @@ def joindre_agregats(ener_mensuel: pd.DataFrame, abo_mensuel: pd.DataFrame) -> p
 
 @pa.check_types
 def pipeline_facturation(
-    historique: DataFrame[HistoriquePérimètre], 
-    relevés: DataFrame[RelevéIndex]
+    periodes_abonnement: DataFrame[PeriodeAbonnement],
+    periodes_energie: DataFrame[PeriodeEnergie]
 ) -> DataFrame[PeriodeMeta]:
     """
-    Pipeline complet de facturation avec méta-périodes mensuelles.
+    Pipeline pur d'agrégation de facturation avec méta-périodes mensuelles.
     
-    Orchestre les pipelines d'abonnement et d'énergie pour produire
-    des méta-périodes optimisées pour la facturation, en utilisant
-    l'agrégation mensuelle mathématiquement équivalente.
+    ⚠️  ATTEND des périodes déjà calculées (abonnements + énergie).
+        Pour l'orchestration complète, utiliser orchestration.facturation()
     
-    Pipeline :
-    1. Génération des périodes d'abonnement détaillées
-    2. Génération des périodes d'énergie détaillées  
-    3. Agrégation mensuelle des abonnements (puissance moyenne pondérée)
-    4. Agrégation mensuelle des énergies (sommes simples)
-    5. Jointure des agrégats
-    6. Ajout des métadonnées et formatage
+    Pipeline d'agrégation pur :
+    1. Agrégation mensuelle des abonnements (puissance moyenne pondérée)
+    2. Agrégation mensuelle des énergies (sommes simples)
+    3. Jointure des agrégats
+    4. Formatage et tri final
     
     Args:
-        historique: DataFrame contenant l'historique des événements contractuels
-        relevés: DataFrame contenant les relevés d'index R151
+        periodes_abonnement: DataFrame des périodes d'abonnement avec TURPE fixe
+        periodes_energie: DataFrame des périodes d'énergie avec TURPE variable
         
     Returns:
         DataFrame[PeriodeMeta] avec les méta-périodes mensuelles de facturation
     """
-    # Génération des périodes détaillées
-    periodes_abonnement = pipeline_abonnement(historique)
-    periodes_energie = pipeline_energie(historique, relevés)
-    
-    # Pipeline d'agrégation avec pandas.pipe()
+    # Pipeline pur d'agrégation - pas d'appel aux autres pipelines
     meta_periodes = (
         agreger_abonnements_mensuel(periodes_abonnement)
         .pipe(joindre_agregats(agreger_energies_mensuel(periodes_energie)))

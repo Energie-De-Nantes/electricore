@@ -1,14 +1,16 @@
 """
-Pipeline de calcul des périodes d'abonnement avec TURPE.
+Pipeline pur de calcul des périodes d'abonnement avec TURPE.
 
-Ce module contient le pipeline complet pour générer les périodes d'abonnement
-enrichies avec les tarifs TURPE fixes, partant de l'historique contractuel.
+Ce module contient le pipeline pour générer les périodes d'abonnement
+enrichies avec les tarifs TURPE fixes, à partir d'un historique déjà enrichi.
 
 Pipeline principal:
-- pipeline_abonnement() - Pipeline complet de calcul des abonnements
-  1. Préparation commune (pipeline_commun)
-  2. Génération des périodes d'abonnement  
-  3. Ajout du TURPE fixe
+- pipeline_abonnement() - Pipeline pur de calcul des abonnements
+  1. Génération des périodes d'abonnement (à partir d'historique enrichi)
+  2. Ajout du TURPE fixe
+  
+⚠️ Ce pipeline attend un historique déjà enrichi (après pipeline_commun).
+   Pour l'orchestration complète, voir orchestration.py
 """
 
 import pandas as pd
@@ -16,7 +18,6 @@ import pandera.pandas as pa
 from pandera.typing import DataFrame
 
 from electricore.core.périmètre import HistoriquePérimètre
-from electricore.core.pipeline_commun import pipeline_commun
 from electricore.core.models import PeriodeAbonnement
 from electricore.core.taxes.turpe import ajouter_turpe_fixe, load_turpe_rules
 from electricore.core.utils.formatage import formater_date_francais
@@ -88,26 +89,26 @@ def generer_periodes_abonnement(historique: DataFrame[HistoriquePérimètre]) ->
 
 
 @pa.check_types
-def pipeline_abonnement(historique: DataFrame[HistoriquePérimètre]) -> pd.DataFrame:
+def pipeline_abonnement(historique_enrichi: DataFrame[HistoriquePérimètre]) -> pd.DataFrame:
     """
-    Pipeline complète pour générer les périodes d'abonnement avec TURPE.
+    Pipeline pur pour générer les périodes d'abonnement avec TURPE.
     
-    Orchestre toute la chaîne de traitement :
-    1. Détection des points de rupture
-    2. Insertion des événements de facturation
-    3. Génération des périodes d'abonnement
-    4. Ajout du TURPE fixe
+    ⚠️  ATTEND un historique déjà enrichi (après pipeline_commun).
+        Pour l'orchestration complète, utiliser orchestration.calculer_abonnements()
+    
+    Pipeline de transformation :
+    1. Génération des périodes d'abonnement à partir d'historique enrichi
+    2. Ajout du TURPE fixe
     
     Args:
-        historique: DataFrame contenant l'historique des événements contractuels
+        historique_enrichi: DataFrame enrichi avec événements de facturation
         
     Returns:
         DataFrame avec les périodes d'abonnement enrichies du TURPE fixe
     """
-    # Pipeline avec pandas pipe utilisant pipeline_commun
+    # Pipeline pur - pas d'appel à pipeline_commun
     return (
-        historique
-        .pipe(pipeline_commun)
+        historique_enrichi
         .pipe(generer_periodes_abonnement)
         .pipe(ajouter_turpe_fixe(load_turpe_rules()))
     )

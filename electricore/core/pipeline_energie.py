@@ -1,9 +1,9 @@
 """
-Pipeline de calcul des périodes d'énergie électrique.
+Pipeline pur de calcul des périodes d'énergie électrique.
 
 Ce module contient toutes les fonctions de transformation des relevés d'index
 en périodes d'énergie calculées avec validation de qualité et enrichissement
-hiérarchique des cadrans.
+hiérarchique des cadrans, à partir d'un historique déjà enrichi.
 
 Pipeline principal:
 1. reconstituer_chronologie_relevés() - Reconstitution chronologique
@@ -15,6 +15,9 @@ Pipeline principal:
    - filtrer_periodes_valides() - Filtrage déclaratif
    - formater_colonnes_finales() - Formatage final
    - enrichir_cadrans_principaux() - Enrichissement hiérarchique
+   
+⚠️ Ce pipeline attend un historique déjà enrichi (après pipeline_commun).
+   Pour l'orchestration complète, voir orchestration.py
 """
 
 import pandera.pandas as pa
@@ -311,34 +314,31 @@ def calculer_periodes_energie(relevés: DataFrame[RelevéIndex]) -> DataFrame[Pe
 
 
 def pipeline_energie(
-    historique: DataFrame[HistoriquePérimètre], 
+    historique_enrichi: DataFrame[HistoriquePérimètre], 
     relevés: DataFrame[RelevéIndex]
 ) -> DataFrame[PeriodeEnergie]:
     """
-    Pipeline complète pour générer les périodes d'énergie avec calcul TURPE optionnel.
+    Pipeline pur pour générer les périodes d'énergie avec TURPE variable.
     
-    Orchestre toute la chaîne de traitement :
-    1. Détection des points de rupture
-    2. Insertion des événements de facturation  
-    3. Combinaison des relevés événements + mensuels
-    4. Génération de la grille complète de facturation
-    5. Calcul des périodes d'énergie avec flags qualité
-    6. Enrichissement avec FTA et calcul TURPE variable (optionnel)
+    ⚠️  ATTEND un historique déjà enrichi (après pipeline_commun).
+        Pour l'orchestration complète, utiliser orchestration.calculer_energie()
+    
+    Pipeline de transformation :
+    1. Filtrage des événements impactant l'énergie
+    2. Combinaison des relevés événements + mensuels  
+    3. Calcul des périodes d'énergie avec flags qualité
+    4. Enrichissement avec calcul TURPE variable
     
     Args:
-        historique: DataFrame contenant l'historique des événements contractuels
+        historique_enrichi: DataFrame enrichi avec événements de facturation
         relevés: DataFrame contenant les relevés d'index R151
-        avec_turpe: Si True, enrichit avec le calcul du TURPE variable
         
     Returns:
-        DataFrame[PeriodeEnergie] avec les périodes d'énergie calculées et optionnellement le TURPE
+        DataFrame[PeriodeEnergie] avec les périodes d'énergie et TURPE variable
     """
-    from electricore.core.pipeline_commun import pipeline_commun
-    
-    # Préparer l'historique filtré
+    # Pipeline pur - pas d'appel à pipeline_commun
     periodes_energie = (
-        historique
-        .pipe(pipeline_commun)
+        historique_enrichi
         .query("impacte_energie or Evenement_Declencheur == 'FACTURATION'")
         .pipe(reconstituer_chronologie_relevés(relevés))
         .pipe(calculer_periodes_energie)

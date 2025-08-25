@@ -23,14 +23,15 @@ def _():
     # ElectriCore - Transform
     from electricore.inputs.flux import lire_flux_c15, lire_flux_r151
 
-    # ElectriCore - Process
+    # ElectriCore - Process : Pipeline pur + orchestration moderne
     from electricore.core.pipeline_abonnements import pipeline_abonnement
     from electricore.core.pipeline_energie import pipeline_energie
+    from electricore.core.orchestration import calculer_energie
 
     # Debugging
     from icecream import ic
 
-    return Path, lire_flux_c15, lire_flux_r151, pipeline_energie, process_flux
+    return Path, calculer_energie, lire_flux_c15, lire_flux_r151, pipeline_energie, process_flux
 
 
 @app.cell(hide_code=True)
