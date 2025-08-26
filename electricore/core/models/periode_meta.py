@@ -44,6 +44,7 @@ class PeriodeMeta(pa.DataFrameModel):
     nb_sous_periodes_abo: Series[int] = pa.Field(nullable=False, ge=1)
     nb_sous_periodes_energie: Series[int] = pa.Field(nullable=False, ge=0)
     has_changement: Series[bool] = pa.Field(nullable=False)
+    data_complete: Series[bool] = pa.Field(nullable=False)
     
     # Colonnes optionnelles pour compatibilité
     debut_lisible: Optional[Series[str]] = pa.Field(nullable=True)

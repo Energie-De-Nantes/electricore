@@ -135,6 +135,7 @@ def agreger_energies_mensuel(energies: DataFrame[PeriodeEnergie]) -> pd.DataFram
         'debut': 'min',
         'fin': 'max',
         'turpe_variable': 'sum',
+        'data_complete': 'all',  # True seulement si TOUTES les périodes sont complètes
         'Ref_Situation_Contractuelle': 'size'  # Temporaire pour compter
     })
     
@@ -200,7 +201,10 @@ def joindre_agregats(ener_mensuel: pd.DataFrame, abo_mensuel: pd.DataFrame) -> p
             has_changement_abo=lambda x: x['has_changement_abo'].fillna(False),
             
             # Flag de changement global
-            has_changement=lambda x: x['has_changement_abo'] | x['has_changement_energie']
+            has_changement=lambda x: x['has_changement_abo'] | x['has_changement_energie'],
+            
+            # Si pas de données d'énergie, data_complete = False
+            data_complete=lambda x: x['data_complete'].fillna(False) if 'data_complete' in x.columns else False
         )
         .drop(columns=['has_changement_abo', 'has_changement_energie', 'debut_abo', 'debut_energie', 'fin_abo', 'fin_energie'], errors='ignore')
     )
