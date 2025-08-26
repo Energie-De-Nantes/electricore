@@ -247,164 +247,102 @@ def inserer_evenements_facturation(historique: DataFrame[HistoriquePérimètre])
     # ÉTAPE 1 : DÉTECTION DES PÉRIODES D'ACTIVITÉ (INDIVIDUALISÉ PAR PDL)
     # =============================================================================
     
-    # 1A. Identifier les dates d'entrée de chaque PDL
-    print("🔍 Détection des entrées...")
-    entrees = historique[historique['Evenement_Declencheur'].isin(['CFNE', 'MES', 'PMES'])]
-    debuts = entrees.groupby('Ref_Situation_Contractuelle')['Date_Evenement'].min()
-    print(f"   - {len(entrees)} événements d'entrée pour {len(debuts)} PDL")
-    
-    # 1B. Identifier les dates de sortie de chaque PDL
-    print("🔍 Détection des sorties...")
-    sorties = historique[historique['Evenement_Declencheur'].isin(['RES', 'CFNS'])]
-    fins = sorties.groupby('Ref_Situation_Contractuelle')['Date_Evenement'].max()
-    print(f"   - {len(sorties)} événements de sortie pour {len(fins)} PDL")
-    
-    # 1C. Définir la date limite pour les PDL non résiliés
+    # 1A. Définir la date limite pour les PDL non résiliés
     # LOGIQUE : génère des événements jusqu'au début du mois courant inclus
     fin_par_defaut = pd.Timestamp.now(tz=tz).to_period("M").start_time.tz_localize(tz)
-    print(f"   - Date limite pour PDL actifs : {fin_par_defaut}")
     
-    # 1D. Construire le DataFrame des périodes individuelles
-    periodes = pd.DataFrame({
-        "start": debuts,
-        "end": fins
-    }).fillna(fin_par_defaut)
-    
-    print(f"📊 Périodes d'activité :")
-    print(f"   - Total PDL : {len(periodes)}")
-    print(f"   - PDL résiliés : {periodes['end'].notna().sum() - (periodes['end'] == fin_par_defaut).sum()}")
-    print(f"   - PDL actifs : {(periodes['end'] == fin_par_defaut).sum()}")
-
-    # 1E. Filtrer les PDL entrés après la date limite (pas d'événements pour ces PDL)
+    # 1B. Construire les périodes d'activité valides avec filtrage intégré
+    periodes = (pd.DataFrame({
+        "start": (historique
+            .query("Evenement_Declencheur in ['CFNE', 'MES', 'PMES']")
+            .groupby('Ref_Situation_Contractuelle')['Date_Evenement']
+            .min()),
+        "end": (historique
+            .query("Evenement_Declencheur in ['RES', 'CFNS']")
+            .groupby('Ref_Situation_Contractuelle')['Date_Evenement']
+            .max())
+    })
+    .fillna(fin_par_defaut)
+    # Filtrer les PDL entrés après la date limite (pas d'événements pour ces PDL)
     # LOGIQUE : Un PDL entré après le 1er du mois courant ne génère pas d'événements pour ce mois
-    periodes_valides = periodes[periodes["start"] <= periodes["end"]]
-    periodes_invalides = periodes[periodes["start"] > periodes["end"]]
+    .query("start <= end"))
     
-    if len(periodes_invalides) > 0:
-        print(f"⚠️  PDL entrés trop tard (après {fin_par_defaut.strftime('%Y-%m-%d')}) : {len(periodes_invalides)}")
-        for ref, row in periodes_invalides.iterrows():
-            print(f"   - {ref}: entrée le {row['start'].strftime('%Y-%m-%d')} (exclu)")
-    
-    if len(periodes_valides) == 0:
-        print("❌ Aucun PDL n'a de période valide pour générer des événements")
+    if len(periodes) == 0:
         return historique  # Retourner l'historique original sans modification
-    
-    print(f"   - PDL avec périodes valides : {len(periodes_valides)}")
 
     # =============================================================================
     # ÉTAPE 2 : GÉNÉRATION DES DATES MENSUELLES (GLOBAL)
     # =============================================================================
     
-    # 2A. Calculer la plage globale de dates (uniquement pour les PDL valides)
-    min_date = periodes_valides["start"].min()
-    max_date = periodes_valides["end"].max()
-    print(f"🗓️  Plage globale : {min_date} → {max_date}")
-    
-    # 2B. Générer tous les 1ers du mois dans cette plage (inclus)
+    # 2A. Générer tous les 1ers du mois dans la plage globale (inclus)
     # ASTUCE : ajouter 1 jour à max_date pour être sûr d'inclure le mois de fin
-    max_date_inclusive = max_date + pd.DateOffset(days=1)
-    all_months = pd.date_range(start=min_date, end=max_date_inclusive, freq="MS", tz=tz)
-    print(f"   - {len(all_months)} mois générés de {all_months[0].strftime('%Y-%m')} à {all_months[-1].strftime('%Y-%m')}")
+    all_months = pd.date_range(
+        start=periodes["start"].min(),
+        end=periodes["end"].max() + pd.DateOffset(days=1),
+        freq="MS", 
+        tz=tz
+    )
     
     # =============================================================================
-    # ÉTAPE 3 : ASSOCIATION PDL ↔ MOIS (INDIVIDUALISÉ PAR PDL)
+    # ÉTAPE 3-4 : CRÉATION DES ÉVÉNEMENTS ARTIFICIELS (PIPE UNIFIÉ)
     # =============================================================================
     
-    # 3A. Faire un produit cartésien : chaque PDL valide × chaque mois
-    print("🔗 Association PDL ↔ mois...")
-    ref_mois = (
-        periodes_valides.reset_index()
+    # Créer les événements de facturation en pipe unique
+    evenements = (
+        periodes.reset_index()
+        # Produit cartésien : chaque PDL valide × chaque mois
         .merge(pd.DataFrame({"Date_Evenement": all_months}), how="cross")
-    )
-    
-    # 3A bis. Ajouter le mapping Ref_Situation_Contractuelle → pdl depuis l'historique
-    mapping_pdl = historique[['Ref_Situation_Contractuelle', 'pdl']].drop_duplicates()
-    ref_mois = ref_mois.merge(mapping_pdl, on='Ref_Situation_Contractuelle', how='left')
-    
-    print(f"   - {len(ref_mois)} combinaisons PDL×mois avant filtrage")
-    
-    # 3B. Filtrer pour ne garder que les mois où chaque PDL est actif
-    # CORRECTION : comparer les dates, pas les timestamps avec heures
-    # Car les événements FACTURATION sont générés avec freq="MS" (début de mois avec heure)
-    # alors que fin_par_defaut est à 00:00:00
-    # IMPORTANT : pour éviter les conflits avec ffill, exclure le mois d'entrée
-    ref_mois = ref_mois[
-        (ref_mois["Date_Evenement"].dt.date > ref_mois["start"].dt.date) & 
-        (ref_mois["Date_Evenement"].dt.date <= ref_mois["end"].dt.date)
-    ]
-    print(f"   - {len(ref_mois)} combinaisons PDL×mois après filtrage")
-    
-    # 3C. Statistiques de répartition
-    events_par_pdl = ref_mois.groupby('Ref_Situation_Contractuelle').size()
-    print(f"   - Moyenne : {events_par_pdl.mean():.1f} événements/PDL")
-    print(f"   - Min/Max : {events_par_pdl.min()}/{events_par_pdl.max()} événements/PDL")
-
-    # =============================================================================
-    # ÉTAPE 4 : CRÉATION DES ÉVÉNEMENTS ARTIFICIELS (GLOBAL)
-    # =============================================================================
-    
-    # 4A. Créer les événements de facturation
-    print("📅 Création des événements artificiels...")
-    evenements = ref_mois.copy()
-    evenements["Evenement_Declencheur"] = "FACTURATION"
-    evenements["Type_Evenement"] = "artificiel"
-    evenements["Source"] = "synthese_mensuelle"
-    evenements["resume_modification"] = "Facturation mensuelle"
-    evenements["impacte_abonnement"] = True
-    evenements["impacte_energie"] = True
-
-    # 4B. Sélectionner les colonnes nécessaires (inclure pdl pour éviter les NaN)
-    evenements = evenements[[
-        "Ref_Situation_Contractuelle", "pdl", "Date_Evenement",
-        "Evenement_Declencheur", "Type_Evenement", "Source", "resume_modification",
-        "impacte_abonnement", "impacte_energie"
-    ]]
-    print(f"   - {len(evenements)} événements de facturation créés")
-
-    # =============================================================================
-    # ÉTAPE 5 : PROPAGATION DES DONNÉES CONTRACTUELLES (INDIVIDUALISÉ PAR PDL)
-    # =============================================================================
-    
-    # 5A. Fusionner historique original + événements artificiels
-    print("🔄 Propagation des données contractuelles...")
-    fusion = pd.concat([historique, evenements], ignore_index=True).sort_values(
-        ["Ref_Situation_Contractuelle", "Date_Evenement"]
-    ).reset_index(drop=True)
-    
-    # 5B. Identifier les colonnes à propager (non-nullables du modèle Pandera)
-    # Ensure the schema is populated to access field information
-    schema = HistoriquePérimètre.to_schema()
-    colonnes_ffill = [
-        name for name, col_info in schema.columns.items()
-        if name in fusion.columns and not col_info.nullable
-    ]
-    print(f"   - {len(colonnes_ffill)} colonnes à propager : {colonnes_ffill}")
-
-    # 5C. Propager les données par PDL avec forward fill
-    # LOGIQUE : chaque événement artificiel hérite des caractéristiques du dernier événement réel
-    fusion[colonnes_ffill] = (
-        fusion.groupby("Ref_Situation_Contractuelle")[colonnes_ffill]
-        .ffill()
+        # Ajouter le mapping Ref_Situation_Contractuelle → pdl
+        .merge(
+            historique[['Ref_Situation_Contractuelle', 'pdl']].drop_duplicates(), 
+            on='Ref_Situation_Contractuelle', 
+            how='left'
+        )
+        # Filtrer pour ne garder que les mois où chaque PDL est actif
+        # CORRECTION : comparer les dates, pas les timestamps avec heures
+        # Car les événements FACTURATION sont générés avec freq="MS" (début de mois avec heure)
+        # alors que fin_par_defaut est à 00:00:00
+        # IMPORTANT : on exclue le mois d'entrée, c'est le relevé CFNE/MES qui sera début de période
+        .query("Date_Evenement.dt.date > start.dt.date and Date_Evenement.dt.date <= end.dt.date")
+        # Ajouter les colonnes d'événements artificiels
+        .assign(
+            Evenement_Declencheur="FACTURATION",
+            Type_Evenement="artificiel",
+            Source="synthese_mensuelle",
+            resume_modification="Facturation mensuelle",
+            impacte_abonnement=True,
+            impacte_energie=True
+        )
+        # Sélectionner les colonnes nécessaires
+        [[
+            "Ref_Situation_Contractuelle", "pdl", "Date_Evenement",
+            "Evenement_Declencheur", "Type_Evenement", "Source", "resume_modification",
+            "impacte_abonnement", "impacte_energie"
+        ]]
     )
 
     # =============================================================================
-    # ÉTAPE 6 : EXTRACTION ET ASSEMBLAGE FINAL (GLOBAL)
+    # ÉTAPE 5 : PROPAGATION DES DONNÉES CONTRACTUELLES (PIPE UNIFIÉ)
     # =============================================================================
     
-    # 6A. Extraire uniquement les événements FACTURATION avec données propagées
-    ajout = fusion[fusion["Evenement_Declencheur"] == "FACTURATION"]
-    print(f"   - {len(ajout)} événements FACTURATION avec données propagées")
-
-    # 6B. Assemblage final : historique original + événements artificiels
-    historique_etendu = pd.concat([historique, ajout], ignore_index=True).sort_values(
-        ["Ref_Situation_Contractuelle", "Date_Evenement"]
-    ).reset_index(drop=True)
-    
-    print(f"✅ Historique étendu : {len(historique_etendu)} événements total")
-    print(f"   - Événements originaux : {len(historique)}")
-    print(f"   - Événements artificiels : {len(ajout)}")
-    
-    return historique_etendu
+    # Fusionner et propager les données contractuelles en pipe unique
+    fusion = (
+        pd.concat([historique, evenements], ignore_index=True)
+        .sort_values(["Ref_Situation_Contractuelle", "Date_Evenement"])
+        .reset_index(drop=True)
+        .assign(**{
+            # Propager les données par PDL avec forward fill
+            # LOGIQUE : chaque événement artificiel hérite des caractéristiques du dernier événement réel
+            col: lambda df, c=col: df.groupby("Ref_Situation_Contractuelle")[c].ffill()
+            for col in [
+                name for name, col_info in HistoriquePérimètre.to_schema().columns.items()
+                if not col_info.nullable
+            ]
+            # Filtrer les colonnes présentes dans le DataFrame
+            if col in pd.concat([historique, evenements], ignore_index=True).columns
+        })
+    )
+    return fusion
 
 @pa.check_types
 def extraire_releves_evenements(historique: DataFrame[HistoriquePérimètre]) -> DataFrame[RelevéIndex]:
