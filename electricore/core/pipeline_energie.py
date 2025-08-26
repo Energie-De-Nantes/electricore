@@ -10,6 +10,7 @@ Pipeline principal:
 2. calculer_periodes_energie() - Pipeline complet de calcul
    - preparer_releves() - Tri et normalisation
    - calculer_decalages_par_pdl() - Décalages par PDL
+   - arrondir_index_kwh() - Arrondi des index à l'entier inférieur
    - calculer_differences_cadrans() - Calcul vectorisé des énergies
    - calculer_flags_qualite() - Indicateurs de qualité
    - filtrer_periodes_valides() - Filtrage déclaratif
@@ -138,6 +139,30 @@ def calculer_decalages_par_pdl(relevés: DataFrame[RelevéIndex]) -> pd.DataFram
             'Source': 'source_apres'
         })
     )
+
+
+@pa.check_types
+def arrondir_index_kwh(data: pd.DataFrame, cadrans: list) -> pd.DataFrame:
+    """
+    Arrondit les index à l'entier inférieur pour ne comptabiliser que les kWh complets.
+    
+    Certaines valeurs arrivent en Wh et sont converties en divisant par 1000, 
+    créant des valeurs décimales. L'arrondi à l'entier inférieur garantit qu'on
+    ne facture que les kWh entièrement consommés et évite les valeurs négatives
+    dues aux différences de précision.
+    
+    Args:
+        data: DataFrame avec les relevés d'index
+        cadrans: Liste des colonnes de cadrans à arrondir
+        
+    Returns:
+        DataFrame avec les index arrondis à l'entier inférieur
+    """
+    résultat = data.copy()
+    cols_présentes = [c for c in cadrans if c in résultat.columns]
+    if cols_présentes:
+        résultat[cols_présentes] = résultat[cols_présentes].transform(np.floor)
+    return résultat
 
 
 @pa.check_types
@@ -277,11 +302,12 @@ def calculer_periodes_energie(relevés: DataFrame[RelevéIndex]) -> DataFrame[Pe
     Pipeline de transformation :
     1. `preparer_releves()` - Tri et normalisation des relevés
     2. `calculer_decalages_par_pdl()` - Calcul des décalages par PDL avec groupby
-    3. `calculer_differences_cadrans()` - Calcul vectorisé des énergies tous cadrans
-    4. `calculer_flags_qualite()` - Indicateurs de qualité vectorisés
-    5. `filtrer_periodes_valides()` - Filtrage déclaratif avec query()
-    6. `formater_colonnes_finales()` - Sélection et formatage final
-    7. `enrichir_cadrans_principaux()` - Enrichissement hiérarchique HC, HP, BASE
+    3. `arrondir_index_kwh()` - Arrondi des index à l'entier inférieur (kWh complets)
+    4. `calculer_differences_cadrans()` - Calcul vectorisé des énergies tous cadrans
+    5. `calculer_flags_qualite()` - Indicateurs de qualité vectorisés
+    6. `filtrer_periodes_valides()` - Filtrage déclaratif avec query()
+    7. `formater_colonnes_finales()` - Sélection et formatage final
+    8. `enrichir_cadrans_principaux()` - Enrichissement hiérarchique HC, HP, BASE
     
     Args:
         relevés: DataFrame[RelevéIndex] avec relevés d'index chronologiques
@@ -299,6 +325,7 @@ def calculer_periodes_energie(relevés: DataFrame[RelevéIndex]) -> DataFrame[Pe
         relevés
         .pipe(preparer_releves)
         .pipe(calculer_decalages_par_pdl)
+        .pipe(arrondir_index_kwh, cadrans=cadrans)
         .pipe(calculer_differences_cadrans, cadrans=cadrans)
         .pipe(calculer_flags_qualite, cadrans=cadrans)
         .pipe(filtrer_periodes_valides)  # Filtrer avant le formatage
