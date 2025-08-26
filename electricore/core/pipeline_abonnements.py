@@ -85,6 +85,7 @@ def generer_periodes_abonnement(historique: DataFrame[HistoriquePérimètre]) ->
                 lambda d: formater_date_francais(d, "LLLL yyyy")
             )
         )
+        .query("nb_jours > 0")  # Éliminer les périodes de 0 jour  
         .pipe(selectionner_colonnes_abonnement)
     )
 

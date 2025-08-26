@@ -98,6 +98,7 @@ def reconstituer_chronologie_relevés(relevés: DataFrame[RelevéIndex],
         .sort_values(['pdl', 'Date_Releve', 'Source']) # Flux_C15 < Flux_Rxx Alphabétiquement
         .drop_duplicates(subset=['Ref_Situation_Contractuelle', 'Date_Releve', 'ordre_index'], keep='first') # Déduplication par contrat
         .sort_values(['pdl', 'Date_Releve', 'ordre_index'])
+        # Note: Les périodes de 0 jours résultantes seront filtrées dans filtrer_periodes_valides()
         .reset_index(drop=True)
     )
 
@@ -234,10 +235,13 @@ def formater_colonnes_finales(data: pd.DataFrame, cadrans: list) -> DataFrame[Pe
 @pa.check_types
 def filtrer_periodes_valides(data: pd.DataFrame) -> pd.DataFrame:
     """Filtre les périodes invalides de manière déclarative."""
+    if data.empty:
+        return data
+    
     return (
         data
         .dropna(subset=['debut'])  # Éliminer les premiers relevés sans début
-        .query('debut != fin')  # Éliminer les périodes de durée zéro
+        .query('nb_jours > 0')     # Éliminer les périodes de 0 jour (plus fiable que debut != fin)
         .reset_index(drop=True)
     )
 
