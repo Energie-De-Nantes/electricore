@@ -49,7 +49,7 @@ class RelevéIndex(pa.DataFrameModel):
         if "ordre_index" not in df.columns:
             df["ordre_index"] = False
         else:
-            df["ordre_index"] = df["ordre_index"].fillna(False).astype(bool)
+            df["ordre_index"] = df["ordre_index"].astype(bool).fillna(False)
         return df
     
     # @pa.dataframe_parser

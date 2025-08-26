@@ -197,14 +197,14 @@ def joindre_agregats(ener_mensuel: pd.DataFrame, abo_mensuel: pd.DataFrame) -> p
             # Si pas de sous-périodes d'énergie, mettre 0 au lieu de NaN
             nb_sous_periodes_energie=lambda x: x['nb_sous_periodes_energie'].fillna(0).astype(int),
             nb_sous_periodes_abo=lambda x: x['nb_sous_periodes_abo'].fillna(1).astype(int),
-            has_changement_energie=lambda x: x['has_changement_energie'].fillna(False),
-            has_changement_abo=lambda x: x['has_changement_abo'].fillna(False),
+            has_changement_energie=lambda x: x['has_changement_energie'].astype(bool).fillna(False),
+            has_changement_abo=lambda x: x['has_changement_abo'].astype(bool).fillna(False),
             
             # Flag de changement global
             has_changement=lambda x: x['has_changement_abo'] | x['has_changement_energie'],
             
             # Si pas de données d'énergie, data_complete = False
-            data_complete=lambda x: x['data_complete'].fillna(False) if 'data_complete' in x.columns else False
+            data_complete=lambda x: x['data_complete'].astype(bool).fillna(False) if 'data_complete' in x.columns else False
         )
         .drop(columns=['has_changement_abo', 'has_changement_energie', 'debut_abo', 'debut_energie', 'fin_abo', 'fin_energie'], errors='ignore')
     )
