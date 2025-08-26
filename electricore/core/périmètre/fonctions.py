@@ -357,35 +357,36 @@ def extraire_releves_evenements(historique: DataFrame[HistoriquePérimètre]) ->
         historique (pd.DataFrame): Historique enrichi (HistoriquePérimètreÉtendu).
 
     Returns:
-        pd.DataFrame: Relevés d’index conformes au modèle RelevéIndex.
+        pd.DataFrame: Relevés d'index conformes au modèle RelevéIndex.
     """
     index_cols = ["BASE", "HP", "HC", "HCH", "HPH", "HPB", "HCB", "Id_Calendrier_Distributeur"]
     identifiants = ["pdl", "Ref_Situation_Contractuelle", "Formule_Tarifaire_Acheminement"]
 
-    # Créer relevés "avant"
-    avant = historique[identifiants + ["Date_Evenement"] + [f"Avant_{col}" for col in index_cols]].copy()
-    avant = avant.rename(columns={f"Avant_{col}": col for col in index_cols})
-    avant["ordre_index"] = 0
-
-    # Créer relevés "après"
-    apres = historique[identifiants + ["Date_Evenement"] + [f"Après_{col}" for col in index_cols]].copy()
-    apres = apres.rename(columns={f"Après_{col}": col for col in index_cols})
-    apres["ordre_index"] = 1
-
-    # Concaténer
-    resultats = pd.concat([avant, apres], ignore_index=True)
-    resultats = resultats.dropna(subset=index_cols, how="all")
-    resultats["Source"] = "flux_C15"
-    resultats["Unité"] = "kWh" 
-    resultats["Précision"] = "kWh"
-
-    resultats = resultats.rename(columns={"Date_Evenement": "Date_Releve"})
-
-    # Réordonner selon modèle RelevéIndex (on ne garde que les colonnes présentes)
-    colonnes_finales = [col for col in RelevéIndex.to_schema().columns.keys() if col in resultats.columns]
-    resultats = resultats[colonnes_finales]
-
-    return resultats
+    # Générer les relevés avant/après en pipe unique
+    return (
+        pd.concat([
+            # Relevés "avant" (ordre_index=0)
+            (historique[identifiants + ["Date_Evenement"] + [f"Avant_{col}" for col in index_cols]]
+             .rename(columns={f"Avant_{col}": col for col in index_cols})
+             .assign(ordre_index=0)),
+            # Relevés "après" (ordre_index=1) 
+            (historique[identifiants + ["Date_Evenement"] + [f"Après_{col}" for col in index_cols]]
+             .rename(columns={f"Après_{col}": col for col in index_cols})
+             .assign(ordre_index=1))
+        ], ignore_index=True)
+        # Filtrer les lignes avec des index valides
+        .dropna(subset=index_cols, how="all")
+        # Ajouter les métadonnées
+        .assign(
+            Source="flux_C15",
+            Unité="kWh",
+            Précision="kWh"
+        )
+        # Renommer la colonne de date
+        .rename(columns={"Date_Evenement": "Date_Releve"})
+        # Sélectionner les colonnes finales présentes dans le DataFrame
+        .pipe(lambda df: df[[col for col in RelevéIndex.to_schema().columns.keys() if col in df.columns]])
+    )
 
 
 @pa.check_types
