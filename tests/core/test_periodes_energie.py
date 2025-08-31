@@ -10,8 +10,7 @@ from electricore.core.pipeline_energie import (
     enrichir_cadrans_principaux
 )
 from electricore.core.models.periode_energie import PeriodeEnergie
-from electricore.core.relevés.modèles import RelevéIndex
-from electricore.core.périmètre.modèles import HistoriquePérimètre
+from electricore.core.models import RelevéIndex, HistoriquePérimètre
 # from electricore.core.services import generer_periodes_energie  # Function doesn't exist
 
 

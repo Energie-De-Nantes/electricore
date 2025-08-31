@@ -1,8 +1,16 @@
+"""
+Pipeline des fonctions de traitement des relevés d'index.
+
+Ce module contient les fonctions déplacées depuis relevés/fonctions.py
+dans le cadre de la migration vers l'architecture unifiée models/ + pipelines.
+"""
+
 import pandas as pd
 import pandera.pandas as pa
 from pandera.typing import DataFrame
 
-from electricore.core.relevés.modèles import RelevéIndex, RequêteRelevé
+from electricore.core.models.releve_index import RelevéIndex, RequêteRelevé
+
 
 @pa.check_types
 def interroger_relevés(
@@ -36,3 +44,9 @@ def interroger_relevés(
     )
 
     return relevés_proches.dropna(subset=['Source']).set_index('index')
+
+
+# Export des fonctions principales
+__all__ = [
+    'interroger_relevés'
+]

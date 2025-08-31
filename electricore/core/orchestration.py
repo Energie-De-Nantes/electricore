@@ -14,8 +14,7 @@ import pandas as pd
 import pandera.pandas as pa
 from pandera.typing import DataFrame
 
-from electricore.core.périmètre import HistoriquePérimètre
-from electricore.core.relevés import RelevéIndex
+from electricore.core.models import HistoriquePérimètre, RelevéIndex
 from electricore.core.pipeline_commun import pipeline_commun
 from electricore.core.pipeline_abonnements import pipeline_abonnement
 from electricore.core.pipeline_energie import pipeline_energie

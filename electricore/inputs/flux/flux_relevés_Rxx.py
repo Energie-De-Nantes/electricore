@@ -1,7 +1,7 @@
 import pandas as pd
 import pandera.pandas as pa
 from pandera.typing import DataFrame
-from electricore.core.relevés.modèles import RelevéIndex
+from electricore.core.models import RelevéIndex
 from electricore.inputs.flux.modèles import FluxR151
 
 # Flux R151 énergies quotidiennes

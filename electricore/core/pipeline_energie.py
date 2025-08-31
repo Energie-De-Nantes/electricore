@@ -27,13 +27,12 @@ import numpy as np
 from toolz import curry
 from pandera.typing import DataFrame
 
-from electricore.core.périmètre import HistoriquePérimètre, extraire_releves_evenements
-from electricore.core.relevés import RelevéIndex, interroger_relevés
-from electricore.core.relevés.modèles import RequêteRelevé
+from electricore.core.models import HistoriquePérimètre, RelevéIndex, RequêteRelevé
+from electricore.core.pipeline_perimetre import extraire_releves_evenements, enrichir_historique_périmètre
+from electricore.core.pipeline_releves import interroger_relevés
 from electricore.core.models.periode_energie import PeriodeEnergie
 from electricore.core.taxes.turpe import calculer_turpe_variable, load_turpe_rules
 from electricore.core.utils.formatage import formater_date_francais
-from electricore.core.périmètre.fonctions import enrichir_historique_périmètre
 
 
 @curry

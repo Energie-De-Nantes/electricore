@@ -1,10 +1,18 @@
+"""
+Pipeline des fonctions de traitement du périmètre contractuel.
+
+Ce module contient les fonctions déplacées depuis périmètre/fonctions.py
+dans le cadre de la migration vers l'architecture unifiée models/ + pipelines.
+"""
+
 import pandas as pd
 import pandera.pandas as pa
 from pandera.typing import DataFrame
 from babel.dates import format_date
 
-from electricore.core.périmètre.modèles import HistoriquePérimètre
-from electricore.core.relevés.modèles import RelevéIndex
+from electricore.core.models.historique_perimetre import HistoriquePérimètre
+from electricore.core.models.releve_index import RelevéIndex
+
 
 @pa.check_types
 def detecter_points_de_rupture(historique: DataFrame[HistoriquePérimètre]) -> DataFrame[HistoriquePérimètre]:
@@ -270,3 +278,12 @@ def enrichir_historique_périmètre(historique: DataFrame[HistoriquePérimètre]
         .pipe(detecter_points_de_rupture)
         .pipe(inserer_evenements_facturation)
     )
+
+
+# Export des fonctions principales
+__all__ = [
+    'detecter_points_de_rupture',
+    'inserer_evenements_facturation', 
+    'extraire_releves_evenements',
+    'enrichir_historique_périmètre'
+]
