@@ -6,7 +6,7 @@ from typing import Annotated, Optional
 from icecream import ic
 class RelevéIndex(pa.DataFrameModel):
     """
-    📌 Modèle Pandera pour les relevés d’index issus de différentes sources.
+    📌 Modèle Pandera pour les relevés d'index issus de différentes sources.
 
     Ce modèle permet de valider les relevés de compteurs avec leurs métadonnées.
     """

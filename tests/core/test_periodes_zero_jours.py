@@ -17,8 +17,7 @@ from electricore.core.pipeline_energie import (
     reconstituer_chronologie_relevés
 )
 from electricore.core.pipeline_abonnements import generer_periodes_abonnement
-from electricore.core.périmètre.modèles import HistoriquePérimètre
-from electricore.core.relevés.modèles import RelevéIndex
+from electricore.core.models import HistoriquePérimètre, RelevéIndex
 
 
 class TestFiltragePeriodes:

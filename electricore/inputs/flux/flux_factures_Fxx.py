@@ -1,7 +1,7 @@
 import pandas as pd
 import pandera.pandas as pa
 from pandera.typing import DataFrame
-from electricore.core.périmètre.modèles import HistoriquePérimètre
+from electricore.core.models import HistoriquePérimètre
 from electricore.inputs.flux.modèles import FluxF1X
 
 from icecream import ic

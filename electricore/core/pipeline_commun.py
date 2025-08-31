@@ -14,8 +14,8 @@ import pandas as pd
 import pandera.pandas as pa
 from pandera.typing import DataFrame
 
-from electricore.core.périmètre import HistoriquePérimètre
-from electricore.core.périmètre.fonctions import enrichir_historique_périmètre
+from electricore.core.models import HistoriquePérimètre
+from electricore.core.pipeline_perimetre import enrichir_historique_périmètre
 
 
 @pa.check_types

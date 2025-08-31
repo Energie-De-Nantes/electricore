@@ -1,8 +1,8 @@
 import pytest
 import pandas as pd
 from pandera.typing import DataFrame
-from electricore.core.périmètre.fonctions import detecter_points_de_rupture, inserer_evenements_facturation
-from electricore.core.périmètre.modèles import HistoriquePérimètre
+from electricore.core.pipeline_perimetre import detecter_points_de_rupture, inserer_evenements_facturation
+from electricore.core.models import HistoriquePérimètre
 from electricore.core.pipeline_abonnements import generer_periodes_abonnement
 from electricore.core.models import PeriodeAbonnement
 

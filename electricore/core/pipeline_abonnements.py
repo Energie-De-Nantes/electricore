@@ -17,11 +17,10 @@ import pandas as pd
 import pandera.pandas as pa
 from pandera.typing import DataFrame
 
-from electricore.core.périmètre import HistoriquePérimètre
-from electricore.core.models import PeriodeAbonnement
+from electricore.core.models import HistoriquePérimètre, PeriodeAbonnement
 from electricore.core.taxes.turpe import ajouter_turpe_fixe, load_turpe_rules
 from electricore.core.utils.formatage import formater_date_francais
-from electricore.core.périmètre.fonctions import enrichir_historique_périmètre
+from electricore.core.pipeline_perimetre import enrichir_historique_périmètre
 
 
 def calculer_bornes_periodes(abonnements: pd.DataFrame) -> pd.DataFrame:
