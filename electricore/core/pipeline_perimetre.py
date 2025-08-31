@@ -5,6 +5,7 @@ Ce module contient les fonctions déplacées depuis périmètre/fonctions.py
 dans le cadre de la migration vers l'architecture unifiée models/ + pipelines.
 """
 
+from typing import Optional
 import pandas as pd
 import pandera.pandas as pa
 from pandera.typing import DataFrame
@@ -257,22 +258,34 @@ def extraire_releves_evenements(historique: DataFrame[HistoriquePérimètre]) ->
 
 
 @pa.check_types
-def enrichir_historique_périmètre(historique: DataFrame[HistoriquePérimètre]) -> DataFrame[HistoriquePérimètre]:
+def pipeline_perimetre(
+    historique: DataFrame[HistoriquePérimètre],
+    date_limite: Optional[pd.Timestamp] = None
+) -> DataFrame[HistoriquePérimètre]:
     """
-    Enrichit l'historique du périmètre avec les points de rupture et les événements de facturation.
+    Pipeline de préparation du périmètre contractuel pour tous les calculs.
     
-    Cette fonction combine deux traitements essentiels sur l'historique du périmètre :
-    1. Détection des points de rupture (changements de périodes)
-    2. Insertion des événements de facturation synthétiques (1er du mois)
+    Étapes du pipeline :
+    1. Filtrage des événements par date limite (optionnel)
+    2. Détection des points de rupture (changements de périodes)
+    3. Insertion des événements de facturation synthétiques (1er du mois)
     
-    Utilisée comme étape préparatoire dans les pipelines de calcul d'abonnements et d'énergies.
+    Cette fonction remplace l'ancienne pipeline_commun et enrichir_historique_périmètre
+    pour centraliser la préparation de base de l'historique du périmètre.
     
     Args:
-        historique: Historique des événements contractuels du périmètre
+        historique: DataFrame contenant l'historique des événements contractuels
+        date_limite: Si fourni, exclut tous les événements après cette date
+                    (défaut: 1er du mois courant)
         
     Returns:
-        DataFrame enrichi avec points de rupture détectés et événements de facturation
+        DataFrame enrichi avec filtrage, points de rupture détectés et événements de facturation
     """
+    if date_limite is None:
+        date_limite = pd.Timestamp.now(tz="Europe/Paris").to_period("M").start_time.tz_localize("Europe/Paris")
+    
+    historique = historique[historique["Date_Evenement"] <= date_limite]
+    
     return (
         historique
         .pipe(detecter_points_de_rupture)
@@ -285,5 +298,5 @@ __all__ = [
     'detecter_points_de_rupture',
     'inserer_evenements_facturation', 
     'extraire_releves_evenements',
-    'enrichir_historique_périmètre'
+    'pipeline_perimetre'
 ]

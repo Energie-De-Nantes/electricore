@@ -28,7 +28,7 @@ from toolz import curry
 from pandera.typing import DataFrame
 
 from electricore.core.models import HistoriquePérimètre, RelevéIndex, RequêteRelevé
-from electricore.core.pipeline_perimetre import extraire_releves_evenements, enrichir_historique_périmètre
+from electricore.core.pipeline_perimetre import extraire_releves_evenements, pipeline_perimetre
 from electricore.core.pipeline_releves import interroger_relevés
 from electricore.core.models.periode_energie import PeriodeEnergie
 from electricore.core.taxes.turpe import calculer_turpe_variable, load_turpe_rules
@@ -370,7 +370,7 @@ def pipeline_energie(
     # Vérifier si l'historique est déjà enrichi (contient les colonnes d'impact)
     if 'impacte_energie' not in historique.columns:
         # Enrichir l'historique si les colonnes d'impact manquent
-        historique = enrichir_historique_périmètre(historique)
+        historique = pipeline_perimetre(historique)
     
     periodes_energie = (
         historique

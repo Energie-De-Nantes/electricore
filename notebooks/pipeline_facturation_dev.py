@@ -893,7 +893,7 @@ def development_notes(mo):
 
     ### Pipeline testé
     **`facturation()`** - Pipeline complet orchestré avec méta-périodes mensuelles :
-    1. Enrichissement historique (pipeline_commun) - une seule fois
+    1. Enrichissement historique (pipeline_perimetre) - une seule fois
     2. Génère périodes d'abonnement détaillées (pipeline_abonnement pur)
     3. Génère périodes d'énergie détaillées (pipeline_energie pur)  
     4. Agrégation mensuelle avec puissance moyenne pondérée (pipeline_facturation pur)
