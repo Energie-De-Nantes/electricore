@@ -33,14 +33,7 @@ def import_dependencies():
     from icecream import ic
     import traceback
 
-    return (
-        Path,
-        lire_flux_c15,
-        lire_flux_r151,
-        facturation,
-        process_flux,
-        px,
-    )
+    return Path, facturation, lire_flux_c15, lire_flux_r151, process_flux, px
 
 
 @app.cell(hide_code=True)
@@ -123,11 +116,11 @@ def transform_data_models(
 
 
 @app.cell(hide_code=True)
-def pipeline_facturation_primary(historique, facturation, releves):
+def pipeline_facturation_primary(facturation, historique, releves):
     # Utilisation de l'orchestration complète qui retourne un ResultatFacturation
     resultat_facturation = facturation(historique, releves)
     meta_periodes_primary = resultat_facturation.facturation
-    return (meta_periodes_primary,)
+    return meta_periodes_primary, resultat_facturation
 
 
 @app.cell(hide_code=True)
@@ -142,6 +135,18 @@ def display_meta_periodes_results(meta_periodes_primary, mo):
         else mo.md("❌ Méta-périodes non disponibles")
     )
     _meta_display
+    return
+
+
+@app.cell
+def _(resultat_facturation):
+    resultat_facturation.energie
+    return
+
+
+@app.cell
+def _(resultat_facturation):
+    resultat_facturation.abonnements
     return
 
 
@@ -611,7 +616,7 @@ def development_notes(mo):
     2. Génère périodes d'abonnement détaillées (pipeline_abonnement pur)
     3. Génère périodes d'énergie détaillées (pipeline_energie pur)  
     4. Agrégation mensuelle avec puissance moyenne pondérée (pipeline_facturation pur)
-    
+
     ✅ **Architecture refactorisée** : pipelines purs + orchestration avec ResultatFacturation
 
     ### Avantages de l'approche méta-périodes
