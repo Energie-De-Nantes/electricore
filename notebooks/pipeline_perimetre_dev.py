@@ -8,12 +8,12 @@ app = marimo.App(width="medium")
 def introduction(mo):
     mo.md(
         r"""
-    # 🔧 Pipeline Commun - Tests et Validation
+    # 🔧 Pipeline Périmètre - Tests et Validation
 
-    Ce notebook permet de tester et valider la fonction **`pipeline_commun`** qui constitue l'étape 
+    Ce notebook permet de tester et valider la fonction **`pipeline_perimetre`** qui constitue l'étape 
     fondamentale d'enrichissement de l'historique du périmètre.
 
-    ## 🎯 Objectifs du pipeline_commun
+    ## 🎯 Objectifs du pipeline_perimetre
 
     1. **Détection des points de rupture** : Identifier les changements de périodes contractuelles
     2. **Insertion d'événements FACTURATION** : Ajouter des événements synthétiques (1er du mois)
@@ -23,7 +23,7 @@ def introduction(mo):
 
     1. **Chargement** : Import des données C15 avec ElectriFlux
     2. **Transformation** : Conversion vers HistoriquePérimètre 
-    3. **Enrichissement** : Application du pipeline_commun
+    3. **Enrichissement** : Application du pipeline_perimetre
     4. **Comparaison** : Analyse avant/après enrichissement
     5. **Validation** : Vérification de la cohérence des résultats
     6. **Métriques** : Calcul des indicateurs de qualité
@@ -50,12 +50,12 @@ def imports():
     from electricore.inputs.flux import lire_flux_c15
 
     # ElectriCore - Process (notre fonction à tester)
-    from electricore.core.pipeline_commun import pipeline_commun
+    from electricore.core.pipeline_perimetre import pipeline_perimetre
 
     # Debugging & utilities
     from icecream import ic
 
-    return Path, lire_flux_c15, mo, pipeline_commun, process_flux
+    return Path, lire_flux_c15, mo, pipeline_perimetre, process_flux
 
 
 @app.cell(hide_code=True)
@@ -70,7 +70,7 @@ def configuration_paths(Path, mo):
     - **Répertoire principal**: `{data_path}`
     - **Flux C15**: `{c15_path}` {'✅' if c15_path.exists() else '❌ (non trouvé)'}
 
-    Le pipeline_commun ne nécessite que les données C15 (historique du périmètre).
+    Le pipeline_perimetre ne nécessite que les données C15 (historique du périmètre).
     """)
 
     _status_message
@@ -155,19 +155,19 @@ def inspect_original_historique(historique_original, mo):
 
 
 @app.cell(hide_code=True)
-def execute_pipeline_commun(
+def execute_pipeline_perimetre(
     historique_original,
     mo,
-    pipeline_commun,
+    pipeline_perimetre,
     transform_success,
 ):
-    # Étape 3: Process - Application du pipeline_commun
+    # Étape 3: Process - Application du pipeline_perimetre
     historique_enrichi, pipeline_success = None, False
 
     if transform_success and historique_original is not None:
         try:
-            # Application du pipeline_commun
-            historique_enrichi = pipeline_commun(historique_original)
+            # Application du pipeline_perimetre
+            historique_enrichi = pipeline_perimetre(historique_original)
 
             _pipeline_status = mo.md(f"""
             ## ⚙️ **Process - Pipeline Commun appliqué**
@@ -180,7 +180,7 @@ def execute_pipeline_commun(
             """)
             pipeline_success = True
         except Exception as e:
-            _pipeline_status = mo.md(f"❌ **Erreur pipeline_commun**: {str(e)}")
+            _pipeline_status = mo.md(f"❌ **Erreur pipeline_perimetre**: {str(e)}")
     else:
         _pipeline_status = mo.md("⏭️ Pipeline ignoré (historique original manquant)")
 
@@ -513,7 +513,7 @@ def development_notes(mo):
 
     - **Source** : Flux C15 Enedis (événements contractuels)
     - **Transformation** : HistoriquePérimètre (schéma Pandera)
-    - **Enrichissement** : pipeline_commun() avec détection de points de rupture
+    - **Enrichissement** : pipeline_perimetre() avec détection de points de rupture
     - **Usage aval** : Base pour pipeline_abonnement et pipeline_energie
     """
     )

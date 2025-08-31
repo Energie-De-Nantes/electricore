@@ -391,7 +391,7 @@ def _(mo):
     - Réactivité Marimo: toute modification en amont met à jour les résultats en aval
 
     **Architecture du pipeline d'abonnements**:
-    1. `pipeline_commun()` - Détection des ruptures et événements de facturation
+    1. `pipeline_perimetre()` - Détection des ruptures et événements de facturation
     2. `generer_periodes_abonnement()` - Calcul des périodes avec formatage
     3. `ajouter_turpe_fixe()` - Enrichissement avec tarifs TURPE
 

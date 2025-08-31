@@ -20,7 +20,7 @@ from pandera.typing import DataFrame
 from electricore.core.models import HistoriquePérimètre, PeriodeAbonnement
 from electricore.core.taxes.turpe import ajouter_turpe_fixe, load_turpe_rules
 from electricore.core.utils.formatage import formater_date_francais
-from electricore.core.pipeline_perimetre import enrichir_historique_périmètre
+from electricore.core.pipeline_perimetre import pipeline_perimetre
 
 
 def calculer_bornes_periodes(abonnements: pd.DataFrame) -> pd.DataFrame:
@@ -110,7 +110,7 @@ def pipeline_abonnement(historique: DataFrame[HistoriquePérimètre]) -> pd.Data
     # Vérifier si l'historique est déjà enrichi (contient les colonnes d'impact)
     if 'impacte_abonnement' not in historique.columns:
         # Enrichir l'historique si les colonnes d'impact manquent
-        historique = enrichir_historique_périmètre(historique)
+        historique = pipeline_perimetre(historique)
     
     return (
         historique

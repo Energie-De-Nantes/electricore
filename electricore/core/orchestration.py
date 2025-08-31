@@ -5,7 +5,7 @@ Fournit des fonctions d'orchestration qui composent les pipelines purs
 et retournent des ResultatFacturation immutables.
 
 Ce module centralise l'orchestration de tous les pipelines, garantissant
-que pipeline_commun n'est appelé qu'une seule fois et que les résultats
+que pipeline_perimetre n'est appelé qu'une seule fois et que les résultats
 intermédiaires sont accessibles via le container ResultatFacturation.
 """
 
@@ -15,7 +15,7 @@ import pandera.pandas as pa
 from pandera.typing import DataFrame
 
 from electricore.core.models import HistoriquePérimètre, RelevéIndex
-from electricore.core.pipeline_commun import pipeline_commun
+from electricore.core.pipeline_perimetre import pipeline_perimetre
 from electricore.core.pipeline_abonnements import pipeline_abonnement
 from electricore.core.pipeline_energie import pipeline_energie
 from electricore.core.pipeline_facturation import pipeline_facturation
@@ -57,7 +57,7 @@ def calculer_historique_enrichi(
     date_limite: Optional[pd.Timestamp] = None
 ) -> ResultatFacturation:
     """
-    Calcule uniquement l'historique enrichi (pipeline commun).
+    Calcule uniquement l'historique enrichi (pipeline périmètre).
     
     Utile quand on veut juste préparer l'historique avec la détection
     des ruptures et l'insertion des événements de facturation.
@@ -70,7 +70,7 @@ def calculer_historique_enrichi(
     Returns:
         ResultatFacturation avec historique_enrichi seulement
     """
-    historique_enrichi = pipeline_commun(historique, date_limite=date_limite)
+    historique_enrichi = pipeline_perimetre(historique, date_limite=date_limite)
     return ResultatFacturation(historique_enrichi=historique_enrichi)
 
 
@@ -82,7 +82,7 @@ def calculer_abonnements(
     """
     Calcule les abonnements avec leur contexte (historique enrichi).
     
-    Orchestre pipeline_commun + pipeline_abonnement pour obtenir
+    Orchestre pipeline_perimetre + pipeline_abonnement pour obtenir
     les périodes d'abonnement avec TURPE fixe.
     
     Args:
@@ -93,7 +93,7 @@ def calculer_abonnements(
     Returns:
         ResultatFacturation avec historique_enrichi + abonnements
     """
-    historique_enrichi = pipeline_commun(historique, date_limite=date_limite)
+    historique_enrichi = pipeline_perimetre(historique, date_limite=date_limite)
     abonnements = pipeline_abonnement(historique_enrichi)
     
     return ResultatFacturation(
@@ -111,7 +111,7 @@ def calculer_energie(
     """
     Calcule l'énergie avec son contexte (historique enrichi).
     
-    Orchestre pipeline_commun + pipeline_energie pour obtenir
+    Orchestre pipeline_perimetre + pipeline_energie pour obtenir
     les périodes d'énergie avec TURPE variable.
     
     Args:
@@ -123,7 +123,7 @@ def calculer_energie(
     Returns:
         ResultatFacturation avec historique_enrichi + energie
     """
-    historique_enrichi = pipeline_commun(historique, date_limite=date_limite)
+    historique_enrichi = pipeline_perimetre(historique, date_limite=date_limite)
     energie = pipeline_energie(historique_enrichi, relevés)
     
     return ResultatFacturation(
@@ -141,7 +141,7 @@ def facturation(
     """
     Pipeline complet de facturation avec méta-périodes mensuelles.
     
-    Orchestre toute la chaîne de traitement en appelant pipeline_commun
+    Orchestre toute la chaîne de traitement en appelant pipeline_perimetre
     une seule fois puis en composant tous les autres pipelines :
     1. Détection des points de rupture et événements de facturation
     2. Génération des périodes d'abonnement avec TURPE fixe
@@ -172,8 +172,8 @@ def facturation(
         # Unpacking
         hist, abo, ener, fact = result
     """
-    # Une seule fois pipeline_commun - évite la duplication
-    historique_enrichi = pipeline_commun(historique, date_limite=date_limite)
+    # Une seule fois pipeline_perimetre - évite la duplication
+    historique_enrichi = pipeline_perimetre(historique, date_limite=date_limite)
     
     # Calculs en parallèle possibles (même historique enrichi)
     abonnements = pipeline_abonnement(historique_enrichi)
