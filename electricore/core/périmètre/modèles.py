@@ -69,36 +69,3 @@ class HistoriquePérimètre(pa.DataFrameModel):
 
     # Relève ? On ajoute là on on fait un modèle de relève à part ?
 
-class SituationPérimètre(HistoriquePérimètre):
-    """
-    📌 Modèle Pandera pour la situation à une date donnée.
-    
-    Générée à partir de l'historique pour donner un état du périmètre à un instant `t`.
-    Chaque `Ref_Situation_Contractuelle` doit être unique.
-    """
-
-    @pa.check("Ref_Situation_Contractuelle")
-    def unique_ref(cls, series: Series[str]) -> bool:
-        """Vérifie que chaque Ref_Situation_Contractuelle est unique dans la situation."""
-        return series.is_unique
-
-class ModificationContractuelleImpactante(pa.DataFrameModel):
-    """
-    📌 Modèle Pandera pour la sortie de `variations_mct_dans_periode`.
-    
-    Contient les variations de puissance et de tarif après un MCT. (et ptet d'autres, à voir)
-    """
-    Ref_Situation_Contractuelle: Series[str] = pa.Field(nullable=False)
-    pdl: Series[str] = pa.Field(nullable=False)
-    Impacte_energies : Series[bool] = pa.Field(nullable=False)
-    Résumé_Modification: Series[str] = pa.Field(nullable=False)
-
-    Date_Evenement: Series[Annotated[pd.DatetimeTZDtype, "ns", "Europe/Paris"]] = pa.Field(nullable=False, coerce=True)
-
-    Avant_Puissance_Souscrite: Series[float] = pa.Field(nullable=False, coerce=True)
-    Après_Puissance_Souscrite: Series[float] = pa.Field(nullable=False, coerce=True)
-
-    Avant_Formule_Tarifaire_Acheminement: Series[str] = pa.Field(nullable=False)
-    Après_Formule_Tarifaire_Acheminement: Series[str] = pa.Field(nullable=False)
-
-    # +relevés avant et Après
