@@ -33,7 +33,15 @@ def import_dependencies():
     from icecream import ic
     import traceback
 
-    return Path, facturation, lire_flux_c15, lire_flux_r151, process_flux, px
+    return (
+        Path,
+        facturation,
+        lire_flux_c15,
+        lire_flux_r151,
+        pd,
+        process_flux,
+        px,
+    )
 
 
 @app.cell(hide_code=True)
@@ -135,6 +143,279 @@ def display_meta_periodes_results(meta_periodes_primary, mo):
         else mo.md("❌ Méta-périodes non disponibles")
     )
     _meta_display
+    return
+
+
+@app.cell
+def _(meta_periodes_primary):
+    mois_en_cours = meta_periodes_primary[meta_periodes_primary['mois_annee']=='août 2025']
+    mois_en_cours
+    return (mois_en_cours,)
+
+
+@app.cell(hide_code=True)
+def csv_file_selector(mo):
+    # Interface de sélection de fichier CSV pour comparaison
+    csv_selector = mo.ui.file(
+        filetypes=[".csv"],
+        label="Sélectionner un fichier CSV de comparaison",
+        multiple=False
+    )
+
+    _file_status = mo.md(f"""
+    ## 📊 **Comparaison avec CSV externe**
+
+    Sélectionnez un fichier CSV contenant les colonnes :
+    - `Ref_Situation_Contractuelle`, `HP`, `HC`, `BASE`, `j`
+    - `Energie_Calculee`, `turpe_fixe`, `turpe_var`, `turpe`
+    """)
+
+    mo.vstack([_file_status, csv_selector])
+    return (csv_selector,)
+
+
+@app.cell(hide_code=True)
+def csv_comparison(csv_selector, mo, mois_en_cours, pd):
+
+    # Chargement et comparaison du CSV
+    if csv_selector.value is not None and mois_en_cours is not None:
+        try:
+            # Chargement du CSV depuis le contenu
+            from io import StringIO
+            csv_content = csv_selector.contents().decode('utf-8')
+            csv_data = pd.read_csv(StringIO(csv_content))
+
+            # Vérification des colonnes requises
+            colonnes_requises = ['Ref_Situation_Contractuelle', 'HP', 'HC', 'BASE', 'j', 
+                               'Energie_Calculee', 'turpe_fixe', 'turpe_var', 'turpe']
+            colonnes_manquantes = [col for col in colonnes_requises if col not in csv_data.columns]
+
+            if colonnes_manquantes:
+                _comparison_result = mo.md(f"""
+                ❌ **Colonnes manquantes dans le CSV**: {', '.join(colonnes_manquantes)}
+
+                **Colonnes disponibles**: {', '.join(csv_data.columns)}
+                """)
+            else:
+                # Calculs de comparaison
+                # Pipeline ElectriCore (mois en cours)
+                pipeline_totaux = {
+                    'HP_energie': mois_en_cours['HP_energie'].sum() if 'HP_energie' in mois_en_cours.columns else 0,
+                    'HC_energie': mois_en_cours['HC_energie'].sum() if 'HC_energie' in mois_en_cours.columns else 0,
+                    'BASE_energie': mois_en_cours['BASE_energie'].sum() if 'BASE_energie' in mois_en_cours.columns else 0,
+                    'turpe_fixe': mois_en_cours['turpe_fixe'].sum() if 'turpe_fixe' in mois_en_cours.columns else 0,
+                    'turpe_variable': mois_en_cours['turpe_variable'].sum() if 'turpe_variable' in mois_en_cours.columns else 0,
+                    'nb_pdl': mois_en_cours['pdl'].nunique() if 'pdl' in mois_en_cours.columns else 0,
+                    'nb_jours': mois_en_cours['nb_jours'].sum() if 'nb_jours' in mois_en_cours.columns else 0
+                }
+                pipeline_totaux['turpe_total'] = pipeline_totaux['turpe_fixe'] + pipeline_totaux['turpe_variable']
+                pipeline_totaux['energie_totale'] = pipeline_totaux['HP_energie'] + pipeline_totaux['HC_energie'] + pipeline_totaux['BASE_energie']
+
+                # CSV externe
+                csv_totaux = {
+                    'HP_energie': csv_data['HP'].sum() if 'HP' in csv_data.columns else 0,
+                    'HC_energie': csv_data['HC'].sum() if 'HC' in csv_data.columns else 0,
+                    'BASE_energie': csv_data['BASE'].sum() if 'BASE' in csv_data.columns else 0,
+                    'turpe_fixe': csv_data['turpe_fixe'].sum() if 'turpe_fixe' in csv_data.columns else 0,
+                    'turpe_variable': csv_data['turpe_var'].sum() if 'turpe_var' in csv_data.columns else 0,
+                    'nb_pdl': csv_data['Ref_Situation_Contractuelle'].nunique() if 'Ref_Situation_Contractuelle' in csv_data.columns else 0,
+                    'nb_jours': csv_data['j'].sum() if 'j' in csv_data.columns else 0
+                }
+                csv_totaux['turpe_total'] = csv_totaux['turpe_fixe'] + csv_totaux['turpe_variable']
+                csv_totaux['energie_totale'] = csv_totaux['HP_energie'] + csv_totaux['HC_energie'] + csv_totaux['BASE_energie']
+
+                # Calcul des écarts
+                comparaison_data = []
+                for metric in ['HP_energie', 'HC_energie', 'BASE_energie', 'energie_totale', 
+                              'turpe_fixe', 'turpe_variable', 'turpe_total', 'nb_pdl', 'nb_jours']:
+                    pipeline_val = pipeline_totaux.get(metric, 0)
+                    csv_val = csv_totaux.get(metric, 0)
+                    ecart = pipeline_val - csv_val
+                    ecart_pct = (ecart / csv_val * 100) if csv_val != 0 else 0
+
+                    comparaison_data.append({
+                        'Métrique': metric,
+                        'Pipeline ElectriCore': f"{pipeline_val:,.2f}" if metric not in ['nb_pdl', 'nb_jours'] else f"{pipeline_val:,}",
+                        'CSV Externe': f"{csv_val:,.2f}" if metric not in ['nb_pdl', 'nb_jours'] else f"{csv_val:,}",
+                        'Écart': f"{ecart:,.2f}" if metric not in ['nb_pdl', 'nb_jours'] else f"{ecart:,}",
+                        'Écart (%)': f"{ecart_pct:.2f}%"
+                    })
+
+                tableau_comparaison = pd.DataFrame(comparaison_data)
+
+                _comparison_result = mo.vstack([
+                    mo.md(f"""
+                    ### ✅ **Comparaison Pipeline vs CSV** (Août 2025)
+
+                    **CSV chargé**: {len(csv_data):,} lignes
+                    **Pipeline filtré**: {len(mois_en_cours):,} méta-périodes
+                    """),
+                    tableau_comparaison
+                ])
+
+        except Exception as e:
+            _comparison_result = mo.md(f"❌ **Erreur lors du chargement**: {str(e)}")
+    else:
+        if csv_selector.value is None:
+            _comparison_result = mo.md("💡 Sélectionnez un fichier CSV ci-dessus pour commencer la comparaison")
+        else:
+            _comparison_result = mo.md("⏭️ En attente des données du pipeline (mois_en_cours)")
+    _comparison_result
+    return (StringIO,)
+
+
+@app.cell
+def detailed_ref_comparison(StringIO, csv_selector, mo, mois_en_cours, pd):
+    # Comparaison détaillée par Ref_Situation_Contractuelle - chargement du CSV
+    _csv_data = None
+    if csv_selector.value is not None:
+        try:
+            _csv_content = csv_selector.contents().decode('utf-8')
+            _csv_data = pd.read_csv(StringIO(_csv_content))
+        except Exception:
+            _csv_data = None
+
+    if _csv_data is not None and mois_en_cours is not None:
+        try:
+            # Conversion des types pour assurer la compatibilité de jointure
+            _csv_data_copy = _csv_data.copy()
+            _mois_en_cours_copy = mois_en_cours.copy()
+
+            # Conversion vers string pour éviter les problèmes de types
+            _csv_data_copy['Ref_Situation_Contractuelle'] = _csv_data_copy['Ref_Situation_Contractuelle'].astype(str)
+            _mois_en_cours_copy['Ref_Situation_Contractuelle'] = _mois_en_cours_copy['Ref_Situation_Contractuelle'].astype(str)
+
+            # Jointure sur Ref_Situation_Contractuelle pour comparer ligne par ligne
+            # On utilise une jointure gauche sur le CSV pour ne garder que les références du CSV
+            _comparison_merge = _csv_data_copy.merge(
+                _mois_en_cours_copy, 
+                left_on='Ref_Situation_Contractuelle',
+                right_on='Ref_Situation_Contractuelle',
+                how='left',
+                suffixes=('_csv', '_pipeline')
+            )
+
+            # Calcul des écarts pour chaque référence
+            _comparison_merge['ecart_HP'] = (
+                _comparison_merge['HP_energie'].fillna(0) - _comparison_merge['HP'].fillna(0)
+            )
+            _comparison_merge['ecart_HC'] = (
+                _comparison_merge['HC_energie'].fillna(0) - _comparison_merge['HC'].fillna(0)
+            )
+            _comparison_merge['ecart_BASE'] = (
+                _comparison_merge['BASE_energie'].fillna(0) - _comparison_merge['BASE'].fillna(0)
+            )
+            _comparison_merge['ecart_turpe_fixe'] = (
+                _comparison_merge['turpe_fixe_pipeline'].fillna(0) - _comparison_merge['turpe_fixe_csv'].fillna(0)
+            )
+            _comparison_merge['ecart_turpe_var'] = (
+                _comparison_merge['turpe_variable'].fillna(0) - _comparison_merge['turpe_var'].fillna(0)
+            )
+            _comparison_merge['ecart_jours'] = (
+                _comparison_merge['nb_jours'].fillna(0) - _comparison_merge['j'].fillna(0)
+            )
+
+            # Calcul de l'écart total absolu pour identifier les plus gros problèmes
+            _comparison_merge['ecart_total_abs'] = (
+                abs(_comparison_merge['ecart_HP']) + 
+                abs(_comparison_merge['ecart_HC']) + 
+                abs(_comparison_merge['ecart_BASE']) +
+                abs(_comparison_merge['ecart_turpe_fixe']) + 
+                abs(_comparison_merge['ecart_turpe_var'])
+            )
+
+            # Identification des références manquantes dans le pipeline
+            # On utilise une colonne du pipeline pour détecter les jointures manquées
+            _refs_manquantes = _comparison_merge[_comparison_merge['mois_annee'].isna()]
+            _refs_trouvees = _comparison_merge[_comparison_merge['mois_annee'].notna()]
+
+            # Identification des anomalies (écarts significatifs)
+            _seuil_energie = 0.01  # kWh
+            _seuil_turpe = 0.01    # €
+            _seuil_jours = 1       # jours
+
+            _anomalies = _refs_trouvees[
+                (abs(_refs_trouvees['ecart_HP']) > _seuil_energie) |
+                (abs(_refs_trouvees['ecart_HC']) > _seuil_energie) |
+                (abs(_refs_trouvees['ecart_BASE']) > _seuil_energie) |
+                (abs(_refs_trouvees['ecart_turpe_fixe']) > _seuil_turpe) |
+                (abs(_refs_trouvees['ecart_turpe_var']) > _seuil_turpe) |
+                (abs(_refs_trouvees['ecart_jours']) > _seuil_jours)
+            ].sort_values('ecart_total_abs', ascending=False)
+
+            # Préparation du tableau des top anomalies
+            if len(_anomalies) > 0:
+                _colonnes_affichage = [
+                    'Ref_Situation_Contractuelle', 'ecart_HP', 'ecart_HC', 'ecart_BASE',
+                    'ecart_turpe_fixe', 'ecart_turpe_var', 'ecart_jours', 'ecart_total_abs'
+                ]
+                _anomalies = _anomalies[_colonnes_affichage].round(3)
+            else:
+                _anomalies = pd.DataFrame()
+
+            # Statistiques détaillées
+            _nb_refs_csv = len(_csv_data)
+            _nb_refs_trouvees = len(_refs_trouvees)
+            _nb_refs_manquantes = len(_refs_manquantes)
+            _nb_anomalies = len(_anomalies)
+
+            # Types d'écarts
+            _nb_ecarts_hp = (abs(_refs_trouvees['ecart_HP']) > _seuil_energie).sum()
+            _nb_ecarts_hc = (abs(_refs_trouvees['ecart_HC']) > _seuil_energie).sum()
+            _nb_ecarts_base = (abs(_refs_trouvees['ecart_BASE']) > _seuil_energie).sum()
+            _nb_ecarts_turpe_fixe = (abs(_refs_trouvees['ecart_turpe_fixe']) > _seuil_turpe).sum()
+            _nb_ecarts_turpe_var = (abs(_refs_trouvees['ecart_turpe_var']) > _seuil_turpe).sum()
+            _nb_ecarts_jours = (abs(_refs_trouvees['ecart_jours']) > _seuil_jours).sum()
+
+            # Affichage des résultats
+            if len(_anomalies) > 0:
+                _detailed_comparison = mo.vstack([
+                    mo.md(f"""
+                    ### 🔍 **Validation détaillée par Ref_Situation_Contractuelle**
+
+                    **Statistiques globales :**
+                
+                    - Références dans le CSV : {_nb_refs_csv:,}
+                    - Références trouvées dans le pipeline : {_nb_refs_trouvees:,}
+                    - Références manquantes : {_nb_refs_manquantes:,}
+                    - Références avec anomalies : {_nb_anomalies:,}
+
+                    **Types d'écarts détectés :**
+                
+                    - HP : {_nb_ecarts_hp} références
+                    - HC : {_nb_ecarts_hc} références  
+                    - BASE : {_nb_ecarts_base} références
+                    - TURPE fixe : {_nb_ecarts_turpe_fixe} références
+                    - TURPE variable : {_nb_ecarts_turpe_var} références
+                    - Jours : {_nb_ecarts_jours} références
+
+                    ### Top 20 anomalies (triées par écart total)
+                    """),
+                    _anomalies
+                ])
+            else:
+                _detailed_comparison = mo.md(f"""
+                ### ✅ **Validation détaillée par Ref_Situation_Contractuelle**
+
+                **Statistiques globales :**
+            
+                - Références dans le CSV : {_nb_refs_csv:,}
+                - Références trouvées dans le pipeline : {_nb_refs_trouvees:,}
+                - Références manquantes : {_nb_refs_manquantes:,}
+
+                **Aucune anomalie détectée !** Toutes les références ont des écarts inférieurs aux seuils :
+            
+                - Énergie : {_seuil_energie} kWh
+                - TURPE : {_seuil_turpe} €
+                - Jours : {_seuil_jours} jour(s)
+                """)
+
+        except Exception as e:
+            _detailed_comparison = mo.md(f"❌ **Erreur lors de la validation détaillée**: {str(e)}")
+    else:
+        _detailed_comparison = mo.md("⏭️ Validation détaillée non disponible (données manquantes)")
+
+    _detailed_comparison
     return
 
 
