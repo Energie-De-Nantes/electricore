@@ -1,0 +1,1 @@
+"""Tests unitaires pour les modules ElectriCore."""
