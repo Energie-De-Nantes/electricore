@@ -80,6 +80,97 @@ def expr_resume_changement(col_name: str, label: str, over: str = "Ref_Situation
     )
 
 
+def expr_changement_avant_apres(col_avant: str, col_apres: str) -> pl.Expr:
+    """
+    Détecte si une valeur a changé entre deux colonnes existantes.
+    
+    Cette expression compare directement deux colonnes (par exemple Avant_ vs Après_)
+    au lieu d'utiliser shift() comme dans expr_changement.
+    
+    Seuls les changements entre deux valeurs non-nulles sont détectés,
+    suivant la même logique conservatrice que les autres expressions.
+    
+    Args:
+        col_avant: Nom de la colonne contenant la valeur "avant"
+        col_apres: Nom de la colonne contenant la valeur "après"
+        
+    Returns:
+        Expression Polars retournant un booléen (True si changement détecté)
+        
+    Example:
+        >>> df.with_columns(
+        ...     expr_changement_avant_apres(
+        ...         "Avant_Id_Calendrier_Distributeur", 
+        ...         "Après_Id_Calendrier_Distributeur"
+        ...     ).alias("calendrier_change")
+        ... )
+    """
+    avant = pl.col(col_avant)
+    apres = pl.col(col_apres)
+    
+    return (
+        pl.when(avant.is_not_null() & apres.is_not_null())
+        .then(avant != apres)
+        .otherwise(False)
+    )
+
+
+def expr_evenement_structurant() -> pl.Expr:
+    """
+    Détecte si un événement est structurant (entrée/sortie du périmètre).
+    
+    Les événements structurants ont toujours un impact sur la facturation,
+    indépendamment des changements de données. Ce sont les événements qui
+    modifient la structure même du périmètre contractuel :
+    - CFNE : Changement de Fournisseur - Nouveau Entrant
+    - MES : Mise En Service
+    - PMES : Première Mise En Service
+    - CFNS : Changement de Fournisseur - Nouveau Sortant
+    - RES : RÉSiliation
+    
+    Returns:
+        Expression Polars retournant True si l'événement est structurant
+        
+    Example:
+        >>> df.with_columns(
+        ...     expr_evenement_structurant().alias("evenement_structurant")
+        ... )
+    """
+    evenements_structurants = ["CFNE", "MES", "PMES", "CFNS", "RES"]
+    return pl.col("Evenement_Declencheur").is_in(evenements_structurants)
+
+
+def expr_changement_index() -> pl.Expr:
+    """
+    Détecte si au moins une colonne d'index a changé entre Avant_ et Après_.
+    
+    Cette expression vérifie s'il y a des changements sur les colonnes d'index
+    énergétique utilisées pour le calcul des consommations :
+    - BASE, HP, HC : index de base (mono/double tarif)
+    - HPH, HCH, HPB, HCB : index heures pleines/creuses (triple tarif)
+    
+    Utilise pl.any_horizontal() pour détecter si au moins une colonne a changé.
+    
+    Returns:
+        Expression Polars retournant True si au moins un index a changé
+        
+    Example:
+        >>> df.with_columns(
+        ...     expr_changement_index().alias("index_change")
+        ... )
+    """
+    index_cols = ["BASE", "HP", "HC", "HPH", "HCH", "HPB", "HCB"]
+    
+    # Créer une expression pour chaque colonne d'index
+    changements = [
+        expr_changement_avant_apres(f"Avant_{col}", f"Après_{col}")
+        for col in index_cols
+    ]
+    
+    # Retourner True si au moins un changement est détecté
+    return pl.any_horizontal(changements)
+
+
 def expr_impacte_abonnement(over: str = "Ref_Situation_Contractuelle") -> pl.Expr:
     """
     Détecte si un changement impacte l'abonnement.
@@ -111,26 +202,39 @@ def expr_impacte_abonnement(over: str = "Ref_Situation_Contractuelle") -> pl.Exp
     return changement_puissance | changement_fta | est_structurant
 
 
-def expr_evenement_structurant() -> pl.Expr:
+def expr_impacte_energie(over: str = "Ref_Situation_Contractuelle") -> pl.Expr:
     """
-    Détecte si un événement est structurant (entrée/sortie du périmètre).
+    Détecte si un changement impacte l'énergie/consommation.
     
-    Les événements structurants ont toujours un impact sur la facturation,
-    indépendamment des changements de données. Ce sont les événements qui
-    modifient la structure même du périmètre contractuel :
-    - CFNE : Changement de Fournisseur - Nouveau Entrant
-    - MES : Mise En Service
-    - PMES : Première Mise En Service
-    - CFNS : Changement de Fournisseur - Nouveau Sortant
-    - RES : RÉSiliation
+    Un changement impacte l'énergie s'il y a :
+    - Un changement de calendrier distributeur OU
+    - Un changement sur au moins une colonne d'index OU
+    - Un changement de formule tarifaire d'acheminement (FTA) OU
+    - Un événement structurant (entrée/sortie du périmètre)
     
+    Cette expression compose toutes les détections de changement 
+    qui peuvent affecter le calcul des énergies et consommations.
+    
+    Args:
+        over: Colonne(s) définissant les partitions pour la window function
+        
     Returns:
-        Expression Polars retournant True si l'événement est structurant
+        Expression Polars retournant un booléen (True si impact détecté)
         
     Example:
         >>> df.with_columns(
-        ...     expr_evenement_structurant().alias("evenement_structurant")
+        ...     expr_impacte_energie().alias("impacte_energie")
         ... )
     """
-    evenements_structurants = ["CFNE", "MES", "PMES", "CFNS", "RES"]
-    return pl.col("Evenement_Declencheur").is_in(evenements_structurants)
+    changement_calendrier = expr_changement_avant_apres(
+        "Avant_Id_Calendrier_Distributeur", 
+        "Après_Id_Calendrier_Distributeur"
+    )
+    changement_index = expr_changement_index()
+    changement_fta = expr_changement_avant_apres(
+        "Avant_Formule_Tarifaire_Acheminement",
+        "Formule_Tarifaire_Acheminement"
+    )
+    est_structurant = expr_evenement_structurant()
+    
+    return changement_calendrier | changement_index | changement_fta | est_structurant
