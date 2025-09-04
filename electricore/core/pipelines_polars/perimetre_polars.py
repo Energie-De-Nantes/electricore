@@ -78,3 +78,59 @@ def expr_resume_changement(col_name: str, label: str, over: str = "Ref_Situation
         )
         .otherwise(pl.lit(""))
     )
+
+
+def expr_impacte_abonnement(over: str = "Ref_Situation_Contractuelle") -> pl.Expr:
+    """
+    Détecte si un changement impacte l'abonnement.
+    
+    Un changement impacte l'abonnement s'il y a :
+    - Un changement de puissance souscrite OU
+    - Un changement de formule tarifaire d'acheminement (FTA) OU
+    - Un événement structurant (entrée/sortie du périmètre)
+    
+    Cette expression compose les détections de changement individuelles
+    et les événements structurants en suivant la logique métier du calcul 
+    de facturation.
+    
+    Args:
+        over: Colonne(s) définissant les partitions pour la window function
+        
+    Returns:
+        Expression Polars retournant un booléen (True si impact détecté)
+        
+    Example:
+        >>> df.with_columns(
+        ...     expr_impacte_abonnement().alias("impacte_abonnement")
+        ... )
+    """
+    changement_puissance = expr_changement("Puissance_Souscrite", over)
+    changement_fta = expr_changement("Formule_Tarifaire_Acheminement", over)
+    est_structurant = expr_evenement_structurant()
+    
+    return changement_puissance | changement_fta | est_structurant
+
+
+def expr_evenement_structurant() -> pl.Expr:
+    """
+    Détecte si un événement est structurant (entrée/sortie du périmètre).
+    
+    Les événements structurants ont toujours un impact sur la facturation,
+    indépendamment des changements de données. Ce sont les événements qui
+    modifient la structure même du périmètre contractuel :
+    - CFNE : Changement de Fournisseur - Nouveau Entrant
+    - MES : Mise En Service
+    - PMES : Première Mise En Service
+    - CFNS : Changement de Fournisseur - Nouveau Sortant
+    - RES : RÉSiliation
+    
+    Returns:
+        Expression Polars retournant True si l'événement est structurant
+        
+    Example:
+        >>> df.with_columns(
+        ...     expr_evenement_structurant().alias("evenement_structurant")
+        ... )
+    """
+    evenements_structurants = ["CFNE", "MES", "PMES", "CFNS", "RES"]
+    return pl.col("Evenement_Declencheur").is_in(evenements_structurants)
