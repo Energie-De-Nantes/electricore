@@ -11,7 +11,16 @@ from electricore.core.pipelines_polars.perimetre_polars import (
     expr_changement_index,
     expr_impacte_energie,
     expr_resume_modification,
-    detecter_points_de_rupture
+    detecter_points_de_rupture,
+    # Nouvelles expressions pour facturation
+    expr_evenement_entree,
+    expr_evenement_sortie,
+    expr_date_entree_periode,
+    expr_date_sortie_periode,
+    colonnes_evenement_facturation,
+    generer_dates_facturation,
+    expr_colonnes_a_propager,
+    inserer_evenements_facturation
 )
 
 
@@ -658,3 +667,377 @@ def test_detecter_points_de_rupture_pipeline_complet():
     print(f"- Impacts abonnement: {sum(impacts_abonnement)}/5")
     print(f"- Impacts énergie: {sum(impacts_energie)}/5")
     print(f"- Résumés générés: {len([r for r in resumes if r != ''])}/5")
+
+
+# =============================================================================
+# TESTS POUR LES EXPRESSIONS DE FACTURATION
+# =============================================================================
+
+def test_expr_evenement_entree():
+    """Teste la détection des événements d'entrée dans le périmètre."""
+    df = pl.DataFrame({
+        "Evenement_Declencheur": ["CFNE", "MES", "PMES", "MCT", "FACTURATION", "RES", "CFNS", "AUTRE"],
+    })
+    
+    result = df.select(
+        expr_evenement_entree().alias("entree")
+    )
+    
+    # CFNE, MES, PMES = True (événements d'entrée)
+    # Autres = False
+    assert result["entree"].to_list() == [True, True, True, False, False, False, False, False]
+
+
+def test_expr_evenement_sortie():
+    """Teste la détection des événements de sortie du périmètre."""
+    df = pl.DataFrame({
+        "Evenement_Declencheur": ["RES", "CFNS", "CFNE", "MES", "MCT", "FACTURATION", "AUTRE"],
+    })
+    
+    result = df.select(
+        expr_evenement_sortie().alias("sortie")
+    )
+    
+    # RES, CFNS = True (événements de sortie)
+    # Autres = False
+    assert result["sortie"].to_list() == [True, True, False, False, False, False, False]
+
+
+def test_colonnes_evenement_facturation():
+    """Teste la génération des colonnes d'événement de facturation."""
+    df = pl.DataFrame({"dummy": [1, 2, 3]})
+    
+    result = df.with_columns(**colonnes_evenement_facturation())
+    
+    # Vérifier que toutes les colonnes attendues sont présentes
+    colonnes_attendues = {
+        "Evenement_Declencheur": "FACTURATION",
+        "Type_Evenement": "artificiel",
+        "Source": "synthese_mensuelle", 
+        "resume_modification": "Facturation mensuelle",
+        "impacte_abonnement": True,
+        "impacte_energie": True
+    }
+    
+    for col, valeur_attendue in colonnes_attendues.items():
+        assert col in result.columns, f"Colonne manquante: {col}"
+        valeurs = result[col].to_list()
+        assert all(v == valeur_attendue for v in valeurs), f"Valeurs incorrectes pour {col}: {valeurs}"
+
+
+def test_expr_date_entree_periode():
+    """Teste le calcul de la date d'entrée dans le périmètre."""
+    df = pl.DataFrame({
+        "Ref_Situation_Contractuelle": ["PDL1", "PDL1", "PDL1", "PDL2", "PDL2"],
+        "Date_Evenement": [
+            "2024-01-15", "2024-02-01", "2024-03-10",  # PDL1
+            "2024-06-01", "2024-07-15"  # PDL2
+        ],
+        "Evenement_Declencheur": ["MES", "MCT", "FACTURATION", "CFNE", "RES"],
+    }).with_columns(
+        pl.col("Date_Evenement").str.strptime(pl.Datetime, "%Y-%m-%d").dt.replace_time_zone("Europe/Paris")
+    )
+    
+    result = df.group_by("Ref_Situation_Contractuelle").agg(
+        expr_date_entree_periode().alias("date_entree")
+    ).sort("Ref_Situation_Contractuelle")
+    
+    # PDL1: MES le 2024-01-15 (événement d'entrée le plus ancien)
+    # PDL2: CFNE le 2024-06-01 (seul événement d'entrée)
+    dates_entree = result["date_entree"].dt.strftime("%Y-%m-%d").to_list()
+    assert dates_entree == ["2024-01-15", "2024-06-01"]
+
+
+def test_expr_date_sortie_periode_avec_sortie():
+    """Teste le calcul de la date de sortie quand il y a un événement de sortie."""
+    df = pl.DataFrame({
+        "Ref_Situation_Contractuelle": ["PDL1", "PDL1", "PDL1"],
+        "Date_Evenement": ["2024-01-01", "2024-02-01", "2024-03-15"],
+        "Evenement_Declencheur": ["MES", "MCT", "RES"],
+    }).with_columns(
+        pl.col("Date_Evenement").str.strptime(pl.Datetime, "%Y-%m-%d").dt.replace_time_zone("Europe/Paris")
+    )
+    
+    result = df.group_by("Ref_Situation_Contractuelle").agg(
+        expr_date_sortie_periode().alias("date_sortie")
+    )
+    
+    # RES le 2024-03-15 (événement de sortie)
+    date_sortie = result["date_sortie"][0].strftime("%Y-%m-%d")
+    assert date_sortie == "2024-03-15"
+
+
+def test_expr_date_sortie_periode_sans_sortie():
+    """Teste le calcul de la date de sortie quand il n'y a pas d'événement de sortie."""
+    df = pl.DataFrame({
+        "Ref_Situation_Contractuelle": ["PDL1", "PDL1"],
+        "Date_Evenement": ["2024-01-01", "2024-02-01"],
+        "Evenement_Declencheur": ["MES", "MCT"],
+    }).with_columns([
+        pl.col("Date_Evenement").str.strptime(pl.Datetime, "%Y-%m-%d").dt.replace_time_zone("Europe/Paris")
+    ])
+    
+    result = df.group_by("Ref_Situation_Contractuelle").agg(
+        expr_date_sortie_periode().alias("date_sortie")
+    )
+    
+    # Pas d'événement de sortie → doit utiliser la date par défaut (début du mois courant)
+    date_sortie = result["date_sortie"][0]
+    
+    # La date doit être un début de mois (jour = 1) avec timezone Europe/Paris  
+    assert date_sortie.day == 1
+    assert str(date_sortie.tzinfo) == "Europe/Paris"
+
+
+
+
+def test_inserer_evenements_facturation_scenario_simple():
+    """Teste la fonction complète avec un scénario simple d'un PDL."""
+    historique = pl.LazyFrame({
+        "Ref_Situation_Contractuelle": ["PDL1", "PDL1", "PDL1"],
+        "pdl": ["14500000123456", "14500000123456", "14500000123456"],
+        "Date_Evenement": ["2024-01-15", "2024-02-10", "2024-04-20"],
+        "Evenement_Declencheur": ["MES", "MCT", "RES"],
+        "Puissance_Souscrite": [6.0, 9.0, 9.0],
+        "Formule_Tarifaire_Acheminement": ["BTINFCU4", "BTINFMU4", "BTINFMU4"],
+        "Type_Compteur": ["Linky", "Linky", "Linky"],
+        "Num_Compteur": ["123456789", "123456789", "123456789"],
+    }).with_columns(
+        pl.col("Date_Evenement").str.strptime(pl.Datetime, "%Y-%m-%d").dt.replace_time_zone("Europe/Paris")
+    )
+    
+    resultat = inserer_evenements_facturation(historique).collect().sort(["Ref_Situation_Contractuelle", "Date_Evenement"])
+    
+    # Vérifier le nombre total de lignes : 3 originales + 3 FACTURATION (fév, mars, avril)
+    assert len(resultat) == 6, f"6 lignes attendues, reçu: {len(resultat)}"
+    
+    # Vérifier les événements de facturation ajoutés
+    evenements_facturation = resultat.filter(pl.col("Evenement_Declencheur") == "FACTURATION")
+    assert len(evenements_facturation) == 3, "3 événements FACTURATION attendus"
+    
+    # Vérifier les dates des événements de facturation
+    dates_facturation = evenements_facturation["Date_Evenement"].dt.strftime("%Y-%m-%d").to_list()
+    dates_attendues = ["2024-02-01", "2024-03-01", "2024-04-01"]
+    assert dates_facturation == dates_attendues, f"Dates: {dates_facturation}, attendues: {dates_attendues}"
+    
+    # Vérifier la propagation des données contractuelles
+    # L'événement FACTURATION de février doit avoir les données de MES (Puissance_Souscrite=6.0)
+    evenement_fevrier = resultat.filter(
+        (pl.col("Date_Evenement").dt.strftime("%Y-%m-%d") == "2024-02-01") &
+        (pl.col("Evenement_Declencheur") == "FACTURATION")
+    )
+    assert len(evenement_fevrier) == 1
+    assert evenement_fevrier["Puissance_Souscrite"][0] == 6.0, "Propagation incorrecte pour février"
+    assert evenement_fevrier["Formule_Tarifaire_Acheminement"][0] == "BTINFCU4"
+    
+    # L'événement FACTURATION d'avril doit avoir les données de MCT (Puissance_Souscrite=9.0)
+    evenement_avril = resultat.filter(
+        (pl.col("Date_Evenement").dt.strftime("%Y-%m-%d") == "2024-04-01") &
+        (pl.col("Evenement_Declencheur") == "FACTURATION")
+    )
+    assert len(evenement_avril) == 1
+    assert evenement_avril["Puissance_Souscrite"][0] == 9.0, "Propagation incorrecte pour avril"
+    assert evenement_avril["Formule_Tarifaire_Acheminement"][0] == "BTINFMU4"
+
+
+def test_inserer_evenements_facturation_plusieurs_pdl():
+    """Teste la fonction avec plusieurs PDL ayant des périodes différentes."""
+    historique = pl.LazyFrame({
+        "Ref_Situation_Contractuelle": ["PDL1", "PDL1", "PDL2", "PDL2", "PDL2"],
+        "pdl": ["145001", "145001", "145002", "145002", "145002"],
+        "Date_Evenement": ["2024-01-01", "2024-03-15", "2024-02-10", "2024-02-20", "2024-05-01"],
+        "Evenement_Declencheur": ["MES", "RES", "CFNE", "MCT", "CFNS"],
+        "Puissance_Souscrite": [6.0, 6.0, 9.0, 12.0, 12.0],
+        "Formule_Tarifaire_Acheminement": ["BTINFCU4", "BTINFCU4", "BTINFMU4", "BTINFMU4", "BTINFMU4"],
+        "Type_Compteur": ["Linky", "Linky", "Linky", "Linky", "Linky"],
+        "Num_Compteur": ["111", "111", "222", "222", "222"],
+    }).with_columns(
+        pl.col("Date_Evenement").str.strptime(pl.Datetime, "%Y-%m-%d").dt.replace_time_zone("Europe/Paris")
+    )
+    
+    resultat = inserer_evenements_facturation(historique).collect().sort(["Ref_Situation_Contractuelle", "Date_Evenement"])
+    
+    # PDL1 : jan (MES) -> mars (RES) → FACTURATION en février et mars
+    # PDL2 : fév (CFNE) -> mai (CFNS) → FACTURATION en mars, avril, mai
+    # Total : 5 originales + 5 FACTURATION = 10 lignes
+    assert len(resultat) == 10, f"10 lignes attendues, reçu: {len(resultat)}"
+    
+    # Vérifier les événements de facturation par PDL
+    facturation_pdl1 = resultat.filter(
+        (pl.col("Ref_Situation_Contractuelle") == "PDL1") &
+        (pl.col("Evenement_Declencheur") == "FACTURATION")
+    ).sort("Date_Evenement")
+    
+    facturation_pdl2 = resultat.filter(
+        (pl.col("Ref_Situation_Contractuelle") == "PDL2") &
+        (pl.col("Evenement_Declencheur") == "FACTURATION")
+    ).sort("Date_Evenement")
+    
+    # PDL1 : février et mars
+    assert len(facturation_pdl1) == 2
+    dates_pdl1 = facturation_pdl1["Date_Evenement"].dt.strftime("%Y-%m-%d").to_list()
+    assert dates_pdl1 == ["2024-02-01", "2024-03-01"]
+    
+    # PDL2 : mars, avril, mai
+    assert len(facturation_pdl2) == 3  
+    dates_pdl2 = facturation_pdl2["Date_Evenement"].dt.strftime("%Y-%m-%d").to_list()
+    assert dates_pdl2 == ["2024-03-01", "2024-04-01", "2024-05-01"]
+
+
+def test_generer_dates_facturation_cas_nominal():
+    """Teste la génération des dates de facturation pour un cas nominal."""
+    import datetime as dt
+    
+    df = pl.LazyFrame({
+        "Ref_Situation_Contractuelle": ["PDL1", "PDL1", "PDL1"],
+        "pdl": ["123", "123", "123"], 
+        "Date_Evenement": [
+            dt.datetime(2024, 1, 15, tzinfo=dt.timezone.utc).replace(tzinfo=None),
+            dt.datetime(2024, 3, 10, tzinfo=dt.timezone.utc).replace(tzinfo=None),
+            dt.datetime(2024, 4, 20, tzinfo=dt.timezone.utc).replace(tzinfo=None),
+        ],
+        "Evenement_Declencheur": ["MES", "MCT", "RES"],
+    }).with_columns([
+        pl.col("Date_Evenement").dt.replace_time_zone("Europe/Paris")
+    ])
+    
+    resultat = generer_dates_facturation(df).collect().sort("Date_Evenement")
+    
+    # Doit générer février, mars, avril (strictement après 15/01 et avant/égal 20/04)
+    assert len(resultat) == 3
+    dates = resultat["Date_Evenement"].dt.strftime("%Y-%m-%d").to_list()
+    assert dates == ["2024-02-01", "2024-03-01", "2024-04-01"]
+    
+    # Vérifier les colonnes génériques 
+    assert all(resultat["Evenement_Declencheur"] == "FACTURATION")
+    assert all(resultat["Type_Evenement"] == "artificiel")
+    assert all(resultat["Source"] == "synthese_mensuelle")
+
+
+def test_generer_dates_facturation_pdl_non_resilie():
+    """Teste la génération pour un PDL non résilié (utilise date par défaut)."""
+    import datetime as dt
+    
+    df = pl.LazyFrame({
+        "Ref_Situation_Contractuelle": ["PDL1", "PDL1"],
+        "pdl": ["123", "123"],
+        "Date_Evenement": [
+            dt.datetime(2024, 1, 15, tzinfo=dt.timezone.utc).replace(tzinfo=None),
+            dt.datetime(2024, 2, 10, tzinfo=dt.timezone.utc).replace(tzinfo=None),
+        ],
+        "Evenement_Declencheur": ["MES", "MCT"],  # Pas de RES
+    }).with_columns([
+        pl.col("Date_Evenement").dt.replace_time_zone("Europe/Paris")
+    ])
+    
+    resultat = generer_dates_facturation(df).collect()
+    
+    # Doit générer des événements jusqu'au début du mois courant inclus
+    assert len(resultat) > 0
+    assert all(resultat["Evenement_Declencheur"] == "FACTURATION")
+
+
+def test_generer_dates_facturation_aucune_periode_valide():
+    """Teste le cas où aucune période d'activité valide n'est trouvée."""
+    import datetime as dt
+    
+    df = pl.LazyFrame({
+        "Ref_Situation_Contractuelle": ["PDL1"],
+        "pdl": ["123"],
+        "Date_Evenement": [
+            dt.datetime(2024, 1, 15, tzinfo=dt.timezone.utc).replace(tzinfo=None),
+        ],
+        "Evenement_Declencheur": ["MCT"],  # Pas d'événement d'entrée
+    }).with_columns([
+        pl.col("Date_Evenement").dt.replace_time_zone("Europe/Paris")
+    ])
+    
+    resultat = generer_dates_facturation(df).collect()
+    
+    # Aucun événement ne doit être généré
+    assert len(resultat) == 0
+
+
+def test_expr_colonnes_a_propager_forward_fill():
+    """Teste la propagation des colonnes par forward fill."""
+    df = pl.LazyFrame({
+        "Ref_Situation_Contractuelle": ["PDL1", "PDL1", "PDL1"],
+        "Date_Evenement": ["2024-01-01", "2024-02-01", "2024-03-01"],
+        # Toutes les colonnes obligatoires
+        "Puissance_Souscrite": [6.0, None, None],
+        "Segment_Clientele": ["PRO", None, None],
+        "Type_Compteur": ["ELEC", None, None],
+        "Etat_Contractuel": ["EN_SERVICE", None, None],
+        "Formule_Tarifaire_Acheminement": ["TURPE", None, None],
+        "Num_Compteur": ["123456", None, None],
+        # Colonnes optionnelles
+        "Categorie": ["C5", None, None],
+        "Ref_Demandeur": ["REF001", None, None],
+        "Id_Affaire": ["AFF001", None, None],
+    }).with_columns([
+        pl.col("Date_Evenement").str.strptime(pl.Datetime, "%Y-%m-%d").dt.replace_time_zone("Europe/Paris")
+    ]).sort(["Ref_Situation_Contractuelle", "Date_Evenement"])
+    
+    resultat = df.with_columns(expr_colonnes_a_propager()).collect()
+    
+    # Vérifier que les valeurs sont propagées pour les colonnes obligatoires
+    assert resultat["Puissance_Souscrite"].to_list() == [6.0, 6.0, 6.0]
+    assert resultat["Segment_Clientele"].to_list() == ["PRO", "PRO", "PRO"] 
+    assert resultat["Type_Compteur"].to_list() == ["ELEC", "ELEC", "ELEC"]
+    assert resultat["Etat_Contractuel"].to_list() == ["EN_SERVICE", "EN_SERVICE", "EN_SERVICE"]
+    assert resultat["Formule_Tarifaire_Acheminement"].to_list() == ["TURPE", "TURPE", "TURPE"]
+    assert resultat["Num_Compteur"].to_list() == ["123456", "123456", "123456"]
+    
+    # Vérifier que les valeurs sont propagées pour les colonnes optionnelles
+    assert resultat["Categorie"].to_list() == ["C5", "C5", "C5"]
+    assert resultat["Ref_Demandeur"].to_list() == ["REF001", "REF001", "REF001"]
+    assert resultat["Id_Affaire"].to_list() == ["AFF001", "AFF001", "AFF001"]
+
+
+def test_inserer_evenements_facturation_integration():
+    """Teste l'intégration complète de la fonction principale."""
+    import datetime as dt
+    
+    # Historique avec entrée, modification et sortie 
+    df = pl.LazyFrame({
+        "Ref_Situation_Contractuelle": ["PDL1", "PDL1", "PDL1"],
+        "pdl": ["123", "123", "123"],
+        "Date_Evenement": [
+            dt.datetime(2024, 1, 15, tzinfo=dt.timezone.utc).replace(tzinfo=None),
+            dt.datetime(2024, 2, 10, tzinfo=dt.timezone.utc).replace(tzinfo=None),
+            dt.datetime(2024, 4, 20, tzinfo=dt.timezone.utc).replace(tzinfo=None),
+        ],
+        "Evenement_Declencheur": ["MES", "MCT", "RES"],
+        "Puissance_Souscrite": [6.0, 9.0, 9.0],
+        "Segment_Clientele": ["PRO", "PRO", "PRO"],
+        "Type_Compteur": ["ELEC", "ELEC", "ELEC"],
+        "Formule_Tarifaire_Acheminement": ["TURPE", "TURPE", "TURPE"],
+        "Num_Compteur": ["123456", "123456", "123456"],
+        "Etat_Contractuel": ["EN_SERVICE", "EN_SERVICE", "RESILIE"],
+    }).with_columns([
+        pl.col("Date_Evenement").dt.replace_time_zone("Europe/Paris")
+    ])
+    
+    resultat = inserer_evenements_facturation(df).collect().sort("Date_Evenement")
+    
+    # Doit avoir les 3 événements originaux + 3 événements FACTURATION (fév, mars, avr)
+    assert len(resultat) == 6
+    
+    # Vérifier les événements FACTURATION
+    facturation = resultat.filter(pl.col("Evenement_Declencheur") == "FACTURATION")
+    assert len(facturation) == 3
+    
+    dates_factu = facturation["Date_Evenement"].dt.strftime("%Y-%m-%d").to_list()
+    assert dates_factu == ["2024-02-01", "2024-03-01", "2024-04-01"]
+    
+    # Vérifier la propagation des données : les événements FACTURATION 
+    # doivent hériter de la puissance de l'événement précédent
+    factu_fevrier = resultat.filter(
+        (pl.col("Date_Evenement").dt.strftime("%Y-%m-%d") == "2024-02-01")
+    ).item(0, "Puissance_Souscrite")  # Hérité de MES (6.0)
+    assert factu_fevrier == 6.0
+    
+    factu_mars = resultat.filter(
+        (pl.col("Date_Evenement").dt.strftime("%Y-%m-%d") == "2024-03-01")
+    ).item(0, "Puissance_Souscrite")  # Hérité de MCT (9.0)
+    assert factu_mars == 9.0

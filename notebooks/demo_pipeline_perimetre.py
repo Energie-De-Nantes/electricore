@@ -15,8 +15,20 @@ with app.setup:
         sys.path.append(str(project_root))
 
     # Import des pipelines
-    from electricore.core.pipeline_perimetre import detecter_points_de_rupture as detecter_pandas
-    from electricore.core.pipelines_polars.perimetre_polars import detecter_points_de_rupture as detecter_polars
+    from electricore.core.pipeline_perimetre import (
+        detecter_points_de_rupture as detecter_pandas,
+        inserer_evenements_facturation as inserer_evenements_factu_pandas
+    )
+    from electricore.core.pipelines_polars.perimetre_polars import (
+        detecter_points_de_rupture as detecter_polars,
+        inserer_evenements_facturation as inserer_evenements_factu_polars
+    )
+
+
+@app.cell
+def _(mo):
+    mo.md(r"""# Chargement des Données ou données démos""")
+    return
 
 
 @app.cell(hide_code=True)
@@ -87,12 +99,18 @@ def load_parquet(demo_data):
         df_pandas = pd.read_parquet(latest_file)
         lf_polars = pl.scan_parquet(latest_file)
         print(f"✅ {len(df_pandas)} lignes chargées")
-    
+
     else:
         print("❌ Aucun fichier parquet trouvé")
         df_pandas = pd.DataFrame(demo_data)
         lf_polars = pl.LazyFrame(demo_data)
     return df_pandas, lf_polars
+
+
+@app.cell
+def _(mo):
+    mo.md(r"""# Détéction""")
+    return
 
 
 @app.cell(hide_code=True)
@@ -113,7 +131,7 @@ def pipeline_pandas(df_pandas):
 
     pandas_result = resultat_pandas[_colonnes_interessantes]
     pandas_result
-    return (pandas_result,)
+    return pandas_result, resultat_pandas
 
 
 @app.cell(hide_code=True)
@@ -135,44 +153,45 @@ def pipeline_polars(lf_polars):
 
     polars_result = resultat_polars.select(_colonnes_interessantes)
     polars_result
-    return (polars_result,)
+    return polars_result, resultat_polars_lf
 
 
 @app.cell
 def benchmark_performance(df_pandas, lf_polars):
     """Évaluer les performances des deux approches"""
     import time
-    
+
     print("⏱️ BENCHMARK DES PERFORMANCES :")
     print("=" * 40)
-    
+
     # Benchmark pandas
     start = time.perf_counter()
     for _ in range(10):
         _ = detecter_pandas(df_pandas)
     temps_pandas = (time.perf_counter() - start) / 10
-    
+
     # Benchmark Polars 
     start = time.perf_counter()
     for _ in range(10):
         _ = detecter_polars(lf_polars).collect()
     temps_polars = (time.perf_counter() - start) / 10
-    
+
     # Résultats
     acceleration = temps_pandas / temps_polars if temps_polars > 0 else 0
-    
+
     print(f"🐼 Pandas  : {temps_pandas*1000:.1f}ms")
     print(f"⚡ Polars  : {temps_polars*1000:.1f}ms") 
     print(f"🚀 Accélération : {acceleration:.1f}x")
-    
+
     if acceleration > 1:
         print(f"✅ Polars est {acceleration:.1f}x plus rapide !")
     elif acceleration < 1:
         print(f"⚠️ Pandas est {1/acceleration:.1f}x plus rapide")
     else:
         print("🟰 Performances équivalentes")
-    
+
     {"pandas_ms": temps_pandas*1000, "polars_ms": temps_polars*1000, "speedup": acceleration}
+    return
 
 
 @app.cell
@@ -222,6 +241,24 @@ def comparaison(pandas_result, polars_result):
 
 
 @app.cell
+def _(mo):
+    mo.md(r"""# Insertion événements""")
+    return
+
+
+@app.cell
+def _(resultat_pandas):
+    inserer_evenements_factu_pandas(resultat_pandas)
+    return
+
+
+@app.cell
+def _(resultat_polars_lf):
+    inserer_evenements_factu_polars(resultat_polars_lf).collect()
+    return
+
+
+@app.cell
 def conclusion():
     """Conclusion de la démonstration"""
 
@@ -239,6 +276,12 @@ def conclusion():
 
     "Demo terminée ! 🚀"
     return
+
+
+@app.cell
+def _():
+    import marimo as mo
+    return (mo,)
 
 
 if __name__ == "__main__":

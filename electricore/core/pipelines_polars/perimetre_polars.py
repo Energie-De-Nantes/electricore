@@ -333,3 +333,312 @@ def detecter_points_de_rupture(historique: pl.LazyFrame) -> pl.LazyFrame:
             expr_resume_modification().alias("resume_modification")
         ])
     )
+
+
+# =============================================================================
+# EXPRESSIONS POUR INSERTION D'ÉVÉNEMENTS DE FACTURATION
+# =============================================================================
+
+def expr_evenement_entree() -> pl.Expr:
+    """
+    Détecte si un événement correspond à une entrée dans le périmètre.
+    
+    Les événements d'entrée marquent le début d'une période d'activité
+    d'un PDL dans le périmètre contractuel :
+    - CFNE : Changement de Fournisseur - Nouveau Entrant
+    - MES : Mise En Service
+    - PMES : Première Mise En Service
+    
+    Returns:
+        Expression Polars retournant True si l'événement est une entrée
+        
+    Example:
+        >>> df.with_columns(
+        ...     expr_evenement_entree().alias("est_entree")
+        ... )
+    """
+    evenements_entree = ["CFNE", "MES", "PMES"]
+    return pl.col("Evenement_Declencheur").is_in(evenements_entree)
+
+
+def expr_evenement_sortie() -> pl.Expr:
+    """
+    Détecte si un événement correspond à une sortie du périmètre.
+    
+    Les événements de sortie marquent la fin d'une période d'activité
+    d'un PDL dans le périmètre contractuel :
+    - RES : RÉSiliation
+    - CFNS : Changement de Fournisseur - Nouveau Sortant
+    
+    Returns:
+        Expression Polars retournant True si l'événement est une sortie
+        
+    Example:
+        >>> df.with_columns(
+        ...     expr_evenement_sortie().alias("est_sortie")
+        ... )
+    """
+    evenements_sortie = ["RES", "CFNS"]
+    return pl.col("Evenement_Declencheur").is_in(evenements_sortie)
+
+
+def colonnes_evenement_facturation() -> dict[str, pl.Expr]:
+    """
+    Crée les colonnes standard pour un événement de facturation artificiel.
+    
+    Génère un dictionnaire de colonnes avec les valeurs fixes
+    utilisées pour tous les événements FACTURATION artificiels.
+    
+    Returns:
+        Dictionnaire d'expressions pour les colonnes d'événement artificiel
+        
+    Example:
+        >>> df.with_columns(**colonnes_evenement_facturation())
+    """
+    return {
+        "Evenement_Declencheur": pl.lit("FACTURATION"),
+        "Type_Evenement": pl.lit("artificiel"), 
+        "Source": pl.lit("synthese_mensuelle"),
+        "resume_modification": pl.lit("Facturation mensuelle"),
+        "impacte_abonnement": pl.lit(True),
+        "impacte_energie": pl.lit(True)
+    }
+
+
+def expr_date_entree_periode() -> pl.Expr:
+    """
+    Calcule la date d'entrée dans le périmètre (première date d'événement d'entrée).
+    
+    Returns:
+        Expression retournant la date minimale des événements CFNE/MES/PMES
+        
+    Example:
+        >>> df.group_by("Ref_Situation_Contractuelle").agg(
+        ...     expr_date_entree_periode().alias("debut")
+        ... )
+    """
+    return (
+        pl.when(expr_evenement_entree())
+        .then(pl.col("Date_Evenement"))
+        .min()
+    )
+
+
+def expr_date_sortie_periode() -> pl.Expr:
+    """
+    Calcule la date de sortie du périmètre (dernière date d'événement de sortie ou défaut).
+    
+    Si aucune sortie, utilise le début du mois courant pour la facturation.
+    
+    Returns:
+        Expression retournant la date maximale des événements RES/CFNS ou date par défaut
+        
+    Example:
+        >>> df.group_by("Ref_Situation_Contractuelle").agg(
+        ...     expr_date_sortie_periode().alias("fin")
+        ... )
+    """
+    import datetime as dt
+    fin_par_defaut = (
+        pl.lit(dt.datetime.now(tz=dt.timezone.utc).replace(tzinfo=None))
+        .dt.replace_time_zone("Europe/Paris")
+        .dt.month_start()
+    )
+    
+    return (
+        pl.when(expr_evenement_sortie())
+        .then(pl.col("Date_Evenement"))
+        .max()
+        .fill_null(fin_par_defaut)
+    )
+
+
+
+
+def generer_dates_facturation(lf: pl.LazyFrame) -> pl.LazyFrame:
+    """
+    Génère un LazyFrame des événements de facturation mensuels.
+    
+    Pour chaque Ref_Situation_Contractuelle, génère des événements FACTURATION
+    au 1er de chaque mois entre la date d'entrée (exclue) et la date de sortie (incluse).
+    
+    Args:
+        lf: LazyFrame contenant l'historique des événements
+        
+    Returns:
+        LazyFrame contenant uniquement les événements FACTURATION artificiels
+        avec les colonnes minimales (Ref, pdl, Date_Evenement, colonnes génériques)
+        
+    Example:
+        >>> evenements = generer_dates_facturation(historique_lf)
+        >>> print(evenements.collect())
+    """
+    import datetime as dt
+    
+    # Date par défaut = début du mois courant
+    fin_defaut = (
+        pl.lit(dt.datetime.now(tz=dt.timezone.utc).replace(tzinfo=None))
+        .dt.replace_time_zone("Europe/Paris")
+        .dt.month_start()
+    )
+    
+    return (
+        lf
+        # Grouper par Ref pour calculer les périodes d'activité
+        .group_by("Ref_Situation_Contractuelle")
+        .agg([
+            # Date d'entrée : min des événements CFNE/MES/PMES
+            pl.col("Date_Evenement")
+                .filter(expr_evenement_entree())
+                .min()
+                .alias("date_entree"),
+            
+            # Date de sortie : max des événements RES/CFNS ou défaut
+            pl.col("Date_Evenement")
+                .filter(expr_evenement_sortie())
+                .max()
+                .fill_null(fin_defaut)
+                .alias("date_sortie"),
+            
+            # Garder le pdl pour la jointure finale
+            pl.col("pdl").first()
+        ])
+        # Filtrer les Ref qui ont une période d'activité valide
+        .filter(pl.col("date_entree").is_not_null())
+        
+        # Calculer la plage de mois et générer les 1ers du mois
+        .with_columns([
+            # Premier mois de facturation = mois suivant l'entrée
+            pl.col("date_entree").dt.month_start().dt.offset_by("1mo").alias("premier_mois"),
+            # Dernier mois de facturation = mois de sortie
+            pl.col("date_sortie").dt.month_start().alias("dernier_mois")
+        ])
+        # Générer les dates mensuelles en commençant par le bon mois
+        # Note: convertir en dates avant date_ranges pour éviter les problèmes de timezone
+        .with_columns(
+            pl.date_ranges(
+                start=pl.col("premier_mois").dt.date(),  # Convertir en date
+                end=pl.col("dernier_mois").dt.date() + pl.duration(days=1),  # +1 pour inclure le dernier mois
+                interval="1mo",
+                eager=False
+            ).alias("dates_facturation")
+        )
+        
+        # Explode pour avoir une ligne par date
+        .explode("dates_facturation")
+        .rename({"dates_facturation": "Date_Evenement"})
+        # Reconvertir en datetime avec timezone pour cohérence avec l'historique d'entrée
+        .with_columns([
+            # Garder la même précision datetime que l'historique d'origine
+            pl.col("Date_Evenement").cast(pl.Datetime).dt.replace_time_zone("Europe/Paris")
+        ])
+        
+        # Filtrer : les dates générées sont déjà dans la bonne plage
+        # Pas besoin de filtrer davantage car on génère directement du premier_mois au dernier_mois
+        
+        # Sélectionner et ajouter les colonnes nécessaires
+        .select([
+            "Ref_Situation_Contractuelle",
+            "pdl", 
+            "Date_Evenement"
+        ])
+        # Ajouter les colonnes génériques de facturation
+        .with_columns(**colonnes_evenement_facturation())
+    )
+
+
+def expr_colonnes_a_propager(columns: list[str] | None = None) -> list[pl.Expr]:
+    """
+    Expressions pour propager les colonnes contractuelles par forward fill.
+    
+    Retourne une liste d'expressions qui appliquent un forward_fill groupé
+    sur les colonnes qui doivent être propagées depuis le dernier événement réel
+    vers les événements artificiels de facturation.
+    
+    Args:
+        columns: Liste optionnelle des colonnes disponibles pour filtrer
+    
+    Returns:
+        Liste d'expressions avec forward_fill().over() pour chaque colonne à propager
+        
+    Example:
+        >>> lf.with_columns(expr_colonnes_a_propager())
+    """
+    # Colonnes non-nullable du modèle qui doivent être propagées
+    colonnes_obligatoires = [
+        "Segment_Clientele",
+        "Etat_Contractuel", 
+        "Puissance_Souscrite",
+        "Formule_Tarifaire_Acheminement",
+        "Type_Compteur",
+        "Num_Compteur"
+    ]
+    
+    # Colonnes optionnelles qui peuvent être propagées si présentes
+    colonnes_optionnelles = [
+        "Categorie",
+        "Ref_Demandeur", 
+        "Id_Affaire"
+    ]
+    
+    # Filtrer selon les colonnes disponibles si fourni
+    if columns is not None:
+        colonnes_obligatoires = [col for col in colonnes_obligatoires if col in columns]
+        colonnes_optionnelles = [col for col in colonnes_optionnelles if col in columns]
+    
+    # Créer les expressions de forward fill groupées par Ref
+    expressions = []
+    
+    # Colonnes obligatoires
+    for col in colonnes_obligatoires:
+        expressions.append(
+            pl.col(col).forward_fill().over("Ref_Situation_Contractuelle")
+        )
+    
+    # Colonnes optionnelles (forward fill standard)
+    for col in colonnes_optionnelles:
+        expressions.append(
+            pl.col(col).forward_fill().over("Ref_Situation_Contractuelle")
+        )
+    
+    return expressions
+
+
+def inserer_evenements_facturation(lf: pl.LazyFrame) -> pl.LazyFrame:
+    """
+    Insère des événements de facturation artificiels au 1er de chaque mois.
+    
+    Version Polars fonctionnelle de inserer_evenements_facturation avec approche par expressions :
+    1. Génère les événements FACTURATION via group_by + explode de date_ranges  
+    2. Fusionne avec l'historique original
+    3. Propage les données contractuelles par forward fill groupé
+    
+    Args:
+        lf: LazyFrame contenant l'historique des événements
+        
+    Returns:
+        LazyFrame enrichi avec les événements de facturation
+        
+    Example:
+        >>> lf_enrichi = (
+        ...     lf
+        ...     .pipe(detecter_points_de_rupture_polars)
+        ...     .pipe(inserer_evenements_facturation_polars)
+        ... )
+    """
+    # Étape 1 : Générer les événements artificiels
+    evenements_facturation = generer_dates_facturation(lf)
+    
+    # Étape 2 : Fusionner avec l'historique original
+    fusioned = pl.concat([lf, evenements_facturation], how="diagonal_relaxed")
+    
+    # Étape 3 : Trier et propager les données contractuelles
+    return (
+        fusioned
+        # Trier par Ref et Date pour le forward fill
+        .sort(["Ref_Situation_Contractuelle", "Date_Evenement"])
+        
+        # Propager les colonnes contractuelles via expressions (avec colonnes disponibles)
+        .with_columns(expr_colonnes_a_propager(columns=fusioned.collect_schema().names()))
+    )
+
