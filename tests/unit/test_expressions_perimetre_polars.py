@@ -9,7 +9,9 @@ from electricore.core.pipelines_polars.perimetre_polars import (
     expr_evenement_structurant,
     expr_changement_avant_apres,
     expr_changement_index,
-    expr_impacte_energie
+    expr_impacte_energie,
+    expr_resume_modification,
+    detecter_points_de_rupture
 )
 
 
@@ -582,3 +584,77 @@ def test_expr_impacte_energie_donnees_realistes():
     impacts_detectes = sum(result["impacte_energie"].to_list())
     print(f"Impacts énergie détectés: {impacts_detectes}/6 événements")
     assert impacts_detectes == 4, "4 impacts énergie attendus sur 6 événements"
+
+
+def test_detecter_points_de_rupture_pipeline_complet():
+    """Teste la fonction detecter_points_de_rupture complète avec LazyFrame."""
+    # Données d'historique contractuel réaliste
+    historique_data = {
+        "Ref_Situation_Contractuelle": ["PDL1", "PDL1", "PDL1", "PDL1", "PDL1"],
+        "Date_Evenement": ["2024-01-01", "2024-02-01", "2024-03-15", "2024-04-01", "2024-05-20"],
+        "Evenement_Declencheur": ["MES", "FACTURATION", "MCT", "FACTURATION", "RES"],
+        "Puissance_Souscrite": [6.0, 6.0, 9.0, 9.0, 9.0],
+        "Formule_Tarifaire_Acheminement": ["BTINFCU4", "BTINFCU4", "BTINFMU4", "BTINFMU4", "BTINFMU4"],
+        
+        # Colonnes Avant_/Après_ pour calendrier et index (déjà présentes dans les données)
+        "Avant_Id_Calendrier_Distributeur": ["CAL1", "CAL1", "CAL1", "CAL2", "CAL2"],
+        "Après_Id_Calendrier_Distributeur": ["CAL1", "CAL1", "CAL2", "CAL2", "CAL2"],
+        "Avant_BASE": [1000.0, 1200.0, 1500.0, 1800.0, 2100.0],
+        "Après_BASE": [1000.0, 1200.0, 1550.0, 1800.0, 2100.0],  # Changement ligne 3
+        "Avant_HP": [None, None, None, None, None],
+        "Après_HP": [None, None, None, None, None],
+        "Avant_HC": [None, None, None, None, None],
+        "Après_HC": [None, None, None, None, None],
+        "Avant_HPH": [None, None, None, None, None],
+        "Après_HPH": [None, None, None, None, None],
+        "Avant_HCH": [None, None, None, None, None],
+        "Après_HCH": [None, None, None, None, None],
+        "Avant_HPB": [None, None, None, None, None],
+        "Après_HPB": [None, None, None, None, None],
+        "Avant_HCB": [None, None, None, None, None],
+        "Après_HCB": [None, None, None, None, None],
+    }
+    
+    # Créer LazyFrame et appliquer la fonction
+    historique_lf = pl.LazyFrame(historique_data)
+    resultat_lf = detecter_points_de_rupture(historique_lf)
+    resultat = resultat_lf.collect()
+    
+    # Vérifier que les colonnes attendues sont présentes
+    colonnes_attendues = ["impacte_abonnement", "impacte_energie", "resume_modification"]
+    for col in colonnes_attendues:
+        assert col in resultat.columns, f"Colonne manquante: {col}"
+    
+    # Vérifier les impacts détectés
+    impacts_abonnement = resultat["impacte_abonnement"].to_list()
+    impacts_energie = resultat["impacte_energie"].to_list()
+    
+    # Événements attendus :
+    # MES: structurant → True/True
+    # FACTURATION: aucun changement → False/False
+    # MCT: changement puissance + calendrier + index → True/True  
+    # FACTURATION: aucun changement → False/False
+    # RES: structurant → True/True
+    assert impacts_abonnement == [True, False, True, False, True]
+    assert impacts_energie == [True, False, True, False, True]
+    
+    # Vérifier que les résumés sont générés
+    resumes = resultat["resume_modification"].to_list()
+    resumes_non_vides = [r for r in resumes if r != ""]
+    assert len(resumes_non_vides) == 1, "1 résumé non-vide attendu (ligne avec changements multiples)"
+    
+    # Vérifier le contenu du résumé principal (ligne 3 avec tous les changements)
+    resume_principal = resumes_non_vides[0]
+    assert "P: 6.0 → 9.0" in resume_principal, "Changement puissance manquant dans résumé"
+    assert "FTA: BTINFCU4 → BTINFMU4" in resume_principal, "Changement FTA manquant dans résumé"
+    assert "Cal: CAL1 → CAL2" in resume_principal, "Changement calendrier manquant dans résumé"
+    assert "rupture index" in resume_principal, "Mention rupture index manquante dans résumé"
+    
+    # Vérifier la présence des colonnes Avant_ créées par la fonction
+    assert "Avant_Puissance_Souscrite" in resultat.columns
+    assert "Avant_Formule_Tarifaire_Acheminement" in resultat.columns
+    
+    print(f"Pipeline complet testé avec succès:")
+    print(f"- Impacts abonnement: {sum(impacts_abonnement)}/5")
+    print(f"- Impacts énergie: {sum(impacts_energie)}/5")
+    print(f"- Résumés générés: {len([r for r in resumes if r != ''])}/5")

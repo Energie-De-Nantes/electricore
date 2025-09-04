@@ -238,3 +238,98 @@ def expr_impacte_energie(over: str = "Ref_Situation_Contractuelle") -> pl.Expr:
     est_structurant = expr_evenement_structurant()
     
     return changement_calendrier | changement_index | changement_fta | est_structurant
+
+
+def expr_resume_modification() -> pl.Expr:
+    """
+    Génère un résumé textuel des modifications détectées.
+    
+    Cette expression compose les résumés de changements individuels
+    pour créer une description lisible des modifications :
+    - Changements de puissance et FTA (via expr_resume_changement)
+    - Changements de calendrier 
+    - Mention "rupture index" si des index ont changé
+    
+    Returns:
+        Expression Polars retournant une chaîne de caractères décrivant les modifications
+        
+    Example:
+        >>> df.with_columns(
+        ...     expr_resume_modification().alias("resume_modification")
+        ... )
+        # Produit: "P: 6.0 → 9.0, FTA: BTINFCU4 → BTINFMU4, Cal: CAL1 → CAL2"
+    """
+    resume_puissance = expr_resume_changement("Puissance_Souscrite", "P")
+    resume_fta_shift = expr_resume_changement("Formule_Tarifaire_Acheminement", "FTA")
+    
+    # Résumé calendrier (entre colonnes Avant_/Après_)
+    resume_calendrier = (
+        pl.when(expr_changement_avant_apres("Avant_Id_Calendrier_Distributeur", "Après_Id_Calendrier_Distributeur"))
+        .then(
+            pl.concat_str([
+                pl.lit("Cal: "),
+                pl.col("Avant_Id_Calendrier_Distributeur").cast(pl.Utf8),
+                pl.lit(" → "),
+                pl.col("Après_Id_Calendrier_Distributeur").cast(pl.Utf8)
+            ])
+        )
+        .otherwise(pl.lit(""))
+    )
+    
+    # Mention rupture index si détectée
+    resume_index = (
+        pl.when(expr_changement_index())
+        .then(pl.lit("rupture index"))
+        .otherwise(pl.lit(""))
+    )
+    
+    # Combiner tous les résumés non-vides
+    resumes = [resume_puissance, resume_fta_shift, resume_calendrier, resume_index]
+    
+    # Filtrer et joindre les résumés non-vides avec ", "
+    return (
+        pl.concat_list(resumes)
+        .list.drop_nulls()
+        .list.eval(pl.element().filter(pl.element() != ""))
+        .list.join(", ")
+    )
+
+
+def detecter_points_de_rupture(historique: pl.LazyFrame) -> pl.LazyFrame:
+    """
+    Enrichit l'historique avec détection des impacts via expressions Polars composables.
+    
+    Cette fonction utilise les expressions pures développées pour détecter
+    les changements impactant l'abonnement et l'énergie. Elle remplace
+    la version pandas en tirant parti de l'optimisation Polars.
+    
+    Étapes du pipeline :
+    1. Tri par PDL et date d'événement
+    2. Création des colonnes Avant_ avec window functions  
+    3. Détection des impacts via expressions composables
+    4. Génération du résumé textuel des modifications
+    
+    Args:
+        historique: LazyFrame contenant l'historique des événements contractuels
+        
+    Returns:
+        LazyFrame enrichi avec colonnes impacte_abonnement, impacte_energie, resume_modification
+        
+    Example:
+        >>> historique_enrichi = detecter_points_de_rupture(historique.lazy()).collect()
+    """
+    return (
+        historique
+        .sort(["Ref_Situation_Contractuelle", "Date_Evenement"])
+        # Créer les colonnes Avant_ avec window functions
+        .with_columns([
+            pl.col("Puissance_Souscrite").shift(1).over("Ref_Situation_Contractuelle").alias("Avant_Puissance_Souscrite"),
+            pl.col("Formule_Tarifaire_Acheminement").shift(1).over("Ref_Situation_Contractuelle").alias("Avant_Formule_Tarifaire_Acheminement")
+        ])
+        # Appliquer les détections d'impact avec nos expressions pures
+        .with_columns([
+            expr_impacte_abonnement().alias("impacte_abonnement"),
+            expr_impacte_energie().alias("impacte_energie"),
+            expr_resume_modification().alias("resume_modification")
+        ])
+    )
