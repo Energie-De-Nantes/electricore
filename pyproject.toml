@@ -10,7 +10,8 @@ readme = "README.md"
 requires-python = ">=3.12,<4.0"
 dependencies = [
     "pandas (>=2.2.3,<3.0.0)",
-    "pandera (>=0.24.0)",
+    "polars (>=1.0.0,<2.0.0)",
+    "pandera[polars] (>=0.24.0)",
     "babel (>=2.17.0,<3.0.0)",
     "toolz (>=1.0.0,<2.0.0)",
     "pyarrow (>=21.0.0,<22.0.0)",
@@ -29,7 +30,7 @@ hypothesis = "^6.0.0"
 
 [tool.poetry.group.dev.dependencies]
 icecream = "^2.1.5"
-marimo = "^0.14.11"
+marimo = ">=0.14.11"
 altair = "^5.5.0"
 plotly = "^6.2.0"
 electriflux = ">=1.1.0, <2.0.0"

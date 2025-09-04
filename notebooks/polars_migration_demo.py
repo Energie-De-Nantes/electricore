@@ -3,6 +3,21 @@ import marimo
 __generated_with = "0.14.17"
 app = marimo.App(width="medium")
 
+with app.setup:
+    import polars as pl
+    import pandas as pd
+    import time
+    import sys
+    from pathlib import Path
+
+    # Ajouter le chemin du projet
+    project_root = Path.cwd()
+    if str(project_root) not in sys.path:
+        sys.path.append(str(project_root))
+
+    from electricore.core.loaders.polars_loader import charger_releves, charger_historique
+    from electricore.core.models_polars import RelevéIndexPolars, HistoriquePérimètrePolars
+    return Path, pd, pl, time, charger_releves, charger_historique
 
 @app.cell(hide_code=True)
 def _(mo):
@@ -22,24 +37,6 @@ def _(mo):
     """
     )
     return
-
-
-@app.cell
-def _():
-    import polars as pl
-    import pandas as pd
-    import time
-    import sys
-    from pathlib import Path
-
-    # Ajouter le chemin du projet
-    project_root = Path.cwd()
-    if str(project_root) not in sys.path:
-        sys.path.append(str(project_root))
-
-    from electricore.core.loaders.polars_loader import charger_releves, charger_historique
-    from electricore.core.models_polars import RelevéIndexPolars, HistoriquePérimètrePolars
-    return Path, pd, pl, time, charger_releves, charger_historique
 
 
 @app.cell

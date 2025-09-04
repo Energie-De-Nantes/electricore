@@ -4,17 +4,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-ElectriCore is a French energy data processing engine that transforms raw electrical grid data into business-ready formats. It serves as the core business logic for energy management tools like LibreWatt and Odoo modules, processing Enedis (French electricity distributor) data.
+ElectriCore is a French energy data processing engine that transforms raw Enedis (French electricity distributor) data into business-ready formats. Core business logic for LibreWatt and Odoo energy management modules.
 
 ## Key Commands
 
 ```bash
 # Run tests
-pytest tests/
-# or using poetry
 poetry run pytest -q
 
-# Install dependencies
+# Install dependencies  
 poetry install
 
 # Build/package
@@ -23,40 +21,25 @@ poetry build
 
 ## Architecture
 
-The codebase follows a clear modular architecture with French domain terminology:
+### Current Structure
+- **`electricore/core/pipelines_polars/`** - Modern Polars-based pipelines
+- **`electricore/core/`** - Legacy pandas modules (being migrated)
+- **`electricore/inputs/flux/`** - Enedis XML parsers (R15, R151, C15)
 
-- **`electricore/core/`** - Business logic modules:
-  - `périmètre/` - Contract perimeter management (historical tracking)
-  - `relevés/` - Meter readings processing
-  - `énergies/` - Energy calculations and aggregations
-  - `taxes/` - Tax calculations (TURPE - French grid tariffs)
-  - `abonnements/` - Subscription management
-  - `services.py` - Main orchestration functions (`facturation()`)
+### Polars Migration Status
+- ✅ **Pipeline périmètre**: Complete with 8 composable expressions + LazyFrame pipeline
+- 🔄 **Pipeline relevés**: Next priority  
+- 🔄 **Pipeline énergies**: Planned
+- 🔄 **Pipeline taxes**: Planned
 
-- **`electricore/inputs/`** - Data connectors:
-  - `flux/` - Enedis XML flux parsers (R15, R151, C15 formats)
-
-- **`electricore/outputs/`** - Export interfaces (to be implemented)
-
-## Data Flow
-
-The main processing pipeline follows this sequence:
-1. **Flux parsing** (C15 → HistoriquePérimètre, R151 → RelevéIndex)
-2. **Base preparation** (combining perimeter history with date ranges)
-3. **Reading integration** (adding meter readings to base)
-4. **Energy calculation** (computing consumption/production)
-5. **Tax calculation** (applying TURPE rules)
-
-Key function: `facturation(deb, fin, historique, relevés)` in `services.py`
-
-## Data Validation
-
-Uses Pandera for DataFrame schema validation. All core data models are defined with type annotations and validation rules. Function signatures use `@pa.check_types` decorator for runtime validation.
+### Established Patterns
+- **Expressions pures**: `Fn(Series) -> Series` - Composable transformations
+- **LazyFrame pipelines**: `Fn(LazyFrame) -> LazyFrame` - Optimized execution
+- **Validation**: Tests include pandas comparison for migration validation
 
 ## Important Notes
 
-- All dates use Europe/Paris timezone (`pd.DatetimeTZDtype`)
-- Business domain is in French (périmètre, relevés, énergies, etc.)
-- Handles complex cases like "Modifications Contractuelles Impactantes" (MCT)
-- Main data processing uses pandas DataFrames with strict typing
-- Test command available via `[test]` section in pyproject.toml
+- Business domain in French (périmètre, relevés, énergies, etc.)
+- All dates use Europe/Paris timezone
+- Pandera schemas for DataFrame validation with `@pa.check_types`
+- Migration approach: Polars LazyFrames + functional expressions

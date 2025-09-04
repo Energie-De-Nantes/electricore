@@ -139,10 +139,47 @@ def pipeline_polars(lf_polars):
 
 
 @app.cell
+def benchmark_performance(df_pandas, lf_polars):
+    """Évaluer les performances des deux approches"""
+    import time
+    
+    print("⏱️ BENCHMARK DES PERFORMANCES :")
+    print("=" * 40)
+    
+    # Benchmark pandas
+    start = time.perf_counter()
+    for _ in range(10):
+        _ = detecter_pandas(df_pandas)
+    temps_pandas = (time.perf_counter() - start) / 10
+    
+    # Benchmark Polars 
+    start = time.perf_counter()
+    for _ in range(10):
+        _ = detecter_polars(lf_polars).collect()
+    temps_polars = (time.perf_counter() - start) / 10
+    
+    # Résultats
+    acceleration = temps_pandas / temps_polars if temps_polars > 0 else 0
+    
+    print(f"🐼 Pandas  : {temps_pandas*1000:.1f}ms")
+    print(f"⚡ Polars  : {temps_polars*1000:.1f}ms") 
+    print(f"🚀 Accélération : {acceleration:.1f}x")
+    
+    if acceleration > 1:
+        print(f"✅ Polars est {acceleration:.1f}x plus rapide !")
+    elif acceleration < 1:
+        print(f"⚠️ Pandas est {1/acceleration:.1f}x plus rapide")
+    else:
+        print("🟰 Performances équivalentes")
+    
+    {"pandas_ms": temps_pandas*1000, "polars_ms": temps_polars*1000, "speedup": acceleration}
+
+
+@app.cell
 def comparaison(pandas_result, polars_result):
     """Comparer les résultats des deux pipelines"""
 
-    print("🔍 COMPARAISON DES RÉSULTATS :")
+    print("\n🔍 COMPARAISON DES RÉSULTATS :")
     print("=" * 50)
 
     # Vérifier l'équivalence des colonnes clés

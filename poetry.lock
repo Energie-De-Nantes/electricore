@@ -955,14 +955,14 @@ source = ["Cython (>=3.0.11,<3.1.0)"]
 
 [[package]]
 name = "marimo"
-version = "0.14.17"
+version = "0.15.2"
 description = "A library for making reactive notebooks and apps"
 optional = false
 python-versions = ">=3.9"
 groups = ["dev"]
 files = [
-    {file = "marimo-0.14.17-py3-none-any.whl", hash = "sha256:88e2b3fe86567c322805a5faebcc18e302813b109e017e1104157e44b8659777"},
-    {file = "marimo-0.14.17.tar.gz", hash = "sha256:f38e592b83f8c23a0f19ef32d845594f6566691c28b1e41d04a78156df953305"},
+    {file = "marimo-0.15.2-py3-none-any.whl", hash = "sha256:630cbad0217fb6cd8f78e6775b955242c1528a673233095dec5901781588bee9"},
+    {file = "marimo-0.15.2.tar.gz", hash = "sha256:726933fd9c9561fa73e323b1821b173c5e0f85196ec2a497a3509cc2fc245c58"},
 ]
 
 [package.dependencies]
@@ -981,7 +981,7 @@ pyyaml = ">=6.0"
 starlette = ">=0.26.1,<0.36.0 || >0.36.0"
 tomlkit = ">=0.12.0"
 uvicorn = ">=0.22.0"
-websockets = ">=10.0.0"
+websockets = ">=14.2.0"
 
 [package.extras]
 dev = ["black (>=23.12.1,<23.13.0)", "click (>=8.0,<9)", "duckdb (>=1.0.0)", "openai (>=1.55.3)", "opentelemetry-api (>=1.26.0,<1.27.0)", "opentelemetry-sdk (>=1.26.0,<1.27.0)", "ruff (>=0.9.1,<0.10.0)", "sqlglot (>=23.4)"]
@@ -1307,6 +1307,7 @@ files = [
 
 [package.dependencies]
 packaging = ">=20.0"
+polars = {version = ">=0.20.0", optional = true, markers = "extra == \"polars\""}
 pydantic = "*"
 typeguard = "*"
 typing_extensions = "*"
@@ -1413,7 +1414,7 @@ version = "1.32.3"
 description = "Blazingly fast DataFrame library"
 optional = false
 python-versions = ">=3.9"
-groups = ["dev"]
+groups = ["main", "dev"]
 files = [
     {file = "polars-1.32.3-cp39-abi3-macosx_10_12_x86_64.whl", hash = "sha256:c7c472ea1d50a5104079cb64e34f78f85774bcc69b875ba8daf21233f4c70d42"},
     {file = "polars-1.32.3-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:fd87275f0cc795e72a2030b58293198cfa748d4b009cf52218e27db5397ed07f"},
@@ -2353,4 +2354,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<4.0"
-content-hash = "c0364a85283b0e96b1f96ac60eba262c42887618772e0136a3f3118ddacfeddf"
+content-hash = "e6aea64f3e20647e581d23be1bf7cd252a36fd93bc6981d0b13293c02b1f0347"
