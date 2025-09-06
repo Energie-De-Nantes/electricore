@@ -1,0 +1,24 @@
+# Configuration générale DLT pour les pipelines Enedis
+# Fichier de configuration publique (peut être commité)
+
+[runtime]
+# Niveau de log pour DLT
+log_level = "INFO"
+
+# Répertoire temporaire pour les fichiers de travail
+dlthub_telemetry = false
+
+[sources.filesystem]
+# Configuration par défaut pour les sources filesystem
+file_timeout = 300  # Timeout en secondes pour téléchargement
+max_file_size = "1GB"  # Taille max par fichier
+
+[normalize]
+# Configuration de la normalisation DLT
+max_nesting_level = 2
+max_table_nesting = 1
+
+[extract]
+# Configuration de l'extraction
+workers = 4  # Nombre de workers parallèles
+max_parallel_items = 8  # Max éléments traités en parallèle
