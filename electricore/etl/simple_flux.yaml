@@ -1,0 +1,207 @@
+C15:
+  file_regex: "*_C15_*.xml"
+  row_level: './/PRM'
+  metadata_fields: {}
+  data_fields:
+    pdl: Id_PRM
+    
+    Segment_Clientele: Segment_Clientele
+    Num_Depannage: Num_Depannage
+    
+    Categorie: Situation_Contractuelle/Titulaire_Contrat/Categorie
+    Etat_Contractuel: Situation_Contractuelle/Etat_Contractuel
+    Ref_Situation_Contractuelle: Situation_Contractuelle/Ref_Situation_Contractuelle
+
+    Puissance_Souscrite: Situation_Contractuelle/Structure_Tarifaire/Puissance_Souscrite
+    Formule_Tarifaire_Acheminement: Situation_Contractuelle/Structure_Tarifaire/Formule_Tarifaire_Acheminement
+
+    Type_Compteur: Dispositif_De_Comptage/Compteur/Type
+    Num_Compteur: Dispositif_De_Comptage/Compteur/Num_Serie
+
+    Date_Derniere_Modification_FTA: Date_Derniere_Modification_FTA
+    
+    Evenement_Declencheur: Evenement_Declencheur/Nature_Evenement
+    Type_Evenement: Evenement_Declencheur/Type_Evenement
+    Date_Evenement: Evenement_Declencheur/Date_Evenement
+    Ref_Demandeur: Evenement_Declencheur/Ref_Demandeur
+    Id_Affaire: Evenement_Declencheur/Id_Affaire
+
+  nested_fields:
+    - prefix: 'Avant_'
+      child_path: 'Evenement_Declencheur/Releves/Donnees_Releve/Classe_Temporelle_Distributeur'
+      id_field: 'Id_Classe_Temporelle'
+      value_field: 'Valeur'
+      conditions:
+        - xpath: '../Code_Qualification'
+          value: '1'
+        - xpath: 'Classe_Mesure'
+          value: '1'
+        - xpath: 'Sens_Mesure'
+          value: '0'
+      additional_fields:
+        Date_Releve: '../Date_Releve'
+        Nature_Index: '../Nature_Index'
+        Id_Calendrier_Distributeur: '../Id_Calendrier_Distributeur'
+        Id_Calendrier_Fournisseur: '../Id_Calendrier'
+
+    - prefix: 'Après_'
+      child_path: 'Evenement_Declencheur/Releves/Donnees_Releve/Classe_Temporelle_Distributeur'
+      id_field: 'Id_Classe_Temporelle'
+      value_field: 'Valeur'
+      conditions:
+        - xpath: '../Code_Qualification'
+          value: '2'
+        - xpath: 'Classe_Mesure'
+          value: '1'
+        - xpath: 'Sens_Mesure'
+          value: '0'
+      additional_fields:
+        Date_Releve: '../Date_Releve'
+        Nature_Index: '../Nature_Index'
+        Id_Calendrier_Distributeur: '../Id_Calendrier_Distributeur'
+        Id_Calendrier_Fournisseur: '../Id_Calendrier'
+
+F12:
+  file_regex: 'FL_\d+_\d+\.xml'
+  row_level: './/Element_Valorise'
+  metadata_fields:
+    Flux: 'En_Tete_Flux/Identifiant_Flux'
+    Num_Facture: 'Rappel_En_Tete/Num_Facture'
+    Date_Facture: 'Rappel_En_Tete/Date_Facture'
+  data_fields:
+    Num_Sous_Lot: '../Num_Sous_Lot'
+    Type_Facturation: '../Type_Facturation'
+    Motif_Rectif: '../Motif_Rectif'
+
+    pdl: '../Id_PRM'
+    Type_PRM: '../Type_PRM'
+    Code_Segmentation_ERDF: '../Code_Segmentation_ERDF'
+    
+    Puissance_Ponderee: '../Puissance_Ponderee'
+    Autoproducteur: '../Autoproducteur'
+    Tarif_Souscrit: '../Tarif_Souscrit'
+    Id_EV: 'Id_EV'
+    Libelle_EV: 'Libelle_EV'
+    Code_Recapitulatif: 'Code_Recapitulatif'
+
+    CSPE_Applicable: 'CSPE_Applicable'
+    Taux_TVA_Applicable: 'Taux_TVA_Applicable'
+    Code_Debit_Credit: 'Code_Debit_Credit'
+
+    Date_Debut: 'Acheminement/Date_Debut'
+    Date_Fin: 'Acheminement/Date_Fin'
+
+    Unite: 'Acheminement/Unite_Quantite'
+    Quantite: 'Acheminement/Quantite'
+    Prix_Unitaire: 'Acheminement/Prix_Unitaire'
+    Montant_HT: 'Acheminement/Montant_HT'
+    
+  nested_fields: []
+
+F15:
+  file_regex: 'FL_\d+_\d+\.xml'
+  row_level: './/Element_Valorise'
+  metadata_fields:
+    Flux: 'En_Tete_Flux/Identifiant_Flux'
+    Num_Facture: 'Rappel_En_Tete/Num_Facture'
+    Date_Facture: 'Rappel_En_Tete/Date_Facture'
+  data_fields:
+    Type_Facturation: '../../Type_Facturation'
+    pdl: '../../Donnees_PRM/Id_PRM'
+    Id_EV: 'Id_EV'
+    Nature_EV: '../Nature_EV'
+    Taux_TVA_Applicable: 'Taux_TVA_Applicable'
+    Formule_Tarifaire_Acheminement: 'Formule_Tarifaire_Acheminement'
+    Unite: 'Unite_Quantite'
+    Prix_Unitaire: 'Prix_Unitaire'
+    Quantite: 'Quantite'
+    Montant_HT: 'Montant_HT'
+    Date_Debut: 'Date_Debut'
+    Date_Fin: 'Date_Fin'
+    Libelle_EV: 'Libelle_EV'
+  nested_fields: []
+
+R15:
+  row_level: './/PRM'
+  metadata_fields:
+    Unité: 'En_Tete_Flux/Unite_Mesure_Index'
+  data_fields:
+    Date_Releve: 'Donnees_Releve/Date_Releve'
+    pdl: 'Id_PRM'
+    Id_Calendrier: 'Donnees_Releve/Id_Calendrier'
+    Ref_Situation_Contractuelle: 'Donnees_Releve/Ref_Situation_Contractuelle'
+    Type_Compteur: 'Donnees_Releve/Type_Compteur'
+    Motif_Releve: 'Donnees_Releve/Motif_Releve'
+    Ref_Demandeur: 'Donnees_Releve/Ref_Demandeur'
+    Id_Affaire: 'Donnees_Releve/Id_Affaire'
+  nested_fields:
+    - prefix: ''
+      child_path: 'Donnees_Releve/Classe_Temporelle_Distributeur'
+      id_field: 'Id_Classe_Temporelle'
+      value_field: 'Valeur'
+
+R151:
+  row_level: './/PRM'
+  metadata_fields:
+    Unité: 'En_Tete_Flux/Unite_Mesure_Index'
+  data_fields:
+    Date_Releve: 'Donnees_Releve/Date_Releve'
+    pdl: 'Id_PRM'
+    Id_Calendrier_Fournisseur: 'Donnees_Releve/Id_Calendrier_Fournisseur'
+    Id_Affaire: 'Donnees_Releve/Id_Affaire'
+    Id_Calendrier_Distributeur: 'Donnees_Releve/Id_Calendrier_Distributeur'
+  nested_fields:
+    - prefix: ''
+      child_path: 'Donnees_Releve/Classe_Temporelle_Distributeur'
+      id_field: 'Id_Classe_Temporelle'
+      value_field: 'Valeur'
+
+R15_ACC:
+  row_level: './/PRM'
+  metadata_fields:
+    Unité: 'En_Tete_Flux/Unite_Mesure_Index'
+  data_fields:
+    pdl: 'Id_PRM'
+    Date_Releve: 'Donnees_Releve/Date_Releve'
+    Id_Calendrier: 'Donnees_Releve/Id_Calendrier'
+    Id_Calendrier_Distributeur: 'Donnees_Releve/Id_Calendrier_Distributeur'
+    Ref_Situation_Contractuelle: 'Donnees_Releve/Ref_Situation_Contractuelle'
+    Type_Compteur: 'Donnees_Releve/Type_Compteur'
+    Motif_Releve: 'Donnees_Releve/Motif_Releve'
+    Id_Affaire: 'Donnees_Releve/Id_Affaire'
+    Nature_Index: 'Donnees_Releve/Nature_Index'
+    Statut_Releve: 'Donnees_Releve/Statut_Releve'
+    Autoconsommation_Collective: 'Donnees_Releve/Autoconsommation_Collective'
+  nested_fields:
+    # Classe 3 - Énergie active autoproduite
+    - prefix: 'EA_Autoproduite_'
+      child_path: 'Donnees_Releve/Classe_Temporelle_Distributeur'
+      id_field: 'Id_Classe_Temporelle'
+      value_field: 'Valeur'
+      conditions:
+        - xpath: 'Classe_Mesure'
+          value: '3'
+    # Classe 4 - Énergie active alloproduite
+    - prefix: 'EA_Alloproduite_'
+      child_path: 'Donnees_Releve/Classe_Temporelle_Distributeur'
+      id_field: 'Id_Classe_Temporelle'
+      value_field: 'Valeur'
+      conditions:
+        - xpath: 'Classe_Mesure'
+          value: '4'
+    # Classe 5 - Énergie active autoconsommée
+    - prefix: 'EA_Autoconsommee_'
+      child_path: 'Donnees_Releve/Classe_Temporelle_Distributeur'
+      id_field: 'Id_Classe_Temporelle'
+      value_field: 'Valeur'
+      conditions:
+        - xpath: 'Classe_Mesure'
+          value: '5'
+    # Classe 6 - Énergie active en surplus
+    - prefix: 'EA_Surplus_'
+      child_path: 'Donnees_Releve/Classe_Temporelle_Distributeur'
+      id_field: 'Id_Classe_Temporelle'
+      value_field: 'Valeur'
+      conditions:
+        - xpath: 'Classe_Mesure'
+          value: '6'
