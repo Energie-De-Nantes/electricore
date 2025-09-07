@@ -523,11 +523,17 @@ def sftp_flux_enedis_multi():
         """
         Générateur optimisé pour un type de flux spécifique.
         Les clés AES sont injectées (chargées une seule fois).
+        Incrémental appliqué au niveau filesystem pour éviter de télécharger les anciens fichiers.
         """
-        # Source filesystem DLT pour SFTP
+        # Source filesystem DLT pour SFTP avec incrémental
         encrypted_files = filesystem(
             bucket_url=sftp_url,
             file_glob=file_pattern
+        )
+        
+        # Appliquer l'incrémental sur la date de modification du filesystem
+        encrypted_files.apply_hints(
+            incremental=dlt.sources.incremental("modification_date")
         )
         
         # Utiliser l'orchestrateur refactorisé avec injection des dépendances
@@ -552,10 +558,7 @@ def sftp_flux_enedis_multi():
             name=resource_name
         )
         
-        # Appliquer l'incrémental pour éviter les doublons
-        resource.apply_hints(
-            incremental=dlt.sources.incremental("_zip_modified")
-        )
+        # L'incrémental est maintenant appliqué sur le filesystem directement
         
         yield resource
 
