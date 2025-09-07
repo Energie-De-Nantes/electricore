@@ -63,8 +63,7 @@ def detect_flux_type_from_zip_name(zip_name: str) -> str:
         return 'UNKNOWN'
 
 
-@dlt.transformer
-def decrypt_extract_flux_specific(items: Iterator[FileItemDict], flux_type: str) -> Iterator[dict]:
+def decrypt_extract_flux_logic(items: Iterator[FileItemDict], flux_type: str) -> Iterator[dict]:
     """
     Transformer spécifique à un type de flux qui :
     1. Filtre les ZIPs correspondant au flux_type
@@ -85,28 +84,17 @@ def decrypt_extract_flux_specific(items: Iterator[FileItemDict], flux_type: str)
     processed_zips = set()
     total_records = 0
     
-    # Mode test : limiter à quelques fichiers
-    items_list = list(items)
-    test_limit = 5  # Par type de flux
+    # Filtrer et traiter les ZIPs pour ce type de flux
+    processed_count = 0
     
-    # Filtrer les ZIPs pour ce type de flux
-    flux_items = []
-    for item in items_list:
-        zip_name = item['file_name']
+    for encrypted_item in items:
+        zip_name = encrypted_item['file_name']
         detected_type = detect_flux_type_from_zip_name(zip_name)
-        if detected_type == flux_type:
-            flux_items.append(item)
-    
-    # Limiter pour les tests
-    flux_items = flux_items[:test_limit]
-    
-    print(f"🔍 Flux {flux_type}: {len(flux_items)} fichiers ZIP trouvés (sur {len(items_list)} total)")
-    
-    if not flux_items:
-        print(f"   ⚠️ Aucun fichier ZIP trouvé pour le flux {flux_type}")
-        return
-    
-    for encrypted_item in flux_items:
+        
+        if detected_type != flux_type:
+            continue
+            
+        processed_count += 1
         zip_modified = encrypted_item['modification_date']
         zip_name = encrypted_item['file_name']
         
@@ -201,44 +189,36 @@ def sftp_flux_enedis_multi():
     print(f"🌐 Connexion SFTP : {sftp_url}")
     print(f"📁 Pattern de fichiers : {file_pattern}")
     
-    resources = []
-    
-    for flux_type, config in FLUX_CONFIG.items():
-        print(f"🏗️  Création de la ressource pour {flux_type}")
-        
-        # Source filesystem DLT pour SFTP (partagée)
+    def get_flux_resource(flux_type: str):
+        """Générateur pour un type de flux spécifique"""
+        # Source filesystem DLT pour SFTP
         encrypted_files = filesystem(
             bucket_url=sftp_url,
             file_glob=file_pattern
         )
         
-        # Pipeline de transformation spécifique au flux
-        flux_records = encrypted_files | decrypt_extract_flux_specific(flux_type=flux_type)
+        # Appliquer directement la fonction de transformation (sans décorateur)
+        for record in decrypt_extract_flux_logic(encrypted_files, flux_type):
+            yield record
+    
+    # Créer une ressource pour chaque type de flux (pattern de la doc officielle)
+    for flux_type, config in FLUX_CONFIG.items():
+        print(f"🏗️  Création de la ressource pour {flux_type}")
         
-        # Configuration DLT par flux
-        flux_records = flux_records.with_name(f"flux_{flux_type.lower()}")
+        resource_name = f"flux_{flux_type.lower()}"
         
-        # Déterminer la clé primaire selon le type de flux
-        if flux_type in ['R15', 'R151', 'R15_ACC']:
-            # Flux de relevés : PDL + Date
-            primary_key = ["pdl", "Date_Releve", "_xml_name"]  # Ajouter xml_name pour éviter doublons
-        elif flux_type in ['F12', 'F15']:
-            # Flux de facturation : PDL + Facture + Element valorisé
-            primary_key = ["pdl", "Num_Facture", "Id_EV"] 
-        else:  # C15
-            # Flux contractuels : PDL + Date événement + source pour éviter doublons
-            primary_key = ["pdl", "Date_Evenement", "_xml_name"]
-        
-        # Appliquer les hints DLT - désactiver primary_key pour debug
-        flux_records.apply_hints(
-            # primary_key=primary_key,  # Désactivé temporairement pour debug
-            write_disposition="replace",  # Replace pour éviter erreur primary_key
-            # incremental=dlt.sources.incremental("_zip_modified")  # Désactivé temporairement
+        # Utiliser dlt.resource() pour créer la ressource avec un nom unique
+        resource = dlt.resource(
+            get_flux_resource(flux_type), 
+            name=resource_name
         )
         
-        resources.append(flux_records)
-    
-    return resources
+        # Appliquer l'incrémental comme dans le code original
+        resource.apply_hints(
+            incremental=dlt.sources.incremental("_zip_modified")
+        )
+        
+        yield resource
 
 
 def run_sftp_multi_pipeline():
