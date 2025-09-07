@@ -15,7 +15,7 @@ from xml_to_dict import xml_to_dict
 
 # Configuration
 ETL_DIR = Path(__file__).parent
-CONFIG_FILE = ETL_DIR / "simple_flux.yaml"
+CONFIG_FILE = ETL_DIR / "flux.yaml"
 
 # Charger la configuration YAML
 with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
@@ -43,33 +43,6 @@ def load_aes_credentials() -> tuple[bytes, bytes]:
         raise ValueError(f"Erreur chargement clés AES depuis secrets: {e}")
 
 
-def should_process_zip(zip_name: str, flux_type: str) -> bool:
-    """
-    Détermine si un ZIP doit être traité pour ce type de flux.
-    
-    Args:
-        zip_name: Nom du fichier ZIP
-        flux_type: Type de flux attendu (C15, R15, etc.)
-    
-    Returns:
-        bool: True si le ZIP correspond au type de flux
-    """
-    detected_type = detect_flux_type_from_zip_name(zip_name)
-    return detected_type == flux_type
-
-
-def create_zip_key(zip_name: str, modified_date: str) -> str:
-    """
-    Crée une clé unique pour éviter les doublons.
-    
-    Args:
-        zip_name: Nom du fichier ZIP
-        modified_date: Date de modification du fichier
-    
-    Returns:
-        str: Clé unique basée sur nom + date de modification
-    """
-    return f"{zip_name}_{modified_date}"
 
 
 def match_xml_pattern(xml_name: str, pattern: str | None) -> bool:
@@ -105,20 +78,6 @@ def match_xml_pattern(xml_name: str, pattern: str | None) -> bool:
             return False
 
 
-def should_process_xml(xml_name: str, flux_config: dict) -> bool:
-    """
-    Détermine si un XML doit être traité selon la configuration.
-    
-    Args:
-        xml_name: Nom du fichier XML
-        flux_config: Configuration du flux
-    
-    Returns:
-        bool: True si le XML doit être traité
-    """
-    file_regex = flux_config.get('file_regex')
-    return match_xml_pattern(xml_name, file_regex)
-
 
 def decrypt_file_aes(encrypted_data: bytes, key: bytes, iv: bytes) -> bytes:
     """
@@ -136,27 +95,6 @@ def decrypt_file_aes(encrypted_data: bytes, key: bytes, iv: bytes) -> bytes:
     return decrypted_data
 
 
-def detect_flux_type_from_zip_name(zip_name: str) -> str:
-    """
-    Détecte le type de flux selon le nom du fichier ZIP.
-    Basé sur les conventions Enedis.
-    """
-    zip_name_upper = zip_name.upper()
-    
-    if '_C15_' in zip_name_upper or '_C12_' in zip_name_upper:
-        return 'C15'  # C12 et C15 sont traités de la même façon
-    elif '_R151_' in zip_name_upper:
-        return 'R151'
-    elif '_R15_' in zip_name_upper and '_ACC' not in zip_name_upper:
-        return 'R15'
-    elif '_F12_' in zip_name_upper:
-        return 'F12'
-    elif '_F15_' in zip_name_upper:
-        return 'F15'
-    elif '_ACC' in zip_name_upper or 'ACC_' in zip_name_upper:
-        return 'R15_ACC'
-    else:
-        return 'UNKNOWN'
 
 
 def extract_xml_files_from_zip(zip_data: bytes) -> list[tuple[str, bytes]]:
@@ -211,9 +149,6 @@ def process_xml_content(
     # Créer un objet file-like en mémoire
     xml_file = io.BytesIO(xml_content)
     
-    # Utiliser xml_to_dict avec l'objet file-like
-    # Note: xml_to_dict doit être modifié pour accepter un file-like object
-    # ou on peut créer une version xml_to_dict_from_bytes
     for record in xml_to_dict_from_bytes(
         xml_content,
         row_level=flux_config['row_level'],
@@ -348,9 +283,9 @@ def enrich_record(
     enriched = record.copy()
     enriched.update({
         '_source_zip': zip_name,
-        '_zip_modified': zip_modified,
         '_flux_type': flux_type,
-        '_xml_name': xml_name
+        '_xml_name': xml_name,
+        'modification_date': zip_modified  # Pour l'incrémental DLT et traçabilité
     })
     return enriched
 
@@ -393,7 +328,7 @@ def log_error(zip_name: str, error: Exception):
 def process_flux_items(
     items: Iterator[FileItemDict],
     flux_type: str,
-    flux_config: dict,
+    xml_config: dict,
     aes_key: bytes,
     aes_iv: bytes
 ) -> Iterator[dict]:
@@ -403,27 +338,16 @@ def process_flux_items(
     Args:
         items: Itérateur des fichiers SFTP
         flux_type: Type de flux à traiter
-        flux_config: Configuration du flux
+        xml_config: Configuration XML spécifique 
         aes_key: Clé AES (injectée)
         aes_iv: IV AES (injecté)
     
     Yields:
         dict: Enregistrements enrichis avec métadonnées
     """
-    processed_zips = set()
     total_records = 0
     
     for encrypted_item in items:
-        # 1. Filtrage par type de flux
-        if not should_process_zip(encrypted_item['file_name'], flux_type):
-            continue
-        
-        # 2. Déduplication
-        zip_key = create_zip_key(encrypted_item['file_name'], encrypted_item['modification_date'])
-        if zip_key in processed_zips:
-            continue
-        processed_zips.add(zip_key)
-        
         # Log de début de traitement
         log_processing_info(flux_type, encrypted_item['file_name'], 0)
         zip_records = 0
@@ -438,18 +362,18 @@ def process_flux_items(
             
             # 5. Traitement de chaque XML
             for xml_name, xml_content in xml_files:
-                # Filtrer par regex si configuré
-                if not should_process_xml(xml_name, flux_config):
+                # Filtrer par file_regex de la xml_config
+                if not match_xml_pattern(xml_name, xml_config.get('file_regex')):
                     continue
                 
                 xml_record_count = 0
                 # Parser avec lxml directement depuis bytes
                 for record in xml_to_dict_from_bytes(
                     xml_content,
-                    row_level=flux_config['row_level'],
-                    metadata_fields=flux_config.get('metadata_fields', {}),
-                    data_fields=flux_config.get('data_fields', {}),
-                    nested_fields=flux_config.get('nested_fields', [])
+                    row_level=xml_config['row_level'],
+                    metadata_fields=xml_config.get('metadata_fields', {}),
+                    data_fields=xml_config.get('data_fields', {}),
+                    nested_fields=xml_config.get('nested_fields', [])
                 ):
                     # Enrichir avec métadonnées de traçabilité
                     enriched_record = enrich_record(
@@ -519,19 +443,20 @@ def sftp_flux_enedis_multi():
     aes_key, aes_iv = load_aes_credentials()
     print(f"🔐 Clés AES chargées: {len(aes_key)} bytes")
     
-    def get_flux_resource(flux_type: str, flux_config: dict):
+    def get_xml_config_resource(flux_type: str, xml_config: dict, zip_pattern: str):
         """
-        Générateur optimisé pour un type de flux spécifique.
+        Générateur optimisé pour une config XML spécifique.
         Les clés AES sont injectées (chargées une seule fois).
         Incrémental appliqué au niveau filesystem pour éviter de télécharger les anciens fichiers.
         """
-        # Source filesystem DLT pour SFTP avec incrémental
+        # Source filesystem DLT pour SFTP avec incrémental et pattern spécifique
+        print(f"🔍 Recherche fichiers pour {xml_config['name']}: {sftp_url} avec pattern {zip_pattern}")
         encrypted_files = filesystem(
             bucket_url=sftp_url,
-            file_glob=file_pattern
-        )
+            file_glob=zip_pattern  # Utiliser le zip_pattern du flux
+        ).with_name(f"filesystem_{flux_type.lower()}")  # Nom unique par flux
         
-        # Appliquer l'incrémental sur la date de modification du filesystem
+        # Appliquer l'incrémental sur la date de modification du fichier filesystem
         encrypted_files.apply_hints(
             incremental=dlt.sources.incremental("modification_date")
         )
@@ -540,27 +465,45 @@ def sftp_flux_enedis_multi():
         for record in process_flux_items(
             encrypted_files, 
             flux_type, 
-            flux_config, 
+            xml_config,  # Passer la xml_config spécifique 
             aes_key, 
             aes_iv
         ):
             yield record
     
-    # Créer une ressource pour chaque type de flux (pattern de la doc officielle)
-    for flux_type, config in FLUX_CONFIG.items():
-        print(f"🏗️  Création de la ressource pour {flux_type}")
+    # Créer une ressource pour chaque xml_config (nouvelle architecture)
+    print("=" * 80)
+    print("🚀 CRÉATION DES RESSOURCES DLT")
+    print("=" * 80)
+    
+    for flux_type, flux_config in FLUX_CONFIG.items():
+        zip_pattern = flux_config['zip_pattern']
+        xml_configs = flux_config['xml_configs']
         
-        resource_name = f"flux_{flux_type.lower()}"
+        print(f"\n🏗️  FLUX {flux_type}: {len(xml_configs)} config(s) XML")
+        print(f"   📁 Zip pattern: {zip_pattern}")
         
-        # Utiliser dlt.resource() avec les dépendances injectées
-        resource = dlt.resource(
-            get_flux_resource(flux_type, config), 
-            name=resource_name
-        )
-        
-        # L'incrémental est maintenant appliqué sur le filesystem directement
-        
-        yield resource
+        for xml_config in xml_configs:
+            config_name = xml_config['name']
+            print(f"   📄 Création ressource: {config_name} (file_regex: {xml_config.get('file_regex', '*')})")
+            
+            try:
+                # Utiliser dlt.resource() avec les dépendances injectées
+                resource = dlt.resource(
+                    get_xml_config_resource(flux_type, xml_config, zip_pattern), 
+                    name=config_name  # Utiliser le nom de la config XML comme nom de table
+                )
+                
+                print(f"   ✅ Ressource {config_name} créée avec succès")
+                yield resource
+                
+            except Exception as e:
+                print(f"   ❌ ERREUR création ressource {config_name}: {e}")
+                raise
+    
+    print("\n" + "=" * 80)
+    print("✅ TOUTES LES RESSOURCES CRÉÉES")
+    print("=" * 80)
 
 
 def run_sftp_multi_pipeline():

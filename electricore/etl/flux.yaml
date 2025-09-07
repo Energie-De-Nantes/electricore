@@ -1,0 +1,232 @@
+C15:
+  zip_pattern: "**/*_C15_*.zip"
+  xml_configs:
+    - name: "flux_c15"
+      file_regex: "*_C15_*.xml"
+      row_level: './/PRM'
+      metadata_fields: {}
+      data_fields:
+        pdl: Id_PRM
+        
+        segment_clientele: Segment_Clientele
+        num_depannage: Num_Depannage
+        
+        categorie: Situation_Contractuelle/Titulaire_Contrat/Categorie
+        etat_contractuel: Situation_Contractuelle/Etat_Contractuel
+        ref_situation_contractuelle: Situation_Contractuelle/Ref_Situation_Contractuelle
+
+        puissance_souscrite: Situation_Contractuelle/Structure_Tarifaire/Puissance_Souscrite
+        formule_tarifaire_acheminement: Situation_Contractuelle/Structure_Tarifaire/Formule_Tarifaire_Acheminement
+
+        type_compteur: Dispositif_De_Comptage/Compteur/Type
+        num_compteur: Dispositif_De_Comptage/Compteur/Num_Serie
+
+        date_derniere_modification_fta: Date_Derniere_Modification_FTA
+        
+        evenement_declencheur: Evenement_Declencheur/Nature_Evenement
+        type_evenement: Evenement_Declencheur/Type_Evenement
+        date_evenement: Evenement_Declencheur/Date_Evenement
+        ref_demandeur: Evenement_Declencheur/Ref_Demandeur
+        id_affaire: Evenement_Declencheur/Id_Affaire
+
+      nested_fields:
+        - prefix: 'avant_'
+          child_path: 'Evenement_Declencheur/Releves/Donnees_Releve/Classe_Temporelle_Distributeur'
+          id_field: 'Id_Classe_Temporelle'
+          value_field: 'Valeur'
+          conditions:
+            - xpath: '../Code_Qualification'
+              value: '1'
+            - xpath: 'Classe_Mesure'
+              value: '1'
+            - xpath: 'Sens_Mesure'
+              value: '0'
+          additional_fields:
+            date_releve: '../Date_Releve'
+            nature_index: '../Nature_Index'
+            id_calendrier_distributeur: '../Id_Calendrier_Distributeur'
+            id_calendrier_fournisseur: '../Id_Calendrier'
+
+        - prefix: 'apres_'
+          child_path: 'Evenement_Declencheur/Releves/Donnees_Releve/Classe_Temporelle_Distributeur'
+          id_field: 'Id_Classe_Temporelle'
+          value_field: 'Valeur'
+          conditions:
+            - xpath: '../Code_Qualification'
+              value: '2'
+            - xpath: 'Classe_Mesure'
+              value: '1'
+            - xpath: 'Sens_Mesure'
+              value: '0'
+          additional_fields:
+            date_releve: '../Date_Releve'
+            nature_index: '../Nature_Index'
+            id_calendrier_distributeur: '../Id_Calendrier_Distributeur'
+            id_calendrier_fournisseur: '../Id_Calendrier'
+
+F12:
+  zip_pattern: "**/*_F12_*.zip"
+  xml_configs:
+    - name: "flux_f12"
+      file_regex: 'FL_\d+_\d+\.xml'
+      row_level: './/Element_Valorise'
+      metadata_fields:
+        flux: 'En_Tete_Flux/Identifiant_Flux'
+        num_facture: 'Rappel_En_Tete/Num_Facture'
+        date_facture: 'Rappel_En_Tete/Date_Facture'
+      data_fields:
+        num_sous_lot: '../Num_Sous_Lot'
+        type_facturation: '../Type_Facturation'
+        motif_rectif: '../Motif_Rectif'
+
+        pdl: '../Id_PRM'
+        type_prm: '../Type_PRM'
+        code_segmentation_erdf: '../Code_Segmentation_ERDF'
+        
+        puissance_ponderee: '../Puissance_Ponderee'
+        autoproducteur: '../Autoproducteur'
+        tarif_souscrit: '../Tarif_Souscrit'
+        id_ev: 'Id_EV'
+        libelle_ev: 'Libelle_EV'
+        code_recapitulatif: 'Code_Recapitulatif'
+
+        cspe_applicable: 'CSPE_Applicable'
+        taux_tva_applicable: 'Taux_TVA_Applicable'
+        code_debit_credit: 'Code_Debit_Credit'
+
+        date_debut: 'Acheminement/Date_Debut'
+        date_fin: 'Acheminement/Date_Fin'
+
+        unite: 'Acheminement/Unite_Quantite'
+        quantite: 'Acheminement/Quantite'
+        prix_unitaire: 'Acheminement/Prix_Unitaire'
+        montant_ht: 'Acheminement/Montant_HT'
+        
+      nested_fields: []
+
+F15:
+  zip_pattern: "**/*_F15_*.zip"
+  xml_configs:
+    - name: "flux_f15_detail"
+      file_regex: 'FL_\d+_\d+\.xml'
+      row_level: './/Element_Valorise'
+      metadata_fields:
+        flux: 'En_Tete_Flux/Identifiant_Flux'
+        num_facture: 'Rappel_En_Tete/Num_Facture'
+        date_facture: 'Rappel_En_Tete/Date_Facture'
+      data_fields:
+        type_facturation: '../../Type_Facturation'
+        pdl: '../../Donnees_PRM/Id_PRM'
+        id_ev: 'Id_EV'
+        nature_ev: '../Nature_EV'
+        taux_tva_applicable: 'Taux_TVA_Applicable'
+        formule_tarifaire_acheminement: 'Formule_Tarifaire_Acheminement'
+        unite: 'Unite_Quantite'
+        prix_unitaire: 'Prix_Unitaire'
+        quantite: 'Quantite'
+        montant_ht: 'Montant_HT'
+        date_debut: 'Date_Debut'
+        date_fin: 'Date_Fin'
+        libelle_ev: 'Libelle_EV'
+      nested_fields: []
+    # - name: "flux_f15_resume"  # À activer plus tard
+    #   file_regex: 'FA_\d+_\d+\.xml'
+    #   row_level: './/Ligne_Comptable'
+    #   metadata_fields: {}
+    #   data_fields: {}
+    #   nested_fields: []
+
+R15:
+  zip_pattern: "**/*_R15_*.zip"
+  xml_configs:
+    - name: "flux_r15"
+      file_regex: "*.xml"  # Tous les XML R15 - traitement standard
+      row_level: './/PRM'
+      metadata_fields:
+        unite: 'En_Tete_Flux/Unite_Mesure_Index'
+      data_fields:
+        date_releve: 'Donnees_Releve/Date_Releve'
+        pdl: 'Id_PRM'
+        id_calendrier: 'Donnees_Releve/Id_Calendrier'
+        ref_situation_contractuelle: 'Donnees_Releve/Ref_Situation_Contractuelle'
+        type_compteur: 'Donnees_Releve/Type_Compteur'
+        motif_releve: 'Donnees_Releve/Motif_Releve'
+        ref_demandeur: 'Donnees_Releve/Ref_Demandeur'
+        id_affaire: 'Donnees_Releve/Id_Affaire'
+      nested_fields:
+        - prefix: ''
+          child_path: 'Donnees_Releve/Classe_Temporelle_Distributeur'
+          id_field: 'Id_Classe_Temporelle'
+          value_field: 'Valeur'
+    
+    - name: "flux_r15_acc"
+      file_regex: "*.xml"  # Même fichiers XML - traitement autoconsommation collective
+      row_level: './/PRM'
+      metadata_fields:
+        unite: 'En_Tete_Flux/Unite_Mesure_Index'
+      data_fields:
+        pdl: 'Id_PRM'
+        date_releve: 'Donnees_Releve/Date_Releve'
+        id_calendrier: 'Donnees_Releve/Id_Calendrier'
+        id_calendrier_distributeur: 'Donnees_Releve/Id_Calendrier_Distributeur'
+        ref_situation_contractuelle: 'Donnees_Releve/Ref_Situation_Contractuelle'
+        type_compteur: 'Donnees_Releve/Type_Compteur'
+        motif_releve: 'Donnees_Releve/Motif_Releve'
+        id_affaire: 'Donnees_Releve/Id_Affaire'
+        nature_index: 'Donnees_Releve/Nature_Index'
+        statut_releve: 'Donnees_Releve/Statut_Releve'
+        autoconsommation_collective: 'Donnees_Releve/Autoconsommation_Collective'
+      nested_fields:
+        # Classe 3 - Énergie active autoproduite
+        - prefix: 'ea_autoproduite_'
+          child_path: 'Donnees_Releve/Classe_Temporelle_Distributeur'
+          id_field: 'Id_Classe_Temporelle'
+          value_field: 'Valeur'
+          conditions:
+            - xpath: 'Classe_Mesure'
+              value: '3'
+        # Classe 4 - Énergie active alloproduite
+        - prefix: 'ea_alloproduite_'
+          child_path: 'Donnees_Releve/Classe_Temporelle_Distributeur'
+          id_field: 'Id_Classe_Temporelle'
+          value_field: 'Valeur'
+          conditions:
+            - xpath: 'Classe_Mesure'
+              value: '4'
+        # Classe 5 - Énergie active autoconsommée
+        - prefix: 'ea_autoconsommee_'
+          child_path: 'Donnees_Releve/Classe_Temporelle_Distributeur'
+          id_field: 'Id_Classe_Temporelle'
+          value_field: 'Valeur'
+          conditions:
+            - xpath: 'Classe_Mesure'
+              value: '5'
+        # Classe 6 - Énergie active en surplus
+        - prefix: 'ea_surplus_'
+          child_path: 'Donnees_Releve/Classe_Temporelle_Distributeur'
+          id_field: 'Id_Classe_Temporelle'
+          value_field: 'Valeur'
+          conditions:
+            - xpath: 'Classe_Mesure'
+              value: '6'
+
+R151:
+  zip_pattern: "**/*_R151_*.zip"
+  xml_configs:
+    - name: "flux_r151"
+      file_regex: "*.xml"  # Tous les XML R151
+      row_level: './/PRM'
+      metadata_fields:
+        unite: 'En_Tete_Flux/Unite_Mesure_Index'
+      data_fields:
+        date_releve: 'Donnees_Releve/Date_Releve'
+        pdl: 'Id_PRM'
+        id_calendrier_fournisseur: 'Donnees_Releve/Id_Calendrier_Fournisseur'
+        id_affaire: 'Donnees_Releve/Id_Affaire'
+        id_calendrier_distributeur: 'Donnees_Releve/Id_Calendrier_Distributeur'
+      nested_fields:
+        - prefix: ''
+          child_path: 'Donnees_Releve/Classe_Temporelle_Distributeur'
+          id_field: 'Id_Classe_Temporelle'
+          value_field: 'Valeur'
+
