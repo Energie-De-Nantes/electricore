@@ -24,6 +24,102 @@ with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
 print(f"📋 Configuration chargée pour {len(FLUX_CONFIG)} types de flux: {list(FLUX_CONFIG.keys())}")
 
 
+def load_aes_credentials() -> tuple[bytes, bytes]:
+    """
+    Charge les clés AES depuis les secrets DLT.
+    
+    Returns:
+        Tuple[bytes, bytes]: (aes_key, aes_iv)
+    
+    Raises:
+        ValueError: Si les clés AES ne peuvent pas être chargées
+    """
+    try:
+        aes_config = dlt.secrets['aes']
+        aes_key = bytes.fromhex(aes_config['key'])
+        aes_iv = bytes.fromhex(aes_config['iv'])
+        return aes_key, aes_iv
+    except Exception as e:
+        raise ValueError(f"Erreur chargement clés AES depuis secrets: {e}")
+
+
+def should_process_zip(zip_name: str, flux_type: str) -> bool:
+    """
+    Détermine si un ZIP doit être traité pour ce type de flux.
+    
+    Args:
+        zip_name: Nom du fichier ZIP
+        flux_type: Type de flux attendu (C15, R15, etc.)
+    
+    Returns:
+        bool: True si le ZIP correspond au type de flux
+    """
+    detected_type = detect_flux_type_from_zip_name(zip_name)
+    return detected_type == flux_type
+
+
+def create_zip_key(zip_name: str, modified_date: str) -> str:
+    """
+    Crée une clé unique pour éviter les doublons.
+    
+    Args:
+        zip_name: Nom du fichier ZIP
+        modified_date: Date de modification du fichier
+    
+    Returns:
+        str: Clé unique basée sur nom + date de modification
+    """
+    return f"{zip_name}_{modified_date}"
+
+
+def match_xml_pattern(xml_name: str, pattern: str | None) -> bool:
+    """
+    Vérifie si un nom de fichier XML correspond au pattern (wildcard ou regex).
+    
+    Args:
+        xml_name: Nom du fichier XML
+        pattern: Pattern wildcard (*,?) ou regex, ou None
+    
+    Returns:
+        bool: True si le fichier match (ou si pas de pattern)
+    """
+    if pattern is None:
+        return True  # Pas de pattern = accepte tout
+    
+    import re
+    import fnmatch
+    
+    try:
+        # Si le pattern contient des wildcards (* ou ?), utiliser fnmatch
+        if '*' in pattern or '?' in pattern:
+            return fnmatch.fnmatch(xml_name, pattern)
+        else:
+            # Sinon, traiter comme regex
+            return bool(re.search(pattern, xml_name))
+    except re.error:
+        # En cas d'erreur regex, essayer comme wildcard en fallback
+        try:
+            return fnmatch.fnmatch(xml_name, pattern)
+        except Exception:
+            print(f"⚠️ Pattern invalide '{pattern}' pour {xml_name}")
+            return False
+
+
+def should_process_xml(xml_name: str, flux_config: dict) -> bool:
+    """
+    Détermine si un XML doit être traité selon la configuration.
+    
+    Args:
+        xml_name: Nom du fichier XML
+        flux_config: Configuration du flux
+    
+    Returns:
+        bool: True si le XML doit être traité
+    """
+    file_regex = flux_config.get('file_regex')
+    return match_xml_pattern(xml_name, file_regex)
+
+
 def decrypt_file_aes(encrypted_data: bytes, key: bytes, iv: bytes) -> bytes:
     """
     Déchiffre les données avec AES-CBC.
@@ -63,114 +159,343 @@ def detect_flux_type_from_zip_name(zip_name: str) -> str:
         return 'UNKNOWN'
 
 
-def decrypt_extract_flux_logic(items: Iterator[FileItemDict], flux_type: str) -> Iterator[dict]:
+def extract_xml_files_from_zip(zip_data: bytes) -> list[tuple[str, bytes]]:
     """
-    Transformer spécifique à un type de flux qui :
-    1. Filtre les ZIPs correspondant au flux_type
-    2. Déchiffre les fichiers ZIP avec AES-CBC
-    3. Extrait et traite les XMLs correspondant au flux_type
+    Extrait les fichiers XML d'un ZIP en mémoire.
+    
+    Args:
+        zip_data: Contenu du fichier ZIP
+    
+    Returns:
+        List[Tuple[str, bytes]]: Liste de (nom_fichier, contenu_xml)
+    
+    Raises:
+        zipfile.BadZipFile: Si le ZIP est corrompu
     """
-    # Récupérer les clés AES depuis les secrets DLT
-    try:
-        aes_config = dlt.secrets['aes']
-        aes_key = bytes.fromhex(aes_config['key'])
-        aes_iv = bytes.fromhex(aes_config['iv'])
-    except Exception as e:
-        raise ValueError(f"Erreur chargement clés AES depuis secrets: {e}")
+    import io
+    import zipfile
     
-    # Configuration pour ce type de flux
-    config = FLUX_CONFIG[flux_type]
+    xml_files = []
     
+    with zipfile.ZipFile(io.BytesIO(zip_data), 'r') as zip_ref:
+        for file_info in zip_ref.filelist:
+            if file_info.filename.lower().endswith('.xml') and not file_info.is_dir():
+                try:
+                    xml_content = zip_ref.read(file_info.filename)
+                    xml_files.append((file_info.filename, xml_content))
+                except Exception as e:
+                    print(f"⚠️ Erreur lecture XML {file_info.filename}: {e}")
+                    continue
+    
+    return xml_files
+
+
+def process_xml_content(
+    xml_content: bytes,
+    xml_name: str,
+    flux_config: dict
+) -> Iterator[dict]:
+    """
+    Transforme le contenu XML en enregistrements selon la configuration.
+    
+    Args:
+        xml_content: Contenu binaire du fichier XML
+        xml_name: Nom du fichier XML
+        flux_config: Configuration du flux
+    
+    Yields:
+        dict: Enregistrements extraits du XML
+    """
+    import io
+    
+    # Créer un objet file-like en mémoire
+    xml_file = io.BytesIO(xml_content)
+    
+    # Utiliser xml_to_dict avec l'objet file-like
+    # Note: xml_to_dict doit être modifié pour accepter un file-like object
+    # ou on peut créer une version xml_to_dict_from_bytes
+    for record in xml_to_dict_from_bytes(
+        xml_content,
+        row_level=flux_config['row_level'],
+        metadata_fields=flux_config.get('metadata_fields', {}),
+        data_fields=flux_config.get('data_fields', {}),
+        nested_fields=flux_config.get('nested_fields', [])
+    ):
+        yield record
+
+
+def xml_to_dict_from_bytes(
+    xml_bytes: bytes,
+    row_level: str,
+    metadata_fields: dict = None,
+    data_fields: dict = None,
+    nested_fields: list = None
+) -> Iterator[dict]:
+    """
+    Version lxml de xml_to_dict qui parse directement des bytes - SANS écriture disque.
+    
+    Args:
+        xml_bytes: Contenu XML en bytes
+        row_level: XPath pour les lignes
+        metadata_fields: Champs de métadonnées
+        data_fields: Champs de données
+        nested_fields: Champs imbriqués
+    
+    Yields:
+        dict: Enregistrements extraits
+    """
+    from lxml import etree
+    from typing import Any
+    
+    # Initialiser les paramètres par défaut
+    metadata_fields = metadata_fields or {}
+    data_fields = data_fields or {}
+    nested_fields = nested_fields or []
+    
+    # Parser directement depuis bytes avec lxml - très efficace !
+    root = etree.fromstring(xml_bytes)
+
+    # Extraire les métadonnées une seule fois avec XPath
+    meta: dict[str, str] = {}
+    for field_name, field_xpath in metadata_fields.items():
+        elements = root.xpath(field_xpath)
+        if elements and hasattr(elements[0], 'text') and elements[0].text:
+            meta[field_name] = elements[0].text
+
+    # Parcourir chaque ligne avec XPath (plus puissant qu'ElementTree)
+    for row in root.xpath(row_level):
+        # Extraire les champs de données principaux avec XPath relatif
+        row_data: dict[str, Any] = {}
+        
+        for field_name, field_xpath in data_fields.items():
+            elements = row.xpath(field_xpath)
+            if elements and hasattr(elements[0], 'text') and elements[0].text:
+                row_data[field_name] = elements[0].text
+        
+        # Extraire les champs imbriqués avec conditions (logique identique à xml_to_dict)
+        for nested in nested_fields:
+            prefix = nested.get('prefix', '')
+            child_path = nested['child_path']
+            id_field = nested['id_field'] 
+            value_field = nested['value_field']
+            conditions = nested.get('conditions', [])
+            additional_fields = nested.get('additional_fields', {})
+
+            # Parcourir les éléments enfants avec XPath
+            for nr in row.xpath(child_path):
+                # Vérifier toutes les conditions
+                all_conditions_met = True
+                
+                for cond in conditions:
+                    cond_xpath = cond['xpath']
+                    cond_value = cond['value']
+                    cond_elements = nr.xpath(cond_xpath)
+                    
+                    if not cond_elements or not hasattr(cond_elements[0], 'text') or cond_elements[0].text != cond_value:
+                        all_conditions_met = False
+                        break
+                
+                # Si toutes les conditions sont remplies
+                if all_conditions_met:
+                    key_elements = nr.xpath(id_field)
+                    value_elements = nr.xpath(value_field)
+                    
+                    if (key_elements and value_elements and 
+                        hasattr(key_elements[0], 'text') and hasattr(value_elements[0], 'text') and
+                        key_elements[0].text and value_elements[0].text):
+                        
+                        # Ajouter la valeur principale avec préfixe
+                        field_key = f"{prefix}{key_elements[0].text}"
+                        row_data[field_key] = value_elements[0].text
+                        
+                        # Ajouter les champs additionnels
+                        for add_field_name, add_field_xpath in additional_fields.items():
+                            add_field_key = f"{prefix}{add_field_name}"
+                            
+                            # Éviter d'écraser si déjà présent
+                            if add_field_key not in row_data:
+                                add_elements = nr.xpath(add_field_xpath)
+                                if (add_elements and hasattr(add_elements[0], 'text') and 
+                                    add_elements[0].text):
+                                    row_data[add_field_key] = add_elements[0].text
+        
+        # Fusionner métadonnées et données de ligne
+        final_record = {**row_data, **meta}
+        
+        yield final_record
+
+
+def enrich_record(
+    record: dict,
+    zip_name: str,
+    zip_modified: str,
+    flux_type: str,
+    xml_name: str
+) -> dict:
+    """
+    Ajoute les métadonnées de traçabilité à un enregistrement.
+    
+    Args:
+        record: Enregistrement à enrichir
+        zip_name: Nom du fichier ZIP source
+        zip_modified: Date de modification du ZIP
+        flux_type: Type de flux
+        xml_name: Nom du fichier XML source
+    
+    Returns:
+        dict: Nouvel enregistrement enrichi (copie)
+    """
+    enriched = record.copy()
+    enriched.update({
+        '_source_zip': zip_name,
+        '_zip_modified': zip_modified,
+        '_flux_type': flux_type,
+        '_xml_name': xml_name
+    })
+    return enriched
+
+
+def read_sftp_file(encrypted_item) -> bytes:
+    """
+    Lit le contenu d'un fichier depuis SFTP.
+    
+    Args:
+        encrypted_item: Item FileItemDict de DLT
+    
+    Returns:
+        bytes: Contenu du fichier
+    """
+    with encrypted_item.open() as f:
+        return f.read()
+
+
+def log_processing_info(flux_type: str, zip_name: str, record_count: int):
+    """Log les informations de traitement."""
+    print(f"🔐 {flux_type}: Déchiffrement de {zip_name}")
+    if record_count > 0:
+        print(f"📊 {flux_type} - {zip_name}: {record_count} enregistrements")
+
+
+def log_xml_info(xml_name: str, record_count: int):
+    """Log les informations de traitement XML."""
+    if record_count > 0:
+        print(f"   ✅ {xml_name}: {record_count} enregistrements")
+
+
+def log_error(zip_name: str, error: Exception):
+    """Log les erreurs de traitement."""
+    if isinstance(error, zipfile.BadZipFile):
+        print(f"❌ ZIP corrompu {zip_name}: {error}")
+    else:
+        print(f"❌ Erreur {zip_name}: {error}")
+
+
+def process_flux_items(
+    items: Iterator[FileItemDict],
+    flux_type: str,
+    flux_config: dict,
+    aes_key: bytes,
+    aes_iv: bytes
+) -> Iterator[dict]:
+    """
+    Orchestrateur principal refactorisé avec fonctions pures.
+    
+    Args:
+        items: Itérateur des fichiers SFTP
+        flux_type: Type de flux à traiter
+        flux_config: Configuration du flux
+        aes_key: Clé AES (injectée)
+        aes_iv: IV AES (injecté)
+    
+    Yields:
+        dict: Enregistrements enrichis avec métadonnées
+    """
     processed_zips = set()
     total_records = 0
     
-    # Filtrer et traiter les ZIPs pour ce type de flux
-    processed_count = 0
-    
     for encrypted_item in items:
-        zip_name = encrypted_item['file_name']
-        detected_type = detect_flux_type_from_zip_name(zip_name)
-        
-        if detected_type != flux_type:
+        # 1. Filtrage par type de flux
+        if not should_process_zip(encrypted_item['file_name'], flux_type):
             continue
-            
-        processed_count += 1
-        zip_modified = encrypted_item['modification_date']
-        zip_name = encrypted_item['file_name']
         
-        # Éviter les doublons basé sur nom + date de modification
-        zip_key = f"{zip_name}_{zip_modified}"
+        # 2. Déduplication
+        zip_key = create_zip_key(encrypted_item['file_name'], encrypted_item['modification_date'])
         if zip_key in processed_zips:
             continue
         processed_zips.add(zip_key)
         
-        print(f"🔐 {flux_type}: Déchiffrement de {zip_name}")
+        # Log de début de traitement
+        log_processing_info(flux_type, encrypted_item['file_name'], 0)
+        zip_records = 0
         
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_path = Path(temp_dir)
-            zip_records = 0
+        try:
+            # 3. Lecture et déchiffrement
+            encrypted_data = read_sftp_file(encrypted_item)
+            decrypted_data = decrypt_file_aes(encrypted_data, aes_key, aes_iv)
             
-            try:
-                # 1. Lire le fichier chiffré depuis SFTP
-                with encrypted_item.open() as f:
-                    encrypted_data = f.read()
+            # 4. Extraction des XMLs en mémoire
+            xml_files = extract_xml_files_from_zip(decrypted_data)
+            
+            # 5. Traitement de chaque XML
+            for xml_name, xml_content in xml_files:
+                # Filtrer par regex si configuré
+                if not should_process_xml(xml_name, flux_config):
+                    continue
                 
-                # 2. Déchiffrer avec AES-CBC
-                decrypted_data = decrypt_file_aes(encrypted_data, aes_key, aes_iv)
-                
-                # 3. Sauvegarder le ZIP déchiffré temporairement
-                zip_path = temp_path / f"decrypted_{zip_name}"
-                if not zip_path.name.endswith('.zip'):
-                    zip_path = zip_path.with_suffix('.zip')
-                
-                zip_path.write_bytes(decrypted_data)
-                
-                # 4. Extraire le ZIP
-                extract_dir = temp_path / 'extracted'
-                extract_dir.mkdir(exist_ok=True)
-                
-                with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                    zip_ref.extractall(extract_dir)
-                
-                xml_files = list(extract_dir.glob('**/*.xml'))
-                
-                # 5. Traiter chaque XML avec xml_to_dict
-                for xml_path in xml_files:
-                    # Utiliser xml_to_dict avec la config du flux
-                    xml_record_count = 0
-                    for record in xml_to_dict(
-                        xml_path, 
-                        row_level=config['row_level'],
-                        metadata_fields=config.get('metadata_fields', {}),
-                        data_fields=config.get('data_fields', {}),
-                        nested_fields=config.get('nested_fields', [])
-                    ):
-                        xml_record_count += 1
-                        zip_records += 1
-                        total_records += 1
-                        
-                        # Ajouter métadonnées pour traçabilité
-                        record['_source_zip'] = zip_name
-                        record['_zip_modified'] = zip_modified
-                        record['_flux_type'] = flux_type
-                        record['_xml_name'] = xml_path.name
-                        
-                        yield record
+                xml_record_count = 0
+                # Parser avec lxml directement depuis bytes
+                for record in xml_to_dict_from_bytes(
+                    xml_content,
+                    row_level=flux_config['row_level'],
+                    metadata_fields=flux_config.get('metadata_fields', {}),
+                    data_fields=flux_config.get('data_fields', {}),
+                    nested_fields=flux_config.get('nested_fields', [])
+                ):
+                    # Enrichir avec métadonnées de traçabilité
+                    enriched_record = enrich_record(
+                        record,
+                        encrypted_item['file_name'],
+                        encrypted_item['modification_date'],
+                        flux_type,
+                        xml_name
+                    )
                     
-                    if xml_record_count > 0:
-                        print(f"   ✅ {xml_path.name}: {xml_record_count} enregistrements")
+                    xml_record_count += 1
+                    zip_records += 1
+                    total_records += 1
+                    
+                    yield enriched_record
                 
-                if zip_records > 0:
-                    print(f"📊 {flux_type} - {zip_name}: {zip_records} enregistrements")
-                        
-            except zipfile.BadZipFile as e:
-                print(f"❌ ZIP corrompu {zip_name}: {e}")
-                continue
-            except Exception as e:
-                print(f"❌ Erreur {zip_name}: {e}")
-                continue
+                # Log du XML traité
+                log_xml_info(xml_name, xml_record_count)
+            
+            # Log du ZIP traité
+            if zip_records > 0:
+                print(f"📊 {flux_type} - {encrypted_item['file_name']}: {zip_records} enregistrements")
+                
+        except zipfile.BadZipFile as e:
+            log_error(encrypted_item['file_name'], e)
+            continue
+        except Exception as e:
+            log_error(encrypted_item['file_name'], e)
+            continue
     
+    # Log final
     print(f"🎯 {flux_type}: {total_records} enregistrements totaux")
+
+
+# Fonction de compatibilité pour l'ancien nom
+def decrypt_extract_flux_logic(items: Iterator[FileItemDict], flux_type: str) -> Iterator[dict]:
+    """
+    Fonction de compatibilité - utilise l'orchestrateur refactorisé.
+    
+    DEPRECATED: Utiliser process_flux_items() directement avec injection des clés AES.
+    """
+    # Charger les clés AES (approche legacy)
+    aes_key, aes_iv = load_aes_credentials()
+    flux_config = FLUX_CONFIG[flux_type]
+    
+    return process_flux_items(items, flux_type, flux_config, aes_key, aes_iv)
 
 
 @dlt.source
@@ -178,6 +503,7 @@ def sftp_flux_enedis_multi():
     """
     Source DLT multi-ressources pour flux Enedis via SFTP avec déchiffrement AES.
     
+    Version refactorisée avec fonctions pures et injection des clés AES.
     Crée une ressource DLT par type de flux configuré.
     Chaque ressource produit une table séparée.
     """
@@ -189,16 +515,29 @@ def sftp_flux_enedis_multi():
     print(f"🌐 Connexion SFTP : {sftp_url}")
     print(f"📁 Pattern de fichiers : {file_pattern}")
     
-    def get_flux_resource(flux_type: str):
-        """Générateur pour un type de flux spécifique"""
+    # Charger les clés AES une seule fois (optimisation)
+    aes_key, aes_iv = load_aes_credentials()
+    print(f"🔐 Clés AES chargées: {len(aes_key)} bytes")
+    
+    def get_flux_resource(flux_type: str, flux_config: dict):
+        """
+        Générateur optimisé pour un type de flux spécifique.
+        Les clés AES sont injectées (chargées une seule fois).
+        """
         # Source filesystem DLT pour SFTP
         encrypted_files = filesystem(
             bucket_url=sftp_url,
             file_glob=file_pattern
         )
         
-        # Appliquer directement la fonction de transformation (sans décorateur)
-        for record in decrypt_extract_flux_logic(encrypted_files, flux_type):
+        # Utiliser l'orchestrateur refactorisé avec injection des dépendances
+        for record in process_flux_items(
+            encrypted_files, 
+            flux_type, 
+            flux_config, 
+            aes_key, 
+            aes_iv
+        ):
             yield record
     
     # Créer une ressource pour chaque type de flux (pattern de la doc officielle)
@@ -207,13 +546,13 @@ def sftp_flux_enedis_multi():
         
         resource_name = f"flux_{flux_type.lower()}"
         
-        # Utiliser dlt.resource() pour créer la ressource avec un nom unique
+        # Utiliser dlt.resource() avec les dépendances injectées
         resource = dlt.resource(
-            get_flux_resource(flux_type), 
+            get_flux_resource(flux_type, config), 
             name=resource_name
         )
         
-        # Appliquer l'incrémental comme dans le code original
+        # Appliquer l'incrémental pour éviter les doublons
         resource.apply_hints(
             incremental=dlt.sources.incremental("_zip_modified")
         )
