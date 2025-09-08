@@ -20,5 +20,5 @@ max_table_nesting = 1
 
 [extract]
 # Configuration de l'extraction
-workers = 4  # Nombre de workers parallèles
-max_parallel_items = 8  # Max éléments traités en parallèle
+workers = 6  # Nombre de workers parallèles
+max_parallel_items = 12  # Max éléments traités en parallèle
