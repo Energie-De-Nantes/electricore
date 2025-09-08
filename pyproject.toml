@@ -15,7 +15,9 @@ dependencies = [
     "babel (>=2.17.0,<3.0.0)",
     "toolz (>=1.0.0,<2.0.0)",
     "pyarrow (>=21.0.0,<22.0.0)",
-    "dlt[duckdb,sftp] (>=1.15.0,<2.0.0)",
+    "dlt[duckdb] (>=1.15.0,<2.0.0)",
+    "pycryptodome (>=3.23.0,<4.0.0)",
+    "tqdm (>=4.67.1,<5.0.0)",
 ]
 
 
@@ -35,6 +37,7 @@ marimo = ">=0.14.11"
 altair = "^5.5.0"
 plotly = "^6.2.0"
 electriflux = ">=1.1.0, <2.0.0"
+streamlit = "^1.49.1"
 
 [test]
 command = "poetry run pytest -q"
