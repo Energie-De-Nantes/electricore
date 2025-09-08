@@ -308,8 +308,8 @@ def log_processing_info(flux_type: str, zip_name: str, record_count: int):
     """Log les informations de traitement."""
     print(f"🔐 {flux_type}: Déchiffrement de {zip_name}")
     if record_count > 0:
-        print(f"📊 {flux_type} - {zip_name}: {record_count} enregistrements")
-
+        #print(f"📊 {flux_type} - {zip_name}: {record_count} enregistrements")
+        ...
 
 def log_xml_info(xml_name: str, record_count: int):
     """Log les informations de traitement XML."""
@@ -349,7 +349,7 @@ def process_flux_items(
     
     for encrypted_item in items:
         # Log de début de traitement
-        log_processing_info(flux_type, encrypted_item['file_name'], 0)
+        #log_processing_info(flux_type, encrypted_item['file_name'], 0)
         zip_records = 0
         
         try:
@@ -391,12 +391,13 @@ def process_flux_items(
                     yield enriched_record
                 
                 # Log du XML traité
-                log_xml_info(xml_name, xml_record_count)
+                #log_xml_info(xml_name, xml_record_count)
             
             # Log du ZIP traité
             if zip_records > 0:
-                print(f"📊 {flux_type} - {encrypted_item['file_name']}: {zip_records} enregistrements")
-                
+                #print(f"📊 {flux_type} - {encrypted_item['file_name']}: {zip_records} enregistrements")
+                ...
+
         except zipfile.BadZipFile as e:
             log_error(encrypted_item['file_name'], e)
             continue
@@ -422,7 +423,7 @@ def decrypt_extract_flux_logic(items: Iterator[FileItemDict], flux_type: str) ->
     return process_flux_items(items, flux_type, flux_config, aes_key, aes_iv)
 
 
-@dlt.source
+@dlt.source(name="flux_enedis")
 def sftp_flux_enedis_multi():
     """
     Source DLT multi-ressources pour flux Enedis via SFTP avec déchiffrement AES.
@@ -491,7 +492,8 @@ def sftp_flux_enedis_multi():
                 # Utiliser dlt.resource() avec les dépendances injectées
                 resource = dlt.resource(
                     get_xml_config_resource(flux_type, xml_config, zip_pattern), 
-                    name=config_name  # Utiliser le nom de la config XML comme nom de table
+                    name=config_name,  # Utiliser le nom de la config XML comme nom de table
+                    write_disposition="append"  # Données stateless : append seulement
                 )
                 
                 print(f"   ✅ Ressource {config_name} créée avec succès")
@@ -515,9 +517,9 @@ def run_sftp_multi_pipeline():
     
     # Créer le pipeline DLT
     pipeline = dlt.pipeline(
-        pipeline_name="flux_enedis_sftp_multi",
+        pipeline_name="flux_enedis",
         destination="duckdb",
-        dataset_name="enedis_multi"
+        dataset_name="enedis_multi",
     )
     
     try:
@@ -546,7 +548,7 @@ def verify_multi_results():
     
     try:
         import duckdb
-        conn = duckdb.connect('flux_enedis_sftp_multi.duckdb')
+        conn = duckdb.connect('flux_enedis.duckdb')
         
         # Lister les tables créées
         tables = conn.execute(
@@ -564,7 +566,7 @@ def verify_multi_results():
         for table_name, in tables:
             try:
                 count = conn.execute(f"SELECT COUNT(*) FROM enedis_multi.{table_name}").fetchone()[0]
-                print(f"   📊 {table_name}: {count:,} enregistrements")
+                #print(f"   📊 {table_name}: {count:,} enregistrements")
                 total_records += count
                 
                 # Statistiques par ZIP source pour les tables de flux
