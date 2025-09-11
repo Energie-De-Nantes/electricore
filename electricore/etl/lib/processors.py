@@ -8,7 +8,7 @@ from typing import Iterator
 from dlt.sources.filesystem import FileItemDict
 
 from lib.crypto import decrypt_file_aes
-from lib.transformers import extract_xml_files_from_zip, enrich_record
+from lib.transformers import extract_files_from_zip, enrich_record
 from lib.xml_parser import match_xml_pattern, xml_to_dict_from_bytes
 
 
@@ -57,7 +57,7 @@ def process_flux_items(
             decrypted_data = decrypt_file_aes(encrypted_data, aes_key, aes_iv)
             
             # 2. Extraction des XMLs en mémoire
-            xml_files = extract_xml_files_from_zip(decrypted_data)
+            xml_files = extract_files_from_zip(decrypted_data, '.xml')
             
             # 3. Traitement de chaque XML
             for xml_name, xml_content in xml_files:

@@ -230,3 +230,11 @@ R151:
           id_field: 'Id_Classe_Temporelle'
           value_field: 'Valeur'
 
+R64:
+  zip_pattern: "**/R63_R64_R65_R66_R67_C68/*_R64_*.zip"
+  csv_configs:
+    - name: "flux_r64"
+      file_regex: "*.csv"
+      delimiter: ";"
+      encoding: "utf-8"
+

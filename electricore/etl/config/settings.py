@@ -37,4 +37,3 @@ FLUX_CONFIG = load_flux_config()
 
 # Constantes utiles
 FLUX_TYPES = list(FLUX_CONFIG.keys())
-XML_CONFIGS_COUNT = sum(len(config['xml_configs']) for config in FLUX_CONFIG.values())

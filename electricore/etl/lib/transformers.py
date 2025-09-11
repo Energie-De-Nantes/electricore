@@ -9,32 +9,33 @@ from typing import Iterator
 from lib.xml_parser import xml_to_dict_from_bytes
 
 
-def extract_xml_files_from_zip(zip_data: bytes) -> list[tuple[str, bytes]]:
+def extract_files_from_zip(zip_data: bytes, file_extension: str = '.xml') -> list[tuple[str, bytes]]:
     """
-    Extrait les fichiers XML d'un ZIP en mémoire.
+    Extrait les fichiers d'une extension donnée d'un ZIP.
     
     Args:
         zip_data: Contenu du fichier ZIP
+        file_extension: Extension des fichiers à extraire (ex: '.xml', '.csv')
     
     Returns:
-        List[Tuple[str, bytes]]: Liste de (nom_fichier, contenu_xml)
+        List[Tuple[str, bytes]]: Liste de (nom_fichier, contenu)
     
     Raises:
         zipfile.BadZipFile: Si le ZIP est corrompu
     """
-    xml_files = []
+    files = []
     
     with zipfile.ZipFile(io.BytesIO(zip_data), 'r') as zip_ref:
         for file_info in zip_ref.filelist:
-            if file_info.filename.lower().endswith('.xml') and not file_info.is_dir():
+            if file_info.filename.lower().endswith(file_extension.lower()) and not file_info.is_dir():
                 try:
-                    xml_content = zip_ref.read(file_info.filename)
-                    xml_files.append((file_info.filename, xml_content))
+                    content = zip_ref.read(file_info.filename)
+                    files.append((file_info.filename, content))
                 except Exception as e:
-                    print(f"⚠️ Erreur lecture XML {file_info.filename}: {e}")
+                    print(f"⚠️ Erreur lecture {file_info.filename}: {e}")
                     continue
     
-    return xml_files
+    return files
 
 
 def process_xml_content(
