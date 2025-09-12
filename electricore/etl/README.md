@@ -54,13 +54,13 @@ source = sftp_flux_enedis_multi(flux_config, max_files=5)
 
 ```bash
 # Vérifier l'état du pipeline
-poetry run dlt pipeline enedis_production_refactored info
+poetry run dlt pipeline enedis_data info
 
 # Reset complet si nécessaire  
-poetry run dlt pipeline enedis_production_refactored drop --drop-all
+poetry run dlt pipeline enedis_data drop --drop-all
 
 # Logs détaillés
-poetry run dlt pipeline enedis_production_refactored trace
+poetry run dlt pipeline enedis_data trace
 ```
 
 ## 📊 Flux Supportés

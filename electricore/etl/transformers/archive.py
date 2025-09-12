@@ -79,7 +79,7 @@ def _unzip_transformer_base(
     decrypted_content = decrypted_file['decrypted_content']
     
     try:
-        print(f"📁 Extraction ZIP: {zip_name}")
+        # print(f"📁 Extraction ZIP: {zip_name}")
         
         # Extraire les fichiers de l'extension souhaitée
         extracted_files = extract_files_from_zip(decrypted_content, file_extension)
@@ -87,7 +87,7 @@ def _unzip_transformer_base(
         for file_name, file_content in extracted_files:
             # Filtrer par regex si spécifié
             if file_regex and not match_xml_pattern(file_name, file_regex):
-                print(f"⏭️  Ignoré (regex): {file_name}")
+                # print(f"⏭️  Ignoré (regex): {file_name}")
                 continue
             
             # Yield le fichier extrait avec métadonnées
@@ -99,7 +99,7 @@ def _unzip_transformer_base(
                 'file_size': len(file_content)
             }
             
-            print(f"✅ Extrait: {file_name} ({len(file_content)} bytes)")
+            # print(f"✅ Extrait: {file_name} ({len(file_content)} bytes)")
         
         if not extracted_files:
             print(f"⚠️  Aucun fichier {file_extension} trouvé dans {zip_name}")

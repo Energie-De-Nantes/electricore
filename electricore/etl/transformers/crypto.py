@@ -98,7 +98,7 @@ def _decrypt_aes_transformer_base(
         }
     """
     try:
-        print(f"🔓 Déchiffrement: {encrypted_file['file_name']}")
+        # print(f"🔓 Déchiffrement: {encrypted_file['file_name']}")
         
         # Lire le fichier chiffré depuis SFTP
         encrypted_data = read_sftp_file(encrypted_file)
@@ -117,7 +117,7 @@ def _decrypt_aes_transformer_base(
             'decrypted_size': decrypted_size
         }
         
-        print(f"✅ Déchiffré: {original_size} → {decrypted_size} bytes")
+        # print(f"✅ Déchiffré: {original_size} → {decrypted_size} bytes")
         
     except Exception as e:
         print(f"❌ Erreur déchiffrement {encrypted_file['file_name']}: {e}")

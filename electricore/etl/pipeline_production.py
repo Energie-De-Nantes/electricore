@@ -62,7 +62,7 @@ def run_production_pipeline(
     
     # Créer le pipeline
     pipeline = dlt.pipeline(
-        pipeline_name="enedis_production_refactored",
+        pipeline_name="enedis_data",
         destination=destination,
         dataset_name=dataset_name
     )

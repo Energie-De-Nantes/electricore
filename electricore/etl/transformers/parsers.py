@@ -178,7 +178,7 @@ def _xml_parser_transformer_base(
     xml_content = extracted_file['extracted_content']
     
     try:
-        print(f"🔍 Parsing XML: {xml_name}")
+        # print(f"🔍 Parsing XML: {xml_name}")
         
         # Parser le XML avec la configuration
         records_count = 0
@@ -201,7 +201,7 @@ def _xml_parser_transformer_base(
             yield enriched_record
             records_count += 1
         
-        print(f"✅ Parsé: {records_count} enregistrements depuis {xml_name}")
+        # print(f"✅ Parsé: {records_count} enregistrements depuis {xml_name}")
         
     except Exception as e:
         print(f"❌ Erreur parsing XML {xml_name}: {e}")

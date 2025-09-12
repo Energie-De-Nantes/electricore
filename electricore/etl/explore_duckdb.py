@@ -7,7 +7,7 @@ app = marimo.App()
 @app.cell
 def _():
     import duckdb
-    DATABASE_URL = "/home/virgile/workspace/electricore/electricore/etl/enedis_production_refactored.duckdb"
+    DATABASE_URL = "/home/virgile/workspace/electricore/electricore/etl/enedis_data.duckdb"
     engine = duckdb.connect(DATABASE_URL, read_only=True)
     return (engine,)
 
