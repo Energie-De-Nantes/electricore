@@ -1,15 +1,55 @@
 """
 Transformer DLT pour l'extraction de fichiers depuis des archives ZIP.
-Supporte le filtrage par extension et regex.
+Inclut les fonctions pures d'extraction et le transformer DLT.
 """
 
 import dlt
+import zipfile
+import io
 from typing import Iterator, Optional
 import fnmatch
 
-# Import des fonctions pures
-from lib.transformers import extract_files_from_zip
-from lib.xml_parser import match_xml_pattern
+
+# =============================================================================
+# FONCTIONS PURES D'EXTRACTION ZIP
+# =============================================================================
+
+def extract_files_from_zip(zip_data: bytes, file_extension: str = '.xml') -> list[tuple[str, bytes]]:
+    """
+    Extrait les fichiers d'une extension donnée d'un ZIP.
+    
+    Args:
+        zip_data: Contenu du fichier ZIP
+        file_extension: Extension des fichiers à extraire (ex: '.xml', '.csv')
+    
+    Returns:
+        List[Tuple[str, bytes]]: Liste de (nom_fichier, contenu)
+    
+    Raises:
+        zipfile.BadZipFile: Si le ZIP est corrompu
+    """
+    files = []
+    
+    with zipfile.ZipFile(io.BytesIO(zip_data), 'r') as zip_ref:
+        for file_info in zip_ref.filelist:
+            if file_info.filename.lower().endswith(file_extension.lower()) and not file_info.is_dir():
+                try:
+                    content = zip_ref.read(file_info.filename)
+                    files.append((file_info.filename, content))
+                except Exception as e:
+                    print(f"⚠️ Erreur lecture {file_info.filename}: {e}")
+                    continue
+    
+    return files
+
+
+# Import de la fonction de matching depuis parsers
+from .parsers import match_xml_pattern
+
+
+# =============================================================================
+# TRANSFORMER DLT
+# =============================================================================
 
 
 def _unzip_transformer_base(

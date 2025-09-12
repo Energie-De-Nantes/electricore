@@ -9,14 +9,13 @@ from typing import Iterator
 from dlt.sources.filesystem import filesystem
 from dlt.common.storages.fsspec_filesystem import FileItemDict
 
-# Imports des fonctions pures depuis lib/
-from lib.crypto import load_aes_credentials, decrypt_file_aes
-from lib.processors import read_sftp_file
-from lib.transformers import extract_files_from_zip
-from lib.xml_parser import match_xml_pattern, xml_to_dict_from_bytes
+# Imports des fonctions pures depuis transformers/
+from transformers.crypto import load_aes_credentials, decrypt_file_aes, read_sftp_file
+from transformers.archive import extract_files_from_zip
+from transformers.parsers import match_xml_pattern, xml_to_dict_from_bytes
 
 
-def create_xml_resource(flux_type: str, xml_config: dict, zip_pattern: str, sftp_url: str, aes_key: bytes, aes_iv: bytes):
+def create_xml_resource(flux_type: str, xml_config: dict, zip_pattern: str, sftp_url: str, aes_key: bytes, aes_iv: bytes, max_files: int = None):
     """
     Crée une resource DLT qui traite directement un type XML spécifique.
     Pattern DLT recommandé : 1 resource = 1 table
@@ -41,8 +40,13 @@ def create_xml_resource(flux_type: str, xml_config: dict, zip_pattern: str, sftp
             incremental=dlt.sources.incremental("modification_date")
         )
         
-        # Pour chaque fichier ZIP
+        # Pour chaque fichier ZIP (limité si max_files spécifié)
+        file_count = 0
         for encrypted_item in encrypted_files:
+            if max_files and file_count >= max_files:
+                print(f"🔄 Limitation atteinte: {max_files} fichiers traités")
+                break
+            file_count += 1
             try:
                 # Déchiffrer et extraire XMLs
                 encrypted_data = read_sftp_file(encrypted_item)
@@ -79,7 +83,7 @@ def create_xml_resource(flux_type: str, xml_config: dict, zip_pattern: str, sftp
     return xml_resource
 
 
-def create_csv_transformer(flux_type: str, csv_config: dict, aes_key: bytes, aes_iv: bytes):
+def create_csv_transformer(flux_type: str, csv_config: dict, aes_key: bytes, aes_iv: bytes, max_files: int = None):
     """
     Crée un transformer DLT pour déchiffrer et parser les CSV avec Polars.
     Cohérent avec l'architecture Polars du projet.
@@ -114,7 +118,12 @@ def create_csv_transformer(flux_type: str, csv_config: dict, aes_key: bytes, aes
         Cohérent avec l'architecture Polars du projet."""
         import polars as pl
         
+        file_count = 0
         for encrypted_item in items:
+            if max_files and file_count >= max_files:
+                print(f"🔄 Limitation CSV atteinte: {max_files} fichiers traités")
+                break
+            file_count += 1
             try:
                 # Déchiffrer et extraire
                 encrypted_data = read_sftp_file(encrypted_item)
@@ -173,7 +182,7 @@ def create_csv_transformer(flux_type: str, csv_config: dict, aes_key: bytes, aes
 
 
 @dlt.source(name="flux_enedis")
-def sftp_flux_enedis_multi(flux_config: dict):
+def sftp_flux_enedis_multi(flux_config: dict, max_files: int = None):
     """
     Source DLT multi-ressources pour flux Enedis via SFTP avec déchiffrement AES.
     
@@ -183,6 +192,7 @@ def sftp_flux_enedis_multi(flux_config: dict):
     
     Args:
         flux_config: Configuration des flux depuis config/settings.py
+        max_files: Nombre maximal de fichiers à traiter par resource (pour tests rapides)
     """
     # URL SFTP depuis secrets
     sftp_config = dlt.secrets['sftp']
@@ -215,9 +225,9 @@ def sftp_flux_enedis_multi(flux_config: dict):
             
             try:
                 for xml_config in xml_configs:
-                    xml_resource_factory = create_xml_resource(flux_type, xml_config, zip_pattern, sftp_url, aes_key, aes_iv)
+                    xml_resource_factory = create_xml_resource(flux_type, xml_config, zip_pattern, sftp_url, aes_key, aes_iv, max_files)
                     xml_resource = xml_resource_factory()
-                    print(f"   ✅ Resource XML {xml_config['name']} créée")
+                    print(f"   ✅ Resource XML {xml_config['name']} créée{f' (max {max_files} fichiers)' if max_files else ''}")
                     yield xml_resource
             except Exception as e:
                 print(f"   ❌ ERREUR création flux XML {flux_type}: {e}")
@@ -247,7 +257,7 @@ def sftp_flux_enedis_multi(flux_config: dict):
                     )
                     
                     # Créer le transformer
-                    csv_transformer = create_csv_transformer(flux_type, csv_config, aes_key, aes_iv)
+                    csv_transformer = create_csv_transformer(flux_type, csv_config, aes_key, aes_iv, max_files)
                     
                     # Pipeline simplifié: filesystem -> decrypt et parse directement
                     csv_pipeline = (
@@ -266,7 +276,7 @@ def sftp_flux_enedis_multi(flux_config: dict):
                             write_disposition="append"
                         )
                     
-                    print(f"   ✅ Pipeline CSV {csv_config['name']} créé avec Polars")
+                    print(f"   ✅ Pipeline CSV {csv_config['name']} créé avec Polars{f' (max {max_files} fichiers)' if max_files else ''}")
                     yield csv_pipeline
             except Exception as e:
                 print(f"   ❌ ERREUR création flux CSV {flux_type}: {e}")

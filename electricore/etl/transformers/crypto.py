@@ -1,15 +1,78 @@
 """
 Transformer DLT pour le déchiffrement AES des fichiers Enedis.
-Réutilisable pour tous les flux chiffrés.
+Inclut les fonctions pures de cryptographie et le transformer DLT.
 """
 
 import dlt
 from typing import Iterator
 from dlt.common.storages.fsspec_filesystem import FileItemDict
+from Crypto.Cipher import AES
 
-# Import des fonctions pures
-from lib.crypto import load_aes_credentials, decrypt_file_aes
-from lib.processors import read_sftp_file
+
+# =============================================================================
+# FONCTIONS PURES DE CRYPTOGRAPHIE
+# =============================================================================
+
+def load_aes_credentials() -> tuple[bytes, bytes]:
+    """
+    Charge les clés AES depuis les secrets DLT.
+    
+    Returns:
+        Tuple[bytes, bytes]: (aes_key, aes_iv)
+    
+    Raises:
+        ValueError: Si les clés AES ne peuvent pas être chargées
+    """
+    try:
+        aes_config = dlt.secrets['aes']
+        aes_key = bytes.fromhex(aes_config['key'])
+        aes_iv = bytes.fromhex(aes_config['iv'])
+        return aes_key, aes_iv
+    except Exception as e:
+        raise ValueError(f"Erreur chargement clés AES depuis secrets: {e}")
+
+
+def decrypt_file_aes(encrypted_data: bytes, key: bytes, iv: bytes) -> bytes:
+    """
+    Déchiffre les données avec AES-CBC.
+    Compatible avec la logique electriflux existante.
+    
+    Args:
+        encrypted_data: Données chiffrées à déchiffrer
+        key: Clé AES
+        iv: Vecteur d'initialisation
+    
+    Returns:
+        bytes: Données déchiffrées
+    """
+    cipher = AES.new(key, AES.MODE_CBC, iv)
+    decrypted_data = cipher.decrypt(encrypted_data)
+    
+    # Supprimer le padding PKCS7 si présent
+    padding_length = decrypted_data[-1]
+    if padding_length <= 16:  # Block size AES
+        decrypted_data = decrypted_data[:-padding_length]
+    
+    return decrypted_data
+
+
+def read_sftp_file(encrypted_item: FileItemDict) -> bytes:
+    """
+    Lit le contenu d'un fichier depuis SFTP.
+    
+    Args:
+        encrypted_item: Item FileItemDict de DLT
+    
+    Returns:
+        bytes: Contenu du fichier
+    """
+    with encrypted_item.open() as f:
+        return f.read()
+
+
+# =============================================================================
+# TRANSFORMER DLT
+# =============================================================================
 
 
 def _decrypt_aes_transformer_base(
