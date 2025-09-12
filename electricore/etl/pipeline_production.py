@@ -62,7 +62,7 @@ def run_production_pipeline(
     
     # Créer le pipeline
     pipeline = dlt.pipeline(
-        pipeline_name="enedis_data",
+        pipeline_name="flux_enedis",
         destination=destination,
         dataset_name=dataset_name
     )
@@ -114,9 +114,9 @@ def main():
             # Mode test rapide - seulement R151 avec 2 fichiers
             print("🧪 MODE TEST RAPIDE")
             run_production_pipeline(
-                flux_selection=['R151'],
+                flux_selection=['R151', 'C15', 'F15', 'R64'],
                 max_files=2,
-                dataset_name="test_refactored"
+                dataset_name="enedis_data.test"
             )
             
         elif mode == "r151":
@@ -124,14 +124,14 @@ def main():
             print("📊 MODE R151 COMPLET") 
             run_production_pipeline(
                 flux_selection=['R151'],
-                dataset_name="r151_production"
+                dataset_name="enedis_r151"
             )
             
         elif mode == "all":
             # Mode production complète
             print("🌟 MODE PRODUCTION COMPLÈTE")
             run_production_pipeline(
-                dataset_name="enedis_full_production"
+                dataset_name="enedis_production"
             )
             
         else:
@@ -144,7 +144,7 @@ def main():
         run_production_pipeline(
             flux_selection=['R151'],
             max_files=2,
-            dataset_name="test_default"
+            dataset_name="enedis_test_default"
         )
 
 if __name__ == "__main__":
