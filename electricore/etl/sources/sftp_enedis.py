@@ -4,8 +4,10 @@ Utilise les fonctions pures du module lib/ pour le traitement.
 """
 
 import dlt
+import io
 from typing import Iterator
-from dlt.sources.filesystem import filesystem, read_csv
+from dlt.sources.filesystem import filesystem
+from dlt.common.storages.fsspec_filesystem import FileItemDict
 
 # Imports des fonctions pures depuis lib/
 from lib.crypto import load_aes_credentials, decrypt_file_aes
@@ -26,7 +28,7 @@ def create_xml_resource(flux_type: str, xml_config: dict, zip_pattern: str, sftp
     def xml_resource():
         # Source filesystem DLT pour SFTP avec incrémental
         # Nom unique pour chaque resource pour éviter les conflits d'état
-        filesystem_name = f"filesystem_{flux_type.lower()}_{xml_config['name']}"
+        filesystem_name = f"filesystem_{xml_config['name']}"
         print(f"🔍 Recherche fichiers pour {xml_config['name']}: {sftp_url} avec pattern {zip_pattern}")
         
         encrypted_files = filesystem(
@@ -77,39 +79,49 @@ def create_xml_resource(flux_type: str, xml_config: dict, zip_pattern: str, sftp
     return xml_resource
 
 
-def create_csv_resource(flux_type: str, csv_config: dict, zip_pattern: str, sftp_url: str, aes_key: bytes, aes_iv: bytes):
+def create_csv_transformer(flux_type: str, csv_config: dict, aes_key: bytes, aes_iv: bytes):
     """
-    Crée une resource DLT qui traite les fichiers CSV depuis des ZIP chiffrés.
-    Pattern DLT recommandé : 1 resource = 1 table
+    Crée un transformer DLT pour déchiffrer et parser les CSV avec Polars.
+    Cohérent avec l'architecture Polars du projet.
     """
-    @dlt.resource(
-        name=csv_config['name'],
-        write_disposition="append"
-    )
-    def csv_resource():
-        # Source filesystem DLT pour SFTP avec incrémental
-        filesystem_name = f"filesystem_{flux_type.lower()}_{csv_config['name']}"
-        print(f"🔍 Recherche fichiers CSV pour {csv_config['name']}: {sftp_url} avec pattern {zip_pattern}")
+    
+    # Column mapping for R64 CSV files (French to snake_case)
+    R64_COLUMN_MAPPING = {
+        'Identifiant PRM': 'id_prm',
+        'Date de début': 'date_debut', 
+        'Date de fin': 'date_fin',
+        'Grandeur physique': 'grandeur_physique',
+        'Grandeur metier': 'grandeur_metier',
+        'Etape metier': 'etape_metier',
+        'Unite': 'unite',
+        'Horodate': 'horodate',
+        'Contexte de relève': 'contexte_releve',
+        'Type de releve': 'type_releve',
+        'Motif de relève': 'motif_releve',
+        'Grille': 'grille',
+        'Identifiant calendrier': 'id_calendrier',
+        'Libellé calendrier': 'libelle_calendrier',
+        'Identifiant classe temporelle': 'id_classe_temporelle',
+        'Libellé classe temporelle': 'libelle_classe_temporelle',
+        'Cadran': 'cadran',
+        'Valeur': 'valeur',
+        'Indice de vraisemblance': 'indice_vraisemblance'
+    }
+    
+    @dlt.transformer
+    def decrypt_and_extract_csv(items: Iterator[FileItemDict]) -> Iterator[dict]:
+        """Déchiffre les ZIP, extrait et parse les CSV avec Polars (plus performant).
+        Cohérent avec l'architecture Polars du projet."""
+        import polars as pl
         
-        encrypted_files = filesystem(
-            bucket_url=sftp_url,
-            file_glob=zip_pattern
-        ).with_name(filesystem_name)
-        
-        # Appliquer l'incrémental sur la date de modification
-        encrypted_files.apply_hints(
-            incremental=dlt.sources.incremental("modification_date")
-        )
-        
-        # Pour chaque fichier ZIP
-        for encrypted_item in encrypted_files:
+        for encrypted_item in items:
             try:
-                # Déchiffrer et extraire CSVs
+                # Déchiffrer et extraire
                 encrypted_data = read_sftp_file(encrypted_item)
                 decrypted_data = decrypt_file_aes(encrypted_data, aes_key, aes_iv)
                 csv_files = extract_files_from_zip(decrypted_data, '.csv')
                 
-                # Traiter chaque CSV avec pandas et read_csv de DLT
+                # Parser chaque CSV avec Polars
                 for csv_name, csv_content in csv_files:
                     # Filtrer par file_regex si spécifié
                     if csv_config.get('file_regex'):
@@ -117,31 +129,47 @@ def create_csv_resource(flux_type: str, csv_config: dict, zip_pattern: str, sftp
                         if not fnmatch.fnmatch(csv_name, csv_config['file_regex']):
                             continue
                     
-                    # Utiliser pandas pour lire le CSV
-                    import pandas as pd
-                    import io
+                    # Parser le CSV avec Polars (plus performant)
+                    csv_text = csv_content.decode(csv_config.get('encoding', 'utf-8'))
                     
-                    df = pd.read_csv(
-                        io.BytesIO(csv_content),
-                        delimiter=csv_config.get('delimiter', ','),
-                        encoding=csv_config.get('encoding', 'utf-8')
-                    )
-                    
-                    # Convertir en records et enrichir avec métadonnées
-                    for record in df.to_dict(orient='records'):
-                        record.update({
-                            '_source_zip': encrypted_item['file_name'],
-                            '_flux_type': flux_type,
-                            '_csv_name': csv_name,
-                            'modification_date': encrypted_item['modification_date']
-                        })
-                        yield record
+                    try:
+                        df = pl.read_csv(
+                            io.StringIO(csv_text),
+                            separator=csv_config.get('delimiter', ','),
+                            encoding=csv_config.get('encoding', 'utf-8'),
+                            # Options pour gérer les valeurs nulles/manquantes
+                            null_values=['null', '', 'NULL', 'None'],
+                            ignore_errors=True,
+                            infer_schema_length=10000
+                        )
                         
+                        # Apply column renaming for R64 files
+                        if flux_type == 'R64' and csv_config.get('name') == 'flux_r64':
+                            # Rename columns from French to snake_case
+                            df = df.rename(R64_COLUMN_MAPPING)
+                        
+                        # Ajouter métadonnées de traçabilité
+                        df_with_meta = df.with_columns([
+                            pl.lit(encrypted_item['modification_date']).alias('modification_date'),
+                            pl.lit(encrypted_item['file_name']).alias('_source_zip'),
+                            pl.lit(flux_type).alias('_flux_type'),
+                            pl.lit(csv_name).alias('_csv_name')
+                        ])
+                        
+                        # Yield chaque ligne comme dictionnaire
+                        for row_dict in df_with_meta.to_dicts():
+                            yield row_dict
+                            
+                    except Exception as parse_error:
+                        print(f"❌ Erreur parsing Polars {csv_name}: {parse_error}")
+                        continue
+                    
             except Exception as e:
-                print(f"❌ Erreur traitement CSV {encrypted_item['file_name']}: {e}")
+                print(f"❌ Erreur traitement {encrypted_item['file_name']}: {e}")
                 continue
     
-    return csv_resource
+    # Retourner seulement le transformer
+    return decrypt_and_extract_csv
 
 
 @dlt.source(name="flux_enedis")
@@ -206,10 +234,40 @@ def sftp_flux_enedis_multi(flux_config: dict):
             
             try:
                 for csv_config in csv_configs:
-                    csv_resource_factory = create_csv_resource(flux_type, csv_config, zip_pattern, sftp_url, aes_key, aes_iv)
-                    csv_resource = csv_resource_factory()
-                    print(f"   ✅ Resource CSV {csv_config['name']} créée")
-                    yield csv_resource
+                    # Créer le filesystem source
+                    filesystem_name = f"filesystem_{flux_type.lower()}_{csv_config['name']}"
+                    encrypted_files = filesystem(
+                        bucket_url=sftp_url,
+                        file_glob=zip_pattern
+                    ).with_name(filesystem_name)
+                    
+                    # Appliquer l'incrémental sur les fichiers
+                    encrypted_files.apply_hints(
+                        incremental=dlt.sources.incremental("modification_date")
+                    )
+                    
+                    # Créer le transformer
+                    csv_transformer = create_csv_transformer(flux_type, csv_config, aes_key, aes_iv)
+                    
+                    # Pipeline simplifié: filesystem -> decrypt et parse directement
+                    csv_pipeline = (
+                        encrypted_files | 
+                        csv_transformer
+                    ).with_name(csv_config['name'])
+                    
+                    # Appliquer la déduplication si des clés primaires sont spécifiées
+                    if csv_config.get('primary_key'):
+                        csv_pipeline.apply_hints(
+                            primary_key=csv_config['primary_key'],
+                            write_disposition="merge"
+                        )
+                    else:
+                        csv_pipeline.apply_hints(
+                            write_disposition="append"
+                        )
+                    
+                    print(f"   ✅ Pipeline CSV {csv_config['name']} créé avec Polars")
+                    yield csv_pipeline
             except Exception as e:
                 print(f"   ❌ ERREUR création flux CSV {flux_type}: {e}")
                 raise

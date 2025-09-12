@@ -237,4 +237,5 @@ R64:
       file_regex: "*.csv"
       delimiter: ";"
       encoding: "utf-8"
+      primary_key: ["id_prm", "date_debut", "contexte_releve", "type_releve"]  # Déduplication sur PDL + date
 

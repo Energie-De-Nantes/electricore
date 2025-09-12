@@ -7,9 +7,75 @@ app = marimo.App()
 @app.cell
 def _():
     import duckdb
-    DATABASE_URL = "/home/virgile/workspace/electricore/electricore/etl/flux_enedis_sftp_multi.duckdb"
+    DATABASE_URL = "/home/virgile/workspace/electricore/electricore/etl/flux_enedis.duckdb"
     engine = duckdb.connect(DATABASE_URL, read_only=True)
     return (engine,)
+
+
+@app.cell
+def _(engine, mo):
+    _df = mo.sql(
+        f"""
+        SELECT * FROM enedis_multi.flux_r64 LIMIT 100
+        """,
+        engine=engine
+    )
+    return
+
+
+@app.cell
+def _(engine, mo):
+    _df = mo.sql(
+        f"""
+        SELECT * FROM enedis_multi.flux_r64 LIMIT 100
+        """,
+        engine=engine
+    )
+    return
+
+
+@app.cell
+def _(engine, mo):
+    _df = mo.sql(
+        f"""
+        SELECT * FROM enedis_multi.flux_r15_acc LIMIT 100
+        """,
+        engine=engine
+    )
+    return
+
+
+@app.cell
+def _(engine, mo):
+    _df = mo.sql(
+        f"""
+        SELECT * FROM enedis_multi.flux_r15 LIMIT 100
+        """,
+        engine=engine
+    )
+    return
+
+
+@app.cell
+def _(engine, mo):
+    _df = mo.sql(
+        f"""
+        SELECT * FROM enedis_multi._dlt_loads LIMIT 100
+        """,
+        engine=engine
+    )
+    return
+
+
+@app.cell
+def _(engine, mo):
+    _df = mo.sql(
+        f"""
+        SELECT * FROM enedis_multi.r15
+        """,
+        engine=engine
+    )
+    return
 
 
 @app.cell
