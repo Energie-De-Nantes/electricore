@@ -12,8 +12,7 @@ from transformers.crypto import create_decrypt_transformer
 from transformers.archive import create_unzip_transformer
 from transformers.parsers import (
     create_xml_parser_transformer,
-    create_csv_parser_transformer,
-    R64_COLUMN_MAPPING
+    create_csv_parser_transformer
 )
 
 
@@ -149,8 +148,7 @@ def sftp_flux_enedis_multi(flux_config: dict, max_files: int = None):
                 unzip_transformer = create_unzip_transformer('.csv', file_regex)
                 
                 # 3. Transformer CSV parser configuré
-                # Utiliser le mapping R64 si c'est du R64
-                column_mapping = R64_COLUMN_MAPPING if flux_type == 'R64' else None
+                column_mapping = csv_config.get('column_mapping', {})
                 
                 csv_parser = create_csv_parser_transformer(
                     delimiter=delimiter,

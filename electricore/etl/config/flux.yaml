@@ -238,4 +238,24 @@ R64:
       delimiter: ";"
       encoding: "utf-8"
       primary_key: ["id_prm", "date_debut", "contexte_releve", "type_releve"]  # Déduplication sur PDL + date
+      column_mapping:
+        'Identifiant PRM': 'id_prm'
+        'Date de début': 'date_debut' 
+        'Date de fin': 'date_fin'
+        'Grandeur physique': 'grandeur_physique'
+        'Grandeur metier': 'grandeur_metier'
+        'Etape metier': 'etape_metier'
+        'Unite': 'unite'
+        'Horodate': 'horodate'
+        'Contexte de relève': 'contexte_releve'
+        'Type de releve': 'type_releve'
+        'Motif de relève': 'motif_releve'
+        'Grille': 'grille'
+        'Identifiant calendrier': 'id_calendrier'
+        'Libellé calendrier': 'libelle_calendrier'
+        'Identifiant classe temporelle': 'id_classe_temporelle'
+        'Libellé classe temporelle': 'libelle_classe_temporelle'
+        'Cadran': 'cadran'
+        'Valeur': 'valeur'
+        'Indice de vraisemblance': 'indice_vraisemblance'
 

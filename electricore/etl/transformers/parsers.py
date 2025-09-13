@@ -332,33 +332,3 @@ def create_csv_parser_transformer(
     return configured_csv_parser
 
 
-# Column mapping pour R64 (réutilisé depuis l'ancien code)
-R64_COLUMN_MAPPING = {
-    'Identifiant PRM': 'id_prm',
-    'Date de début': 'date_debut', 
-    'Date de fin': 'date_fin',
-    'Grandeur physique': 'grandeur_physique',
-    'Grandeur metier': 'grandeur_metier',
-    'Etape metier': 'etape_metier',
-    'Unite': 'unite',
-    'Horodate': 'horodate',
-    'Contexte de relève': 'contexte_releve',
-    'Type de releve': 'type_releve',
-    'Motif de relève': 'motif_releve',
-    'Grille': 'grille',
-    'Identifiant calendrier': 'id_calendrier',
-    'Libellé calendrier': 'libelle_calendrier',
-    'Identifiant classe temporelle': 'id_classe_temporelle',
-    'Libellé classe temporelle': 'libelle_classe_temporelle',
-    'Cadran': 'cadran',
-    'Valeur': 'valeur',
-    'Indice de vraisemblance': 'indice_vraisemblance'
-}
-
-# Transformer pré-configuré pour R64
-csv_r64_parser_transformer = create_csv_parser_transformer(
-    delimiter=';',
-    encoding='utf-8',
-    flux_type='R64',
-    column_mapping=R64_COLUMN_MAPPING
-)
