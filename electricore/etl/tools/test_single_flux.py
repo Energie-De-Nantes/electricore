@@ -6,7 +6,7 @@ Test d'un seul flux pour comprendre le problème.
 import dlt
 import yaml
 from pathlib import Path
-from sources.sftp_enedis import sftp_flux_enedis_multi
+from sources.sftp_enedis import flux_enedis
 
 def test_single_flux(flux_name: str):
     """Teste un seul flux spécifique."""
@@ -42,7 +42,7 @@ def test_single_flux(flux_name: str):
     
     # Créer la source avec max_files=1 pour test rapide
     print("📦 Création de la source...")
-    source = sftp_flux_enedis_multi(flux_config, max_files=1)
+    source = flux_enedis(flux_config, max_files=1)
     
     # Lister les resources créées
     print("\n📄 Resources créées:")

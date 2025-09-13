@@ -6,13 +6,13 @@ Traite tous les flux configurés avec des options flexibles.
 import dlt
 import yaml
 from pathlib import Path
-from sources.sftp_enedis import sftp_flux_enedis_multi
+from sources.sftp_enedis import flux_enedis
 
 def run_production_pipeline(
     flux_selection=None,
     max_files=None,
     destination="duckdb",
-    dataset_name="enedis_production"
+    dataset_name="flux_enedis"
 ):
     """
     Lance le pipeline de production avec l'architecture modulaire refactorisée.
@@ -62,7 +62,7 @@ def run_production_pipeline(
     
     # Créer le pipeline
     pipeline = dlt.pipeline(
-        pipeline_name="flux_enedis",
+        pipeline_name="flux_enedis_pipeline",
         destination=destination,
         dataset_name=dataset_name
     )
@@ -72,7 +72,7 @@ def run_production_pipeline(
     
     # Créer la source avec l'architecture modulaire
     print("🏗️ CRÉATION SOURCE MODULAIRE...")
-    source = sftp_flux_enedis_multi(flux_config, max_files=max_files)
+    source = flux_enedis(flux_config, max_files=max_files)
     print()
     
     # Exécution du pipeline
@@ -116,7 +116,7 @@ def main():
             run_production_pipeline(
                 flux_selection=['R151', 'C15', 'F15', 'R64'],
                 max_files=2,
-                dataset_name="enedis_data.test"
+                dataset_name="flux_enedis_test"
             )
             
         elif mode == "r151":
@@ -124,14 +124,14 @@ def main():
             print("📊 MODE R151 COMPLET") 
             run_production_pipeline(
                 flux_selection=['R151'],
-                dataset_name="enedis_r151"
+                dataset_name="flux_enedis_r151"
             )
             
         elif mode == "all":
             # Mode production complète
             print("🌟 MODE PRODUCTION COMPLÈTE")
             run_production_pipeline(
-                dataset_name="enedis_production"
+                dataset_name="flux_enedis"
             )
             
         else:
@@ -144,7 +144,7 @@ def main():
         run_production_pipeline(
             flux_selection=['R151'],
             max_files=2,
-            dataset_name="enedis_test_default"
+            dataset_name="flux_enedis_default"
         )
 
 if __name__ == "__main__":

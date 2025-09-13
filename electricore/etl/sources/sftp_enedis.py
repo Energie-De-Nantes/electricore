@@ -57,7 +57,7 @@ def create_sftp_resource(flux_type: str, table_name: str, zip_pattern: str, sftp
 
 
 @dlt.source(name="flux_enedis")
-def sftp_flux_enedis_multi(flux_config: dict, max_files: int = None):
+def flux_enedis(flux_config: dict, max_files: int = None):
     """
     Source DLT refactorée avec architecture modulaire pour tous les flux Enedis.
     

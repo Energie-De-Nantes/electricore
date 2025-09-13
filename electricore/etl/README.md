@@ -107,6 +107,66 @@ Chaque flux définit :
 - **R151 complet** : 108k enregistrements en 6.3 secondes  
 - **Incrémental DLT** : Évite le retraitement automatiquement
 
+## ⚠️ Attention : État Incrémental DLT et Nommage
+
+### Problème caché de l'état incrémental
+
+DLT maintient un état incrémental basé sur la **combinaison unique** de :
+- Nom du pipeline (`pipeline_name`)
+- Nom de la source (`@dlt.source(name="...")`)
+- Nom du dataset (`dataset_name`)
+
+**⚠️ IMPORTANT** : Si vous changez un de ces noms sans nettoyer l'état, DLT peut :
+- Utiliser l'ancien état incrémental avec le nouveau nom → données manquantes
+- Créer un nouvel état → rechargement complet non voulu
+- Mélanger les états → comportements imprévisibles
+
+### Où est stocké l'état ?
+
+1. **Local** : `~/.dlt/pipelines/{pipeline_name}/state.json`
+2. **DuckDB** : `{dataset_name}._dlt_pipeline_state`
+
+### Comment éviter les problèmes ?
+
+Lors d'un changement de nom :
+
+```bash
+# 1. Nettoyer l'état local
+rm -rf ~/.dlt/pipelines/ancien_nom_pipeline/
+
+# 2. Nettoyer dans DuckDB (optionnel si nouveau dataset)
+poetry run python -c "
+import duckdb
+conn = duckdb.connect('flux_enedis.duckdb')
+conn.execute('DROP SCHEMA IF EXISTS ancien_dataset CASCADE')
+"
+
+# 3. Relancer avec les nouveaux noms
+poetry run python pipeline_production.py all
+```
+
+### Exemple de migration propre
+
+Si vous renommez `enedis_production` → `flux_enedis` :
+
+```python
+# AVANT
+pipeline = dlt.pipeline(
+    pipeline_name="flux_enedis",  # ⚠️ Incohérent !
+    dataset_name="enedis_production"
+)
+source = sftp_flux_enedis_multi(...)  # Ancien nom
+
+# APRÈS (cohérent)
+pipeline = dlt.pipeline(
+    pipeline_name="flux_enedis_pipeline",  # Nouveau nom
+    dataset_name="flux_enedis"  # Nouveau schema
+)
+source = flux_enedis(...)  # Source renommée aussi !
+```
+
+**Règle d'or** : En cas de doute sur l'état incrémental, utilisez `--replace` ou supprimez `~/.dlt/pipelines/`.
+
 ## 🔄 Architecture Modulaire
 
 ```python
