@@ -46,10 +46,10 @@ async def get_flux(
     Endpoint générique pour lire n'importe quel flux Enedis.
     
     Exemples:
-    - /flux/r151 : Courbes de charge
+    - /flux/r151 : Relevés quotidiens
     - /flux/c15 : Changements contractuels  
-    - /flux/r64 : Relevés CSV
-    - /flux/f15_detail : Facturation détaillée
+    - /flux/r64 : Relevés demandés sur SGE
+    - /flux/f15_detail : Facturation Enedis détaillée
     """
     # Vérifier que la table existe
     try:
@@ -63,12 +63,11 @@ async def get_flux(
             f"Table '{table_name}' non trouvée. Tables disponibles: {available_tables}"
         )
     
-    # Construire les filtres - adapter selon la table
+    # Construire les filtres
     filters = {}
     if prm:
-        # Différentes tables utilisent différentes colonnes pour l'identifiant PRM
-        prm_column = "pdl" if table_name in ["c15"] else "id_prm"
-        filters[prm_column] = prm
+        # Toutes les tables utilisent 'pdl' pour l'identifiant PRM
+        filters["pdl"] = prm
     
     # Récupérer les données
     try:

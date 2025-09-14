@@ -239,7 +239,7 @@ R64:
       encoding: "utf-8"
       primary_key: ["id_prm", "date_debut", "contexte_releve", "type_releve"]  # Déduplication sur PDL + date
       column_mapping:
-        'Identifiant PRM': 'id_prm'
+        'Identifiant PRM': 'pdl'
         'Date de début': 'date_debut' 
         'Date de fin': 'date_fin'
         'Grandeur physique': 'grandeur_physique'
