@@ -19,7 +19,7 @@ def _():
     return Path, load_historique_perimetre, load_releves, mo
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(Path, mo):
 
     db_path = Path("electricore/etl/flux_enedis.duckdb")
@@ -42,7 +42,8 @@ def _(db_path, load_historique_perimetre):
 
 @app.cell
 def _(db_path, load_releves):
-    load_releves(database_path=db_path, valider=False).collect()
+    releves = load_releves(database_path=db_path, valider=True).collect()
+    releves
     return
 
 

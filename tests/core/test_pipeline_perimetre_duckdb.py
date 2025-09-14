@@ -10,9 +10,13 @@ import pandas as pd
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from electricore.core.pipeline_perimetre import (
-    load_historique_from_duckdb,
-    pipeline_perimetre_flexible
+from electricore.core.loaders.duckdb_loader import (
+    load_historique_perimetre,
+    execute_custom_query
+)
+from electricore.core.pipelines_polars.perimetre_polars import (
+    pipeline_perimetre_polars,
+    detecter_points_de_rupture
 )
 
 

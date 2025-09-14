@@ -107,46 +107,46 @@ def load_historique_perimetre(
     # Construction de la requête SQL de base pour historique périmètre
     base_query = """
     SELECT
-        date_evenement as Date_Evenement,
+        date_evenement,
         pdl,
-        ref_situation_contractuelle as Ref_Situation_Contractuelle,
-        segment_clientele as Segment_Clientele,
-        etat_contractuel as Etat_Contractuel,
-        evenement_declencheur as Evenement_Declencheur,
-        type_evenement as Type_Evenement,
-        categorie as Categorie,
-        CAST(puissance_souscrite AS DOUBLE) as Puissance_Souscrite,
-        formule_tarifaire_acheminement as Formule_Tarifaire_Acheminement,
-        type_compteur as Type_Compteur,
-        num_compteur as Num_Compteur,
-        ref_demandeur as Ref_Demandeur,
-        id_affaire as Id_Affaire,
+        ref_situation_contractuelle,
+        segment_clientele,
+        etat_contractuel,
+        evenement_declencheur,
+        type_evenement,
+        categorie,
+        CAST(puissance_souscrite AS DOUBLE) as puissance_souscrite,
+        formule_tarifaire_acheminement,
+        type_compteur,
+        num_compteur,
+        ref_demandeur,
+        id_affaire,
         -- Colonnes de relevés "Avant"
-        avant_date_releve as Avant_Date_Releve,
-        avant_nature_index as Avant_Nature_Index,
-        avant_id_calendrier_fournisseur as Avant_Id_Calendrier_Fournisseur,
-        avant_id_calendrier_distributeur as Avant_Id_Calendrier_Distributeur,
-        CAST(avant_hp AS DOUBLE) as Avant_HP,
-        CAST(avant_hc AS DOUBLE) as Avant_HC,
-        CAST(avant_hch AS DOUBLE) as Avant_HCH,
-        CAST(avant_hph AS DOUBLE) as Avant_HPH,
-        CAST(avant_hpb AS DOUBLE) as Avant_HPB,
-        CAST(avant_hcb AS DOUBLE) as Avant_HCB,
-        CAST(avant_base AS DOUBLE) as Avant_BASE,
+        avant_date_releve,
+        avant_nature_index,
+        avant_id_calendrier_fournisseur,
+        avant_id_calendrier_distributeur,
+        CAST(avant_hp AS DOUBLE) as avant_HP,
+        CAST(avant_hc AS DOUBLE) as avant_HC,
+        CAST(avant_hch AS DOUBLE) as avant_HCH,
+        CAST(avant_hph AS DOUBLE) as avant_HPH,
+        CAST(avant_hpb AS DOUBLE) as avant_HPB,
+        CAST(avant_hcb AS DOUBLE) as avant_HCB,
+        CAST(avant_base AS DOUBLE) as avant_BASE,
         -- Colonnes de relevés "Après"
-        apres_date_releve as Après_Date_Releve,
-        apres_nature_index as Après_Nature_Index,
-        apres_id_calendrier_fournisseur as Après_Id_Calendrier_Fournisseur,
-        apres_id_calendrier_distributeur as Après_Id_Calendrier_Distributeur,
-        CAST(apres_hp AS DOUBLE) as Après_HP,
-        CAST(apres_hc AS DOUBLE) as Après_HC,
-        CAST(apres_hch AS DOUBLE) as Après_HCH,
-        CAST(apres_hph AS DOUBLE) as Après_HPH,
-        CAST(apres_hpb AS DOUBLE) as Après_HPB,
-        CAST(apres_hcb AS DOUBLE) as Après_HCB,
-        CAST(apres_base AS DOUBLE) as Après_BASE,
+        apres_date_releve,
+        apres_nature_index,
+        apres_id_calendrier_fournisseur,
+        apres_id_calendrier_distributeur,
+        CAST(apres_hp AS DOUBLE) as apres_HP,
+        CAST(apres_hc AS DOUBLE) as apres_HC,
+        CAST(apres_hch AS DOUBLE) as apres_HCH,
+        CAST(apres_hph AS DOUBLE) as apres_HPH,
+        CAST(apres_hpb AS DOUBLE) as apres_HPB,
+        CAST(apres_hcb AS DOUBLE) as apres_HCB,
+        CAST(apres_base AS DOUBLE) as apres_BASE,
         -- Métadonnées
-        'flux_C15' as Source
+        'flux_C15' as source
     FROM enedis_production.flux_c15
     """
 
@@ -225,13 +225,13 @@ def load_releves(
     WITH releves_unifies AS (
         -- Flux R151 (relevés périodiques)
         SELECT
-            CAST(date_releve AS TIMESTAMP) as Date_Releve,
+            CAST(date_releve AS TIMESTAMP) as date_releve,
             pdl,
-            NULL as Ref_Situation_Contractuelle,  -- Pas dans R151
-            NULL as Formule_Tarifaire_Acheminement,
-            id_calendrier_fournisseur as Id_Calendrier_Fournisseur,
-            id_calendrier_distributeur as Id_Calendrier_Distributeur,
-            id_affaire as Id_Affaire,
+            CAST(NULL AS VARCHAR) as ref_situation_contractuelle,  -- Pas dans R151
+            CAST(NULL AS VARCHAR) as formule_tarifaire_acheminement,
+            id_calendrier_fournisseur,
+            id_calendrier_distributeur,
+            id_affaire,
             CAST(hp AS DOUBLE) as HP,
             CAST(hc AS DOUBLE) as HC,
             CAST(hch AS DOUBLE) as HCH,
@@ -239,10 +239,10 @@ def load_releves(
             CAST(hpb AS DOUBLE) as HPB,
             CAST(hcb AS DOUBLE) as HCB,
             CAST(base AS DOUBLE) as BASE,
-            'flux_R151' as Source,
+            'flux_R151' as source,
             FALSE as ordre_index,
-            unite as Unité,
-            unite as Précision
+            unite,
+            unite as precision
         FROM enedis_production.flux_r151
         WHERE date_releve IS NOT NULL
 
@@ -250,13 +250,13 @@ def load_releves(
 
         -- Flux R15 (relevés avec événements)
         SELECT
-            date_releve as Date_Releve,
+            date_releve,
             pdl,
-            ref_situation_contractuelle as Ref_Situation_Contractuelle,
-            NULL as Formule_Tarifaire_Acheminement,  -- Pas dans R15
-            NULL as Id_Calendrier_Fournisseur,  -- Pas dans R15
-            id_calendrier as Id_Calendrier_Distributeur,
-            id_affaire as Id_Affaire,
+            ref_situation_contractuelle,
+            CAST(NULL AS VARCHAR) as formule_tarifaire_acheminement,  -- Pas dans R15
+            CAST(NULL AS VARCHAR) as id_calendrier_fournisseur,  -- Pas dans R15
+            id_calendrier as id_calendrier_distributeur,
+            id_affaire,
             CAST(hp AS DOUBLE) as HP,
             CAST(hc AS DOUBLE) as HC,
             CAST(hch AS DOUBLE) as HCH,
@@ -264,10 +264,10 @@ def load_releves(
             CAST(hpb AS DOUBLE) as HPB,
             CAST(hcb AS DOUBLE) as HCB,
             CAST(base AS DOUBLE) as BASE,
-            'flux_R15' as Source,
+            'flux_R15' as source,
             FALSE as ordre_index,
-            'kWh' as Unité,
-            'kWh' as Précision
+            'kWh' as unite,
+            'kWh' as precision
         FROM enedis_production.flux_r15
         WHERE date_releve IS NOT NULL
     )
@@ -322,13 +322,13 @@ def _transform_historique_perimetre(lf: pl.LazyFrame) -> pl.LazyFrame:
     """
     return lf.with_columns([
         # Conversion des dates avec timezone Europe/Paris
-        pl.col("Date_Evenement").dt.convert_time_zone("Europe/Paris"),
-        pl.col("Avant_Date_Releve").dt.convert_time_zone("Europe/Paris"),
-        pl.col("Après_Date_Releve").dt.convert_time_zone("Europe/Paris"),
+        pl.col("date_evenement").dt.convert_time_zone("Europe/Paris"),
+        pl.col("avant_date_releve").dt.convert_time_zone("Europe/Paris"),
+        pl.col("apres_date_releve").dt.convert_time_zone("Europe/Paris"),
 
         # Ajout de colonnes optionnelles manquantes avec valeurs par défaut
-        pl.lit("kWh").alias("Unité"),
-        pl.lit("kWh").alias("Précision"),
+        pl.lit("kWh").alias("unite"),
+        pl.lit("kWh").alias("precision"),
     ])
 
 
@@ -344,7 +344,7 @@ def _transform_releves(lf: pl.LazyFrame) -> pl.LazyFrame:
     """
     return lf.with_columns([
         # Conversion des dates avec timezone Europe/Paris
-        pl.col("Date_Releve").dt.convert_time_zone("Europe/Paris"),
+        pl.col("date_releve").dt.convert_time_zone("Europe/Paris"),
 
         # Les autres colonnes sont déjà préparées dans la requête SQL
         # ordre_index, Unité, Précision, Source sont déjà définies

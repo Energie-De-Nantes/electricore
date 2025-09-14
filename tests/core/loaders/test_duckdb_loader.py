@@ -89,9 +89,9 @@ class TestTransformationFunctions:
         """Test de transformation des données d'historique."""
         # Créer un LazyFrame de test
         test_data = pl.DataFrame({
-            "Date_Evenement": ["2024-01-01 10:00:00"],
-            "Avant_Date_Releve": ["2024-01-01 09:00:00"],
-            "Après_Date_Releve": ["2024-01-01 11:00:00"],
+            "date_evenement": ["2024-01-01 10:00:00"],
+            "avant_date_releve": ["2024-01-01 09:00:00"],
+            "apres_date_releve": ["2024-01-01 11:00:00"],
             "pdl": ["PDL123"]
         }).lazy()
 
@@ -105,16 +105,16 @@ class TestTransformationFunctions:
         df = result.collect()
 
         # Vérifier que les colonnes ajoutées sont présentes
-        assert "Unité" in df.columns
-        assert "Précision" in df.columns
-        assert df["Unité"][0] == "kWh"
-        assert df["Précision"][0] == "kWh"
+        assert "unite" in df.columns
+        assert "precision" in df.columns
+        assert df["unite"][0] == "kWh"
+        assert df["precision"][0] == "kWh"
 
     def test_transform_releves(self):
         """Test de transformation des données de relevés."""
         # Créer un LazyFrame de test
         test_data = pl.DataFrame({
-            "Date_Releve": ["2024-01-01 10:00:00"],
+            "date_releve": ["2024-01-01 10:00:00"],
             "pdl": ["PDL123"],
             "HP": [1000.0]
         }).lazy()
@@ -129,7 +129,7 @@ class TestTransformationFunctions:
         df = result.collect()
 
         # Vérifier les colonnes de base
-        assert "Date_Releve" in df.columns
+        assert "date_releve" in df.columns
         assert "pdl" in df.columns
         assert "HP" in df.columns
 
@@ -157,7 +157,7 @@ class TestLoadFunctions:
                 # Appeler la fonction
                 result = load_historique_perimetre(
                     database_path="test.duckdb",
-                    filters={"Date_Evenement": ">= '2024-01-01'"},
+                    filters={"date_evenement": ">= '2024-01-01'"},
                     limit=100
                 )
 
@@ -285,7 +285,7 @@ class TestIntegrationWithRealData:
             assert len(df) <= 5
 
             # Vérifier quelques colonnes essentielles
-            expected_columns = ["Date_Evenement", "pdl", "Ref_Situation_Contractuelle"]
+            expected_columns = ["date_evenement", "pdl", "ref_situation_contractuelle"]
             for col in expected_columns:
                 assert col in df.columns
 
@@ -310,7 +310,7 @@ class TestIntegrationWithRealData:
             assert len(df) <= 5
 
             # Vérifier quelques colonnes essentielles
-            expected_columns = ["Date_Releve", "pdl", "Source"]
+            expected_columns = ["date_releve", "pdl", "source"]
             for col in expected_columns:
                 assert col in df.columns
 
@@ -323,17 +323,17 @@ class TestIntegrationWithRealData:
 def sample_historique_data():
     """Fixture avec des données d'historique de test."""
     return pl.DataFrame({
-        "Date_Evenement": ["2024-01-01 10:00:00", "2024-01-02 11:00:00"],
+        "date_evenement": ["2024-01-01 10:00:00", "2024-01-02 11:00:00"],
         "pdl": ["PDL123", "PDL124"],
-        "Ref_Situation_Contractuelle": ["REF001", "REF002"],
-        "Segment_Clientele": ["C5", "C5"],
-        "Etat_Contractuel": ["EN SERVICE", "EN SERVICE"],
-        "Evenement_Declencheur": ["MES", "MCT"],
-        "Type_Evenement": ["mise_en_service", "modification"],
-        "Puissance_Souscrite": [6.0, 9.0],
-        "Formule_Tarifaire_Acheminement": ["BTINF36", "BTINF36"],
-        "Type_Compteur": ["ELEC", "ELEC"],
-        "Num_Compteur": ["123456", "789012"]
+        "ref_situation_contractuelle": ["REF001", "REF002"],
+        "segment_clientele": ["C5", "C5"],
+        "etat_contractuel": ["EN SERVICE", "EN SERVICE"],
+        "evenement_declencheur": ["MES", "MCT"],
+        "type_evenement": ["mise_en_service", "modification"],
+        "puissance_souscrite": [6.0, 9.0],
+        "formule_tarifaire_acheminement": ["BTINF36", "BTINF36"],
+        "type_compteur": ["ELEC", "ELEC"],
+        "num_compteur": ["123456", "789012"]
     })
 
 
@@ -341,15 +341,15 @@ def sample_historique_data():
 def sample_releves_data():
     """Fixture avec des données de relevés de test."""
     return pl.DataFrame({
-        "Date_Releve": ["2024-01-01 10:00:00", "2024-01-02 11:00:00"],
+        "date_releve": ["2024-01-01 10:00:00", "2024-01-02 11:00:00"],
         "pdl": ["PDL123", "PDL124"],
-        "Id_Calendrier_Distributeur": ["DI000002", "DI000002"],
+        "id_calendrier_distributeur": ["DI000002", "DI000002"],
         "HP": [1000.0, 1500.0],
         "HC": [500.0, 750.0],
-        "Source": ["flux_R151", "flux_R151"],
+        "source": ["flux_R151", "flux_R151"],
         "ordre_index": [False, False],
-        "Unité": ["kWh", "kWh"],
-        "Précision": ["kWh", "kWh"]
+        "unite": ["kWh", "kWh"],
+        "precision": ["kWh", "kWh"]
     })
 
 

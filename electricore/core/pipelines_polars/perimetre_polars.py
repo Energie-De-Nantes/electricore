@@ -9,7 +9,7 @@ qui peuvent être composées entre elles.
 import polars as pl
 
 
-def expr_changement(col_name: str, over: str = "Ref_Situation_Contractuelle") -> pl.Expr:
+def expr_changement(col_name: str, over: str = "ref_situation_contractuelle") -> pl.Expr:
     """
     Détecte si une colonne a changé par rapport à sa valeur précédente dans la partition.
     
@@ -28,7 +28,7 @@ def expr_changement(col_name: str, over: str = "Ref_Situation_Contractuelle") ->
         
     Example:
         >>> df.with_columns(
-        ...     expr_changement("Puissance_Souscrite").alias("puissance_change")
+        ...     expr_changement("puissance_souscrite").alias("puissance_change")
         ... )
     """
     current = pl.col(col_name)
@@ -41,7 +41,7 @@ def expr_changement(col_name: str, over: str = "Ref_Situation_Contractuelle") ->
     )
 
 
-def expr_resume_changement(col_name: str, label: str, over: str = "Ref_Situation_Contractuelle") -> pl.Expr:
+def expr_resume_changement(col_name: str, label: str, over: str = "ref_situation_contractuelle") -> pl.Expr:
     """
     Génère un texte résumant le changement d'une colonne.
     
@@ -59,7 +59,7 @@ def expr_resume_changement(col_name: str, label: str, over: str = "Ref_Situation
         
     Example:
         >>> df.with_columns(
-        ...     expr_resume_changement("Puissance_Souscrite", "P").alias("resume_puissance")
+        ...     expr_resume_changement("puissance_souscrite", "P").alias("resume_puissance")
         ... )
         # Produit des valeurs comme "P: 6.0 → 9.0" ou ""
     """
@@ -100,8 +100,8 @@ def expr_changement_avant_apres(col_avant: str, col_apres: str) -> pl.Expr:
     Example:
         >>> df.with_columns(
         ...     expr_changement_avant_apres(
-        ...         "Avant_Id_Calendrier_Distributeur", 
-        ...         "Après_Id_Calendrier_Distributeur"
+        ...         "avant_id_calendrier_distributeur",
+        ...         "apres_id_calendrier_distributeur"
         ...     ).alias("calendrier_change")
         ... )
     """
@@ -137,7 +137,7 @@ def expr_evenement_structurant() -> pl.Expr:
         ... )
     """
     evenements_structurants = ["CFNE", "MES", "PMES", "CFNS", "RES"]
-    return pl.col("Evenement_Declencheur").is_in(evenements_structurants)
+    return pl.col("evenement_declencheur").is_in(evenements_structurants)
 
 
 def expr_changement_index() -> pl.Expr:
@@ -163,7 +163,7 @@ def expr_changement_index() -> pl.Expr:
     
     # Créer une expression pour chaque colonne d'index
     changements = [
-        expr_changement_avant_apres(f"Avant_{col}", f"Après_{col}")
+        expr_changement_avant_apres(f"avant_{col}", f"apres_{col}")
         for col in index_cols
     ]
     
@@ -171,7 +171,7 @@ def expr_changement_index() -> pl.Expr:
     return pl.any_horizontal(changements)
 
 
-def expr_impacte_abonnement(over: str = "Ref_Situation_Contractuelle") -> pl.Expr:
+def expr_impacte_abonnement(over: str = "ref_situation_contractuelle") -> pl.Expr:
     """
     Détecte si un changement impacte l'abonnement.
     
@@ -195,14 +195,14 @@ def expr_impacte_abonnement(over: str = "Ref_Situation_Contractuelle") -> pl.Exp
         ...     expr_impacte_abonnement().alias("impacte_abonnement")
         ... )
     """
-    changement_puissance = expr_changement("Puissance_Souscrite", over)
-    changement_fta = expr_changement("Formule_Tarifaire_Acheminement", over)
+    changement_puissance = expr_changement("puissance_souscrite", over)
+    changement_fta = expr_changement("formule_tarifaire_acheminement", over)
     est_structurant = expr_evenement_structurant()
     
     return changement_puissance | changement_fta | est_structurant
 
 
-def expr_impacte_energie(over: str = "Ref_Situation_Contractuelle") -> pl.Expr:
+def expr_impacte_energie(over: str = "ref_situation_contractuelle") -> pl.Expr:
     """
     Détecte si un changement impacte l'énergie/consommation.
     
@@ -227,13 +227,13 @@ def expr_impacte_energie(over: str = "Ref_Situation_Contractuelle") -> pl.Expr:
         ... )
     """
     changement_calendrier = expr_changement_avant_apres(
-        "Avant_Id_Calendrier_Distributeur", 
-        "Après_Id_Calendrier_Distributeur"
+        "avant_id_calendrier_distributeur",
+        "apres_id_calendrier_distributeur"
     )
     changement_index = expr_changement_index()
     changement_fta = expr_changement_avant_apres(
-        "Avant_Formule_Tarifaire_Acheminement",
-        "Formule_Tarifaire_Acheminement"
+        "avant_formule_tarifaire_acheminement",
+        "formule_tarifaire_acheminement"
     )
     est_structurant = expr_evenement_structurant()
     
@@ -259,18 +259,18 @@ def expr_resume_modification() -> pl.Expr:
         ... )
         # Produit: "P: 6.0 → 9.0, FTA: BTINFCU4 → BTINFMU4, Cal: CAL1 → CAL2"
     """
-    resume_puissance = expr_resume_changement("Puissance_Souscrite", "P")
-    resume_fta_shift = expr_resume_changement("Formule_Tarifaire_Acheminement", "FTA")
+    resume_puissance = expr_resume_changement("puissance_souscrite", "P")
+    resume_fta_shift = expr_resume_changement("formule_tarifaire_acheminement", "FTA")
     
     # Résumé calendrier (entre colonnes Avant_/Après_)
     resume_calendrier = (
-        pl.when(expr_changement_avant_apres("Avant_Id_Calendrier_Distributeur", "Après_Id_Calendrier_Distributeur"))
+        pl.when(expr_changement_avant_apres("avant_id_calendrier_distributeur", "apres_id_calendrier_distributeur"))
         .then(
             pl.concat_str([
                 pl.lit("Cal: "),
-                pl.col("Avant_Id_Calendrier_Distributeur").cast(pl.Utf8),
+                pl.col("avant_id_calendrier_distributeur").cast(pl.Utf8),
                 pl.lit(" → "),
-                pl.col("Après_Id_Calendrier_Distributeur").cast(pl.Utf8)
+                pl.col("apres_id_calendrier_distributeur").cast(pl.Utf8)
             ])
         )
         .otherwise(pl.lit(""))
@@ -320,11 +320,11 @@ def detecter_points_de_rupture(historique: pl.LazyFrame) -> pl.LazyFrame:
     """
     return (
         historique
-        .sort(["Ref_Situation_Contractuelle", "Date_Evenement"])
+        .sort(["ref_situation_contractuelle", "date_evenement"])
         # Créer les colonnes Avant_ avec window functions
         .with_columns([
-            pl.col("Puissance_Souscrite").shift(1).over("Ref_Situation_Contractuelle").alias("Avant_Puissance_Souscrite"),
-            pl.col("Formule_Tarifaire_Acheminement").shift(1).over("Ref_Situation_Contractuelle").alias("Avant_Formule_Tarifaire_Acheminement")
+            pl.col("puissance_souscrite").shift(1).over("ref_situation_contractuelle").alias("avant_puissance_souscrite"),
+            pl.col("formule_tarifaire_acheminement").shift(1).over("ref_situation_contractuelle").alias("avant_formule_tarifaire_acheminement")
         ])
         # Appliquer les détections d'impact avec nos expressions pures
         .with_columns([
@@ -358,7 +358,7 @@ def expr_evenement_entree() -> pl.Expr:
         ... )
     """
     evenements_entree = ["CFNE", "MES", "PMES"]
-    return pl.col("Evenement_Declencheur").is_in(evenements_entree)
+    return pl.col("evenement_declencheur").is_in(evenements_entree)
 
 
 def expr_evenement_sortie() -> pl.Expr:
@@ -379,7 +379,7 @@ def expr_evenement_sortie() -> pl.Expr:
         ... )
     """
     evenements_sortie = ["RES", "CFNS"]
-    return pl.col("Evenement_Declencheur").is_in(evenements_sortie)
+    return pl.col("evenement_declencheur").is_in(evenements_sortie)
 
 
 def colonnes_evenement_facturation() -> dict[str, pl.Expr]:
@@ -396,9 +396,9 @@ def colonnes_evenement_facturation() -> dict[str, pl.Expr]:
         >>> df.with_columns(**colonnes_evenement_facturation())
     """
     return {
-        "Evenement_Declencheur": pl.lit("FACTURATION"),
-        "Type_Evenement": pl.lit("artificiel"), 
-        "Source": pl.lit("synthese_mensuelle"),
+        "evenement_declencheur": pl.lit("FACTURATION"),
+        "type_evenement": pl.lit("artificiel"),
+        "source": pl.lit("synthese_mensuelle"),
         "resume_modification": pl.lit("Facturation mensuelle"),
         "impacte_abonnement": pl.lit(True),
         "impacte_energie": pl.lit(True)
@@ -413,13 +413,13 @@ def expr_date_entree_periode() -> pl.Expr:
         Expression retournant la date minimale des événements CFNE/MES/PMES
         
     Example:
-        >>> df.group_by("Ref_Situation_Contractuelle").agg(
+        >>> df.group_by("ref_situation_contractuelle").agg(
         ...     expr_date_entree_periode().alias("debut")
         ... )
     """
     return (
         pl.when(expr_evenement_entree())
-        .then(pl.col("Date_Evenement"))
+        .then(pl.col("date_evenement"))
         .min()
     )
 
@@ -434,7 +434,7 @@ def expr_date_sortie_periode() -> pl.Expr:
         Expression retournant la date maximale des événements RES/CFNS ou date par défaut
         
     Example:
-        >>> df.group_by("Ref_Situation_Contractuelle").agg(
+        >>> df.group_by("ref_situation_contractuelle").agg(
         ...     expr_date_sortie_periode().alias("fin")
         ... )
     """
@@ -447,7 +447,7 @@ def expr_date_sortie_periode() -> pl.Expr:
     
     return (
         pl.when(expr_evenement_sortie())
-        .then(pl.col("Date_Evenement"))
+        .then(pl.col("date_evenement"))
         .max()
         .fill_null(fin_par_defaut)
     )
@@ -464,10 +464,10 @@ def generer_dates_facturation(lf: pl.LazyFrame) -> pl.LazyFrame:
     
     Args:
         lf: LazyFrame contenant l'historique des événements
-        
+
     Returns:
         LazyFrame contenant uniquement les événements FACTURATION artificiels
-        avec les colonnes minimales (Ref, pdl, Date_Evenement, colonnes génériques)
+        avec les colonnes minimales (Ref, pdl, date_evenement, colonnes génériques)
         
     Example:
         >>> evenements = generer_dates_facturation(historique_lf)
@@ -485,21 +485,21 @@ def generer_dates_facturation(lf: pl.LazyFrame) -> pl.LazyFrame:
     return (
         lf
         # Grouper par Ref pour calculer les périodes d'activité
-        .group_by("Ref_Situation_Contractuelle")
+        .group_by("ref_situation_contractuelle")
         .agg([
             # Date d'entrée : min des événements CFNE/MES/PMES
-            pl.col("Date_Evenement")
+            pl.col("date_evenement")
                 .filter(expr_evenement_entree())
                 .min()
                 .alias("date_entree"),
-            
+
             # Date de sortie : max des événements RES/CFNS ou défaut
-            pl.col("Date_Evenement")
+            pl.col("date_evenement")
                 .filter(expr_evenement_sortie())
                 .max()
                 .fill_null(fin_defaut)
                 .alias("date_sortie"),
-            
+
             # Garder le pdl pour la jointure finale
             pl.col("pdl").first()
         ])
@@ -526,11 +526,11 @@ def generer_dates_facturation(lf: pl.LazyFrame) -> pl.LazyFrame:
         
         # Explode pour avoir une ligne par date
         .explode("dates_facturation")
-        .rename({"dates_facturation": "Date_Evenement"})
+        .rename({"dates_facturation": "date_evenement"})
         # Reconvertir en datetime avec timezone pour cohérence avec l'historique d'entrée
         .with_columns([
             # Garder la même précision datetime que l'historique d'origine
-            pl.col("Date_Evenement").cast(pl.Datetime).dt.replace_time_zone("Europe/Paris")
+            pl.col("date_evenement").cast(pl.Datetime).dt.replace_time_zone("Europe/Paris")
         ])
         
         # Filtrer : les dates générées sont déjà dans la bonne plage
@@ -538,9 +538,9 @@ def generer_dates_facturation(lf: pl.LazyFrame) -> pl.LazyFrame:
         
         # Sélectionner et ajouter les colonnes nécessaires
         .select([
-            "Ref_Situation_Contractuelle",
-            "pdl", 
-            "Date_Evenement"
+            "ref_situation_contractuelle",
+            "pdl",
+            "date_evenement"
         ])
         # Ajouter les colonnes génériques de facturation
         .with_columns(**colonnes_evenement_facturation())
@@ -566,19 +566,19 @@ def expr_colonnes_a_propager(columns: list[str] | None = None) -> list[pl.Expr]:
     """
     # Colonnes non-nullable du modèle qui doivent être propagées
     colonnes_obligatoires = [
-        "Segment_Clientele",
-        "Etat_Contractuel", 
-        "Puissance_Souscrite",
-        "Formule_Tarifaire_Acheminement",
-        "Type_Compteur",
-        "Num_Compteur"
+        "segment_clientele",
+        "etat_contractuel",
+        "puissance_souscrite",
+        "formule_tarifaire_acheminement",
+        "type_compteur",
+        "num_compteur"
     ]
-    
+
     # Colonnes optionnelles qui peuvent être propagées si présentes
     colonnes_optionnelles = [
-        "Categorie",
-        "Ref_Demandeur", 
-        "Id_Affaire"
+        "categorie",
+        "ref_demandeur",
+        "id_affaire"
     ]
     
     # Filtrer selon les colonnes disponibles si fourni
@@ -592,13 +592,13 @@ def expr_colonnes_a_propager(columns: list[str] | None = None) -> list[pl.Expr]:
     # Colonnes obligatoires
     for col in colonnes_obligatoires:
         expressions.append(
-            pl.col(col).forward_fill().over("Ref_Situation_Contractuelle")
+            pl.col(col).forward_fill().over("ref_situation_contractuelle")
         )
-    
+
     # Colonnes optionnelles (forward fill standard)
     for col in colonnes_optionnelles:
         expressions.append(
-            pl.col(col).forward_fill().over("Ref_Situation_Contractuelle")
+            pl.col(col).forward_fill().over("ref_situation_contractuelle")
         )
     
     return expressions
@@ -636,8 +636,8 @@ def inserer_evenements_facturation(lf: pl.LazyFrame) -> pl.LazyFrame:
     return (
         fusioned
         # Trier par Ref et Date pour le forward fill
-        .sort(["Ref_Situation_Contractuelle", "Date_Evenement"])
-        
+        .sort(["ref_situation_contractuelle", "date_evenement"])
+
         # Propager les colonnes contractuelles via expressions (avec colonnes disponibles)
         .with_columns(expr_colonnes_a_propager(columns=fusioned.collect_schema().names()))
     )

@@ -13,25 +13,25 @@ class RelevéIndexPolars(pa.DataFrameModel):
     """
     
     # 📆 Date du relevé - Utilisation du type DateTime Polars avec timezone
-    Date_Releve: DateTime = pa.Field(nullable=False, dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"})
+    date_releve: DateTime = pa.Field(nullable=False, dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"})
     ordre_index: pl.Boolean = pa.Field(default=False)
 
     # 🔹 Identifiant du Point de Livraison (PDL)
     pdl: pl.Utf8 = pa.Field(nullable=False)
-    Ref_Situation_Contractuelle: Optional[pl.Utf8] = pa.Field(nullable=True)
-    Formule_Tarifaire_Acheminement: Optional[pl.Utf8] = pa.Field(nullable=True)
+    ref_situation_contractuelle: Optional[pl.Utf8] = pa.Field(nullable=True)
+    formule_tarifaire_acheminement: Optional[pl.Utf8] = pa.Field(nullable=True)
 
     # 🏢 Références Fournisseur & Distributeur
-    Id_Calendrier_Fournisseur: Optional[pl.Utf8] = pa.Field(nullable=True)
-    Id_Calendrier_Distributeur: pl.Utf8 = pa.Field(nullable=True, isin=["DI000001", "DI000002", "DI000003"])
-    Id_Affaire: Optional[pl.Utf8] = pa.Field(nullable=True)
+    id_calendrier_fournisseur: Optional[pl.Utf8] = pa.Field(nullable=True)
+    id_calendrier_distributeur: pl.Utf8 = pa.Field(nullable=True, isin=["DI000001", "DI000002", "DI000003"])
+    id_affaire: Optional[pl.Utf8] = pa.Field(nullable=True)
 
     # Source des données
-    Source: pl.Utf8 = pa.Field(nullable=False, isin=["flux_R151", "flux_R15", "flux_C15", "FACTURATION"])
+    source: pl.Utf8 = pa.Field(nullable=False, isin=["flux_R151", "flux_R15", "flux_C15", "FACTURATION"])
 
     # 📏 Unité de mesure
-    Unité: pl.Utf8 = pa.Field(nullable=False, eq="kWh")
-    Précision: pl.Utf8 = pa.Field(nullable=False, isin=["kWh", "Wh", "MWh"])
+    unite: pl.Utf8 = pa.Field(nullable=False, isin=["kWh", "Wh", "MWh"])
+    precision: pl.Utf8 = pa.Field(nullable=False, isin=["kWh", "Wh", "MWh"])
 
     # ⚡ Mesures
     HP: Optional[pl.Float64] = pa.Field(nullable=True)
@@ -55,27 +55,27 @@ class RelevéIndexPolars(pa.DataFrameModel):
         
         # DI000001: BASE doit être non-null
         cond_d1 = (
-            pl.when(pl.col("Id_Calendrier_Distributeur") == "DI000001")
+            pl.when(pl.col("id_calendrier_distributeur") == "DI000001")
             .then(pl.col("BASE").is_not_null())
             .otherwise(pl.lit(True))
         )
         conditions.append(cond_d1)
-        
+
         # DI000002: HP et HC doivent être non-null
         cond_d2 = (
-            pl.when(pl.col("Id_Calendrier_Distributeur") == "DI000002")
+            pl.when(pl.col("id_calendrier_distributeur") == "DI000002")
             .then(pl.col("HP").is_not_null() & pl.col("HC").is_not_null())
             .otherwise(pl.lit(True))
         )
         conditions.append(cond_d2)
-        
+
         # DI000003: HPH, HCH, HPB, HCB doivent être non-null
         cond_d3 = (
-            pl.when(pl.col("Id_Calendrier_Distributeur") == "DI000003")
+            pl.when(pl.col("id_calendrier_distributeur") == "DI000003")
             .then(
-                pl.col("HPH").is_not_null() & 
-                pl.col("HCH").is_not_null() & 
-                pl.col("HPB").is_not_null() & 
+                pl.col("HPH").is_not_null() &
+                pl.col("HCH").is_not_null() &
+                pl.col("HPB").is_not_null() &
                 pl.col("HCB").is_not_null()
             )
             .otherwise(pl.lit(True))
@@ -101,7 +101,7 @@ class RequêteRelevéPolars(pa.DataFrameModel):
     Assure que les requêtes sont bien formatées avant d'interroger le DataFrame `RelevéIndexPolars`.
     """
     # 📆 Date du relevé demandée
-    Date_Releve: DateTime = pa.Field(nullable=False, dtype_kwargs={"time_unit": "ns", "time_zone": "Europe/Paris"})
+    date_releve: DateTime = pa.Field(nullable=False, dtype_kwargs={"time_unit": "ns", "time_zone": "Europe/Paris"})
 
     # 🔹 Identifiant du Point de Livraison (PDL)
     pdl: pl.Utf8 = pa.Field(nullable=False)
