@@ -1,0 +1,175 @@
+# Configuration des connexions et mappings DuckDB pour ElectriCore
+
+# Configuration par défaut de la base DuckDB
+default_database:
+  path: "electricore/etl/flux_enedis.duckdb"
+  read_only: true
+  connection_timeout: 30  # secondes
+
+# Mappings entre modèles métier et tables DuckDB
+table_mappings:
+
+  # Historique de périmètre - données contractuelles
+  historique_perimetre:
+    source_table: "enedis_production.flux_c15"
+    target_model: "HistoriquePérimètrePolars"
+    description: "Historique des événements contractuels avec relevés avant/après"
+    columns:
+      # Colonnes obligatoires
+      Date_Evenement: "date_evenement"
+      pdl: "pdl"
+      Ref_Situation_Contractuelle: "ref_situation_contractuelle"
+      Segment_Clientele: "segment_clientele"
+      Etat_Contractuel: "etat_contractuel"
+      Evenement_Declencheur: "evenement_declencheur"
+      Type_Evenement: "type_evenement"
+      Puissance_Souscrite: "CAST(puissance_souscrite AS DOUBLE)"
+      Formule_Tarifaire_Acheminement: "formule_tarifaire_acheminement"
+      Type_Compteur: "type_compteur"
+      Num_Compteur: "num_compteur"
+
+      # Colonnes optionnelles
+      Categorie: "categorie"
+      Ref_Demandeur: "ref_demandeur"
+      Id_Affaire: "id_affaire"
+
+      # Relevés "Avant"
+      Avant_Date_Releve: "avant_date_releve"
+      Avant_Nature_Index: "avant_nature_index"
+      Avant_Id_Calendrier_Fournisseur: "avant_id_calendrier_fournisseur"
+      Avant_Id_Calendrier_Distributeur: "avant_id_calendrier_distributeur"
+      Avant_HP: "CAST(avant_hp AS DOUBLE)"
+      Avant_HC: "CAST(avant_hc AS DOUBLE)"
+      Avant_HCH: "CAST(avant_hch AS DOUBLE)"
+      Avant_HPH: "CAST(avant_hph AS DOUBLE)"
+      Avant_HPB: "CAST(avant_hpb AS DOUBLE)"
+      Avant_HCB: "CAST(avant_hcb AS DOUBLE)"
+      Avant_BASE: "CAST(avant_base AS DOUBLE)"
+
+      # Relevés "Après"
+      Après_Date_Releve: "apres_date_releve"
+      Après_Nature_Index: "apres_nature_index"
+      Après_Id_Calendrier_Fournisseur: "apres_id_calendrier_fournisseur"
+      Après_Id_Calendrier_Distributeur: "apres_id_calendrier_distributeur"
+      Après_HP: "CAST(apres_hp AS DOUBLE)"
+      Après_HC: "CAST(apres_hc AS DOUBLE)"
+      Après_HCH: "CAST(apres_hch AS DOUBLE)"
+      Après_HPH: "CAST(apres_hph AS DOUBLE)"
+      Après_HPB: "CAST(apres_hpb AS DOUBLE)"
+      Après_HCB: "CAST(apres_hcb AS DOUBLE)"
+      Après_BASE: "CAST(apres_base AS DOUBLE)"
+
+      # Métadonnées
+      Source: "'flux_C15'"
+      Unité: "'kWh'"
+      Précision: "'kWh'"
+
+  # Relevés d'index - données de consommation
+  releves:
+    source_tables:
+      - "enedis_production.flux_r151"
+      - "enedis_production.flux_r15"
+    target_model: "RelevéIndexPolars"
+    description: "Relevés de compteurs unifiés depuis R151 et R15"
+    union_query: true  # Indique qu'il faut faire un UNION des tables sources
+
+    # Configuration pour la requête UNION
+    r151_columns:
+      Date_Releve: "CAST(date_releve AS TIMESTAMP)"
+      pdl: "pdl"
+      Ref_Situation_Contractuelle: "NULL"
+      Formule_Tarifaire_Acheminement: "NULL"
+      Id_Calendrier_Fournisseur: "id_calendrier_fournisseur"
+      Id_Calendrier_Distributeur: "id_calendrier_distributeur"
+      Id_Affaire: "id_affaire"
+      HP: "CAST(hp AS DOUBLE)"
+      HC: "CAST(hc AS DOUBLE)"
+      HCH: "CAST(hch AS DOUBLE)"
+      HPH: "CAST(hph AS DOUBLE)"
+      HPB: "CAST(hpb AS DOUBLE)"
+      HCB: "CAST(hcb AS DOUBLE)"
+      BASE: "CAST(base AS DOUBLE)"
+      Source: "'flux_R151'"
+      ordre_index: "FALSE"
+      Unité: "unite"
+      Précision: "unite"
+
+    r15_columns:
+      Date_Releve: "date_releve"
+      pdl: "pdl"
+      Ref_Situation_Contractuelle: "ref_situation_contractuelle"
+      Formule_Tarifaire_Acheminement: "NULL"
+      Id_Calendrier_Fournisseur: "NULL"
+      Id_Calendrier_Distributeur: "id_calendrier"
+      Id_Affaire: "id_affaire"
+      HP: "CAST(hp AS DOUBLE)"
+      HC: "CAST(hc AS DOUBLE)"
+      HCH: "CAST(hch AS DOUBLE)"
+      HPH: "CAST(hph AS DOUBLE)"
+      HPB: "CAST(hpb AS DOUBLE)"
+      HCB: "CAST(hcb AS DOUBLE)"
+      BASE: "CAST(base AS DOUBLE)"
+      Source: "'flux_R15'"
+      ordre_index: "FALSE"
+      Unité: "'kWh'"
+      Précision: "'kWh'"
+
+# Configuration des transformations post-chargement
+transformations:
+
+  # Transformations communes
+  timezone:
+    target: "Europe/Paris"
+    date_columns:
+      - "Date_Evenement"
+      - "Date_Releve"
+      - "Avant_Date_Releve"
+      - "Après_Date_Releve"
+
+  # Valeurs par défaut pour colonnes manquantes
+  defaults:
+    ordre_index: false
+    Unité: "kWh"
+    Précision: "kWh"
+
+# Configuration des filtres prédéfinis
+predefined_filters:
+
+  # Filtres temporels fréquents
+  last_month:
+    Date_Evenement: ">= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month')"
+    Date_Releve: ">= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month')"
+
+  current_year:
+    Date_Evenement: ">= DATE_TRUNC('year', CURRENT_DATE)"
+    Date_Releve: ">= DATE_TRUNC('year', CURRENT_DATE)"
+
+  last_7_days:
+    Date_Evenement: ">= CURRENT_DATE - INTERVAL '7 days'"
+    Date_Releve: ">= CURRENT_DATE - INTERVAL '7 days'"
+
+# Configuration de validation
+validation:
+  sample_size: 100  # Nombre de lignes pour validation Pandera
+  enable_by_default: true
+
+  # Seuils d'alertes
+  thresholds:
+    max_null_percentage: 10  # % max de valeurs nulles acceptables
+    min_rows_expected: 1     # Nombre min de lignes attendues
+
+# Configuration des performances
+performance:
+  lazy_evaluation: true
+  connection_pool_size: 5
+  query_timeout: 300  # secondes
+
+  # Optimisations par défaut
+  default_limit: null  # Pas de limite par défaut
+  enable_pushdown: true  # Pousser les filtres vers DuckDB
+
+# Configuration de logging
+logging:
+  log_queries: false  # Activer pour debug
+  log_performance: true
+  log_validation: true

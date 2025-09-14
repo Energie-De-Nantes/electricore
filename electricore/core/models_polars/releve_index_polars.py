@@ -13,7 +13,7 @@ class RelevéIndexPolars(pa.DataFrameModel):
     """
     
     # 📆 Date du relevé - Utilisation du type DateTime Polars avec timezone
-    Date_Releve: DateTime = pa.Field(nullable=False, dtype_kwargs={"time_unit": "ns", "time_zone": "Europe/Paris"})
+    Date_Releve: DateTime = pa.Field(nullable=False, dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"})
     ordre_index: pl.Boolean = pa.Field(default=False)
 
     # 🔹 Identifiant du Point de Livraison (PDL)

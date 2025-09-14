@@ -13,7 +13,7 @@ class HistoriquePérimètrePolars(pa.DataFrameModel):
     """
 
     # Timestamp principal
-    Date_Evenement: DateTime = pa.Field(nullable=False, dtype_kwargs={"time_unit": "ns", "time_zone": "Europe/Paris"})
+    Date_Evenement: DateTime = pa.Field(nullable=False, dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"})
 
     # Couple d'identifiants principaux
     pdl: pl.Utf8 = pa.Field(nullable=False)
@@ -47,7 +47,7 @@ class HistoriquePérimètrePolars(pa.DataFrameModel):
     Date_Derniere_Modification_FTA: Optional[pl.Utf8] = pa.Field(nullable=True)
     
     # Colonnes de relevés "Avant"
-    Avant_Date_Releve: Optional[DateTime] = pa.Field(nullable=True, dtype_kwargs={"time_unit": "ns", "time_zone": "Europe/Paris"})
+    Avant_Date_Releve: Optional[DateTime] = pa.Field(nullable=True, dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"})
     Avant_Nature_Index: Optional[pl.Utf8] = pa.Field(nullable=True)
     Avant_Id_Calendrier_Fournisseur: Optional[pl.Utf8] = pa.Field(nullable=True)
     Avant_Id_Calendrier_Distributeur: Optional[pl.Utf8] = pa.Field(nullable=True)
@@ -60,7 +60,7 @@ class HistoriquePérimètrePolars(pa.DataFrameModel):
     Avant_BASE: Optional[pl.Float64] = pa.Field(nullable=True)
     
     # Colonnes de relevés "Après"
-    Après_Date_Releve: Optional[DateTime] = pa.Field(nullable=True, dtype_kwargs={"time_unit": "ns", "time_zone": "Europe/Paris"})
+    Après_Date_Releve: Optional[DateTime] = pa.Field(nullable=True, dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"})
     Après_Nature_Index: Optional[pl.Utf8] = pa.Field(nullable=True)
     Après_Id_Calendrier_Fournisseur: Optional[pl.Utf8] = pa.Field(nullable=True)
     Après_Id_Calendrier_Distributeur: Optional[pl.Utf8] = pa.Field(nullable=True)
