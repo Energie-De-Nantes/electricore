@@ -38,7 +38,7 @@ async def root():
 @app.get("/flux/{table_name}")
 async def get_flux(
     table_name: str,
-    prm: Optional[str] = Query(None, description="Filtrer par PRM (Point de Raccordement au réseau de Mesure)"),
+    prm: Optional[str] = Query(None, description="Filtrer par pdl (Point de Livraison)"),
     limit: int = Query(100, le=1000, description="Nombre maximum de lignes à retourner"),
     offset: int = Query(0, ge=0, description="Nombre de lignes à ignorer (pagination)")
 ):
