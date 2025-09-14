@@ -14,15 +14,156 @@ import yaml
 import duckdb
 
 
-try:
-    from ..models_polars.releve_index_polars import RelevéIndexPolars
-    from ..models_polars.historique_perimetre_polars import HistoriquePérimètrePolars
-    POLARS_MODELS_AVAILABLE = True
-except ImportError:
-    # Les modèles Polars ne sont pas encore disponibles
-    POLARS_MODELS_AVAILABLE = False
-    RelevéIndexPolars = None
-    HistoriquePérimètrePolars = None
+# Requêtes SQL de base pour chaque flux
+BASE_QUERY_C15 = """
+SELECT
+    date_evenement,
+    pdl,
+    ref_situation_contractuelle,
+    segment_clientele,
+    etat_contractuel,
+    evenement_declencheur,
+    type_evenement,
+    categorie,
+    CAST(puissance_souscrite AS DOUBLE) as puissance_souscrite,
+    formule_tarifaire_acheminement,
+    type_compteur,
+    num_compteur,
+    ref_demandeur,
+    id_affaire,
+    -- Colonnes de relevés "Avant"
+    avant_date_releve,
+    avant_nature_index,
+    avant_id_calendrier_fournisseur,
+    avant_id_calendrier_distributeur,
+    CAST(avant_hp AS DOUBLE) as avant_HP,
+    CAST(avant_hc AS DOUBLE) as avant_HC,
+    CAST(avant_hch AS DOUBLE) as avant_HCH,
+    CAST(avant_hph AS DOUBLE) as avant_HPH,
+    CAST(avant_hpb AS DOUBLE) as avant_HPB,
+    CAST(avant_hcb AS DOUBLE) as avant_HCB,
+    CAST(avant_base AS DOUBLE) as avant_BASE,
+    -- Colonnes de relevés "Après"
+    apres_date_releve,
+    apres_nature_index,
+    apres_id_calendrier_fournisseur,
+    apres_id_calendrier_distributeur,
+    CAST(apres_hp AS DOUBLE) as apres_HP,
+    CAST(apres_hc AS DOUBLE) as apres_HC,
+    CAST(apres_hch AS DOUBLE) as apres_HCH,
+    CAST(apres_hph AS DOUBLE) as apres_HPH,
+    CAST(apres_hpb AS DOUBLE) as apres_HPB,
+    CAST(apres_hcb AS DOUBLE) as apres_HCB,
+    CAST(apres_base AS DOUBLE) as apres_BASE,
+    -- Métadonnées
+    'flux_C15' as source
+FROM enedis_production.flux_c15
+"""
+
+BASE_QUERY_R151 = """
+SELECT
+    CAST(date_releve AS TIMESTAMP) as date_releve,
+    pdl,
+    CAST(NULL AS VARCHAR) as ref_situation_contractuelle,
+    CAST(NULL AS VARCHAR) as formule_tarifaire_acheminement,
+    id_calendrier_fournisseur,
+    id_calendrier_distributeur,
+    id_affaire,
+    CAST(hp AS DOUBLE) as HP,
+    CAST(hc AS DOUBLE) as HC,
+    CAST(hch AS DOUBLE) as HCH,
+    CAST(hph AS DOUBLE) as HPH,
+    CAST(hpb AS DOUBLE) as HPB,
+    CAST(hcb AS DOUBLE) as HCB,
+    CAST(base AS DOUBLE) as BASE,
+    'flux_R151' as source,
+    FALSE as ordre_index,
+    unite,
+    unite as precision
+FROM enedis_production.flux_r151
+WHERE date_releve IS NOT NULL
+"""
+
+BASE_QUERY_R15 = """
+SELECT
+    date_releve,
+    pdl,
+    ref_situation_contractuelle,
+    CAST(NULL AS VARCHAR) as formule_tarifaire_acheminement,
+    CAST(NULL AS VARCHAR) as id_calendrier_fournisseur,
+    id_calendrier as id_calendrier_distributeur,
+    id_affaire,
+    CAST(hp AS DOUBLE) as HP,
+    CAST(hc AS DOUBLE) as HC,
+    CAST(hch AS DOUBLE) as HCH,
+    CAST(hph AS DOUBLE) as HPH,
+    CAST(hpb AS DOUBLE) as HPB,
+    CAST(hcb AS DOUBLE) as HCB,
+    CAST(base AS DOUBLE) as BASE,
+    'flux_R15' as source,
+    FALSE as ordre_index,
+    'kWh' as unite,
+    'kWh' as precision
+FROM enedis_production.flux_r15
+WHERE date_releve IS NOT NULL
+"""
+
+BASE_QUERY_RELEVES_UNIFIES = """
+WITH releves_unifies AS (
+    -- Flux R151 (relevés périodiques)
+    SELECT
+        CAST(date_releve AS TIMESTAMP) as date_releve,
+        pdl,
+        CAST(NULL AS VARCHAR) as ref_situation_contractuelle,
+        CAST(NULL AS VARCHAR) as formule_tarifaire_acheminement,
+        id_calendrier_fournisseur,
+        id_calendrier_distributeur,
+        id_affaire,
+        CAST(hp AS DOUBLE) as HP,
+        CAST(hc AS DOUBLE) as HC,
+        CAST(hch AS DOUBLE) as HCH,
+        CAST(hph AS DOUBLE) as HPH,
+        CAST(hpb AS DOUBLE) as HPB,
+        CAST(hcb AS DOUBLE) as HCB,
+        CAST(base AS DOUBLE) as BASE,
+        'flux_R151' as source,
+        FALSE as ordre_index,
+        unite,
+        unite as precision
+    FROM enedis_production.flux_r151
+    WHERE date_releve IS NOT NULL
+
+    UNION ALL
+
+    -- Flux R15 (relevés avec événements)
+    SELECT
+        date_releve,
+        pdl,
+        ref_situation_contractuelle,
+        CAST(NULL AS VARCHAR) as formule_tarifaire_acheminement,
+        CAST(NULL AS VARCHAR) as id_calendrier_fournisseur,
+        id_calendrier as id_calendrier_distributeur,
+        id_affaire,
+        CAST(hp AS DOUBLE) as HP,
+        CAST(hc AS DOUBLE) as HC,
+        CAST(hch AS DOUBLE) as HCH,
+        CAST(hph AS DOUBLE) as HPH,
+        CAST(hpb AS DOUBLE) as HPB,
+        CAST(hcb AS DOUBLE) as HCB,
+        CAST(base AS DOUBLE) as BASE,
+        'flux_R15' as source,
+        FALSE as ordre_index,
+        'kWh' as unite,
+        'kWh' as precision
+    FROM enedis_production.flux_r15
+    WHERE date_releve IS NOT NULL
+)
+SELECT * FROM releves_unifies
+"""
+
+
+from ..models_polars.releve_index_polars import RelevéIndexPolars
+from ..models_polars.historique_perimetre_polars import HistoriquePérimètrePolars
 
 
 class DuckDBConfig:
@@ -74,6 +215,363 @@ def duckdb_connection(database_path: Union[str, Path]):
             conn.close()
 
 
+def _build_where_clauses(filters: Optional[Dict[str, Any]]) -> List[str]:
+    """
+    Construit les clauses WHERE à partir d'un dictionnaire de filtres.
+
+    Args:
+        filters: Dictionnaire de filtres {colonne: condition}
+
+    Returns:
+        Liste des clauses WHERE formatées
+
+    Examples:
+        >>> _build_where_clauses({"pdl": ["PDL123", "PDL456"]})
+        ["pdl IN ('PDL123', 'PDL456')"]
+
+        >>> _build_where_clauses({"Date_Evenement": ">= '2024-01-01'"})
+        ["Date_Evenement >= '2024-01-01'"]
+    """
+    where_clauses = []
+    if filters:
+        for column, condition in filters.items():
+            if isinstance(condition, list):
+                # Liste de valeurs
+                values = "', '".join(str(v) for v in condition)
+                where_clauses.append(f"{column} IN ('{values}')")
+            elif isinstance(condition, str) and any(op in condition for op in ['>=', '<=', '>', '<', '=']):
+                # Condition avec opérateur
+                where_clauses.append(f"{column} {condition}")
+            else:
+                # Égalité simple
+                where_clauses.append(f"{column} = '{condition}'")
+    return where_clauses
+
+
+class QueryBuilder:
+    """
+    Builder fonctionnel pour construire et exécuter des requêtes DuckDB.
+
+    Cette classe suit le pattern builder avec une approche fonctionnelle :
+    - Immutabilité : chaque méthode retourne une nouvelle instance
+    - Méthodes chainables pour une API fluide
+    - Lazy evaluation : la requête n'est exécutée qu'au moment de exec() ou lazy()
+
+    Example:
+        >>> # API fluide chainable
+        >>> result = c15().filter({"Date_Evenement": ">= '2024-01-01'"}).limit(100).exec()
+        >>>
+        >>> # Construction progressive
+        >>> query = r151().filter({"pdl": ["PDL123", "PDL456"]})
+        >>> query = query.limit(1000)
+        >>> lazy_df = query.lazy()
+    """
+
+    def __init__(self,
+                 base_query: str,
+                 transform_func: callable,
+                 validator_class: type = None,
+                 database_path: Union[str, Path] = None,
+                 filters: Optional[Dict[str, Any]] = None,
+                 limit_value: Optional[int] = None,
+                 valider: bool = True):
+        """
+        Initialise un QueryBuilder.
+
+        Args:
+            base_query: Requête SQL de base sans WHERE ni LIMIT
+            transform_func: Fonction de transformation du LazyFrame
+            validator_class: Classe Pandera pour la validation (optionnel)
+            database_path: Chemin vers la base DuckDB
+            filters: Filtres à appliquer
+            limit_value: Limite du nombre de lignes
+            valider: Active la validation Pandera
+        """
+        self._base_query = base_query
+        self._transform_func = transform_func
+        self._validator_class = validator_class
+        self._database_path = database_path
+        self._filters = filters or {}
+        self._limit_value = limit_value
+        self._valider = valider
+
+    def filter(self, filters: Dict[str, Any]) -> 'QueryBuilder':
+        """
+        Ajoute des filtres à la requête.
+
+        Args:
+            filters: Dictionnaire de filtres {colonne: condition}
+
+        Returns:
+            Nouvelle instance QueryBuilder avec les filtres ajoutés
+
+        Example:
+            >>> query.filter({"Date_Evenement": ">= '2024-01-01'", "pdl": ["PDL123"]})
+        """
+        new_filters = {**self._filters, **filters}
+        return QueryBuilder(
+            self._base_query,
+            self._transform_func,
+            self._validator_class,
+            self._database_path,
+            new_filters,
+            self._limit_value,
+            self._valider
+        )
+
+    def where(self, condition: str) -> 'QueryBuilder':
+        """
+        Ajoute une condition WHERE sous forme de chaîne brute.
+
+        Args:
+            condition: Condition SQL brute (ex: "pdl IN ('PDL123', 'PDL456')")
+
+        Returns:
+            Nouvelle instance QueryBuilder avec la condition ajoutée
+
+        Example:
+            >>> query.where("date_evenement >= '2024-01-01' AND puissance_souscrite > 6")
+        """
+        # Pour les conditions brutes, on utilise une clé spéciale
+        new_filters = {**self._filters, f"__raw_condition_{len(self._filters)}": condition}
+        return QueryBuilder(
+            self._base_query,
+            self._transform_func,
+            self._validator_class,
+            self._database_path,
+            new_filters,
+            self._limit_value,
+            self._valider
+        )
+
+    def limit(self, count: int) -> 'QueryBuilder':
+        """
+        Ajoute une limite au nombre de lignes retournées.
+
+        Args:
+            count: Nombre maximum de lignes
+
+        Returns:
+            Nouvelle instance QueryBuilder avec la limite
+
+        Example:
+            >>> query.limit(1000)
+        """
+        return QueryBuilder(
+            self._base_query,
+            self._transform_func,
+            self._validator_class,
+            self._database_path,
+            self._filters,
+            count,
+            self._valider
+        )
+
+    def validate(self, enable: bool = True) -> 'QueryBuilder':
+        """
+        Active ou désactive la validation Pandera.
+
+        Args:
+            enable: True pour activer la validation
+
+        Returns:
+            Nouvelle instance QueryBuilder avec la configuration de validation
+        """
+        return QueryBuilder(
+            self._base_query,
+            self._transform_func,
+            self._validator_class,
+            self._database_path,
+            self._filters,
+            self._limit_value,
+            enable
+        )
+
+    def _build_final_query(self) -> str:
+        """
+        Construit la requête SQL finale avec filtres et limite.
+
+        Returns:
+            Requête SQL complète prête à être exécutée
+        """
+        query = self._base_query
+
+        # Construire les clauses WHERE
+        where_clauses = []
+        for key, condition in self._filters.items():
+            if key.startswith("__raw_condition_"):
+                # Condition brute
+                where_clauses.append(condition)
+            else:
+                # Condition structurée
+                if isinstance(condition, list):
+                    values = "', '".join(str(v) for v in condition)
+                    where_clauses.append(f"{key} IN ('{values}')")
+                elif isinstance(condition, str) and any(op in condition for op in ['>=', '<=', '>', '<', '=']):
+                    where_clauses.append(f"{key} {condition}")
+                else:
+                    where_clauses.append(f"{key} = '{condition}'")
+
+        if where_clauses:
+            # Vérifier si la requête a déjà une clause WHERE
+            if "WHERE" in query.upper():
+                # Ajouter les conditions avec AND
+                query += " AND " + " AND ".join(where_clauses)
+            else:
+                # Ajouter une nouvelle clause WHERE
+                query += " WHERE " + " AND ".join(where_clauses)
+
+        if self._limit_value:
+            query += f" LIMIT {self._limit_value}"
+
+        return query
+
+    def lazy(self) -> pl.LazyFrame:
+        """
+        Exécute la requête et retourne un LazyFrame Polars.
+
+        Returns:
+            LazyFrame Polars avec les transformations appliquées
+        """
+        config = DuckDBConfig(self._database_path)
+
+        if not config.database_path.exists():
+            raise FileNotFoundError(f"Base DuckDB non trouvée : {config.database_path}")
+
+        final_query = self._build_final_query()
+
+        # Connexion et exécution
+        with duckdb_connection(config.database_path) as conn:
+            lazy_frame = pl.read_database(
+                query=final_query,
+                connection=conn
+            ).lazy()
+
+        # Application des transformations
+        lazy_frame = self._transform_func(lazy_frame)
+
+        # Validation si demandée
+        if self._valider and self._validator_class is not None:
+            sample_df = lazy_frame.limit(100).collect()
+            self._validator_class.validate(sample_df)
+
+        return lazy_frame
+
+    def exec(self) -> pl.DataFrame:
+        """
+        Exécute la requête et retourne un DataFrame Polars concret.
+
+        Returns:
+            DataFrame Polars collecté avec les transformations appliquées
+        """
+        return self.lazy().collect()
+
+
+# ============================================================
+# API fluide - Fonctions factory
+# ============================================================
+
+def c15(database_path: Union[str, Path] = None) -> QueryBuilder:
+    """
+    Crée un QueryBuilder pour les données flux C15 (historique périmètre).
+
+    Args:
+        database_path: Chemin vers la base DuckDB (optionnel)
+
+    Returns:
+        QueryBuilder configuré pour flux C15
+
+    Example:
+        >>> # Récupérer les événements récents
+        >>> df = c15().filter({"Date_Evenement": ">= '2024-01-01'"}).limit(100).exec()
+        >>>
+        >>> # Filtrer par PDL spécifiques
+        >>> lazy_df = c15().filter({"pdl": ["PDL123", "PDL456"]}).lazy()
+    """
+    return QueryBuilder(
+        base_query=BASE_QUERY_C15,
+        transform_func=_transform_historique_perimetre,
+        validator_class=HistoriquePérimètrePolars,
+        database_path=database_path
+    )
+
+
+def r151(database_path: Union[str, Path] = None) -> QueryBuilder:
+    """
+    Crée un QueryBuilder pour les données flux R151 (relevés périodiques).
+
+    Args:
+        database_path: Chemin vers la base DuckDB (optionnel)
+
+    Returns:
+        QueryBuilder configuré pour flux R151
+
+    Example:
+        >>> # Relevés récents avec limite
+        >>> df = r151().filter({"date_releve": ">= '2024-01-01'"}).limit(1000).exec()
+    """
+    return QueryBuilder(
+        base_query=BASE_QUERY_R151,
+        transform_func=_transform_releves,
+        validator_class=RelevéIndexPolars,
+        database_path=database_path
+    )
+
+
+def r15(database_path: Union[str, Path] = None) -> QueryBuilder:
+    """
+    Crée un QueryBuilder pour les données flux R15 (relevés avec événements).
+
+    Args:
+        database_path: Chemin vers la base DuckDB (optionnel)
+
+    Returns:
+        QueryBuilder configuré pour flux R15
+
+    Example:
+        >>> # Relevés avec situation contractuelle spécifique
+        >>> df = r15().filter({"ref_situation_contractuelle": "REF123"}).exec()
+    """
+    return QueryBuilder(
+        base_query=BASE_QUERY_R15,
+        transform_func=_transform_releves,
+        validator_class=RelevéIndexPolars,
+        database_path=database_path
+    )
+
+
+def releves(database_path: Union[str, Path] = None) -> QueryBuilder:
+    """
+    Crée un QueryBuilder pour les relevés unifiés (R151 + R15).
+
+    Cette fonction combine automatiquement les données des flux R151 et R15
+    dans un format unifié, équivalent à load_releves().
+
+    Args:
+        database_path: Chemin vers la base DuckDB (optionnel)
+
+    Returns:
+        QueryBuilder configuré pour les relevés unifiés
+
+    Example:
+        >>> # Tous les relevés récents
+        >>> df = releves().filter({"date_releve": ">= '2024-01-01'"}).exec()
+        >>>
+        >>> # Relevés par source
+        >>> r151_only = releves().filter({"source": "flux_R151"}).exec()
+    """
+    return QueryBuilder(
+        base_query=BASE_QUERY_RELEVES_UNIFIES,
+        transform_func=_transform_releves,
+        validator_class=RelevéIndexPolars,
+        database_path=database_path
+    )
+
+
+# ============================================================
+# Fonctions de compatibilité (legacy API)
+# ============================================================
+
 def load_historique_perimetre(
     database_path: Union[str, Path] = None,
     filters: Optional[Dict[str, Any]] = None,
@@ -99,96 +597,16 @@ def load_historique_perimetre(
         ... )
         >>> df = lf.collect()
     """
-    config = DuckDBConfig(database_path)
+    # Utilise le QueryBuilder en interne pour éviter la duplication
+    query_builder = c15(database_path).validate(valider)
 
-    if not config.database_path.exists():
-        raise FileNotFoundError(f"Base DuckDB non trouvée : {config.database_path}")
-
-    # Construction de la requête SQL de base pour historique périmètre
-    base_query = """
-    SELECT
-        date_evenement,
-        pdl,
-        ref_situation_contractuelle,
-        segment_clientele,
-        etat_contractuel,
-        evenement_declencheur,
-        type_evenement,
-        categorie,
-        CAST(puissance_souscrite AS DOUBLE) as puissance_souscrite,
-        formule_tarifaire_acheminement,
-        type_compteur,
-        num_compteur,
-        ref_demandeur,
-        id_affaire,
-        -- Colonnes de relevés "Avant"
-        avant_date_releve,
-        avant_nature_index,
-        avant_id_calendrier_fournisseur,
-        avant_id_calendrier_distributeur,
-        CAST(avant_hp AS DOUBLE) as avant_HP,
-        CAST(avant_hc AS DOUBLE) as avant_HC,
-        CAST(avant_hch AS DOUBLE) as avant_HCH,
-        CAST(avant_hph AS DOUBLE) as avant_HPH,
-        CAST(avant_hpb AS DOUBLE) as avant_HPB,
-        CAST(avant_hcb AS DOUBLE) as avant_HCB,
-        CAST(avant_base AS DOUBLE) as avant_BASE,
-        -- Colonnes de relevés "Après"
-        apres_date_releve,
-        apres_nature_index,
-        apres_id_calendrier_fournisseur,
-        apres_id_calendrier_distributeur,
-        CAST(apres_hp AS DOUBLE) as apres_HP,
-        CAST(apres_hc AS DOUBLE) as apres_HC,
-        CAST(apres_hch AS DOUBLE) as apres_HCH,
-        CAST(apres_hph AS DOUBLE) as apres_HPH,
-        CAST(apres_hpb AS DOUBLE) as apres_HPB,
-        CAST(apres_hcb AS DOUBLE) as apres_HCB,
-        CAST(apres_base AS DOUBLE) as apres_BASE,
-        -- Métadonnées
-        'flux_C15' as source
-    FROM enedis_production.flux_c15
-    """
-
-    # Ajout des filtres
-    where_clauses = []
     if filters:
-        for column, condition in filters.items():
-            if isinstance(condition, list):
-                # Liste de valeurs
-                values = "', '".join(str(v) for v in condition)
-                where_clauses.append(f"{column} IN ('{values}')")
-            elif isinstance(condition, str) and any(op in condition for op in ['>=', '<=', '>', '<', '=']):
-                # Condition avec opérateur
-                where_clauses.append(f"{column} {condition}")
-            else:
-                # Égalité simple
-                where_clauses.append(f"{column} = '{condition}'")
-
-    if where_clauses:
-        base_query += " WHERE " + " AND ".join(where_clauses)
+        query_builder = query_builder.filter(filters)
 
     if limit:
-        base_query += f" LIMIT {limit}"
+        query_builder = query_builder.limit(limit)
 
-    # Connexion et exécution
-    with duckdb_connection(config.database_path) as conn:
-        lazy_frame = pl.read_database(
-            query=base_query,
-            connection=conn
-        ).lazy()
-
-    # Application des transformations pour conformité Pandera
-    lazy_frame = _transform_historique_perimetre(lazy_frame)
-
-    # Validation si demandée (seulement si les modèles Polars sont disponibles)
-    if valider and POLARS_MODELS_AVAILABLE and HistoriquePérimètrePolars is not None:
-        # Note: La validation Pandera se fait sur des DataFrames concrets,
-        # donc on collecte temporairement pour valider puis on retourne le LazyFrame
-        sample_df = lazy_frame.limit(100).collect()
-        HistoriquePérimètrePolars.validate(sample_df)
-
-    return lazy_frame
+    return query_builder.lazy()
 
 
 def load_releves(
@@ -215,99 +633,16 @@ def load_releves(
         ...     limit=1000
         ... )
     """
-    config = DuckDBConfig(database_path)
+    # Utilise le QueryBuilder en interne pour éviter la duplication
+    query_builder = releves(database_path).validate(valider)
 
-    if not config.database_path.exists():
-        raise FileNotFoundError(f"Base DuckDB non trouvée : {config.database_path}")
-
-    # Requête de base pour les relevés R151 et R15
-    base_query = """
-    WITH releves_unifies AS (
-        -- Flux R151 (relevés périodiques)
-        SELECT
-            CAST(date_releve AS TIMESTAMP) as date_releve,
-            pdl,
-            CAST(NULL AS VARCHAR) as ref_situation_contractuelle,  -- Pas dans R151
-            CAST(NULL AS VARCHAR) as formule_tarifaire_acheminement,
-            id_calendrier_fournisseur,
-            id_calendrier_distributeur,
-            id_affaire,
-            CAST(hp AS DOUBLE) as HP,
-            CAST(hc AS DOUBLE) as HC,
-            CAST(hch AS DOUBLE) as HCH,
-            CAST(hph AS DOUBLE) as HPH,
-            CAST(hpb AS DOUBLE) as HPB,
-            CAST(hcb AS DOUBLE) as HCB,
-            CAST(base AS DOUBLE) as BASE,
-            'flux_R151' as source,
-            FALSE as ordre_index,
-            unite,
-            unite as precision
-        FROM enedis_production.flux_r151
-        WHERE date_releve IS NOT NULL
-
-        UNION ALL
-
-        -- Flux R15 (relevés avec événements)
-        SELECT
-            date_releve,
-            pdl,
-            ref_situation_contractuelle,
-            CAST(NULL AS VARCHAR) as formule_tarifaire_acheminement,  -- Pas dans R15
-            CAST(NULL AS VARCHAR) as id_calendrier_fournisseur,  -- Pas dans R15
-            id_calendrier as id_calendrier_distributeur,
-            id_affaire,
-            CAST(hp AS DOUBLE) as HP,
-            CAST(hc AS DOUBLE) as HC,
-            CAST(hch AS DOUBLE) as HCH,
-            CAST(hph AS DOUBLE) as HPH,
-            CAST(hpb AS DOUBLE) as HPB,
-            CAST(hcb AS DOUBLE) as HCB,
-            CAST(base AS DOUBLE) as BASE,
-            'flux_R15' as source,
-            FALSE as ordre_index,
-            'kWh' as unite,
-            'kWh' as precision
-        FROM enedis_production.flux_r15
-        WHERE date_releve IS NOT NULL
-    )
-    SELECT * FROM releves_unifies
-    """
-
-    # Ajout des filtres (même logique que load_historique_perimetre)
-    where_clauses = []
     if filters:
-        for column, condition in filters.items():
-            if isinstance(condition, list):
-                values = "', '".join(str(v) for v in condition)
-                where_clauses.append(f"{column} IN ('{values}')")
-            elif isinstance(condition, str) and any(op in condition for op in ['>=', '<=', '>', '<', '=']):
-                where_clauses.append(f"{column} {condition}")
-            else:
-                where_clauses.append(f"{column} = '{condition}'")
-
-    if where_clauses:
-        base_query += " WHERE " + " AND ".join(where_clauses)
+        query_builder = query_builder.filter(filters)
 
     if limit:
-        base_query += f" LIMIT {limit}"
+        query_builder = query_builder.limit(limit)
 
-    # Connexion et exécution
-    with duckdb_connection(config.database_path) as conn:
-        lazy_frame = pl.read_database(
-            query=base_query,
-            connection=conn
-        ).lazy()
-
-    # Application des transformations
-    lazy_frame = _transform_releves(lazy_frame)
-
-    # Validation si demandée (seulement si les modèles Polars sont disponibles)
-    if valider and POLARS_MODELS_AVAILABLE and RelevéIndexPolars is not None:
-        sample_df = lazy_frame.limit(100).collect()
-        RelevéIndexPolars.validate(sample_df)
-
-    return lazy_frame
+    return query_builder.lazy()
 
 
 def _transform_historique_perimetre(lf: pl.LazyFrame) -> pl.LazyFrame:

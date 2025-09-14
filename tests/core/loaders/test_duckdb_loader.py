@@ -48,7 +48,7 @@ class TestDuckDBConfig:
         # Vérifier la structure des mappings
         hist_mapping = config.table_mappings["historique_perimetre"]
         assert "source_tables" in hist_mapping
-        assert "target_model" in hist_mapping
+        assert "description" in hist_mapping
 
 
 class TestDuckDBConnection:
@@ -211,15 +211,21 @@ class TestUtilityFunctions:
         mock_conn = Mock()
         mock_conn_context.return_value.__enter__.return_value = mock_conn
         mock_conn.execute.return_value.fetchall.return_value = [
-            ("table1",), ("table2",), ("table3",)
+            ("schema1", "table1"), ("schema1", "table2"), ("schema2", "table3")
         ]
 
         # Appeler la fonction
         result = get_available_tables("test.duckdb")
 
         # Vérifications
-        assert result == ["table1", "table2", "table3"]
-        mock_conn.execute.assert_called_once_with("SHOW TABLES")
+        assert result == ["schema1.table1", "schema1.table2", "schema2.table3"]
+        # Vérifier que la bonne requête a été appelée
+        mock_conn.execute.assert_called_once_with("""
+            SELECT table_schema, table_name
+            FROM information_schema.tables
+            WHERE table_schema != 'information_schema'
+            ORDER BY table_schema, table_name
+        """)
 
     @patch('electricore.core.loaders.duckdb_loader.duckdb_connection')
     @patch('electricore.core.loaders.duckdb_loader.pl.read_database')
