@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.15.2"
+__generated_with = "0.15.3"
 app = marimo.App(width="medium")
 
 with app.setup:
@@ -23,6 +23,8 @@ with app.setup:
         detecter_points_de_rupture as detecter_polars,
         inserer_evenements_facturation as inserer_evenements_factu_polars
     )
+    # Import des loaders DuckDB
+    from electricore.core.loaders.duckdb_loader import c15
 
 
 @app.cell
@@ -87,21 +89,73 @@ def demo_data():
 
 
 @app.cell
-def load_parquet(demo_data):
-    """Charger les données parquet"""
+def load_data(demo_data):
+    """Charger les données depuis DuckDB ou données démo"""
 
-    export_dir = Path.home() / "data" / "export_flux"
-    historique_files = list(export_dir.glob("**/historique*.parquet"))
+    try:
+        # Essayer de charger depuis DuckDB avec le loader c15
+        print("📄 Chargement depuis DuckDB...")
+        lf_polars = c15().limit(10000).lazy()  # Limiter pour la démo
+        df_pandas = lf_polars.collect().to_pandas()
 
-    if historique_files:
-        latest_file = max(historique_files, key=lambda x: x.stat().st_mtime)
-        print(f"📄 Chargement : {latest_file.name}")
-        df_pandas = pd.read_parquet(latest_file)
-        lf_polars = pl.scan_parquet(latest_file)
-        print(f"✅ {len(df_pandas)} lignes chargées")
+        # Convertir les colonnes pour compatibilité avec le pipeline pandas (majuscules)
+        column_mapping = {
+            'date_evenement': 'Date_Evenement',
+            'evenement_declencheur': 'Evenement_Declencheur',
+            'puissance_souscrite': 'Puissance_Souscrite',
+            'formule_tarifaire_acheminement': 'Formule_Tarifaire_Acheminement',
+            'ref_situation_contractuelle': 'Ref_Situation_Contractuelle',
+            'segment_clientele': 'Segment_Clientele',
+            'etat_contractuel': 'Etat_Contractuel',
+            'type_evenement': 'Type_Evenement',
+            'type_compteur': 'Type_Compteur',
+            'num_compteur': 'Num_Compteur',
+            'ref_demandeur': 'Ref_Demandeur',
+            'id_affaire': 'Id_Affaire',
+            'avant_date_releve': 'Avant_Date_Releve',
+            'avant_nature_index': 'Avant_Nature_Index',
+            'avant_id_calendrier_fournisseur': 'Avant_Id_Calendrier_Fournisseur',
+            'avant_id_calendrier_distributeur': 'Avant_Id_Calendrier_Distributeur',
+            'apres_date_releve': 'Après_Date_Releve',
+            'apres_nature_index': 'Après_Nature_Index',
+            'apres_id_calendrier_fournisseur': 'Après_Id_Calendrier_Fournisseur',
+            'apres_id_calendrier_distributeur': 'Après_Id_Calendrier_Distributeur',
+            # Colonnes d'index
+            'avant_BASE': 'Avant_BASE',
+            'avant_HP': 'Avant_HP',
+            'avant_HC': 'Avant_HC',
+            'avant_HCH': 'Avant_HCH',
+            'avant_HPH': 'Avant_HPH',
+            'avant_HPB': 'Avant_HPB',
+            'avant_HCB': 'Avant_HCB',
+            'apres_BASE': 'Après_BASE',
+            'apres_HP': 'Après_HP',
+            'apres_HC': 'Après_HC',
+            'apres_HCH': 'Après_HCH',
+            'apres_HPH': 'Après_HPH',
+            'apres_HPB': 'Après_HPB',
+            'apres_HCB': 'Après_HCB',
+            # Autres
+            'categorie': 'Categorie',
+            'source': 'Source',
+            'unite': 'Unité',
+            'precision': 'Précision'
+        }
 
-    else:
-        print("❌ Aucun fichier parquet trouvé")
+        # Renommer les colonnes
+        df_pandas = df_pandas.rename(columns=column_mapping)
+
+        # Convertir les colonnes de dates
+        date_cols = ['Date_Evenement', 'Avant_Date_Releve', 'Après_Date_Releve']
+        for _col in date_cols:
+            if _col in df_pandas.columns:
+                df_pandas[_col] = pd.to_datetime(df_pandas[_col])
+
+        print(f"✅ {len(df_pandas)} lignes chargées depuis DuckDB")
+
+    except Exception as e:
+        print(f"❌ Erreur DuckDB: {e}")
+        print("📝 Utilisation des données de démonstration")
         df_pandas = pd.DataFrame(demo_data)
         lf_polars = pl.LazyFrame(demo_data)
     return df_pandas, lf_polars
@@ -122,16 +176,16 @@ def pipeline_pandas(df_pandas):
     # Appliquer le pipeline pandas
     resultat_pandas = detecter_pandas(df_pandas)
 
-    # Afficher les colonnes clés
-    _colonnes_interessantes = [
-        "Date_Evenement", "Evenement_Declencheur", "Puissance_Souscrite",
-        "Formule_Tarifaire_Acheminement", "impacte_abonnement", "impacte_energie", 
-        "resume_modification"
-    ]
+    # # Afficher les colonnes clés
+    # _colonnes_interessantes = [
+    #     "Date_Evenement", "Evenement_Declencheur", "Puissance_Souscrite",
+    #     "Formule_Tarifaire_Acheminement", "impacte_abonnement", "impacte_energie", 
+    #     "resume_modification"
+    # ]
 
-    pandas_result = resultat_pandas[_colonnes_interessantes]
-    pandas_result
-    return pandas_result, resultat_pandas
+    # pandas_result = resultat_pandas[_colonnes_interessantes]
+    resultat_pandas
+    return (resultat_pandas,)
 
 
 @app.cell(hide_code=True)
@@ -145,15 +199,15 @@ def pipeline_polars(lf_polars):
     resultat_polars = resultat_polars_lf.collect()
 
     # Mêmes colonnes que pandas
-    _colonnes_interessantes = [
-        "Date_Evenement", "Evenement_Declencheur", "Puissance_Souscrite",
-        "Formule_Tarifaire_Acheminement", "impacte_abonnement", "impacte_energie", 
-        "resume_modification"
-    ]
+    # _colonnes_interessantes = [
+    #     "Date_Evenement", "Evenement_Declencheur", "Puissance_Souscrite",
+    #     "Formule_Tarifaire_Acheminement", "impacte_abonnement", "impacte_energie", 
+    #     "resume_modification"
+    # ]
 
-    polars_result = resultat_polars.select(_colonnes_interessantes)
-    polars_result
-    return polars_result, resultat_polars_lf
+    # polars_result = resultat_polars.select(_colonnes_interessantes)
+    resultat_polars
+    return (resultat_polars_lf,)
 
 
 @app.cell
@@ -195,8 +249,11 @@ def benchmark_performance(df_pandas, lf_polars):
 
 
 @app.cell
-def comparaison(pandas_result, polars_result):
+def comparaison(resultat_pandas, resultat_polars_lf):
     """Comparer les résultats des deux pipelines"""
+
+    # Collecter le résultat Polars
+    polars_result = resultat_polars_lf.collect()
 
     print("\n🔍 COMPARAISON DES RÉSULTATS :")
     print("=" * 50)
@@ -206,7 +263,7 @@ def comparaison(pandas_result, polars_result):
 
     equivalent = True
     for col in colonnes_comparees:
-        pandas_vals = pandas_result[col].tolist()
+        pandas_vals = resultat_pandas[col].tolist()
         polars_vals = polars_result[col].to_list()
 
         if pandas_vals == polars_vals:
