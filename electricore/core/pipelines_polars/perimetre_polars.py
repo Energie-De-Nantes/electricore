@@ -513,6 +513,8 @@ def generer_dates_facturation(lf: pl.LazyFrame) -> pl.LazyFrame:
             # Dernier mois de facturation = mois de sortie
             pl.col("date_sortie").dt.month_start().alias("dernier_mois")
         ])
+        # Filtrer les références avec des plages valides (premier_mois <= dernier_mois)
+        .filter(pl.col("premier_mois") <= pl.col("dernier_mois"))
         # Générer les dates mensuelles en commençant par le bon mois
         # Note: convertir en dates avant date_ranges pour éviter les problèmes de timezone
         .with_columns(
