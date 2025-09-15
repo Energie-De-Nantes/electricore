@@ -187,11 +187,11 @@ def calculer_periodes_abonnement(lf: pl.LazyFrame) -> pl.LazyFrame:
         # 2. Calcul des bornes de période avec window functions
         .with_columns(expr_bornes_periode())
 
-        # 3. Calcul de la durée en jours
-        .with_columns(expr_nb_jours().alias("nb_jours"))
-
-        # 4. Formatage des dates en français
+        # 3-4. Calcul des colonnes dérivées qui dépendent des bornes
         .with_columns([
+            # Durée en jours (dépend de debut/fin)
+            expr_nb_jours().alias("nb_jours"),
+            # Formatage des dates en français
             expr_date_formatee_fr("debut", "complet").alias("debut_lisible"),
             expr_fin_lisible().alias("fin_lisible"),
             expr_date_formatee_fr("debut", "mois_annee").alias("mois_annee")
