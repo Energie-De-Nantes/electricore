@@ -262,8 +262,9 @@ def extraire_releves_evenements_polars(historique: pl.LazyFrame) -> pl.LazyFrame
     Example:
         >>> releves = extraire_releves_evenements_polars(evenements_lf)
     """
-    # Colonnes d'index et identifiants (schéma fixe)
-    index_cols = ["BASE", "HP", "HC", "HCH", "HPH", "HPB", "HCB", "id_calendrier_distributeur"]
+    # Colonnes d'index numériques et métadonnées (schéma fixe)
+    index_cols = ["BASE", "HP", "HC", "HCH", "HPH", "HPB", "HCB"]
+    metadata_cols = ["id_calendrier_distributeur"]
     identifiants = ["pdl", "ref_situation_contractuelle", "formule_tarifaire_acheminement"]
 
     # Relevés "avant" (ordre_index=0)
@@ -271,11 +272,13 @@ def extraire_releves_evenements_polars(historique: pl.LazyFrame) -> pl.LazyFrame
         historique
         .select(
             identifiants + ["date_evenement"] +
-            [f"avant_{col.lower()}" for col in index_cols]
+            [f"avant_{col}" for col in index_cols] +
+            [f"avant_{col}" for col in metadata_cols]
         )
         .rename({
             "date_evenement": "date_releve",
-            **{f"avant_{col.lower()}": col for col in index_cols}
+            **{f"avant_{col}": col for col in index_cols},
+            **{f"avant_{col}": col for col in metadata_cols}
         })
         .with_columns([
             pl.lit(0).alias("ordre_index"),
@@ -290,11 +293,13 @@ def extraire_releves_evenements_polars(historique: pl.LazyFrame) -> pl.LazyFrame
         historique
         .select(
             identifiants + ["date_evenement"] +
-            [f"apres_{col.lower()}" for col in index_cols]
+            [f"apres_{col}" for col in index_cols] +
+            [f"apres_{col}" for col in metadata_cols]
         )
         .rename({
             "date_evenement": "date_releve",
-            **{f"apres_{col.lower()}": col for col in index_cols}
+            **{f"apres_{col}": col for col in index_cols},
+            **{f"apres_{col}": col for col in metadata_cols}
         })
         .with_columns([
             pl.lit(1).alias("ordre_index"),
