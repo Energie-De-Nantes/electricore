@@ -10,7 +10,7 @@ import polars as pl
 from typing import Optional, List
 
 # Import du calcul TURPE variable
-from ..taxes.turpe_variable_polars import ajouter_turpe_variable_polars
+from .turpe_polars import ajouter_turpe_variable
 
 
 # =============================================================================
@@ -515,5 +515,5 @@ def pipeline_energie_polars(
         .filter(pl.col("impacte_energie"))
         .pipe(reconstituer_chronologie_releves_polars, releves)
         .pipe(calculer_periodes_energie_polars)
-        .pipe(ajouter_turpe_variable_polars)
+        .pipe(ajouter_turpe_variable)
     )

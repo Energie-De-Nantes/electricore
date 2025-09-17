@@ -17,7 +17,7 @@ def load_turpe_rules() -> pd.DataFrame:
     """
     Charge les règles TURPE à partir du fichier CSV.
     """
-    file_path = Path(__file__).parent / "turpe_rules.csv"
+    file_path = Path(__file__).parent / ".." / ".." / "config" / "turpe_rules.csv"
     turpe_rules = pd.read_csv(file_path, parse_dates=["start", "end"])
 
     # Convertir en date avec fuseau horaire

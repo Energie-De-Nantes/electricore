@@ -262,10 +262,10 @@ def turpe_pandas(periodes_pandas):
 
 
     # Appliquer le TURPE complet avec pandas
-    from electricore.core.taxes.turpe import load_turpe_rules, ajouter_turpe_fixe
+    from electricore.core.taxes.turpe import load_turpe_rules, ajouter_turpe_fixe as ajouter_turpe_fixe_pandas
 
     _regles_turpe = load_turpe_rules()
-    periodes_avec_turpe_pandas = ajouter_turpe_fixe(_regles_turpe, periodes_pandas)
+    periodes_avec_turpe_pandas = ajouter_turpe_fixe_pandas(_regles_turpe, periodes_pandas)
 
     if "turpe_fixe" in periodes_avec_turpe_pandas.columns:
         total_turpe_pandas = periodes_avec_turpe_pandas["turpe_fixe"].sum()
@@ -288,7 +288,7 @@ def turpe_polars(periodes_polars_lf):
 
     try:
         # Appliquer le TURPE avec Polars
-        from electricore.core.taxes.turpe_polars import ajouter_turpe_fixe_polars
+        from electricore.core.pipelines_polars.turpe_polars import ajouter_turpe_fixe as ajouter_turpe_fixe_polars
 
         periodes_avec_turpe_polars_lf = ajouter_turpe_fixe_polars(periodes_polars_lf)
         periodes_avec_turpe_polars = periodes_avec_turpe_polars_lf.collect()
