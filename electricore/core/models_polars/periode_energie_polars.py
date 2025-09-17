@@ -49,7 +49,10 @@ class PeriodeEnergiePolars(pa.DataFrameModel):
 
     # Calculs TURPE (colonnes optionnelles)
     turpe_variable: Optional[pl.Float64] = pa.Field(nullable=True)
-    turpe_total: Optional[pl.Float64] = pa.Field(nullable=True)
+
+    # Flags pour tracer les relevés manquants (colonnes optionnelles)
+    releve_manquant_debut: Optional[pl.Boolean] = pa.Field(nullable=True)
+    releve_manquant_fin: Optional[pl.Boolean] = pa.Field(nullable=True)
 
     @pa.dataframe_check
     def verifier_coherence_periode(cls, data) -> pl.LazyFrame:

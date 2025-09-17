@@ -1,0 +1,586 @@
+"""
+Expressions Polars pour le pipeline énergie.
+
+Ce module contient des expressions composables suivant la philosophie
+fonctionnelle de Polars. Les expressions sont des transformations pures
+qui peuvent être composées entre elles pour générer les périodes d'énergie.
+"""
+
+import polars as pl
+from typing import Optional, List
+
+# Import du calcul TURPE variable
+from ..taxes.turpe_variable_polars import ajouter_turpe_variable_polars
+
+
+# =============================================================================
+# EXPRESSIONS PURES ATOMIQUES POUR LE CALCUL D'ÉNERGIE
+# =============================================================================
+
+def expr_bornes_depuis_shift(over: str = "ref_situation_contractuelle") -> List[pl.Expr]:
+    """
+    Définit les bornes temporelles des périodes en utilisant shift sur les relevés.
+
+    Cette expression utilise shift(1) pour créer les bornes debut/fin entre relevés consécutifs
+    au sein d'une partition définie par 'over' (contrat ou PDL).
+
+    Args:
+        over: Colonne(s) définissant les partitions pour la window function
+
+    Returns:
+        Liste d'expressions pour les bornes temporelles et métadonnées
+
+    Example:
+        >>> df.with_columns(expr_bornes_depuis_shift())
+    """
+    return [
+        pl.col("date_releve").shift(1).over(over).alias("debut"),
+        pl.col("source").shift(1).over(over).alias("source_avant"),
+        pl.col("date_releve").alias("fin"),
+        pl.col("source").alias("source_apres"),
+        # Propager le flag releve_manquant pour le début et la fin
+        pl.col("releve_manquant").shift(1).over(over).alias("releve_manquant_debut"),
+        pl.col("releve_manquant").alias("releve_manquant_fin")
+    ]
+
+
+def expr_arrondir_index_kwh_lf(lf: pl.LazyFrame, cadrans: List[str]) -> pl.LazyFrame:
+    """
+    Arrondit les index à l'entier inférieur pour ne comptabiliser que les kWh complets.
+
+    Cette fonction filtre les cadrans selon leur disponibilité dans le LazyFrame
+    pour éviter les erreurs de colonnes manquantes.
+
+    Args:
+        lf: LazyFrame à traiter
+        cadrans: Liste des colonnes de cadrans à arrondir
+
+    Returns:
+        LazyFrame avec les index arrondis
+
+    Example:
+        >>> lf_arrondi = expr_arrondir_index_kwh_lf(lf, ["BASE", "HP", "HC"])
+    """
+    schema_columns = lf.collect_schema().names()
+    cadrans_presents = [cadran for cadran in cadrans if cadran in schema_columns]
+
+    if not cadrans_presents:
+        return lf
+
+    expressions = []
+    for cadran in cadrans_presents:
+        expressions.append(
+            pl.when(pl.col(cadran).is_not_null())
+            .then(pl.col(cadran).floor())
+            .otherwise(pl.col(cadran))
+            .alias(cadran)
+        )
+
+    return lf.with_columns(expressions)
+
+
+def expr_calculer_energie_cadran(cadran: str, over: str = "ref_situation_contractuelle") -> pl.Expr:
+    """
+    Calcule l'énergie pour un cadran donné (différence avec relevé précédent).
+
+    Cette expression vectorise le calcul des énergies en utilisant la différence
+    entre l'index actuel et l'index précédent (obtenu via shift).
+
+    Args:
+        cadran: Nom du cadran à calculer (ex: "BASE", "HP", "HC")
+        over: Colonne(s) définissant les partitions pour la window function
+
+    Returns:
+        Expression Polars retournant l'énergie calculée
+
+    Example:
+        >>> df.with_columns(
+        ...     expr_calculer_energie_cadran("BASE").alias("BASE_energie")
+        ... )
+    """
+    current = pl.col(cadran)
+    previous = current.shift(1).over(over)
+
+    return (
+        pl.when(current.is_not_null() & previous.is_not_null())
+        .then(current - previous)
+        .otherwise(pl.lit(None))
+    )
+
+
+def calculer_energies_tous_cadrans_lf(lf: pl.LazyFrame, cadrans: List[str]) -> pl.LazyFrame:
+    """
+    Calcule les énergies pour TOUS les cadrans demandés.
+
+    ⚠️ **Prérequis** : Les données d'entrée doivent être validées avec Pandera
+    ⚠️ **Comportement** : Crée toutes les colonnes d'énergie (null si cadran absent)
+
+    Cette fonction garantit que toutes les colonnes d'énergie sont créées,
+    permettant à l'enrichissement hiérarchique de fonctionner sans erreur.
+
+    Args:
+        lf: LazyFrame à traiter (validé Pandera)
+        cadrans: Liste complète des cadrans à traiter
+
+    Returns:
+        LazyFrame avec TOUTES les colonnes d'énergie (présentes ou nulles)
+
+    Example:
+        >>> cadrans = ["BASE", "HP", "HC", "HPH", "HPB", "HCH", "HCB"]
+        >>> lf_energies = calculer_energies_tous_cadrans_lf(lf, cadrans)
+    """
+    schema_columns = lf.collect_schema().names()
+    expressions = []
+
+    for cadran in cadrans:
+        if cadran in schema_columns:
+            # Cadran présent : calculer l'énergie
+            expressions.append(
+                expr_calculer_energie_cadran(cadran, "ref_situation_contractuelle").alias(f"{cadran}_energie")
+            )
+        else:
+            # Cadran absent : créer colonne nulle
+            expressions.append(
+                pl.lit(None, dtype=pl.Float64).alias(f"{cadran}_energie")
+            )
+
+    return lf.with_columns(expressions)
+
+
+def expr_enrichir_cadrans_principaux() -> List[pl.Expr]:
+    """
+    Enrichit tous les cadrans principaux avec synthèse hiérarchique des énergies.
+
+    ⚠️ **Prérequis** : Les données d'entrée doivent être validées avec Pandera
+    ⚠️ **Assumption** : Toutes les colonnes d'énergie sont présentes (même si nulles)
+
+    Effectue une synthèse en cascade pour créer une hiérarchie complète des cadrans :
+    1. HC_energie = somme(HC_energie, HCH_energie, HCB_energie) si au moins une non-null
+    2. HP_energie = somme(HP_energie, HPH_energie, HPB_energie) si au moins une non-null
+    3. BASE_energie = somme(BASE_energie, HP_energie, HC_energie) si au moins une non-null
+
+    Cette fonction gère tous les types de compteurs via min_count=1.
+
+    Returns:
+        Liste d'expressions pour l'enrichissement hiérarchique
+
+    Example:
+        >>> df.with_columns(expr_enrichir_cadrans_principaux())
+    """
+    return [
+        # Étape 1 : Synthèse HC depuis les sous-cadrans HCH et HCB
+        pl.sum_horizontal([pl.col("HC_energie"), pl.col("HCH_energie"), pl.col("HCB_energie")])
+        .alias("HC_energie"),
+
+        # Étape 2 : Synthèse HP depuis les sous-cadrans HPH et HPB
+        pl.sum_horizontal([pl.col("HP_energie"), pl.col("HPH_energie"), pl.col("HPB_energie")])
+        .alias("HP_energie"),
+
+        # Étape 3 : Synthèse BASE depuis HP et HC (utilise les valeurs enrichies)
+        pl.sum_horizontal([pl.col("BASE_energie"), pl.col("HP_energie"), pl.col("HC_energie")])
+        .alias("BASE_energie")
+    ]
+
+
+def calculer_flags_qualite_lf(lf: pl.LazyFrame, cadrans: List[str]) -> pl.LazyFrame:
+    """
+    Calcule les flags de qualité des données de manière vectorisée.
+
+    ⚠️ **Prérequis** : Toutes les colonnes d'énergie sont présentes (créées par étape précédente)
+    ⚠️ **Assumption** : Les colonnes debut/fin existent et sont valides
+
+    Cette fonction détermine si les données sont complètes et si la période
+    est irrégulière (> 35 jours) en se basant sur TOUTES les colonnes d'énergie.
+
+    Args:
+        lf: LazyFrame à traiter (avec toutes les colonnes d'énergie)
+        cadrans: Liste complète des cadrans
+
+    Returns:
+        LazyFrame avec les flags de qualité
+
+    Example:
+        >>> lf_qualite = calculer_flags_qualite_lf(lf, ["BASE", "HP", "HC"])
+    """
+    # Toutes les colonnes d'énergie (garanties présentes par étape précédente)
+    colonnes_energie = [f"{cadran}_energie" for cadran in cadrans]
+
+    # Calculer nb_jours d'abord
+    nb_jours_expr = (pl.col("fin").dt.date() - pl.col("debut").dt.date()).dt.total_days().cast(pl.Int32)
+
+    expressions = [
+        # nb_jours : différence en jours entre fin et début
+        nb_jours_expr.alias("nb_jours"),
+
+        # periode_irreguliere : plus de 35 jours
+        (
+            pl.when(nb_jours_expr.is_not_null())
+            .then(nb_jours_expr > 35)
+            .otherwise(False)
+        ).alias("periode_irreguliere"),
+
+        # data_complete : au moins une énergie calculée non-null
+        pl.any_horizontal([pl.col(col).is_not_null() for col in colonnes_energie]).alias("data_complete")
+    ]
+
+    return lf.with_columns(expressions)
+
+
+def expr_filtrer_periodes_valides() -> pl.Expr:
+    """
+    Expression pour filtrer les périodes valides de manière déclarative.
+
+    Une période est valide si :
+    - Elle a une date de début (pas de relevé orphelin)
+    - Sa durée est supérieure à 0 jour
+
+    Returns:
+        Expression booléenne pour filtrer les périodes valides
+
+    Example:
+        >>> df.filter(expr_filtrer_periodes_valides())
+    """
+    return (
+        pl.col("debut").is_not_null() &
+        (pl.col("nb_jours") > 0)
+    )
+
+
+def expr_date_formatee_fr(col: str, format_type: str = "complet") -> pl.Expr:
+    """
+    Formate une colonne de date en français.
+
+    Cette expression reprend le formatage français du pipeline abonnements
+    pour assurer la cohérence entre les différents pipelines.
+
+    Args:
+        col: Nom de la colonne à formater
+        format_type: Type de format ("complet", "mois_annee")
+
+    Returns:
+        Expression Polars retournant la date formatée
+
+    Example:
+        >>> df.with_columns(expr_date_formatee_fr("debut", "complet").alias("debut_lisible"))
+    """
+    # Dictionnaire de correspondance anglais -> français
+    mois_mapping = {
+        "January": "janvier",
+        "February": "février",
+        "March": "mars",
+        "April": "avril",
+        "May": "mai",
+        "June": "juin",
+        "July": "juillet",
+        "August": "août",
+        "September": "septembre",
+        "October": "octobre",
+        "November": "novembre",
+        "December": "décembre"
+    }
+
+    if format_type == "complet":
+        # Format "1 mars 2025"
+        expr = pl.col(col).dt.strftime("%d %B %Y")
+
+        # Appliquer les remplacements séquentiellement
+        for en_mois, fr_mois in mois_mapping.items():
+            expr = expr.str.replace_all(en_mois, fr_mois)
+
+        return expr
+
+    elif format_type == "mois_annee":
+        # Format "mars 2025"
+        expr = pl.col(col).dt.strftime("%B %Y")
+
+        # Appliquer les remplacements séquentiellement
+        for en_mois, fr_mois in mois_mapping.items():
+            expr = expr.str.replace_all(en_mois, fr_mois)
+
+        return expr
+
+    else:
+        raise ValueError(f"Format non supporté : {format_type}")
+
+
+# =============================================================================
+# FONCTIONS DE TRANSFORMATION LAZYFRAME
+# =============================================================================
+
+
+def calculer_periodes_energie_polars(lf: pl.LazyFrame) -> pl.LazyFrame:
+    """
+    Pipeline de calcul des périodes d'énergie avec approche fonctionnelle Polars.
+
+    🔄 **Version Polars optimisée** - Approche pipeline avec LazyFrame :
+    - **Pipeline déclaratif** avec pipe() pour une meilleure lisibilité
+    - **Vectorisation maximale** des calculs d'énergies
+    - **Expressions pures** facilement testables et maintenables
+    - **Performance optimisée** grâce aux optimisations Polars
+
+    Pipeline de transformation :
+    1. Préparation et tri des relevés
+    2. Calcul des décalages par contrat avec window functions
+    3. Arrondi des index à l'entier inférieur (kWh complets)
+    4. Calcul vectorisé des énergies tous cadrans
+    5. Calcul des flags de qualité
+    6. Filtrage des périodes valides
+    7. Formatage des dates en français
+    8. Enrichissement hiérarchique des cadrans
+    9. Sélection des colonnes finales
+
+    Args:
+        lf: LazyFrame contenant les relevés d'index chronologiques
+
+    Returns:
+        LazyFrame avec périodes d'énergie calculées et validées
+
+    Example:
+        >>> periodes = calculer_periodes_energie_polars(releves_lf).collect()
+    """
+    # Cadrans d'index électriques standard
+    cadrans = ["BASE", "HP", "HC", "HPH", "HPB", "HCH", "HCB"]
+
+    return (
+        lf
+        .sort(["ref_situation_contractuelle", "date_releve", "ordre_index"])
+
+        # Définition des bornes temporelles entre relevés consécutifs
+        .with_columns(expr_bornes_depuis_shift(over="ref_situation_contractuelle"))
+
+        # Arrondi des index pour ne comptabiliser que les kWh complets
+        .pipe(lambda df: expr_arrondir_index_kwh_lf(df, cadrans))
+
+        # Calcul vectorisé des énergies pour tous les cadrans
+        .pipe(lambda df: calculer_energies_tous_cadrans_lf(df, cadrans))
+
+        # Calcul des flags de qualité
+        .pipe(lambda df: calculer_flags_qualite_lf(df, cadrans))
+
+        # Filtrage des périodes valides
+        .filter(expr_filtrer_periodes_valides())
+
+        # Formatage des dates en français
+        .with_columns([
+            expr_date_formatee_fr("debut", "complet").alias("debut_lisible"),
+            expr_date_formatee_fr("fin", "complet").alias("fin_lisible"),
+            expr_date_formatee_fr("debut", "mois_annee").alias("mois_annee")
+        ])
+
+        # Enrichissement hiérarchique des cadrans principaux
+        .with_columns(expr_enrichir_cadrans_principaux())
+
+        # Sélection des colonnes sera faite plus tard si nécessaire
+    )
+
+
+def extraire_releves_evenements_polars(historique: pl.LazyFrame) -> pl.LazyFrame:
+    """
+    Génère des relevés d'index (avant/après) à partir d'un historique enrichi des événements contractuels - Version Polars.
+
+    Convertit les colonnes Avant_* et Après_* des événements en relevés d'index séparés
+    avec ordre_index=0 pour "avant" et ordre_index=1 pour "après".
+
+    Args:
+        historique: LazyFrame contenant l'historique des événements contractuels validé Pandera
+
+    Returns:
+        LazyFrame des relevés d'index conformes au modèle RelevéIndex Polars
+
+    Example:
+        >>> releves = extraire_releves_evenements_polars(evenements_lf)
+    """
+    # Colonnes d'index et identifiants (schéma fixe)
+    index_cols = ["BASE", "HP", "HC", "HCH", "HPH", "HPB", "HCB", "id_calendrier_distributeur"]
+    identifiants = ["pdl", "ref_situation_contractuelle", "formule_tarifaire_acheminement"]
+
+    # Relevés "avant" (ordre_index=0)
+    releves_avant = (
+        historique
+        .select(
+            identifiants + ["date_evenement"] +
+            [f"avant_{col.lower()}" for col in index_cols]
+        )
+        .rename({
+            "date_evenement": "date_releve",
+            **{f"avant_{col.lower()}": col for col in index_cols}
+        })
+        .with_columns([
+            pl.lit(0).alias("ordre_index"),
+            pl.lit("flux_C15").alias("source"),
+            pl.lit("kWh").alias("unite"),
+            pl.lit("kWh").alias("precision")
+        ])
+    )
+
+    # Relevés "après" (ordre_index=1)
+    releves_apres = (
+        historique
+        .select(
+            identifiants + ["date_evenement"] +
+            [f"apres_{col.lower()}" for col in index_cols]
+        )
+        .rename({
+            "date_evenement": "date_releve",
+            **{f"apres_{col.lower()}": col for col in index_cols}
+        })
+        .with_columns([
+            pl.lit(1).alias("ordre_index"),
+            pl.lit("flux_C15").alias("source"),
+            pl.lit("kWh").alias("unite"),
+            pl.lit("kWh").alias("precision")
+        ])
+    )
+
+    # Combiner et filtrer les lignes avec des index valides
+    return (
+        pl.concat([releves_avant, releves_apres], how="diagonal")
+        # Forcer les types pour éviter les conflits de schéma (edge case : toutes valeurs null → type Null)
+        .with_columns([
+            pl.col(col).cast(pl.Float64) for col in index_cols
+            if col not in ["id_calendrier_distributeur"]  # Garder Int64 pour l'ID
+        ])
+        .with_columns(
+            pl.col("id_calendrier_distributeur").cast(pl.Int64)
+        )
+        .filter(
+            # Garder les lignes qui ont au moins un index non-null
+            pl.any_horizontal([
+                pl.col(col).is_not_null() for col in index_cols
+            ])
+        )
+    )
+
+
+def interroger_releves_polars(requete: pl.LazyFrame, releves: pl.LazyFrame) -> pl.LazyFrame:
+    """
+    Interroge les relevés et GARANTIT un résultat de même taille que la requête.
+
+    Jointure LEFT pour garder toutes les lignes de la requête.
+    Les relevés non trouvés auront des NaN sur les colonnes d'index.
+
+    Args:
+        requete: LazyFrame avec colonnes pdl, date_releve
+        releves: LazyFrame des relevés d'index disponibles
+
+    Returns:
+        LazyFrame de MÊME TAILLE que requête avec flag releve_manquant
+
+    Example:
+        >>> releves_avec_manquants = interroger_releves_polars(requete_lf, releves_lf)
+    """
+    return (
+        requete
+        .join(
+            releves,
+            on=["pdl", "date_releve"],
+            how="left"
+        )
+        .with_columns([
+            # Flag pour tracer les relevés manquants
+            pl.col("source").is_null().alias("releve_manquant"),
+            # Ajouter ordre_index par défaut pour les relevés R151 (pour déduplication)
+            pl.lit(0).alias("ordre_index")
+        ])
+    )
+
+
+def reconstituer_chronologie_releves_polars(evenements: pl.LazyFrame, releves: pl.LazyFrame) -> pl.LazyFrame:
+    """
+    Reconstitue la chronologie complète des relevés nécessaires pour la facturation - Version Polars.
+
+    Assemble tous les relevés aux dates pertinentes en combinant :
+    - Les relevés aux dates d'événements contractuels (flux C15 : MES, RES, MCT)
+    - Les relevés aux dates de facturation (données depuis R151)
+
+    Args:
+        evenements: LazyFrame des événements contractuels + événements FACTURATION
+        releves: LazyFrame des relevés d'index quotidiens complets (flux R151)
+
+    Returns:
+        LazyFrame chronologique avec priorité : flux_C15 > flux_R151
+
+    Example:
+        >>> chronologie = reconstituer_chronologie_releves_polars(evt_lf, releves_lf)
+    """
+    # 1. Séparer les événements contractuels des événements FACTURATION
+    evt_contractuels = evenements.filter(pl.col("evenement_declencheur") != "FACTURATION")
+    evt_facturation = evenements.filter(pl.col("evenement_declencheur") == "FACTURATION")
+
+    # 2. Extraire les relevés des événements contractuels
+    rel_evenements = extraire_releves_evenements_polars(evt_contractuels)
+
+    # 3. Pour FACTURATION : construire requête et interroger les relevés existants
+    requete_facturation = (
+        evt_facturation
+        .select([
+            "pdl",
+            pl.col("date_evenement").alias("date_releve"),
+            "ref_situation_contractuelle",
+            "formule_tarifaire_acheminement"
+        ])
+    )
+
+    rel_facturation = interroger_releves_polars(requete_facturation, releves)
+
+    # 4. Combiner les deux sources de relevés
+    return (
+        # how="diagonal" : accepte des colonnes différentes entre rel_evenements et rel_facturation
+        # rel_evenements n'a pas releve_manquant → sera null
+        # rel_facturation a releve_manquant → garde sa valeur
+        pl.concat([rel_evenements, rel_facturation], how="diagonal")
+        # Tri chronologique pour forward fill
+        .sort(["pdl", "date_releve", "ordre_index"])
+        # Propager les références contractuelles avec forward fill par PDL
+        .with_columns([
+            pl.col("ref_situation_contractuelle").fill_null(strategy="forward").over("pdl"),
+            pl.col("formule_tarifaire_acheminement").fill_null(strategy="forward").over("pdl")
+        ])
+        # Appliquer priorité des sources (flux_C15 < flux_R151 alphabétiquement)
+        .sort(["pdl", "date_releve", "source"])
+        # Déduplication par contrat, gardant la première occurrence (priorité alphabétique)
+        .unique(subset=["ref_situation_contractuelle", "date_releve", "ordre_index"], keep="first")
+        # Tri final chronologique
+        .sort(["pdl", "date_releve", "ordre_index"])
+    )
+
+
+def pipeline_energie_polars(
+    historique: pl.LazyFrame,
+    releves: pl.LazyFrame
+) -> pl.LazyFrame:
+    """
+    Pipeline principal pour générer les périodes d'énergie avec TURPE variable.
+
+    Ce pipeline orchestre :
+    1. L'enrichissement de l'historique (si nécessaire)
+    2. Le filtrage des événements impactant l'énergie
+    3. La reconstitution de chronologie des relevés
+    4. Le calcul des périodes d'énergie
+    5. L'enrichissement avec calcul TURPE variable
+
+    Args:
+        historique: LazyFrame contenant l'historique des événements contractuels
+        releves: LazyFrame contenant les relevés d'index
+
+    Returns:
+        LazyFrame avec les périodes d'énergie et TURPE variable
+
+    Example:
+        >>> periodes_energie = pipeline_energie_polars(historique_lf, releves_lf)
+        >>> df = periodes_energie.collect()
+    """
+    from .perimetre_polars import detecter_points_de_rupture
+
+    schema_columns = historique.collect_schema().names()
+    
+    if 'impacte_energie' not in schema_columns:
+        historique = detecter_points_de_rupture(historique)
+
+    return (
+        historique
+        .filter(pl.col("impacte_energie"))
+        .pipe(reconstituer_chronologie_releves_polars, releves)
+        .pipe(calculer_periodes_energie_polars)
+        .pipe(ajouter_turpe_variable_polars)
+    )
