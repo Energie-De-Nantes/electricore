@@ -44,39 +44,25 @@ def expr_bornes_depuis_shift(over: str = "ref_situation_contractuelle") -> List[
     ]
 
 
-def expr_arrondir_index_kwh_lf(lf: pl.LazyFrame, cadrans: List[str]) -> pl.LazyFrame:
+def expr_arrondir_index_kwh(cadrans: List[str]) -> List[pl.Expr]:
     """
-    Arrondit les index à l'entier inférieur pour ne comptabiliser que les kWh complets.
-
-    Cette fonction filtre les cadrans selon leur disponibilité dans le LazyFrame
-    pour éviter les erreurs de colonnes manquantes.
+    Expressions pour arrondir les index à l'entier inférieur (kWh complets).
 
     Args:
-        lf: LazyFrame à traiter
         cadrans: Liste des colonnes de cadrans à arrondir
 
     Returns:
-        LazyFrame avec les index arrondis
+        Liste d'expressions Polars pour l'arrondissement
 
     Example:
-        >>> lf_arrondi = expr_arrondir_index_kwh_lf(lf, ["BASE", "HP", "HC"])
+        >>> expressions = expr_arrondir_index_kwh(["BASE", "HP", "HC"])
+        >>> lf = lf.with_columns(expressions)
     """
-    schema_columns = lf.collect_schema().names()
-    cadrans_presents = [cadran for cadran in cadrans if cadran in schema_columns]
-
-    if not cadrans_presents:
-        return lf
-
-    expressions = []
-    for cadran in cadrans_presents:
-        expressions.append(
-            pl.when(pl.col(cadran).is_not_null())
+    return [pl.when(pl.col(cadran).is_not_null())
             .then(pl.col(cadran).floor())
             .otherwise(pl.col(cadran))
             .alias(cadran)
-        )
-
-    return lf.with_columns(expressions)
+            for cadran in cadrans]
 
 
 def expr_calculer_energie_cadran(cadran: str, over: str = "ref_situation_contractuelle") -> pl.Expr:
@@ -108,43 +94,26 @@ def expr_calculer_energie_cadran(cadran: str, over: str = "ref_situation_contrac
     )
 
 
-def calculer_energies_tous_cadrans_lf(lf: pl.LazyFrame, cadrans: List[str]) -> pl.LazyFrame:
+def expr_calculer_energies_tous_cadrans(cadrans: List[str]) -> List[pl.Expr]:
     """
-    Calcule les énergies pour TOUS les cadrans demandés.
+    Expressions pour calculer les énergies de tous les cadrans présents.
 
-    ⚠️ **Prérequis** : Les données d'entrée doivent être validées avec Pandera
-    ⚠️ **Comportement** : Crée toutes les colonnes d'énergie (null si cadran absent)
-
-    Cette fonction garantit que toutes les colonnes d'énergie sont créées,
-    permettant à l'enrichissement hiérarchique de fonctionner sans erreur.
+    ⚠️ **Prérequis** : Les colonnes cadrans doivent être présentes dans le LazyFrame
 
     Args:
-        lf: LazyFrame à traiter (validé Pandera)
-        cadrans: Liste complète des cadrans à traiter
+        cadrans: Liste des cadrans à traiter
 
     Returns:
-        LazyFrame avec TOUTES les colonnes d'énergie (présentes ou nulles)
+        Liste d'expressions pour le calcul des énergies
 
     Example:
-        >>> cadrans = ["BASE", "HP", "HC", "HPH", "HPB", "HCH", "HCB"]
-        >>> lf_energies = calculer_energies_tous_cadrans_lf(lf, cadrans)
+        >>> expressions = expr_calculer_energies_tous_cadrans(["BASE"])
+        >>> lf = lf.with_columns(expressions)
     """
-    schema_columns = lf.collect_schema().names()
-    expressions = []
-
-    for cadran in cadrans:
-        if cadran in schema_columns:
-            # Cadran présent : calculer l'énergie
-            expressions.append(
-                expr_calculer_energie_cadran(cadran, "ref_situation_contractuelle").alias(f"{cadran}_energie")
-            )
-        else:
-            # Cadran absent : créer colonne nulle
-            expressions.append(
-                pl.lit(None, dtype=pl.Float64).alias(f"{cadran}_energie")
-            )
-
-    return lf.with_columns(expressions)
+    return [
+        expr_calculer_energie_cadran(cadran, "ref_situation_contractuelle").alias(f"{cadran}_energie")
+        for cadran in cadrans
+    ]
 
 
 def expr_enrichir_cadrans_principaux() -> List[pl.Expr]:
@@ -182,48 +151,17 @@ def expr_enrichir_cadrans_principaux() -> List[pl.Expr]:
     ]
 
 
-def calculer_flags_qualite_lf(lf: pl.LazyFrame, cadrans: List[str]) -> pl.LazyFrame:
+def expr_nb_jours() -> pl.Expr:
     """
-    Calcule les flags de qualité des données de manière vectorisée.
-
-    ⚠️ **Prérequis** : Toutes les colonnes d'énergie sont présentes (créées par étape précédente)
-    ⚠️ **Assumption** : Les colonnes debut/fin existent et sont valides
-
-    Cette fonction détermine si les données sont complètes et si la période
-    est irrégulière (> 35 jours) en se basant sur TOUTES les colonnes d'énergie.
-
-    Args:
-        lf: LazyFrame à traiter (avec toutes les colonnes d'énergie)
-        cadrans: Liste complète des cadrans
+    Expression pour calculer le nombre de jours d'une période.
 
     Returns:
-        LazyFrame avec les flags de qualité
+        Expression Polars pour calculer nb_jours
 
     Example:
-        >>> lf_qualite = calculer_flags_qualite_lf(lf, ["BASE", "HP", "HC"])
+        >>> lf = lf.with_columns(expr_nb_jours())
     """
-    # Toutes les colonnes d'énergie (garanties présentes par étape précédente)
-    colonnes_energie = [f"{cadran}_energie" for cadran in cadrans]
-
-    # Calculer nb_jours d'abord
-    nb_jours_expr = (pl.col("fin").dt.date() - pl.col("debut").dt.date()).dt.total_days().cast(pl.Int32)
-
-    expressions = [
-        # nb_jours : différence en jours entre fin et début
-        nb_jours_expr.alias("nb_jours"),
-
-        # periode_irreguliere : plus de 35 jours
-        (
-            pl.when(nb_jours_expr.is_not_null())
-            .then(nb_jours_expr > 35)
-            .otherwise(False)
-        ).alias("periode_irreguliere"),
-
-        # data_complete : au moins une énergie calculée non-null
-        pl.any_horizontal([pl.col(col).is_not_null() for col in colonnes_energie]).alias("data_complete")
-    ]
-
-    return lf.with_columns(expressions)
+    return (pl.col("fin").dt.date() - pl.col("debut").dt.date()).dt.total_days().cast(pl.Int32).alias("nb_jours")
 
 
 def expr_filtrer_periodes_valides() -> pl.Expr:
@@ -306,72 +244,6 @@ def expr_date_formatee_fr(col: str, format_type: str = "complet") -> pl.Expr:
 # =============================================================================
 # FONCTIONS DE TRANSFORMATION LAZYFRAME
 # =============================================================================
-
-
-def calculer_periodes_energie_polars(lf: pl.LazyFrame) -> pl.LazyFrame:
-    """
-    Pipeline de calcul des périodes d'énergie avec approche fonctionnelle Polars.
-
-    🔄 **Version Polars optimisée** - Approche pipeline avec LazyFrame :
-    - **Pipeline déclaratif** avec pipe() pour une meilleure lisibilité
-    - **Vectorisation maximale** des calculs d'énergies
-    - **Expressions pures** facilement testables et maintenables
-    - **Performance optimisée** grâce aux optimisations Polars
-
-    Pipeline de transformation :
-    1. Préparation et tri des relevés
-    2. Calcul des décalages par contrat avec window functions
-    3. Arrondi des index à l'entier inférieur (kWh complets)
-    4. Calcul vectorisé des énergies tous cadrans
-    5. Calcul des flags de qualité
-    6. Filtrage des périodes valides
-    7. Formatage des dates en français
-    8. Enrichissement hiérarchique des cadrans
-    9. Sélection des colonnes finales
-
-    Args:
-        lf: LazyFrame contenant les relevés d'index chronologiques
-
-    Returns:
-        LazyFrame avec périodes d'énergie calculées et validées
-
-    Example:
-        >>> periodes = calculer_periodes_energie_polars(releves_lf).collect()
-    """
-    # Cadrans d'index électriques standard
-    cadrans = ["BASE", "HP", "HC", "HPH", "HPB", "HCH", "HCB"]
-
-    return (
-        lf
-        .sort(["ref_situation_contractuelle", "date_releve", "ordre_index"])
-
-        # Définition des bornes temporelles entre relevés consécutifs
-        .with_columns(expr_bornes_depuis_shift(over="ref_situation_contractuelle"))
-
-        # Arrondi des index pour ne comptabiliser que les kWh complets
-        .pipe(lambda df: expr_arrondir_index_kwh_lf(df, cadrans))
-
-        # Calcul vectorisé des énergies pour tous les cadrans
-        .pipe(lambda df: calculer_energies_tous_cadrans_lf(df, cadrans))
-
-        # Calcul des flags de qualité
-        .pipe(lambda df: calculer_flags_qualite_lf(df, cadrans))
-
-        # Filtrage des périodes valides
-        .filter(expr_filtrer_periodes_valides())
-
-        # Formatage des dates en français
-        .with_columns([
-            expr_date_formatee_fr("debut", "complet").alias("debut_lisible"),
-            expr_date_formatee_fr("fin", "complet").alias("fin_lisible"),
-            expr_date_formatee_fr("debut", "mois_annee").alias("mois_annee")
-        ])
-
-        # Enrichissement hiérarchique des cadrans principaux
-        .with_columns(expr_enrichir_cadrans_principaux())
-
-        # Sélection des colonnes sera faite plus tard si nécessaire
-    )
 
 
 def extraire_releves_evenements_polars(historique: pl.LazyFrame) -> pl.LazyFrame:
@@ -542,6 +414,67 @@ def reconstituer_chronologie_releves_polars(evenements: pl.LazyFrame, releves: p
         .unique(subset=["ref_situation_contractuelle", "date_releve", "ordre_index"], keep="first")
         # Tri final chronologique
         .sort(["pdl", "date_releve", "ordre_index"])
+    )
+
+
+def calculer_periodes_energie_polars(lf: pl.LazyFrame) -> pl.LazyFrame:
+    """
+    Pipeline de calcul des périodes d'énergie avec approche fonctionnelle Polars.
+
+    🔄 **Version Polars optimisée** - Approche pipeline avec LazyFrame :
+    - **Pipeline déclaratif** avec pipe() pour une meilleure lisibilité
+    - **Vectorisation maximale** des calculs d'énergies
+    - **Expressions pures** facilement testables et maintenables
+    - **Performance optimisée** grâce aux optimisations Polars
+
+    Pipeline de transformation :
+    1. tri temporel des relevés
+    2. Calcul des décalages par contrat avec window functions
+    3. Arrondi des index à l'entier inférieur (kWh complets)
+    4. Calcul vectorisé des énergies tous cadrans
+    5. Calcul des flags de qualité
+    6. Filtrage des périodes valides
+    7. Formatage des dates en français
+    8. Enrichissement hiérarchique des cadrans
+
+    Args:
+        lf: LazyFrame contenant les relevés d'index chronologiques
+
+    Returns:
+        LazyFrame avec périodes d'énergie calculées et validées
+
+    Example:
+        >>> periodes = calculer_periodes_energie_polars(releves_lf).collect()
+    """
+    # Cadrans d'index électriques standard
+    cadrans = ["BASE", "HP", "HC", "HPH", "HPB", "HCB", "HCH"]
+
+    return (
+        lf
+        .sort(["ref_situation_contractuelle", "date_releve", "ordre_index"])
+
+        # Étape 1 : Bornes temporelles + arrondi index (indépendants)
+        .with_columns([
+            *expr_bornes_depuis_shift(over="ref_situation_contractuelle"),
+            *expr_arrondir_index_kwh(cadrans)
+        ])
+
+        # Étape 2 : Calcul énergies + nb_jours (énergies dépendent d'étape 1, nb_jours indépendant)
+        .with_columns([
+            *expr_calculer_energies_tous_cadrans(cadrans),
+            expr_nb_jours()
+        ])
+
+        # Filtrage des périodes valides
+        .filter(expr_filtrer_periodes_valides())
+
+        # post traitement
+        .with_columns([
+            expr_date_formatee_fr("debut", "complet").alias("debut_lisible"),
+            expr_date_formatee_fr("fin", "complet").alias("fin_lisible"),
+            expr_date_formatee_fr("debut", "mois_annee").alias("mois_annee"),
+            *expr_enrichir_cadrans_principaux()
+        ])
     )
 
 

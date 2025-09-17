@@ -9,7 +9,8 @@ from electricore.core.pipelines_polars.energie_polars import (
     extraire_releves_evenements_polars,
     interroger_releves_polars,
     reconstituer_chronologie_releves_polars,
-    calculer_periodes_energie_polars
+    calculer_periodes_energie_polars,
+    # Tests d'expressions ajoutés localement dans chaque test
 )
 
 
@@ -253,6 +254,12 @@ def test_propagation_flags_releve_manquant():
         "date_releve": [datetime(2024, 1, 1), datetime(2024, 2, 1), datetime(2024, 3, 1)],
         "source": ["flux_C15", "flux_R151", "flux_R151"],
         "BASE": [1000.0, 2000.0, 3000.0],
+        "HP": [500.0, 1000.0, 1500.0],
+        "HC": [200.0, 400.0, 600.0],
+        "HPH": [100.0, 200.0, 300.0],
+        "HPB": [150.0, 300.0, 450.0],
+        "HCH": [80.0, 160.0, 240.0],
+        "HCB": [120.0, 240.0, 360.0],
         "releve_manquant": [None, False, True],  # C15: null, R151 trouvé: False, R151 manquant: True
         "ordre_index": [0, 0, 0]
     })
@@ -274,6 +281,87 @@ def test_propagation_flags_releve_manquant():
     assert len(periode2) == 1
     assert periode2["releve_manquant_debut"][0] is False # R151 trouvé
     assert periode2["releve_manquant_fin"][0] is True   # R151 manquant
+
+
+def test_expr_arrondir_index_kwh():
+    """Teste l'arrondi des index à l'entier inférieur."""
+    df = pl.DataFrame({
+        "BASE": [1000.8, 1001.2, None],
+        "HP": [500.9, None, 502.1],
+        "HC": [None, 400.7, 401.3],
+    }).lazy()
+
+    from electricore.core.pipelines_polars.energie_polars import expr_arrondir_index_kwh
+
+    result = df.with_columns(expr_arrondir_index_kwh(["BASE", "HP", "HC"])).collect()
+
+    # Vérifier l'arrondi à l'entier inférieur
+    assert result["BASE"].to_list() == [1000.0, 1001.0, None]
+    assert result["HP"].to_list() == [500.0, None, 502.0]
+    assert result["HC"].to_list() == [None, 400.0, 401.0]
+
+
+def test_expr_calculer_energie_cadran():
+    """Teste le calcul d'énergie pour un cadran."""
+    df = pl.DataFrame({
+        "ref_situation_contractuelle": ["A", "A", "A", "B", "B"],
+        "BASE": [1000.0, 1050.0, 1100.0, 500.0, 530.0],
+    }).lazy()
+
+    from electricore.core.pipelines_polars.energie_polars import expr_calculer_energie_cadran
+
+    result = (
+        df
+        .sort(["ref_situation_contractuelle"])
+        .with_columns(
+            expr_calculer_energie_cadran("BASE").alias("BASE_energie")
+        )
+        .collect()
+    )
+
+    # Premier relevé de chaque contrat = None (pas de précédent)
+    # Relevés suivants = différence avec précédent
+    energies_attendues = [
+        None,   # A: 1er relevé
+        50.0,   # A: 1050 - 1000
+        50.0,   # A: 1100 - 1050
+        None,   # B: 1er relevé
+        30.0,   # B: 530 - 500
+    ]
+    assert result["BASE_energie"].to_list() == energies_attendues
+
+
+def test_expr_date_formatee_fr():
+    """Teste le formatage des dates en français."""
+    df = pl.DataFrame({
+        "ma_date": [datetime(2024, 3, 15), datetime(2024, 12, 25)],
+    }).lazy()
+
+    from electricore.core.pipelines_polars.energie_polars import expr_date_formatee_fr
+
+    result = df.with_columns(
+        expr_date_formatee_fr("ma_date", "complet").alias("date_fr")
+    ).collect()
+
+    # Vérifier que les dates contiennent les éléments français
+    dates_fr = result["date_fr"].to_list()
+    assert "15" in dates_fr[0] and "mars" in dates_fr[0] and "2024" in dates_fr[0]
+    assert "25" in dates_fr[1] and "décembre" in dates_fr[1] and "2024" in dates_fr[1]
+
+
+def test_expr_nb_jours():
+    """Teste le calcul du nombre de jours."""
+    df = pl.DataFrame({
+        "debut": [datetime(2024, 1, 1), datetime(2024, 2, 1)],
+        "fin": [datetime(2024, 1, 15), datetime(2024, 2, 29)],
+    }).lazy()
+
+    from electricore.core.pipelines_polars.energie_polars import expr_nb_jours
+
+    result = df.with_columns(expr_nb_jours()).collect()
+
+    # Vérifier le calcul des jours
+    assert result["nb_jours"].to_list() == [14, 28]
 
 
 if __name__ == "__main__":
