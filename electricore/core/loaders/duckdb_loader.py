@@ -671,18 +671,45 @@ def _transform_releves(lf: pl.LazyFrame) -> pl.LazyFrame:
     """
     Transforme les données DuckDB pour conformité avec RelevéIndexPolars.
 
+    Inclut la conversion Wh -> kWh avec troncature pour ne compter que les kWh complets.
+
     Args:
         lf: LazyFrame source depuis DuckDB
 
     Returns:
         LazyFrame transformé conforme au modèle
     """
+    # Colonnes d'index numériques à convertir
+    index_cols = ["BASE", "HP", "HC", "HPH", "HPB", "HCB", "HCH"]
+
     return lf.with_columns([
         # Conversion des dates avec timezone Europe/Paris
         pl.col("date_releve").dt.convert_time_zone("Europe/Paris"),
 
-        # Les autres colonnes sont déjà préparées dans la requête SQL
-        # ordre_index, Unité, Précision, Source sont déjà définies
+        # Conversion Wh -> kWh avec troncature (comprehension list)
+        *[
+            pl.when(pl.col("unite") == "Wh")
+            .then(
+                pl.when(pl.col(col).is_not_null())
+                .then((pl.col(col) / 1000).floor())
+                .otherwise(pl.col(col))
+            )
+            .otherwise(pl.col(col))
+            .alias(col)
+            for col in index_cols
+        ],
+
+        # Mettre à jour l'unité après conversion
+        pl.when(pl.col("unite") == "Wh")
+        .then(pl.lit("kWh"))
+        .otherwise(pl.col("unite"))
+        .alias("unite"),
+
+        # Mettre à jour la précision après conversion
+        pl.when(pl.col("precision") == "Wh")
+        .then(pl.lit("kWh"))
+        .otherwise(pl.col("precision"))
+        .alias("precision")
     ])
 
 

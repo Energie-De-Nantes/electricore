@@ -48,6 +48,9 @@ def expr_arrondir_index_kwh(cadrans: List[str]) -> List[pl.Expr]:
     """
     Expressions pour arrondir les index à l'entier inférieur (kWh complets).
 
+    Note: La conversion Wh -> kWh est maintenant gérée au niveau du loader DuckDB.
+    Cette fonction ne fait plus que l'arrondissement final des valeurs déjà en kWh.
+
     Args:
         cadrans: Liste des colonnes de cadrans à arrondir
 
@@ -58,11 +61,13 @@ def expr_arrondir_index_kwh(cadrans: List[str]) -> List[pl.Expr]:
         >>> expressions = expr_arrondir_index_kwh(["BASE", "HP", "HC"])
         >>> lf = lf.with_columns(expressions)
     """
-    return [pl.when(pl.col(cadran).is_not_null())
-            .then(pl.col(cadran).floor())
-            .otherwise(pl.col(cadran))
-            .alias(cadran)
-            for cadran in cadrans]
+    return [
+        pl.when(pl.col(cadran).is_not_null())
+        .then(pl.col(cadran).floor())
+        .otherwise(pl.col(cadran))
+        .alias(cadran)
+        for cadran in cadrans
+    ]
 
 
 def expr_calculer_energie_cadran(cadran: str, over: str = "ref_situation_contractuelle") -> pl.Expr:
@@ -284,7 +289,9 @@ def extraire_releves_evenements_polars(historique: pl.LazyFrame) -> pl.LazyFrame
             pl.lit(0).alias("ordre_index"),
             pl.lit("flux_C15").alias("source"),
             pl.lit("kWh").alias("unite"),
-            pl.lit("kWh").alias("precision")
+            pl.lit("kWh").alias("precision"),
+            # Assurer que id_calendrier_distributeur est en String
+            pl.col("id_calendrier_distributeur").cast(pl.Utf8, strict=False)
         ])
     )
 
@@ -305,7 +312,9 @@ def extraire_releves_evenements_polars(historique: pl.LazyFrame) -> pl.LazyFrame
             pl.lit(1).alias("ordre_index"),
             pl.lit("flux_C15").alias("source"),
             pl.lit("kWh").alias("unite"),
-            pl.lit("kWh").alias("precision")
+            pl.lit("kWh").alias("precision"),
+            # Assurer que id_calendrier_distributeur est en String
+            pl.col("id_calendrier_distributeur").cast(pl.Utf8, strict=False)
         ])
     )
 
@@ -315,10 +324,10 @@ def extraire_releves_evenements_polars(historique: pl.LazyFrame) -> pl.LazyFrame
         # Forcer les types pour éviter les conflits de schéma (edge case : toutes valeurs null → type Null)
         .with_columns([
             pl.col(col).cast(pl.Float64) for col in index_cols
-            if col not in ["id_calendrier_distributeur"]  # Garder Int64 pour l'ID
+            if col not in ["id_calendrier_distributeur"]  # Traiter l'ID séparément
         ])
         .with_columns(
-            pl.col("id_calendrier_distributeur").cast(pl.Int64)
+            pl.col("id_calendrier_distributeur").cast(pl.Utf8, strict=False)
         )
         .filter(
             # Garder les lignes qui ont au moins un index non-null
@@ -357,7 +366,9 @@ def interroger_releves_polars(requete: pl.LazyFrame, releves: pl.LazyFrame) -> p
             # Flag pour tracer les relevés manquants
             pl.col("source").is_null().alias("releve_manquant"),
             # Ajouter ordre_index par défaut pour les relevés R151 (pour déduplication)
-            pl.lit(0).alias("ordre_index")
+            pl.lit(0).alias("ordre_index"),
+            # Assurer que id_calendrier_distributeur est en String pour cohérence avec C15
+            pl.col("id_calendrier_distributeur").cast(pl.Utf8, strict=False)
         ])
     )
 

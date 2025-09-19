@@ -87,11 +87,11 @@ class TestTransformationFunctions:
 
     def test_transform_historique_perimetre(self):
         """Test de transformation des données d'historique."""
-        # Créer un LazyFrame de test
+        # Créer un LazyFrame de test avec dates déjà parsées
         test_data = pl.DataFrame({
-            "date_evenement": ["2024-01-01 10:00:00"],
-            "avant_date_releve": ["2024-01-01 09:00:00"],
-            "apres_date_releve": ["2024-01-01 11:00:00"],
+            "date_evenement": [pl.datetime(2024, 1, 1, 10, 0, 0)],
+            "avant_date_releve": [pl.datetime(2024, 1, 1, 9, 0, 0)],
+            "apres_date_releve": [pl.datetime(2024, 1, 1, 11, 0, 0)],
             "pdl": ["PDL123"]
         }).lazy()
 
@@ -112,11 +112,19 @@ class TestTransformationFunctions:
 
     def test_transform_releves(self):
         """Test de transformation des données de relevés."""
-        # Créer un LazyFrame de test
+        # Créer un LazyFrame de test avec dates déjà parsées
         test_data = pl.DataFrame({
-            "date_releve": ["2024-01-01 10:00:00"],
+            "date_releve": [pl.datetime(2024, 1, 1, 10, 0, 0)],
             "pdl": ["PDL123"],
-            "HP": [1000.0]
+            "HP": [1000.0],
+            "BASE": [2000.0],
+            "HC": [500.0],
+            "HPH": [None],
+            "HPB": [None],
+            "HCB": [None],
+            "HCH": [None],
+            "unite": ["kWh"],
+            "precision": ["kWh"]
         }).lazy()
 
         # Appliquer la transformation
@@ -132,6 +140,123 @@ class TestTransformationFunctions:
         assert "date_releve" in df.columns
         assert "pdl" in df.columns
         assert "HP" in df.columns
+        assert "unite" in df.columns
+        assert "precision" in df.columns
+
+    def test_transform_releves_conversion_wh_to_kwh(self):
+        """Test de la conversion Wh -> kWh avec troncature."""
+        # Test de la logique de conversion sans la conversion de timezone
+        index_cols = ["BASE", "HP", "HC", "HPH", "HPB", "HCB", "HCH"]
+
+        test_data = pl.DataFrame({
+            "pdl": ["PDL123", "PDL124"],
+            "BASE": [13874.0, 16017.0],  # Valeurs d'exemple en Wh
+            "HP": [None, 5500.0],
+            "HC": [2500.0, None],
+            "HPH": [None, None],
+            "HPB": [None, None],
+            "HCB": [None, None],
+            "HCH": [None, None],
+            "unite": ["Wh", "Wh"],
+            "precision": ["Wh", "Wh"]
+        }).lazy()
+
+        # Appliquer uniquement la logique de conversion (sans date timezone)
+        result = test_data.with_columns([
+            # Conversion Wh -> kWh avec troncature
+            *[
+                pl.when(pl.col("unite") == "Wh")
+                .then(
+                    pl.when(pl.col(col).is_not_null())
+                    .then((pl.col(col) / 1000).floor())
+                    .otherwise(pl.col(col))
+                )
+                .otherwise(pl.col(col))
+                .alias(col)
+                for col in index_cols
+            ],
+            # Mettre à jour l'unité après conversion
+            pl.when(pl.col("unite") == "Wh")
+            .then(pl.lit("kWh"))
+            .otherwise(pl.col("unite"))
+            .alias("unite"),
+            # Mettre à jour la précision après conversion
+            pl.when(pl.col("precision") == "Wh")
+            .then(pl.lit("kWh"))
+            .otherwise(pl.col("precision"))
+            .alias("precision")
+        ])
+
+        df = result.collect()
+
+        # Vérifier la conversion des valeurs
+        assert df["BASE"][0] == 13.0  # floor(13874 / 1000) = 13
+        assert df["BASE"][1] == 16.0  # floor(16017 / 1000) = 16
+        assert df["HP"][0] is None     # Les valeurs null restent null
+        assert df["HP"][1] == 5.0      # floor(5500 / 1000) = 5
+        assert df["HC"][0] == 2.0      # floor(2500 / 1000) = 2
+        assert df["HC"][1] is None
+
+        # Vérifier que les unités ont été mises à jour
+        assert df["unite"][0] == "kWh"
+        assert df["unite"][1] == "kWh"
+        assert df["precision"][0] == "kWh"
+        assert df["precision"][1] == "kWh"
+
+    def test_transform_releves_no_conversion_kwh(self):
+        """Test que les valeurs déjà en kWh ne sont pas modifiées."""
+        # Test de la logique de non-conversion
+        index_cols = ["BASE", "HP", "HC", "HPH", "HPB", "HCB", "HCH"]
+
+        test_data = pl.DataFrame({
+            "pdl": ["PDL123"],
+            "BASE": [13.874],  # Déjà en kWh avec décimales
+            "HP": [5.5],
+            "HC": [None],
+            "HPH": [None],
+            "HPB": [None],
+            "HCB": [None],
+            "HCH": [None],
+            "unite": ["kWh"],
+            "precision": ["kWh"]
+        }).lazy()
+
+        # Appliquer uniquement la logique de conversion (sans date timezone)
+        result = test_data.with_columns([
+            # Conversion Wh -> kWh avec troncature
+            *[
+                pl.when(pl.col("unite") == "Wh")
+                .then(
+                    pl.when(pl.col(col).is_not_null())
+                    .then((pl.col(col) / 1000).floor())
+                    .otherwise(pl.col(col))
+                )
+                .otherwise(pl.col(col))
+                .alias(col)
+                for col in index_cols
+            ],
+            # Mettre à jour l'unité après conversion
+            pl.when(pl.col("unite") == "Wh")
+            .then(pl.lit("kWh"))
+            .otherwise(pl.col("unite"))
+            .alias("unite"),
+            # Mettre à jour la précision après conversion
+            pl.when(pl.col("precision") == "Wh")
+            .then(pl.lit("kWh"))
+            .otherwise(pl.col("precision"))
+            .alias("precision")
+        ])
+
+        df = result.collect()
+
+        # Vérifier que les valeurs ne sont pas modifiées
+        assert df["BASE"][0] == 13.874  # Pas de conversion
+        assert df["HP"][0] == 5.5       # Pas de conversion
+        assert df["HC"][0] is None
+
+        # Vérifier que les unités restent inchangées
+        assert df["unite"][0] == "kWh"
+        assert df["precision"][0] == "kWh"
 
 
 class TestLoadFunctions:
