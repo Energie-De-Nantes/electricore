@@ -189,6 +189,44 @@ def expr_filtrer_periodes_valides() -> pl.Expr:
     )
 
 
+def expr_selectionner_colonnes_finales():
+    """
+    Sélection pour garder uniquement les colonnes finales pertinentes.
+
+    Exclut les colonnes d'index bruts (BASE, HP, HC, etc.) pour ne garder que
+    les métadonnées et les énergies calculées, comme dans le pipeline pandas.
+
+    Returns:
+        Liste d'expressions pour sélectionner les colonnes finales
+
+    Example:
+        >>> lf.select(expr_selectionner_colonnes_finales())
+    """
+    # Colonnes de base toujours présentes
+    selection = [
+        pl.col("pdl"),
+        pl.col("debut"),
+        pl.col("fin"),
+        pl.col("nb_jours"),
+        pl.col("debut_lisible"),
+        pl.col("fin_lisible"),
+        pl.col("mois_annee"),
+        pl.col("source_avant"),
+        pl.col("source_apres")
+    ]
+
+    # Ajouter les colonnes contractuelles si présentes
+    selection.extend([
+        pl.col("ref_situation_contractuelle"),
+        pl.col("formule_tarifaire_acheminement")
+    ])
+
+    # Ajouter toutes les colonnes _energie
+    selection.append(pl.col("^.*_energie$"))
+
+    return selection
+
+
 def expr_date_formatee_fr(col: str, format_type: str = "complet") -> pl.Expr:
     """
     Formate une colonne de date en français.
@@ -286,7 +324,7 @@ def extraire_releves_evenements_polars(historique: pl.LazyFrame) -> pl.LazyFrame
             **{f"avant_{col}": col for col in metadata_cols}
         })
         .with_columns([
-            pl.lit(0).alias("ordre_index"),
+            pl.lit(0, dtype=pl.Int32).alias("ordre_index"),
             pl.lit("flux_C15").alias("source"),
             pl.lit("kWh").alias("unite"),
             pl.lit("kWh").alias("precision"),
@@ -309,7 +347,7 @@ def extraire_releves_evenements_polars(historique: pl.LazyFrame) -> pl.LazyFrame
             **{f"apres_{col}": col for col in metadata_cols}
         })
         .with_columns([
-            pl.lit(1).alias("ordre_index"),
+            pl.lit(1, dtype=pl.Int32).alias("ordre_index"),
             pl.lit("flux_C15").alias("source"),
             pl.lit("kWh").alias("unite"),
             pl.lit("kWh").alias("precision"),
@@ -340,10 +378,11 @@ def extraire_releves_evenements_polars(historique: pl.LazyFrame) -> pl.LazyFrame
 
 def interroger_releves_polars(requete: pl.LazyFrame, releves: pl.LazyFrame) -> pl.LazyFrame:
     """
-    Interroge les relevés et GARANTIT un résultat de même taille que la requête.
+    Interroge les relevés avec tolérance temporelle et GARANTIT un résultat de même taille que la requête.
 
-    Jointure LEFT pour garder toutes les lignes de la requête.
-    Les relevés non trouvés auront des NaN sur les colonnes d'index.
+    Utilise join_asof avec tolérance de 4h pour gérer le décalage horaire entre :
+    - Événements C15 : 00:01 (minuit et 1 minute)
+    - Relevés R151 : 02:00 (2 heures du matin)
 
     Args:
         requete: LazyFrame avec colonnes pdl, date_releve
@@ -357,16 +396,22 @@ def interroger_releves_polars(requete: pl.LazyFrame, releves: pl.LazyFrame) -> p
     """
     return (
         requete
-        .join(
-            releves,
-            on=["pdl", "date_releve"],
-            how="left"
+        .sort(["pdl", "date_releve"])
+        .join_asof(
+            releves.sort(["pdl", "date_releve"]),
+            on="date_releve",
+            by="pdl",
+            strategy="nearest",
+            tolerance="4h"  # Tolérance de 4 heures comme dans le pipeline pandas
         )
         .with_columns([
             # Flag pour tracer les relevés manquants
             pl.col("source").is_null().alias("releve_manquant"),
             # Ajouter ordre_index par défaut pour les relevés R151 (pour déduplication)
-            pl.lit(0).alias("ordre_index"),
+            pl.when(pl.col("ordre_index").is_null())
+            .then(pl.lit(0, dtype=pl.Int32))
+            .otherwise(pl.col("ordre_index").cast(pl.Int32))
+            .alias("ordre_index"),
             # Assurer que id_calendrier_distributeur est en String pour cohérence avec C15
             pl.col("id_calendrier_distributeur").cast(pl.Utf8, strict=False)
         ])
@@ -491,6 +536,8 @@ def calculer_periodes_energie_polars(lf: pl.LazyFrame) -> pl.LazyFrame:
             expr_date_formatee_fr("debut", "mois_annee").alias("mois_annee"),
             *expr_enrichir_cadrans_principaux()
         ])
+
+        # Note: La sélection finale des colonnes se fait après l'ajout du TURPE dans pipeline_energie_polars
     )
 
 
@@ -532,4 +579,9 @@ def pipeline_energie_polars(
         .pipe(reconstituer_chronologie_releves_polars, releves)
         .pipe(calculer_periodes_energie_polars)
         .pipe(ajouter_turpe_variable)
+        # Sélection finale des colonnes (exclut les index bruts BASE, HP, HC, etc.)
+        .select([
+            *expr_selectionner_colonnes_finales(),
+            pl.col("turpe_variable")  # Ajouté par le pipeline TURPE
+        ])
     )
