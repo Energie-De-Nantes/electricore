@@ -8,11 +8,14 @@ qui peuvent être composées entre elles pour générer les méta-périodes de f
 
 import polars as pl
 import pandera.polars as pa
-from pandera.typing.polars import DataFrame
+from pandera.typing.polars import DataFrame, LazyFrame
 from typing import Optional, List
 
-# Import du modèle de sortie
+# Import des modèles Pandera
 from ..models_polars.periode_meta_polars import PeriodeMetaPolars
+from ..models_polars.periode_abonnement_polars import PeriodeAbonnementPolars
+from ..models_polars.periode_energie_polars import PeriodeEnergiePolars
+from ..models_polars.aggregates_polars import AbonnementMensuelPolars, EnergieMensuelPolars
 
 
 # =============================================================================
@@ -112,7 +115,10 @@ def expr_data_complete() -> pl.Expr:
 # EXPRESSIONS D'AGRÉGATION MENSUELLE
 # =============================================================================
 
-def agreger_abonnements_mensuel(lf: pl.LazyFrame) -> pl.LazyFrame:
+@pa.check_types(lazy=True)
+def agreger_abonnements_mensuel(
+    periodes: LazyFrame[PeriodeAbonnementPolars]
+) -> LazyFrame[AbonnementMensuelPolars]:
     """
     Agrège les périodes d'abonnement par mois avec puissance moyenne pondérée.
 
@@ -128,12 +134,12 @@ def agreger_abonnements_mensuel(lf: pl.LazyFrame) -> pl.LazyFrame:
     """
 
     # Ajouter le mémo simple pour chaque ligne avant agrégation
-    lf_avec_memo = lf.with_columns(
+    periodes_avec_memo = periodes.with_columns(
         expr_memo_puissance_simple().alias("memo_simple")
     )
 
     return (
-        lf_avec_memo
+        periodes_avec_memo
         .group_by(["ref_situation_contractuelle", "pdl", "mois_annee"])
         .agg([
             # Agrégations numériques
@@ -171,7 +177,10 @@ def agreger_abonnements_mensuel(lf: pl.LazyFrame) -> pl.LazyFrame:
     )
 
 
-def agreger_energies_mensuel(lf: pl.LazyFrame) -> pl.LazyFrame:
+@pa.check_types(lazy=True)
+def agreger_energies_mensuel(
+    periodes: LazyFrame[PeriodeEnergiePolars]
+) -> LazyFrame[EnergieMensuelPolars]:
     """
     Agrège les périodes d'énergie par mois avec sommes simples.
 
@@ -185,7 +194,7 @@ def agreger_energies_mensuel(lf: pl.LazyFrame) -> pl.LazyFrame:
         LazyFrame agrégé par mois avec énergies sommées
     """
     return (
-        lf
+        periodes
         .group_by(["ref_situation_contractuelle", "pdl", "mois_annee"])
         .agg([
             # Énergies par cadran (sommes simples)
@@ -217,10 +226,11 @@ def agreger_energies_mensuel(lf: pl.LazyFrame) -> pl.LazyFrame:
 # EXPRESSIONS DE JOINTURE ET RÉCONCILIATION
 # =============================================================================
 
+@pa.check_types(lazy=True)
 def joindre_meta_periodes(
-    abo_mensuel_lf: pl.LazyFrame,
-    energie_mensuel_lf: pl.LazyFrame
-) -> pl.LazyFrame:
+    abo_mensuel: LazyFrame[AbonnementMensuelPolars],
+    energie_mensuel: LazyFrame[EnergieMensuelPolars]
+) -> LazyFrame[PeriodeMetaPolars]:
     """
     Joint les agrégats d'abonnement et d'énergie sur les clés communes.
 
@@ -238,8 +248,8 @@ def joindre_meta_periodes(
     cles_jointure = ["ref_situation_contractuelle", "pdl", "mois_annee"]
 
     # Jointure externe pour conserver toutes les périodes
-    meta_periodes_lf = abo_mensuel_lf.join(
-        energie_mensuel_lf,
+    meta_periodes_lf = abo_mensuel.join(
+        energie_mensuel,
         on=cles_jointure,
         how="full",
         suffix="_energie"
@@ -314,10 +324,10 @@ def joindre_meta_periodes(
 # PIPELINE PRINCIPAL
 # =============================================================================
 
-@pa.check_types
+@pa.check_types(lazy=True)
 def pipeline_facturation_polars(
-    abonnements_lf: pl.LazyFrame,
-    energies_lf: pl.LazyFrame
+    abonnements_lf: LazyFrame[PeriodeAbonnementPolars],
+    energies_lf: LazyFrame[PeriodeEnergiePolars]
 ) -> DataFrame[PeriodeMetaPolars]:
     """
     Pipeline pur d'agrégation de facturation avec méta-périodes mensuelles - Version Polars.

@@ -51,7 +51,13 @@ class PeriodeAbonnementPolars(pa.DataFrameModel):
     turpe_fixe_journalier: Optional[pl.Float64] = pa.Field(nullable=True)
     turpe_fixe: Optional[pl.Float64] = pa.Field(nullable=True)
 
+    # Métadonnées de qualité et complétude
+    data_complete: Optional[pl.Boolean] = pa.Field(nullable=True)
+    nb_sous_periodes: Optional[pl.Int32] = pa.Field(nullable=True, ge=1)
+    coverage_abo: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0, le=1.0)
+    has_changement: Optional[pl.Boolean] = pa.Field(nullable=True)
+
     class Config:
         """Configuration du modèle Pandera."""
-        strict = True  # Validation stricte des types
-        coerce = True  # Conversion automatique des types compatibles
+        strict = False  # Permet colonnes supplémentaires pour flexibilité
+        coerce = True   # Conversion automatique des types compatibles

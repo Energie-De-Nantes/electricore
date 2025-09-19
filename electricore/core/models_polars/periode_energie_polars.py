@@ -54,6 +54,11 @@ class PeriodeEnergiePolars(pa.DataFrameModel):
     releve_manquant_debut: Optional[pl.Boolean] = pa.Field(nullable=True)
     releve_manquant_fin: Optional[pl.Boolean] = pa.Field(nullable=True)
 
+    # Métadonnées de qualité et complétude
+    nb_sous_periodes: Optional[pl.Int32] = pa.Field(nullable=True, ge=1)
+    coverage_energie: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0, le=1.0)
+    has_changement: Optional[pl.Boolean] = pa.Field(nullable=True)
+
     @pa.dataframe_check
     def verifier_coherence_periode(cls, data) -> pl.LazyFrame:
         """
