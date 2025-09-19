@@ -128,7 +128,7 @@ def expr_calculer_turpe_cadran(cadran: str) -> pl.Expr:
     """
     Expression pour calculer la contribution TURPE variable d'un cadran.
 
-    Formule : energie_cadran * tarif_cadran / 100
+    Formule : energie_cadran * taux_turpe_cadran / 100
     Le /100 convertit les €/MWh en €/kWh comme requis par les règles tarifaires.
 
     Args:
@@ -141,7 +141,7 @@ def expr_calculer_turpe_cadran(cadran: str) -> pl.Expr:
         >>> df.with_columns(expr_calculer_turpe_cadran("BASE").alias("turpe_BASE"))
     """
     energie_col = f"{cadran}_energie"
-    tarif_col = cadran
+    tarif_col = f"taux_turpe_{cadran}"  # Utiliser le nom préfixé pour éviter les collisions
 
     return (
         pl.when(pl.col(energie_col).is_not_null() & pl.col(tarif_col).is_not_null())
@@ -338,9 +338,11 @@ def ajouter_turpe_variable(
 
     return (
         periodes
-        # Jointure avec les règles TURPE sur la FTA
+        # Jointure avec les règles TURPE sur la FTA (préfixer les tarifs pour éviter collisions)
         .join(
-            regles,
+            regles.rename({
+                col: f"taux_turpe_{col}" for col in ["BASE", "HP", "HC", "HPH", "HCH", "HPB", "HCB"]
+            }),
             left_on="formule_tarifaire_acheminement",
             right_on="Formule_Tarifaire_Acheminement",
             how="left"
