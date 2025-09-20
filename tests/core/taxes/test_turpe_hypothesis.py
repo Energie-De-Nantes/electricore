@@ -147,16 +147,17 @@ def periodes_energie_strategy(draw, ftas=None, nb_periodes=None, date_base=None)
     """Génère des périodes d'énergie avec énergies cohérentes."""
     if nb_periodes is None:
         nb_periodes = draw(st.integers(min_value=1, max_value=20))
-    
+
     if ftas is None:
         ftas = draw(st.lists(fta_strategy(), min_size=1, max_size=5, unique=True))
-    
+
     # Périodes chronologiques - utiliser date_base si fournie pour cohérence temporelle
     if date_base is None:
         start_date = draw(dates_paris_strategy(min_year=2023, max_year=2024))
     else:
-        # Générer dates APRÈS date_base pour garantir la validité temporelle
-        delta_days = draw(st.integers(min_value=1, max_value=365))
+        # Générer dates dans une plage restreinte pour garantir la validité temporelle
+        # Décalage maximum de 90 jours pour éviter de dépasser la validité des règles
+        delta_days = draw(st.integers(min_value=0, max_value=90))
         start_date = date_base + timedelta(days=delta_days)
     
     periodes = []
