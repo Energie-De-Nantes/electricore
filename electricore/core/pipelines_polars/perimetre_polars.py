@@ -321,6 +321,7 @@ def detecter_points_de_rupture(historique: pl.LazyFrame) -> pl.LazyFrame:
     return (
         historique
         .sort(["ref_situation_contractuelle", "date_evenement"])
+        .set_sorted("ref_situation_contractuelle")  # Indiquer explicitement que ref_situation_contractuelle est trié
         # Créer les colonnes Avant_ avec window functions
         .with_columns([
             pl.col("puissance_souscrite").shift(1).over("ref_situation_contractuelle").alias("avant_puissance_souscrite"),
@@ -639,6 +640,7 @@ def inserer_evenements_facturation(lf: pl.LazyFrame) -> pl.LazyFrame:
         fusioned
         # Trier par Ref et Date pour le forward fill
         .sort(["ref_situation_contractuelle", "date_evenement"])
+        .set_sorted("ref_situation_contractuelle")  # Indiquer explicitement que ref_situation_contractuelle est trié
 
         # Propager les colonnes contractuelles via expressions (avec colonnes disponibles)
         .with_columns(expr_colonnes_a_propager(columns=fusioned.collect_schema().names()))
