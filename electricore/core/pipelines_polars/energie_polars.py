@@ -150,9 +150,13 @@ def expr_enrichir_cadrans_principaux() -> List[pl.Expr]:
         pl.sum_horizontal([pl.col("hp_energie"), pl.col("hph_energie"), pl.col("hpb_energie")])
         .alias("hp_energie"),
 
-        # Étape 3 : Synthèse base depuis hp et hc (utilise les valeurs enrichies)
-        pl.sum_horizontal([pl.col("base_energie"), pl.col("hp_energie"), pl.col("hc_energie")])
-        .alias("base_energie")
+        # Étape 3 : Synthèse base depuis TOUS les cadrans (évite le problème d'évaluation parallèle)
+        pl.sum_horizontal([
+            pl.col("base_energie"),
+            pl.col("hp_energie"), pl.col("hc_energie"),
+            pl.col("hph_energie"), pl.col("hpb_energie"),
+            pl.col("hch_energie"), pl.col("hcb_energie")
+        ]).alias("base_energie")
     ]
 
 
