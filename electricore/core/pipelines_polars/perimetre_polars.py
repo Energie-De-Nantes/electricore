@@ -146,8 +146,8 @@ def expr_changement_index() -> pl.Expr:
     
     Cette expression vérifie s'il y a des changements sur les colonnes d'index
     énergétique utilisées pour le calcul des consommations :
-    - BASE, HP, HC : index de base (mono/double tarif)
-    - HPH, HCH, HPB, HCB : index heures pleines/creuses (triple tarif)
+    - base, hp, hc : index de base (mono/double tarif)
+    - hph, hch, hpb, hcb : index heures pleines/creuses (triple tarif)
     
     Utilise pl.any_horizontal() pour détecter si au moins une colonne a changé.
     
@@ -159,7 +159,7 @@ def expr_changement_index() -> pl.Expr:
         ...     expr_changement_index().alias("index_change")
         ... )
     """
-    index_cols = ["BASE", "HP", "HC", "HPH", "HCH", "HPB", "HCB"]
+    index_cols = ["base", "hp", "hc", "hph", "hch", "hpb", "hcb"]
     
     # Créer une expression pour chaque colonne d'index
     changements = [

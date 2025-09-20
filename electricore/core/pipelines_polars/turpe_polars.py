@@ -37,8 +37,8 @@ def load_turpe_rules_polars() -> pl.LazyFrame:
             file_path,
             schema_overrides={
                 "cg": str, "cc": str, "b": str,
-                "HPH": str, "HCH": str, "HPB": str, "HCB": str,
-                "HP": str, "HC": str, "BASE": str
+                "hph": str, "hch": str, "hpb": str, "hcb": str,
+                "hp": str, "hc": str, "base": str
             }
         )
         # Conversion des colonnes de dates avec timezone Europe/Paris
@@ -54,13 +54,13 @@ def load_turpe_rules_polars() -> pl.LazyFrame:
             pl.col("cc").str.strip_chars().cast(pl.Float64),
 
             # Tarifs variables par cadran (€/MWh)
-            pl.col("HPH").str.strip_chars().cast(pl.Float64),
-            pl.col("HCH").str.strip_chars().cast(pl.Float64),
-            pl.col("HPB").str.strip_chars().cast(pl.Float64),
-            pl.col("HCB").str.strip_chars().cast(pl.Float64),
-            pl.col("HP").str.strip_chars().cast(pl.Float64),
-            pl.col("HC").str.strip_chars().cast(pl.Float64),
-            pl.col("BASE").str.strip_chars().cast(pl.Float64),
+            pl.col("hph").str.strip_chars().cast(pl.Float64),
+            pl.col("hch").str.strip_chars().cast(pl.Float64),
+            pl.col("hpb").str.strip_chars().cast(pl.Float64),
+            pl.col("hcb").str.strip_chars().cast(pl.Float64),
+            pl.col("hp").str.strip_chars().cast(pl.Float64),
+            pl.col("hc").str.strip_chars().cast(pl.Float64),
+            pl.col("base").str.strip_chars().cast(pl.Float64),
         ])
     )
 
@@ -132,13 +132,13 @@ def expr_calculer_turpe_cadran(cadran: str) -> pl.Expr:
     Le /100 convertit les €/MWh en €/kWh comme requis par les règles tarifaires.
 
     Args:
-        cadran: Nom du cadran (ex: "BASE", "HP", "HC", "HPH", "HCH", "HPB", "HCB")
+        cadran: Nom du cadran (ex: "base", "hp", "hc", "hph", "hch", "hpb", "hcb")
 
     Returns:
         Expression Polars retournant la contribution TURPE du cadran en €
 
     Example:
-        >>> df.with_columns(expr_calculer_turpe_cadran("BASE").alias("turpe_BASE"))
+        >>> df.with_columns(expr_calculer_turpe_cadran("base").alias("turpe_base"))
     """
     energie_col = f"{cadran}_energie"
     tarif_col = f"taux_turpe_{cadran}"  # Utiliser le nom préfixé pour éviter les collisions
@@ -160,7 +160,7 @@ def expr_calculer_turpe_contributions_cadrans() -> List[pl.Expr]:
     Example:
         >>> df.with_columns(expr_calculer_turpe_contributions_cadrans())
     """
-    cadrans = ["HPH", "HCH", "HPB", "HCB", "HP", "HC", "BASE"]
+    cadrans = ["hph", "hch", "hpb", "hcb", "hp", "hc", "base"]
 
     return [
         expr_calculer_turpe_cadran(cadran).alias(f"turpe_{cadran}")
@@ -180,7 +180,7 @@ def expr_sommer_turpe_cadrans() -> pl.Expr:
     Example:
         >>> df.with_columns(expr_sommer_turpe_cadrans().alias("turpe_variable"))
     """
-    cadrans = ["HPH", "HCH", "HPB", "HCB", "HP", "HC", "BASE"]
+    cadrans = ["hph", "hch", "hpb", "hcb", "hp", "hc", "base"]
     contributions_cols = [f"turpe_{cadran}" for cadran in cadrans]
 
     return (
@@ -341,7 +341,7 @@ def ajouter_turpe_variable(
         # Jointure avec les règles TURPE sur la FTA (préfixer les tarifs pour éviter collisions)
         .join(
             regles.rename({
-                col: f"taux_turpe_{col}" for col in ["BASE", "HP", "HC", "HPH", "HCH", "HPB", "HCB"]
+                col: f"taux_turpe_{col}" for col in ["base", "hp", "hc", "hph", "hch", "hpb", "hcb"]
             }),
             left_on="formule_tarifaire_acheminement",
             right_on="Formule_Tarifaire_Acheminement",
@@ -391,7 +391,7 @@ def debug_turpe_variable(lf: pl.LazyFrame) -> pl.LazyFrame:
         >>> df_debug = debug_turpe_variable(df)
         >>> print(df_debug.collect())
     """
-    cadrans = ["HPH", "HCH", "HPB", "HCB", "HP", "HC", "BASE"]
+    cadrans = ["hph", "hch", "hpb", "hcb", "hp", "hc", "base"]
     debug_expressions = []
 
     # Ajouter les détails par cadran
@@ -399,8 +399,8 @@ def debug_turpe_variable(lf: pl.LazyFrame) -> pl.LazyFrame:
         energie_col = f"{cadran}_energie"
         debug_expressions.extend([
             pl.col(energie_col).alias(f"debug_energie_{cadran}"),
-            pl.col(cadran).alias(f"debug_tarif_{cadran}"),
-            (pl.col(energie_col) * pl.col(cadran) / 100).alias(f"debug_contribution_{cadran}")
+            pl.col(f"taux_turpe_{cadran}").alias(f"debug_tarif_{cadran}"),
+            (pl.col(energie_col) * pl.col(f"taux_turpe_{cadran}") / 100).alias(f"debug_contribution_{cadran}")
         ])
 
     return lf.with_columns(debug_expressions)

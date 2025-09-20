@@ -142,17 +142,17 @@ def expr_enrichir_cadrans_principaux() -> List[pl.Expr]:
         >>> df.with_columns(expr_enrichir_cadrans_principaux())
     """
     return [
-        # Étape 1 : Synthèse HC depuis les sous-cadrans HCH et HCB
-        pl.sum_horizontal([pl.col("HC_energie"), pl.col("HCH_energie"), pl.col("HCB_energie")])
-        .alias("HC_energie"),
+        # Étape 1 : Synthèse hc depuis les sous-cadrans hch et hcb
+        pl.sum_horizontal([pl.col("hc_energie"), pl.col("hch_energie"), pl.col("hcb_energie")])
+        .alias("hc_energie"),
 
-        # Étape 2 : Synthèse HP depuis les sous-cadrans HPH et HPB
-        pl.sum_horizontal([pl.col("HP_energie"), pl.col("HPH_energie"), pl.col("HPB_energie")])
-        .alias("HP_energie"),
+        # Étape 2 : Synthèse hp depuis les sous-cadrans hph et hpb
+        pl.sum_horizontal([pl.col("hp_energie"), pl.col("hph_energie"), pl.col("hpb_energie")])
+        .alias("hp_energie"),
 
-        # Étape 3 : Synthèse BASE depuis HP et HC (utilise les valeurs enrichies)
-        pl.sum_horizontal([pl.col("BASE_energie"), pl.col("HP_energie"), pl.col("HC_energie")])
-        .alias("BASE_energie")
+        # Étape 3 : Synthèse base depuis hp et hc (utilise les valeurs enrichies)
+        pl.sum_horizontal([pl.col("base_energie"), pl.col("hp_energie"), pl.col("hc_energie")])
+        .alias("base_energie")
     ]
 
 
@@ -193,7 +193,7 @@ def expr_selectionner_colonnes_finales():
     """
     Sélection pour garder uniquement les colonnes finales pertinentes.
 
-    Exclut les colonnes d'index bruts (BASE, HP, HC, etc.) pour ne garder que
+    Exclut les colonnes d'index bruts (base, hp, hc, etc.) pour ne garder que
     les métadonnées et les énergies calculées, comme dans le pipeline pandas.
 
     Returns:
@@ -306,7 +306,7 @@ def extraire_releves_evenements_polars(historique: pl.LazyFrame) -> pl.LazyFrame
         >>> releves = extraire_releves_evenements_polars(evenements_lf)
     """
     # Colonnes d'index numériques et métadonnées (schéma fixe)
-    index_cols = ["BASE", "HP", "HC", "HCH", "HPH", "HPB", "HCB"]
+    index_cols = ["base", "hp", "hc", "hch", "hph", "hpb", "hcb"]
     metadata_cols = ["id_calendrier_distributeur"]
     identifiants = ["pdl", "ref_situation_contractuelle", "formule_tarifaire_acheminement"]
 
@@ -508,7 +508,7 @@ def calculer_periodes_energie_polars(lf: pl.LazyFrame) -> pl.LazyFrame:
         >>> periodes = calculer_periodes_energie_polars(releves_lf).collect()
     """
     # Cadrans d'index électriques standard
-    cadrans = ["BASE", "HP", "HC", "HPH", "HPB", "HCB", "HCH"]
+    cadrans = ["base", "hp", "hc", "hph", "hpb", "hcb", "hch"]
 
     return (
         lf
