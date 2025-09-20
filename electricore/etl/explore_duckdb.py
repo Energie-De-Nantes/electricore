@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.15.2"
+__generated_with = "0.15.3"
 app = marimo.App()
 
 
@@ -30,139 +30,7 @@ def _(engine, mo):
 def _(engine, mo):
     _df = mo.sql(
         f"""
-        SELECT * FROM enedis_data_test.flux_r64 LIMIT 100
-        """,
-        engine=engine
-    )
-    return
-
-
-@app.cell
-def _(engine, mo):
-    _df = mo.sql(
-        f"""
-        SELECT * FROM enedis_data_test.flux_r151 LIMIT 100
-        """,
-        engine=engine
-    )
-    return
-
-
-@app.cell
-def _(engine, mo):
-    _df = mo.sql(
-        f"""
-        SELECT * FROM enedis_data_test.flux_f15_detail LIMIT 100
-        """,
-        engine=engine
-    )
-    return
-
-
-@app.cell
-def _(engine, mo):
-    _df = mo.sql(
-        f"""
-        SELECT * FROM enedis_full_production.flux_c15 LIMIT 100
-        """,
-        engine=engine
-    )
-    return
-
-
-@app.cell
-def _(engine, mo):
-    _df = mo.sql(
-        f"""
-        SELECT * FROM enedis_full_production.flux_r64 LIMIT 100
-        """,
-        engine=engine
-    )
-    return
-
-
-@app.cell
-def _(engine, mo):
-    _df = mo.sql(
-        f"""
-        SELECT * FROM enedis_multi.flux_r64 LIMIT 100
-        """,
-        engine=engine
-    )
-    return
-
-
-@app.cell
-def _(engine, mo):
-    _df = mo.sql(
-        f"""
-        SELECT * FROM enedis_multi.flux_r64 LIMIT 100
-        """,
-        engine=engine
-    )
-    return
-
-
-@app.cell
-def _(engine, mo):
-    _df = mo.sql(
-        f"""
-        SELECT * FROM enedis_multi.flux_r15_acc LIMIT 100
-        """,
-        engine=engine
-    )
-    return
-
-
-@app.cell
-def _(engine, mo):
-    _df = mo.sql(
-        f"""
-        SELECT * FROM enedis_multi.flux_r15 LIMIT 100
-        """,
-        engine=engine
-    )
-    return
-
-
-@app.cell
-def _(engine, mo):
-    _df = mo.sql(
-        f"""
-        SELECT * FROM enedis_multi._dlt_loads LIMIT 100
-        """,
-        engine=engine
-    )
-    return
-
-
-@app.cell
-def _(engine, mo):
-    _df = mo.sql(
-        f"""
-        SELECT * FROM enedis_multi.r15
-        """,
-        engine=engine
-    )
-    return
-
-
-@app.cell
-def _(engine, mo):
-    _df = mo.sql(
-        f"""
-        SELECT * FROM enedis_multi._dlt_loads LIMIT 100
-        """,
-        engine=engine
-    )
-    return
-
-
-@app.cell
-def _(engine, mo):
-    _df = mo.sql(
-        f"""
-        SELECT * FROM enedis_multi._dlt_pipeline_state LIMIT 100
+        SELECT * FROM enedis_production.flux_r151 LIMIT 100
         """,
         engine=engine
     )
@@ -173,27 +41,6 @@ def _(engine, mo):
 def _():
     import marimo as mo
     return (mo,)
-
-
-@app.cell
-def _(conn, custom_query, mo):
-    # Exécution de la requête
-    if custom_query.value.strip():
-        try:
-            result_df = conn.execute(custom_query.value).df()
-
-            mo.vstack([
-                mo.md("### 📈 Résultats"),
-                mo.md(f"**{len(result_df)} lignes retournées**"),
-                mo.ui.table(result_df, selection=None) if len(result_df) <= 100 else mo.md(f"⚠️ Trop de résultats ({len(result_df)} lignes). Limitez votre requête."),
-                mo.md("#### 📊 Statistiques rapides") if len(result_df) > 0 and result_df.select_dtypes(include=['number']).shape[1] > 0 else None,
-                mo.ui.table(result_df.describe(), selection=None) if len(result_df) > 0 and result_df.select_dtypes(include=['number']).shape[1] > 0 else None
-            ])
-        except Exception as e:
-            mo.md(f"❌ **Erreur SQL :** `{str(e)}`")
-    else:
-        mo.md("Tapez une requête SQL pour voir les résultats")
-    return
 
 
 @app.cell
