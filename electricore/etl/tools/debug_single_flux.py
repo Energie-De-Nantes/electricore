@@ -6,7 +6,7 @@ Test d'un seul flux pour comprendre le problème.
 import dlt
 import yaml
 from pathlib import Path
-from sources.sftp_enedis import flux_enedis
+from electricore.etl.sources.sftp_enedis import flux_enedis
 
 def test_single_flux(flux_name: str):
     """Teste un seul flux spécifique."""

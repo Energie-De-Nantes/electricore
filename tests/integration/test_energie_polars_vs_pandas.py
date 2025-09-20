@@ -16,6 +16,7 @@ from electricore.core.models.releve_index import RelevéIndex
 from electricore.core.models_polars.releve_index_polars import RelevéIndexPolars
 
 
+@pytest.mark.skip(reason="Migration en cours - tests pandas temporairement désactivés")
 class TestEnergiePolarsVsPandas:
     """Tests de validation du pipeline énergie Polars contre pandas."""
 

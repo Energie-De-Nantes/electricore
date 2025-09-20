@@ -57,8 +57,40 @@ def test_comparaison_pandas_polars_cas_simple():
     df_pandas = pd.DataFrame(data_communes)
     resultat_pandas = detecter_pandas(df_pandas)
     
-    # Version Polars  
+    # Version Polars - Conversion des noms vers convention Polars (minuscules)
     df_polars = pl.LazyFrame(data_communes)
+    # Renommer vers convention Polars (snake_case)
+    df_polars = df_polars.rename({
+        "Ref_Situation_Contractuelle": "ref_situation_contractuelle",
+        "Date_Evenement": "date_evenement",
+        "Evenement_Declencheur": "evenement_declencheur",
+        "Puissance_Souscrite": "puissance_souscrite",
+        "Formule_Tarifaire_Acheminement": "formule_tarifaire_acheminement",
+        "Segment_Clientele": "segment_clientele",
+        "Etat_Contractuel": "etat_contractuel",
+        "Type_Evenement": "type_evenement",
+        "Type_Compteur": "type_compteur",
+        "Num_Compteur": "num_compteur",
+        "Ref_Demandeur": "ref_demandeur",
+        "Id_Affaire": "id_affaire",
+        # Colonnes Avant_/Après_
+        "Avant_Id_Calendrier_Distributeur": "avant_id_calendrier_distributeur",
+        "Après_Id_Calendrier_Distributeur": "apres_id_calendrier_distributeur",
+        "Avant_BASE": "avant_base",
+        "Après_BASE": "apres_base",
+        "Avant_HP": "avant_hp",
+        "Après_HP": "apres_hp",
+        "Avant_HC": "avant_hc",
+        "Après_HC": "apres_hc",
+        "Avant_HPH": "avant_hph",
+        "Après_HPH": "apres_hph",
+        "Avant_HCH": "avant_hch",
+        "Après_HCH": "apres_hch",
+        "Avant_HPB": "avant_hpb",
+        "Après_HPB": "apres_hpb",
+        "Avant_HCB": "avant_hcb",
+        "Après_HCB": "apres_hcb"
+    })
     resultat_polars = detecter_polars(df_polars).collect()
     
     # Comparaison des colonnes clés
@@ -125,8 +157,40 @@ def test_comparaison_pandas_polars_cas_complexe():
     df_pandas = pd.DataFrame(data_complexes)
     resultat_pandas = detecter_pandas(df_pandas)
     
-    # Version Polars  
+    # Version Polars - Conversion des noms vers convention Polars (minuscules)
     df_polars = pl.LazyFrame(data_complexes)
+    # Renommer vers convention Polars (snake_case)
+    df_polars = df_polars.rename({
+        "Ref_Situation_Contractuelle": "ref_situation_contractuelle",
+        "Date_Evenement": "date_evenement",
+        "Evenement_Declencheur": "evenement_declencheur",
+        "Puissance_Souscrite": "puissance_souscrite",
+        "Formule_Tarifaire_Acheminement": "formule_tarifaire_acheminement",
+        "Segment_Clientele": "segment_clientele",
+        "Etat_Contractuel": "etat_contractuel",
+        "Type_Evenement": "type_evenement",
+        "Type_Compteur": "type_compteur",
+        "Num_Compteur": "num_compteur",
+        "Ref_Demandeur": "ref_demandeur",
+        "Id_Affaire": "id_affaire",
+        # Colonnes Avant_/Après_
+        "Avant_Id_Calendrier_Distributeur": "avant_id_calendrier_distributeur",
+        "Après_Id_Calendrier_Distributeur": "apres_id_calendrier_distributeur",
+        "Avant_BASE": "avant_base",
+        "Après_BASE": "apres_base",
+        "Avant_HP": "avant_hp",
+        "Après_HP": "apres_hp",
+        "Avant_HC": "avant_hc",
+        "Après_HC": "apres_hc",
+        "Avant_HPH": "avant_hph",
+        "Après_HPH": "apres_hph",
+        "Avant_HCH": "avant_hch",
+        "Après_HCH": "apres_hch",
+        "Avant_HPB": "avant_hpb",
+        "Après_HPB": "apres_hpb",
+        "Avant_HCB": "avant_hcb",
+        "Après_HCB": "apres_hcb"
+    })
     resultat_polars = detecter_polars(df_polars).collect()
     
     # Comparaison

@@ -87,11 +87,13 @@ class TestTransformationFunctions:
 
     def test_transform_historique_perimetre(self):
         """Test de transformation des données d'historique."""
-        # Créer un LazyFrame de test avec dates déjà parsées
+        from datetime import datetime, timezone as tz
+
+        # Créer un LazyFrame de test avec dates timezone-aware Python
         test_data = pl.DataFrame({
-            "date_evenement": [pl.datetime(2024, 1, 1, 10, 0, 0)],
-            "avant_date_releve": [pl.datetime(2024, 1, 1, 9, 0, 0)],
-            "apres_date_releve": [pl.datetime(2024, 1, 1, 11, 0, 0)],
+            "date_evenement": [datetime(2024, 1, 1, 10, 0, 0, tzinfo=tz.utc)],
+            "avant_date_releve": [datetime(2024, 1, 1, 9, 0, 0, tzinfo=tz.utc)],
+            "apres_date_releve": [datetime(2024, 1, 1, 11, 0, 0, tzinfo=tz.utc)],
             "pdl": ["PDL123"]
         }).lazy()
 
@@ -112,17 +114,19 @@ class TestTransformationFunctions:
 
     def test_transform_releves(self):
         """Test de transformation des données de relevés."""
-        # Créer un LazyFrame de test avec dates déjà parsées
+        from datetime import datetime, timezone as tz
+
+        # Créer un LazyFrame de test avec noms de colonnes minuscules (convention Polars)
         test_data = pl.DataFrame({
-            "date_releve": [pl.datetime(2024, 1, 1, 10, 0, 0)],
+            "date_releve": [datetime(2024, 1, 1, 10, 0, 0, tzinfo=tz.utc)],
             "pdl": ["PDL123"],
-            "HP": [1000.0],
-            "BASE": [2000.0],
-            "HC": [500.0],
-            "HPH": [None],
-            "HPB": [None],
-            "HCB": [None],
-            "HCH": [None],
+            "hp": [1000.0],
+            "base": [2000.0],
+            "hc": [500.0],
+            "hph": [None],
+            "hpb": [None],
+            "hcb": [None],
+            "hch": [None],
             "unite": ["kWh"],
             "precision": ["kWh"]
         }).lazy()
@@ -136,10 +140,10 @@ class TestTransformationFunctions:
         # Collecter pour vérifier le contenu
         df = result.collect()
 
-        # Vérifier les colonnes de base
+        # Vérifier les colonnes de base (convention Polars = minuscules)
         assert "date_releve" in df.columns
         assert "pdl" in df.columns
-        assert "HP" in df.columns
+        assert "hp" in df.columns  # minuscules pour Polars
         assert "unite" in df.columns
         assert "precision" in df.columns
 
@@ -279,12 +283,14 @@ class TestLoadFunctions:
             mock_transform.return_value = mock_lazy_frame
 
             with patch('electricore.core.loaders.duckdb_loader.HistoriquePérimètrePolars') as mock_model:
-                # Appeler la fonction
-                result = load_historique_perimetre(
-                    database_path="test.duckdb",
-                    filters={"date_evenement": ">= '2024-01-01'"},
-                    limit=100
-                )
+                # Mock de l'existence du fichier DuckDB
+                with patch('pathlib.Path.exists', return_value=True):
+                    # Appeler la fonction
+                    result = load_historique_perimetre(
+                        database_path="test.duckdb",
+                        filters={"date_evenement": ">= '2024-01-01'"},
+                        limit=100
+                    )
 
                 # Vérifications
                 assert result == mock_lazy_frame
@@ -313,12 +319,14 @@ class TestLoadFunctions:
             mock_transform.return_value = mock_lazy_frame
 
             with patch('electricore.core.loaders.duckdb_loader.RelevéIndexPolars') as mock_model:
-                # Appeler la fonction
-                result = load_releves(
-                    database_path="test.duckdb",
-                    filters={"pdl": ["PDL123"]},
-                    limit=50
-                )
+                # Mock de l'existence du fichier DuckDB
+                with patch('pathlib.Path.exists', return_value=True):
+                    # Appeler la fonction
+                    result = load_releves(
+                        database_path="test.duckdb",
+                        filters={"pdl": ["PDL123"]},
+                        limit=50
+                    )
 
                 # Vérifications
                 assert result == mock_lazy_frame

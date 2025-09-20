@@ -256,6 +256,12 @@ def _(periodes_polars_collect):
 
 
 @app.cell
+def _(periodes_polars_collect):
+    periodes_polars_collect.filter(pl.col('pdl') == '14287988313383')
+    return
+
+
+@app.cell
 def benchmark_performance(
     df_historique_pandas,
     df_releves_pandas,

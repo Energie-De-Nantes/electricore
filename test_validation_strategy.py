@@ -7,6 +7,7 @@ Ce script teste les différents modes de validation :
 - SCHEMA_AND_DATA : Validation complète des données
 - OFF : Pas de validation (via désactivation)
 """
+import pytest
 
 import os
 import polars as pl
@@ -95,6 +96,7 @@ def create_sample_energies() -> pl.LazyFrame:
         pl.col("nb_sous_periodes").cast(pl.Int32),
     ])
 
+@pytest.mark.skip(reason="Script de test manuel, pas un test unitaire")
 def test_validation_mode(mode: str):
     """Teste un mode de validation spécifique."""
     print(f"\n🧪 Test du mode: {mode}")
