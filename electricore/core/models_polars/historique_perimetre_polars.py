@@ -51,26 +51,26 @@ class HistoriquePérimètrePolars(pa.DataFrameModel):
     avant_nature_index: Optional[pl.Utf8] = pa.Field(nullable=True)
     avant_id_calendrier_fournisseur: Optional[pl.Utf8] = pa.Field(nullable=True)
     avant_id_calendrier_distributeur: Optional[pl.Utf8] = pa.Field(nullable=True)
-    avant_HP: Optional[pl.Float64] = pa.Field(nullable=True)
-    avant_HC: Optional[pl.Float64] = pa.Field(nullable=True)
-    avant_HCH: Optional[pl.Float64] = pa.Field(nullable=True)
-    avant_HPH: Optional[pl.Float64] = pa.Field(nullable=True)
-    avant_HPB: Optional[pl.Float64] = pa.Field(nullable=True)
-    avant_HCB: Optional[pl.Float64] = pa.Field(nullable=True)
-    avant_BASE: Optional[pl.Float64] = pa.Field(nullable=True)
+    avant_hp: Optional[pl.Float64] = pa.Field(nullable=True)
+    avant_hc: Optional[pl.Float64] = pa.Field(nullable=True)
+    avant_hch: Optional[pl.Float64] = pa.Field(nullable=True)
+    avant_hph: Optional[pl.Float64] = pa.Field(nullable=True)
+    avant_hpb: Optional[pl.Float64] = pa.Field(nullable=True)
+    avant_hcb: Optional[pl.Float64] = pa.Field(nullable=True)
+    avant_base: Optional[pl.Float64] = pa.Field(nullable=True)
 
     # Colonnes de relevés "Après"
     apres_date_releve: Optional[DateTime] = pa.Field(nullable=True, dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"})
     apres_nature_index: Optional[pl.Utf8] = pa.Field(nullable=True)
     apres_id_calendrier_fournisseur: Optional[pl.Utf8] = pa.Field(nullable=True)
     apres_id_calendrier_distributeur: Optional[pl.Utf8] = pa.Field(nullable=True)
-    apres_HP: Optional[pl.Float64] = pa.Field(nullable=True)
-    apres_HC: Optional[pl.Float64] = pa.Field(nullable=True)
-    apres_HCH: Optional[pl.Float64] = pa.Field(nullable=True)
-    apres_HPH: Optional[pl.Float64] = pa.Field(nullable=True)
-    apres_HPB: Optional[pl.Float64] = pa.Field(nullable=True)
-    apres_HCB: Optional[pl.Float64] = pa.Field(nullable=True)
-    apres_BASE: Optional[pl.Float64] = pa.Field(nullable=True)
+    apres_hp: Optional[pl.Float64] = pa.Field(nullable=True)
+    apres_hc: Optional[pl.Float64] = pa.Field(nullable=True)
+    apres_hch: Optional[pl.Float64] = pa.Field(nullable=True)
+    apres_hph: Optional[pl.Float64] = pa.Field(nullable=True)
+    apres_hpb: Optional[pl.Float64] = pa.Field(nullable=True)
+    apres_hcb: Optional[pl.Float64] = pa.Field(nullable=True)
+    apres_base: Optional[pl.Float64] = pa.Field(nullable=True)
 
     @pa.dataframe_check
     def verifier_coherence_dates(cls, data) -> pl.LazyFrame:
@@ -110,23 +110,23 @@ class HistoriquePérimètrePolars(pa.DataFrameModel):
         # Pour les relevés "Avant"
         cond_avant_d1 = (
             pl.when(pl.col("avant_id_calendrier_distributeur") == "DI000001")
-            .then(pl.col("avant_BASE").is_not_null())
+            .then(pl.col("avant_base").is_not_null())
             .otherwise(pl.lit(True))
         )
 
         cond_avant_d2 = (
             pl.when(pl.col("avant_id_calendrier_distributeur") == "DI000002")
-            .then(pl.col("avant_HP").is_not_null() & pl.col("avant_HC").is_not_null())
+            .then(pl.col("avant_hp").is_not_null() & pl.col("avant_hc").is_not_null())
             .otherwise(pl.lit(True))
         )
 
         cond_avant_d3 = (
             pl.when(pl.col("avant_id_calendrier_distributeur") == "DI000003")
             .then(
-                pl.col("avant_HPH").is_not_null() &
-                pl.col("avant_HCH").is_not_null() &
-                pl.col("avant_HPB").is_not_null() &
-                pl.col("avant_HCB").is_not_null()
+                pl.col("avant_hph").is_not_null() &
+                pl.col("avant_hch").is_not_null() &
+                pl.col("avant_hpb").is_not_null() &
+                pl.col("avant_hcb").is_not_null()
             )
             .otherwise(pl.lit(True))
         )
@@ -134,23 +134,23 @@ class HistoriquePérimètrePolars(pa.DataFrameModel):
         # Pour les relevés "Après" (même logique)
         cond_apres_d1 = (
             pl.when(pl.col("apres_id_calendrier_distributeur") == "DI000001")
-            .then(pl.col("apres_BASE").is_not_null())
+            .then(pl.col("apres_base").is_not_null())
             .otherwise(pl.lit(True))
         )
 
         cond_apres_d2 = (
             pl.when(pl.col("apres_id_calendrier_distributeur") == "DI000002")
-            .then(pl.col("apres_HP").is_not_null() & pl.col("apres_HC").is_not_null())
+            .then(pl.col("apres_hp").is_not_null() & pl.col("apres_hc").is_not_null())
             .otherwise(pl.lit(True))
         )
 
         cond_apres_d3 = (
             pl.when(pl.col("apres_id_calendrier_distributeur") == "DI000003")
             .then(
-                pl.col("apres_HPH").is_not_null() &
-                pl.col("apres_HCH").is_not_null() &
-                pl.col("apres_HPB").is_not_null() &
-                pl.col("apres_HCB").is_not_null()
+                pl.col("apres_hph").is_not_null() &
+                pl.col("apres_hch").is_not_null() &
+                pl.col("apres_hpb").is_not_null() &
+                pl.col("apres_hcb").is_not_null()
             )
             .otherwise(pl.lit(True))
         )

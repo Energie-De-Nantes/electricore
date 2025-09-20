@@ -34,13 +34,13 @@ class RelevéIndexPolars(pa.DataFrameModel):
     precision: pl.Utf8 = pa.Field(nullable=False, isin=["kWh", "Wh", "MWh"])
 
     # ⚡ Mesures
-    HP: Optional[pl.Float64] = pa.Field(nullable=True)
-    HC: Optional[pl.Float64] = pa.Field(nullable=True)
-    HCH: Optional[pl.Float64] = pa.Field(nullable=True)
-    HPH: Optional[pl.Float64] = pa.Field(nullable=True)
-    HPB: Optional[pl.Float64] = pa.Field(nullable=True)
-    HCB: Optional[pl.Float64] = pa.Field(nullable=True)
-    BASE: Optional[pl.Float64] = pa.Field(nullable=True)
+    hp: Optional[pl.Float64] = pa.Field(nullable=True)
+    hc: Optional[pl.Float64] = pa.Field(nullable=True)
+    hch: Optional[pl.Float64] = pa.Field(nullable=True)
+    hph: Optional[pl.Float64] = pa.Field(nullable=True)
+    hpb: Optional[pl.Float64] = pa.Field(nullable=True)
+    hcb: Optional[pl.Float64] = pa.Field(nullable=True)
+    base: Optional[pl.Float64] = pa.Field(nullable=True)
 
     @pa.dataframe_check
     def verifier_presence_mesures(cls, data) -> pl.LazyFrame:
@@ -53,30 +53,30 @@ class RelevéIndexPolars(pa.DataFrameModel):
         # Créer des conditions pour chaque type de calendrier
         conditions = []
         
-        # DI000001: BASE doit être non-null
+        # DI000001: base doit être non-null
         cond_d1 = (
             pl.when(pl.col("id_calendrier_distributeur") == "DI000001")
-            .then(pl.col("BASE").is_not_null())
+            .then(pl.col("base").is_not_null())
             .otherwise(pl.lit(True))
         )
         conditions.append(cond_d1)
 
-        # DI000002: HP et HC doivent être non-null
+        # DI000002: hp et hc doivent être non-null
         cond_d2 = (
             pl.when(pl.col("id_calendrier_distributeur") == "DI000002")
-            .then(pl.col("HP").is_not_null() & pl.col("HC").is_not_null())
+            .then(pl.col("hp").is_not_null() & pl.col("hc").is_not_null())
             .otherwise(pl.lit(True))
         )
         conditions.append(cond_d2)
 
-        # DI000003: HPH, HCH, HPB, HCB doivent être non-null
+        # DI000003: hph, hch, hpb, hcb doivent être non-null
         cond_d3 = (
             pl.when(pl.col("id_calendrier_distributeur") == "DI000003")
             .then(
-                pl.col("HPH").is_not_null() &
-                pl.col("HCH").is_not_null() &
-                pl.col("HPB").is_not_null() &
-                pl.col("HCB").is_not_null()
+                pl.col("hph").is_not_null() &
+                pl.col("hch").is_not_null() &
+                pl.col("hpb").is_not_null() &
+                pl.col("hcb").is_not_null()
             )
             .otherwise(pl.lit(True))
         )
