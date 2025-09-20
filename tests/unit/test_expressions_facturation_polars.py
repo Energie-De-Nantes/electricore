@@ -111,7 +111,10 @@ class TestAgregatioAbonnements:
             "turpe_fixe": [50.0],
             "formule_tarifaire_acheminement": ["BTINF"],
             "debut": [datetime(2025, 3, 1)],
-            "fin": [datetime(2025, 3, 31)]
+            "fin": [datetime(2025, 3, 31)],
+            "debut_lisible": ["1 mars 2025"],
+            "fin_lisible": ["31 mars 2025"],
+            "coverage_abo": [1.0]
         })
 
         result = agreger_abonnements_mensuel(data)
@@ -137,7 +140,9 @@ class TestAgregatioAbonnements:
             "turpe_fixe": [25.0, 30.0],
             "formule_tarifaire_acheminement": ["BTINF", "BTINF"],
             "debut": [datetime(2025, 3, 1), datetime(2025, 3, 16)],
-            "fin": [datetime(2025, 3, 15), datetime(2025, 3, 31)]
+            "fin": [datetime(2025, 3, 15), datetime(2025, 3, 31)],
+            "debut_lisible": ["1 mars 2025", "16 mars 2025"],
+            "fin_lisible": ["15 mars 2025", "31 mars 2025"]
         })
 
         result = agreger_abonnements_mensuel(data)
@@ -172,8 +177,14 @@ class TestAgregatioEnergies:
             "turpe_variable": [25.0],
             "data_complete": [True],
             "debut": [datetime(2025, 3, 1)],
-            "fin": [datetime(2025, 3, 31)]
-        })
+            "fin": [datetime(2025, 3, 31)],
+            "source_avant": ["C15"],
+            "source_apres": ["R151"],
+            "periode_irreguliere": [False]
+        }).with_columns([
+            pl.col("debut").dt.convert_time_zone("Europe/Paris"),
+            pl.col("fin").dt.convert_time_zone("Europe/Paris")
+        ])
 
         result = agreger_energies_mensuel(data)
 
@@ -200,8 +211,14 @@ class TestAgregatioEnergies:
             "turpe_variable": [12.0, 18.0],
             "data_complete": [True, False],  # Une incomplète
             "debut": [datetime(2025, 3, 1), datetime(2025, 3, 15)],
-            "fin": [datetime(2025, 3, 15), datetime(2025, 3, 31)]
-        })
+            "fin": [datetime(2025, 3, 15), datetime(2025, 3, 31)],
+            "source_avant": ["C15", "C15"],
+            "source_apres": ["R151", "R151"],
+            "periode_irreguliere": [False, False]
+        }).with_columns([
+            pl.col("debut").dt.convert_time_zone("Europe/Paris"),
+            pl.col("fin").dt.convert_time_zone("Europe/Paris")
+        ])
 
         result = agreger_energies_mensuel(data)
 
@@ -234,7 +251,10 @@ class TestJointureMetaPeriodes:
             "fin": [datetime(2025, 3, 31)],
             "nb_sous_periodes_abo": [1],
             "has_changement_abo": [False],
-            "memo_puissance": [""]
+            "memo_puissance": [""],
+            "debut_lisible": ["1 mars 2025"],
+            "fin_lisible": ["31 mars 2025"],
+            "coverage_abo": [1.0]
         })
 
         energie_data = pl.LazyFrame({
@@ -246,10 +266,11 @@ class TestJointureMetaPeriodes:
             "hc_energie": [300.0],
             "turpe_variable": [25.0],
             "data_complete": [True],
-            "debut_energie": [datetime(2025, 3, 1)],
-            "fin_energie": [datetime(2025, 3, 31)],
+            "debut": [datetime(2025, 3, 1)],
+            "fin": [datetime(2025, 3, 31)],
             "nb_sous_periodes_energie": [1],
-            "has_changement_energie": [False]
+            "has_changement_energie": [False],
+            "coverage_energie": [1.0]
         })
 
         result = joindre_meta_periodes(abo_data, energie_data)
@@ -278,7 +299,10 @@ class TestJointureMetaPeriodes:
             "fin": [datetime(2025, 3, 31)],
             "nb_sous_periodes_abo": [1],
             "has_changement_abo": [False],
-            "memo_puissance": [""]
+            "memo_puissance": [""],
+            "debut_lisible": ["1 mars 2025"],
+            "fin_lisible": ["31 mars 2025"],
+            "coverage_abo": [1.0]
         })
 
         energie_data = pl.LazyFrame({
@@ -293,7 +317,8 @@ class TestJointureMetaPeriodes:
             "debut": [datetime(2025, 4, 1)],
             "fin": [datetime(2025, 4, 30)],
             "nb_sous_periodes_energie": [1],
-            "has_changement_energie": [False]
+            "has_changement_energie": [False],
+            "coverage_energie": [1.0]
         })
 
         result = joindre_meta_periodes(abo_data, energie_data)
@@ -328,7 +353,10 @@ class TestJointureMetaPeriodes:
             "fin": [datetime(2025, 3, 31), datetime(2025, 3, 31)],
             "nb_sous_periodes_abo": [1, 1],
             "has_changement_abo": [False, False],
-            "memo_puissance": ["", ""]
+            "memo_puissance": ["", ""],
+            "debut_lisible": ["1 mars 2025", "1 mars 2025"],
+            "fin_lisible": ["31 mars 2025", "31 mars 2025"],
+            "coverage_abo": [1.0, 1.0]
         })
 
         # Seulement PDL1 a de l'énergie
@@ -344,7 +372,8 @@ class TestJointureMetaPeriodes:
             "debut": [datetime(2025, 3, 1)],
             "fin": [datetime(2025, 3, 31)],
             "nb_sous_periodes_energie": [1],
-            "has_changement_energie": [False]
+            "has_changement_energie": [False],
+            "coverage_energie": [1.0]
         })
 
         result = joindre_meta_periodes(abo_data, energie_data)
