@@ -4,6 +4,7 @@ __generated_with = "0.15.3"
 app = marimo.App(width="medium")
 
 with app.setup:
+    import marimo as mo
     import polars as pl
     import pandas as pd
     import sys
@@ -34,7 +35,7 @@ with app.setup:
 
 
 @app.cell
-def _(mo):
+def _():
     mo.md(
         r"""
     # Pipeline Abonnements - Comparaison Pandas vs Polars
@@ -97,7 +98,7 @@ def _(df_polars_raw):
 
 
 @app.cell
-def _(mo):
+def _():
     mo.md(r"""# Génération des Périodes d'Abonnement""")
     return
 
@@ -249,7 +250,7 @@ def comparaison_periodes(periodes_pandas, periodes_polars_lf):
 
 
 @app.cell
-def _(mo):
+def _():
     mo.md(r"""# Calcul TURPE Fixe""")
     return
 
@@ -354,12 +355,6 @@ def comparaison_turpe(
 
     turpe_equivalent = abs(total_turpe_pandas - total_turpe_polars) < 0.01
     return
-
-
-@app.cell
-def _():
-    import marimo as mo
-    return (mo,)
 
 
 if __name__ == "__main__":

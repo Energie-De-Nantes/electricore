@@ -36,14 +36,36 @@ def _(Path, mo):
 
 @app.cell
 def _(db_path, load_historique_perimetre):
-    load_historique_perimetre(database_path=db_path, valider=True).collect()
+    historique = load_historique_perimetre(database_path=db_path, valider=True)
+    historique
+    return (historique,)
+
+
+@app.cell
+def _(db_path):
+    from electricore.core.loaders import r15
+
+    r15_df = (
+        r15(database_path=db_path)
+        .validate(False)
+        # .filter({"ref_situation_contractuelle": "318283796"})
+        # .limit(5)
+        .lazy()
+    )
+    r15_df
     return
 
 
 @app.cell
 def _(db_path, load_releves):
-    releves = load_releves(database_path=db_path, valider=True).collect()
+    releves = load_releves(database_path=db_path, valider=True)
     releves
+    return (releves,)
+
+
+@app.cell
+def _(releves):
+    releves.collect()
     return
 
 
@@ -55,6 +77,15 @@ def _():
     tables = get_available_tables()
     print(f"Tables disponibles: {len(tables)}")
     tables
+    return
+
+
+@app.cell
+def _(historique):
+    from electricore.core.pipelines_polars.perimetre_polars import detecter_points_de_rupture
+
+    ruptures = detecter_points_de_rupture(historique)
+    ruptures.collect()
     return
 
 
