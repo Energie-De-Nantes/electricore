@@ -171,7 +171,10 @@ def agreger_abonnements_mensuel(
                 # TODO: Vérifier si changement réel de puissance
                 pl.col("memo_puissance_concat")
             )
-            .alias("memo_puissance")
+            .alias("memo_puissance"),
+
+            # TODO: Calculer coverage_abo réel
+            pl.lit(1.0).alias("coverage_abo")  # Placeholder
         ])
         .drop("memo_puissance_concat")
     )
@@ -217,7 +220,10 @@ def agreger_energies_mensuel(
         ])
         .with_columns([
             # Flag de changement si plusieurs sous-périodes
-            (pl.col("nb_sous_periodes_energie") > 1).alias("has_changement_energie")
+            (pl.col("nb_sous_periodes_energie") > 1).alias("has_changement_energie"),
+
+            # TODO: Calculer coverage_energie réel
+            pl.lit(1.0).alias("coverage_energie")  # Placeholder
         ])
     )
 
