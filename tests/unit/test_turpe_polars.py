@@ -53,7 +53,7 @@ class TestChargementRegles:
         # Vérification des colonnes obligatoires
         colonnes_attendues = [
             "Formule_Tarifaire_Acheminement", "start", "end",
-            "cg", "cc", "b", "HPH", "HCH", "HPB", "HCB", "HP", "HC", "BASE"
+            "cg", "cc", "b", "hph", "hch", "hpb", "hcb", "hp", "hc", "base"
         ]
         for col in colonnes_attendues:
             assert col in df.columns, f"Colonne manquante: {col}"
@@ -69,7 +69,7 @@ class TestChargementRegles:
         assert "Europe/Paris" in str(schema["end"])
 
         # Toutes les colonnes numériques doivent être Float64
-        colonnes_numeriques = ["cg", "cc", "b", "HPH", "HCH", "HPB", "HCB", "HP", "HC", "BASE"]
+        colonnes_numeriques = ["cg", "cc", "b", "hph", "hch", "hpb", "hcb", "hp", "hc", "base"]
         for col in colonnes_numeriques:
             assert schema[col] == pl.Float64, f"Type incorrect pour {col}: {schema[col]}"
 
@@ -174,29 +174,29 @@ class TestExpressionsTurpeVariable:
                 datetime(2024, 2, 1)
             ],
             # Énergies par cadran (kWh)
-            "BASE_energie": [100.0, 0.0],
-            "HP_energie": [0.0, 50.0],
-            "HC_energie": [0.0, 30.0],
-            "HPH_energie": [0.0, 40.0],
-            "HCH_energie": [0.0, 25.0],
-            "HPB_energie": [0.0, 0.0],
-            "HCB_energie": [0.0, 0.0],
+            "base_energie": [100.0, 0.0],
+            "hp_energie": [0.0, 50.0],
+            "hc_energie": [0.0, 30.0],
+            "hph_energie": [0.0, 40.0],
+            "hch_energie": [0.0, 25.0],
+            "hpb_energie": [0.0, 0.0],
+            "hcb_energie": [0.0, 0.0],
             # Tarifs TURPE (€/MWh)
-            "BASE": [4.37, 0.0],
-            "HP": [0.0, 4.68],
-            "HC": [0.0, 3.31],
-            "HPH": [0.0, 6.39],
-            "HCH": [0.0, 4.43],
-            "HPB": [0.0, 0.0],
-            "HCB": [0.0, 0.0],
+            "taux_turpe_base": [4.37, 0.0],
+            "taux_turpe_hp": [0.0, 4.68],
+            "taux_turpe_hc": [0.0, 3.31],
+            "taux_turpe_hph": [0.0, 6.39],
+            "taux_turpe_hch": [0.0, 4.43],
+            "taux_turpe_hpb": [0.0, 0.0],
+            "taux_turpe_hcb": [0.0, 0.0],
         }).with_columns(
             pl.col("debut").dt.replace_time_zone("Europe/Paris")
         )
 
     def test_expr_calculer_turpe_cadran_base(self, df_test_variable):
-        """Test du calcul TURPE pour le cadran BASE."""
+        """Test du calcul TURPE pour le cadran base."""
         df_result = df_test_variable.with_columns(
-            expr_calculer_turpe_cadran("BASE").alias("turpe_base")
+            expr_calculer_turpe_cadran("base").alias("turpe_base")
         )
 
         # Calcul attendu: energie * tarif / 100
@@ -212,7 +212,7 @@ class TestExpressionsTurpeVariable:
     def test_expr_calculer_turpe_cadran_hp(self, df_test_variable):
         """Test du calcul TURPE pour le cadran HP."""
         df_result = df_test_variable.with_columns(
-            expr_calculer_turpe_cadran("HP").alias("turpe_hp")
+            expr_calculer_turpe_cadran("hp").alias("turpe_hp")
         )
 
         # Calcul attendu: energie * tarif / 100
@@ -232,15 +232,15 @@ class TestExpressionsTurpeVariable:
         )
 
         # Vérifier que toutes les colonnes turpe_* ont été créées
-        cadrans = ["HPH", "HCH", "HPB", "HCB", "HP", "HC", "BASE"]
+        cadrans = ["hph", "hch", "hpb", "hcb", "hp", "hc", "base"]
         for cadran in cadrans:
             col_name = f"turpe_{cadran}"
             assert col_name in df_result.columns, f"Colonne manquante: {col_name}"
 
         # Vérifier quelques valeurs
-        assert abs(df_result["turpe_BASE"][0] - 4.37) < 0.01
-        assert abs(df_result["turpe_HP"][1] - 2.34) < 0.01
-        assert abs(df_result["turpe_HC"][1] - 0.993) < 0.01  # 30 * 3.31 / 100
+        assert abs(df_result["turpe_base"][0] - 4.37) < 0.01
+        assert abs(df_result["turpe_hp"][1] - 2.34) < 0.01
+        assert abs(df_result["turpe_hc"][1] - 0.993) < 0.01  # 30 * 3.31 / 100
 
     def test_expr_sommer_turpe_cadrans(self, df_test_variable):
         """Test de la somme des contributions TURPE."""
@@ -351,13 +351,13 @@ class TestPipelinesIntegration:
             "formule_tarifaire_acheminement": ["BTINFCUST", "BTINFMU4"],
             "debut": [datetime(2024, 1, 1), datetime(2024, 2, 1)],
             "pdl": ["PDL001", "PDL002"],
-            "BASE_energie": [100.0, 0.0],
-            "HP_energie": [0.0, 50.0],
-            "HC_energie": [0.0, 30.0],
-            "HPH_energie": [0.0, 40.0],
-            "HCH_energie": [0.0, 25.0],
-            "HPB_energie": [0.0, 0.0],
-            "HCB_energie": [0.0, 0.0],
+            "base_energie": [100.0, 0.0],
+            "hp_energie": [0.0, 50.0],
+            "hc_energie": [0.0, 30.0],
+            "hph_energie": [0.0, 40.0],
+            "hch_energie": [0.0, 25.0],
+            "hpb_energie": [0.0, 0.0],
+            "hcb_energie": [0.0, 0.0],
         }).with_columns(
             pl.col("debut").dt.replace_time_zone("Europe/Paris")
         )
@@ -421,10 +421,10 @@ class TestPipelinesIntegration:
         periodes_variable = pl.LazyFrame({
             "formule_tarifaire_acheminement": ["BTINFCUST"],
             "debut": [datetime(2024, 11, 15)],
-            "BASE_energie": [100.0],
-            "HP_energie": [0.0], "HC_energie": [0.0],
-            "HPH_energie": [0.0], "HCH_energie": [0.0],
-            "HPB_energie": [0.0], "HCB_energie": [0.0],
+            "base_energie": [100.0],
+            "hp_energie": [0.0], "hc_energie": [0.0],
+            "hph_energie": [0.0], "hch_energie": [0.0],
+            "hpb_energie": [0.0], "hcb_energie": [0.0],
         }).with_columns(
             pl.col("debut").dt.replace_time_zone("Europe/Paris")
         )
@@ -444,37 +444,44 @@ class TestFonctionsDebug:
     def test_debug_turpe_variable(self):
         """Test de la fonction debug_turpe_variable."""
         df_test = pl.LazyFrame({
-            "BASE_energie": [100.0],
-            "HP_energie": [50.0],
-            "HC_energie": [30.0],
-            "HPH_energie": [40.0],
-            "HCH_energie": [25.0],
-            "HPB_energie": [0.0],
-            "HCB_energie": [0.0],
-            "BASE": [4.37],
-            "HP": [4.68],
-            "HC": [3.31],
-            "HPH": [6.39],
-            "HCH": [4.43],
-            "HPB": [1.46],
-            "HCB": [0.91],
+            "base_energie": [100.0],
+            "hp_energie": [50.0],
+            "hc_energie": [30.0],
+            "hph_energie": [40.0],
+            "hch_energie": [25.0],
+            "hpb_energie": [0.0],
+            "hcb_energie": [0.0],
+            "base": [4.37],
+            "hp": [4.68],
+            "hc": [3.31],
+            "hph": [6.39],
+            "hch": [4.43],
+            "hpb": [1.46],
+            "hcb": [0.91],
+            "taux_turpe_base": [4.37],
+            "taux_turpe_hp": [4.68],
+            "taux_turpe_hc": [3.31],
+            "taux_turpe_hph": [6.39],
+            "taux_turpe_hch": [4.43],
+            "taux_turpe_hpb": [1.46],
+            "taux_turpe_hcb": [0.91],
         })
 
         df_debug = debug_turpe_variable(df_test).collect()
 
         # Vérifier que les colonnes de debug ont été ajoutées
         debug_cols = [
-            "debug_energie_BASE", "debug_tarif_BASE", "debug_contribution_BASE",
-            "debug_energie_HP", "debug_tarif_HP", "debug_contribution_HP"
+            "debug_energie_base", "debug_tarif_base", "debug_contribution_base",
+            "debug_energie_hp", "debug_tarif_hp", "debug_contribution_hp"
         ]
 
         for col in debug_cols:
             assert col in df_debug.columns, f"Colonne debug manquante: {col}"
 
         # Vérifier les valeurs de debug
-        assert df_debug["debug_energie_BASE"][0] == 100.0
-        assert df_debug["debug_tarif_BASE"][0] == 4.37
-        assert abs(df_debug["debug_contribution_BASE"][0] - 4.37) < 0.01
+        assert df_debug["debug_energie_base"][0] == 100.0
+        assert df_debug["debug_tarif_base"][0] == 4.37
+        assert abs(df_debug["debug_contribution_base"][0] - 4.37) < 0.01
 
     def test_comparer_avec_pandas(self):
         """Test de la fonction de comparaison avec pandas."""
@@ -537,13 +544,13 @@ class TestCasLimites:
         df_test = pl.LazyFrame({
             "formule_tarifaire_acheminement": ["BTINFCUST"],
             "debut": [datetime(2024, 1, 1)],
-            "BASE_energie": [None],  # Valeur nulle
-            "HP_energie": [0.0],
-            "HC_energie": [0.0],
-            "HPH_energie": [0.0],
-            "HCH_energie": [0.0],
-            "HPB_energie": [0.0],
-            "HCB_energie": [0.0],
+            "base_energie": [None],  # Valeur nulle
+            "hp_energie": [0.0],
+            "hc_energie": [0.0],
+            "hph_energie": [0.0],
+            "hch_energie": [0.0],
+            "hpb_energie": [0.0],
+            "hcb_energie": [0.0],
         }).with_columns(
             pl.col("debut").dt.replace_time_zone("Europe/Paris")
         )

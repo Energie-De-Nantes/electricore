@@ -86,8 +86,8 @@ class TestExtraireRelevesEvenementsPolars:
         avant = result.filter(pl.col("ordre_index") == 0)
         assert len(avant) == 1
         assert avant["pdl"][0] == "PDL001"
-        assert avant["BASE"][0] == 1000.0
-        assert avant["HP"][0] == 500.0
+        assert avant["base"][0] == 1000.0
+        assert avant["hp"][0] == 500.0
         assert avant["source"][0] == "flux_C15"
         assert avant["ordre_index"][0] == 0
 
@@ -107,14 +107,16 @@ class TestInterrogerRelevesPolars:
             "pdl": ["PDL001", "PDL002", "PDL003"],
             "date_releve": [datetime(2024, 1, 15), datetime(2024, 1, 16), datetime(2024, 1, 17)],
             "source": ["flux_R151", "flux_R151", "flux_R151"],
-            "BASE": [1000.0, 2000.0, 3000.0],
+            "base": [1000.0, 2000.0, 3000.0],
+            "ordre_index": [0, 0, 0],
+            "id_calendrier_distributeur": ["DI000001", "DI000001", "DI000001"],
         })
 
         result = interroger_releves_polars(requete, releves).collect()
 
         assert len(result) == 2  # Même taille que la requête
         assert not any(result["releve_manquant"])  # Aucun relevé manquant
-        assert result["BASE"].to_list() == [1000.0, 2000.0]
+        assert result["base"].to_list() == [1000.0, 2000.0]
 
     def test_interrogation_avec_releves_manquants(self):
         """Test cas mixte : certains relevés trouvés, d'autres non."""
@@ -128,7 +130,9 @@ class TestInterrogerRelevesPolars:
             "pdl": ["PDL001"],
             "date_releve": [datetime(2024, 1, 15)],
             "source": ["flux_R151"],
-            "BASE": [1000.0]
+            "base": [1000.0],
+            "ordre_index": [0],
+            "id_calendrier_distributeur": ["DI000001"],
         })
 
         result = interroger_releves_polars(requete, releves).collect()
@@ -139,7 +143,7 @@ class TestInterrogerRelevesPolars:
         pdl002 = result.filter(pl.col("pdl") == "PDL002")
         assert len(pdl002) == 1
         assert pdl002["releve_manquant"][0] is True
-        assert pdl002["BASE"][0] is None
+        assert pdl002["base"][0] is None
 
         # PDL001 doit avoir releve_manquant=False
         pdl001 = result.filter(pl.col("pdl") == "PDL001")
@@ -183,7 +187,9 @@ class TestReconstituerChronologieRelevesPolars:
             "pdl": ["PDL001"],
             "date_releve": [datetime(2024, 2, 1)],
             "source": ["flux_R151"],
-            "BASE": [2000.0],
+            "base": [2000.0],
+            "ordre_index": [0],
+            "id_calendrier_distributeur": ["DI000001"],
         })
 
         result = reconstituer_chronologie_releves_polars(evenements, releves).collect()
@@ -228,7 +234,9 @@ class TestReconstituerChronologieRelevesPolars:
             "pdl": ["PDL001"],
             "date_releve": [datetime(2024, 1, 15)],
             "source": ["flux_R151"],
-            "BASE": [9999.0]  # Valeur différente pour détecter le conflit
+            "base": [9999.0],  # Valeur différente pour détecter le conflit
+            "ordre_index": [0],
+            "id_calendrier_distributeur": ["DI000001"],
         })
 
         result = reconstituer_chronologie_releves_polars(evenements, releves).collect()
@@ -241,9 +249,9 @@ class TestReconstituerChronologieRelevesPolars:
         assert sources == ["flux_C15"]
 
         # Les valeurs doivent être celles des événements, pas du R151
-        assert 1000.0 in releves_date["BASE"].to_list()  # Relevé avant
-        assert 1500.0 in releves_date["BASE"].to_list()  # Relevé après
-        assert 9999.0 not in releves_date["BASE"].to_list()  # Pas le R151
+        assert 1000.0 in releves_date["base"].to_list()  # Relevé avant
+        assert 1500.0 in releves_date["base"].to_list()  # Relevé après
+        assert 9999.0 not in releves_date["base"].to_list()  # Pas le R151
 
 
 def test_propagation_flags_releve_manquant():
@@ -253,13 +261,13 @@ def test_propagation_flags_releve_manquant():
         "ref_situation_contractuelle": ["REF001", "REF001", "REF001"],
         "date_releve": [datetime(2024, 1, 1), datetime(2024, 2, 1), datetime(2024, 3, 1)],
         "source": ["flux_C15", "flux_R151", "flux_R151"],
-        "BASE": [1000.0, 2000.0, 3000.0],
-        "HP": [500.0, 1000.0, 1500.0],
-        "HC": [200.0, 400.0, 600.0],
-        "HPH": [100.0, 200.0, 300.0],
-        "HPB": [150.0, 300.0, 450.0],
-        "HCH": [80.0, 160.0, 240.0],
-        "HCB": [120.0, 240.0, 360.0],
+        "base": [1000.0, 2000.0, 3000.0],
+        "hp": [500.0, 1000.0, 1500.0],
+        "hc": [200.0, 400.0, 600.0],
+        "hph": [100.0, 200.0, 300.0],
+        "hpb": [150.0, 300.0, 450.0],
+        "hch": [80.0, 160.0, 240.0],
+        "hcb": [120.0, 240.0, 360.0],
         "releve_manquant": [None, False, True],  # C15: null, R151 trouvé: False, R151 manquant: True
         "ordre_index": [0, 0, 0]
     })
@@ -286,26 +294,26 @@ def test_propagation_flags_releve_manquant():
 def test_expr_arrondir_index_kwh():
     """Teste l'arrondi des index à l'entier inférieur."""
     df = pl.DataFrame({
-        "BASE": [1000.8, 1001.2, None],
-        "HP": [500.9, None, 502.1],
-        "HC": [None, 400.7, 401.3],
+        "base": [1000.8, 1001.2, None],
+        "hp": [500.9, None, 502.1],
+        "hc": [None, 400.7, 401.3],
     }).lazy()
 
     from electricore.core.pipelines_polars.energie_polars import expr_arrondir_index_kwh
 
-    result = df.with_columns(expr_arrondir_index_kwh(["BASE", "HP", "HC"])).collect()
+    result = df.with_columns(expr_arrondir_index_kwh(["base", "hp", "hc"])).collect()
 
     # Vérifier l'arrondi à l'entier inférieur
-    assert result["BASE"].to_list() == [1000.0, 1001.0, None]
-    assert result["HP"].to_list() == [500.0, None, 502.0]
-    assert result["HC"].to_list() == [None, 400.0, 401.0]
+    assert result["base"].to_list() == [1000.0, 1001.0, None]
+    assert result["hp"].to_list() == [500.0, None, 502.0]
+    assert result["hc"].to_list() == [None, 400.0, 401.0]
 
 
 def test_expr_calculer_energie_cadran():
     """Teste le calcul d'énergie pour un cadran."""
     df = pl.DataFrame({
         "ref_situation_contractuelle": ["A", "A", "A", "B", "B"],
-        "BASE": [1000.0, 1050.0, 1100.0, 500.0, 530.0],
+        "base": [1000.0, 1050.0, 1100.0, 500.0, 530.0],
     }).lazy()
 
     from electricore.core.pipelines_polars.energie_polars import expr_calculer_energie_cadran
@@ -314,7 +322,7 @@ def test_expr_calculer_energie_cadran():
         df
         .sort(["ref_situation_contractuelle"])
         .with_columns(
-            expr_calculer_energie_cadran("BASE").alias("BASE_energie")
+            expr_calculer_energie_cadran("base").alias("base_energie")
         )
         .collect()
     )
@@ -328,7 +336,7 @@ def test_expr_calculer_energie_cadran():
         None,   # B: 1er relevé
         30.0,   # B: 530 - 500
     ]
-    assert result["BASE_energie"].to_list() == energies_attendues
+    assert result["base_energie"].to_list() == energies_attendues
 
 
 def test_expr_date_formatee_fr():
