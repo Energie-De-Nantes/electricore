@@ -466,8 +466,9 @@ def reconstituer_chronologie_releves_polars(evenements: pl.LazyFrame, releves: p
         # rel_evenements n'a pas releve_manquant → sera null
         # rel_facturation a releve_manquant → garde sa valeur
         pl.concat([rel_evenements, rel_facturation], how="diagonal")
-        # Tri chronologique pour forward fill
+        # Tri chronologique par PDL pour les opérations .over("pdl") (évite warning sortedness)
         .sort(["pdl", "date_releve", "ordre_index"])
+        .set_sorted("pdl")  # Indiquer explicitement que PDL est trié
         # Propager les références contractuelles avec forward fill par PDL
         .with_columns([
             pl.col("ref_situation_contractuelle").fill_null(strategy="forward").over("pdl"),
@@ -516,7 +517,9 @@ def calculer_periodes_energie_polars(lf: pl.LazyFrame) -> pl.LazyFrame:
 
     return (
         lf
+        # Tri par contrat et chronologique pour optimiser les .over("ref_situation_contractuelle")
         .sort(["ref_situation_contractuelle", "date_releve", "ordre_index"])
+        .set_sorted("ref_situation_contractuelle")  # Indiquer explicitement que ref_situation_contractuelle est trié
 
         # Étape 1 : Bornes temporelles + arrondi index (indépendants)
         .with_columns([
