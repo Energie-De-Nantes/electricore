@@ -219,5 +219,121 @@ def demo_query_builder(config):
     return
 
 
+@app.cell
+def stats_analysis(navigation_result):
+    """Analyse statistique avec operations over() Polars"""
+
+    _intro = mo.md("""
+    ## 3. Analyse statistique avec Polars 📊
+
+    Utilisation des opérations `over()` pour calculer des statistiques par groupes.
+    """)
+
+    if len(navigation_result) > 0:
+        # Statistiques avec over() par PDL et catégorie
+        stats_df = navigation_result.with_columns([
+            # Statistiques par PDL
+            pl.col('price_total').sum().over('pdl').alias('total_pdl'),
+            pl.col('quantity').sum().over('pdl').alias('qty_total_pdl'),
+            pl.len().over('pdl').alias('nb_lignes_pdl'),
+
+            # Statistiques par catégorie de produit
+            pl.col('price_total').sum().over('categorie').alias('total_categorie'),
+            pl.col('quantity').sum().over('categorie').alias('qty_total_categorie'),
+            pl.len().over('categorie').alias('nb_lignes_categorie'),
+
+            # Statistiques par commande
+            pl.col('price_total').sum().over('order_name').alias('total_commande'),
+            pl.len().over('order_name').alias('nb_lignes_commande'),
+
+            # Calculs de pourcentages
+            (pl.col('price_total') / pl.col('price_total').sum().over('pdl') * 100).alias('pct_pdl'),
+            (pl.col('price_total') / pl.col('price_total').sum().over('categorie') * 100).alias('pct_categorie')
+        ])
+
+        # Résumé par PDL
+        resume_pdl = (stats_df
+            .group_by('pdl')
+            .agg([
+                pl.col('total_pdl').first().alias('montant_total'),
+                pl.col('qty_total_pdl').first().alias('quantite_totale'),
+                pl.col('nb_lignes_pdl').first().alias('nb_lignes'),
+                pl.col('categorie').n_unique().alias('nb_categories')
+            ])
+            .sort('montant_total', descending=True)
+        )
+
+        # Résumé par catégorie
+        resume_categorie = (stats_df
+            .group_by('categorie')
+            .agg([
+                pl.col('total_categorie').first().alias('montant_total'),
+                pl.col('qty_total_categorie').first().alias('quantite_totale'),
+                pl.col('nb_lignes_categorie').first().alias('nb_lignes'),
+                pl.col('pdl').n_unique().alias('nb_pdl')
+            ])
+            .sort('montant_total', descending=True)
+        )
+
+        # Pivot PDL × Catégorie pour une vue croisée
+        pivot_pdl_categorie = (stats_df
+            .group_by(['pdl', 'categorie'])
+            .agg([
+                pl.col('price_total').sum().alias('montant'),
+                pl.col('quantity').sum().alias('quantite')
+            ])
+            .pivot(index='pdl', columns='categorie', values='montant')
+            .fill_null(0)
+        )
+
+        _stats_msg = mo.md(f"""
+        ### 📈 Statistiques calculées avec over() et pivot
+
+        **Données analysées** : {len(navigation_result)} lignes de facturation
+
+        **Opérations `over()`** pour calculs par groupe tout en gardant le détail :
+        ```python
+        .with_columns([
+            pl.col('price_total').sum().over('pdl').alias('total_pdl'),
+            pl.col('quantity').sum().over('categorie').alias('qty_categorie'),
+            (pl.col('price_total') / pl.col('price_total').sum().over('pdl') * 100).alias('pct_pdl')
+        ])
+        ```
+
+        **Pivot** pour vue croisée PDL × Catégorie :
+        ```python
+        .group_by(['pdl', 'categorie'])
+        .agg(pl.col('price_total').sum().alias('montant'))
+        .pivot(index='pdl', columns='categorie', values='montant')
+        .fill_null(0)
+        ```
+        """)
+
+        _result = mo.vstack([
+            _intro,
+            _stats_msg,
+            mo.md("**💰 Résumé par PDL (Point de Livraison)** :"),
+            resume_pdl,
+            mo.md("**🏷️ Résumé par Catégorie de Produit** :"),
+            resume_categorie,
+            mo.md("**🔄 Pivot PDL × Catégorie (montants en €)** :"),
+            mo.md("Vue croisée montrant la répartition des montants par PDL et catégorie :"),
+            pivot_pdl_categorie,
+            mo.md("**📋 Détail avec statistiques (5 premières lignes)** :"),
+            stats_df.select([
+                'pdl', 'product_name', 'categorie', 'quantity', 'price_total',
+                'total_pdl', 'total_categorie', 'pct_pdl', 'pct_categorie'
+            ]).head(5)
+        ])
+    else:
+        _result = mo.vstack([
+            _intro,
+            mo.md("⚠️ Aucune donnée disponible pour l'analyse statistique")
+        ])
+
+    _result
+    return
+
+
 if __name__ == "__main__":
     app.run()
