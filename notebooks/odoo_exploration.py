@@ -48,33 +48,59 @@ def _():
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def config_odoo():
-    """Configuration de test pour Odoo"""
-    # Configuration de test (à adapter selon votre environnement)
-    config = {
-        'url': 'https://votre-instance.odoo.com',  # À modifier
-        'db': 'votre_db',                         # À modifier
-        'username': 'votre_username',             # À modifier
-        'password': 'votre_password'              # À modifier
-    }
+    """Configuration Odoo depuis secrets.toml"""
+    import tomllib
 
-    mo.md(f"""
-    **Configuration actuelle**:
-    - URL: `{config['url']}`
-    - Base: `{config['db']}`
-    - Utilisateur: `{config['username']}`
+    # Chercher le fichier secrets.toml
+    secrets_paths = [
+        Path.cwd() / '.dlt' / 'secrets.toml',
+        Path.cwd() / 'electricore' / 'etl' / '.dlt' / 'secrets.toml'
+    ]
 
-    💡 **Astuce**: En production, configurez ces valeurs dans `.dlt/secrets.toml`
-    """)
-    return
+    config = {}
+    secrets_file_found = None
+
+    for secrets_path in secrets_paths:
+        if secrets_path.exists():
+            with open(secrets_path, 'rb') as f:
+                config_data = tomllib.load(f)
+                config = config_data.get('odoo', {})
+                secrets_file_found = secrets_path
+            break
+
+    if not config:
+        _msg = mo.md("""
+        ⚠️ **Configuration Odoo non trouvée**
+
+        Créez le fichier `.dlt/secrets.toml` ou `electricore/etl/.dlt/secrets.toml` avec :
+        ```toml
+        [odoo]
+        url = "https://votre-instance.odoo.com"
+        db = "votre_database"
+        username = "votre_username"
+        password = "votre_password"
+        ```
+        """)
+    else:
+        _msg = mo.md(f"""
+        **Configuration chargée depuis**: `{secrets_file_found}`
+    
+        - URL: `{config.get('url', 'NON CONFIGURÉ')}`
+        - Base: `{config.get('db', 'NON CONFIGURÉ')}`
+        - Utilisateur: `{config.get('username', 'NON CONFIGURÉ')}`
+        - Mot de passe: `{'***' if config.get('password') else 'NON CONFIGURÉ'}`
+        """)
+    _msg
+    return (config,)
 
 
-@app.cell
-def test_connexion():
+@app.cell(hide_code=True)
+def test_connexion(config):
     """Test de connexion à Odoo"""
     try:
-        with OdooReader() as odoo:
+        with OdooReader(config=config) as _odoo:
             _msg = mo.md("✅ **Connexion réussie** à Odoo !")
             connection_ok = True
     except Exception as e:
@@ -92,202 +118,226 @@ def test_connexion():
     return
 
 
-app._unparsable_cell(
-    r"""
-    \"\"\"Exploration des commandes de vente avec PDL\"\"\"
+@app.cell
+def explore_sale_orders(config, connection_ok):
+    """Exploration des commandes de vente avec PDL"""
     if not connection_ok:
-        mo.md(\"🛑 **Arrêt**: Impossible de se connecter à Odoo.\")
-        return None, 0
-
-    mo.md(\"\"\"
-    ## 2. Exploration des commandes de vente (sale.order)
-
-    Recherchons les commandes qui contiennent un PDL dans le champ `x_pdl`.
-    \"\"\")
-
-    with OdooReader(config=config) as odoo:
-        # Récupérer quelques sale.order avec PDL
-        orders = odoo.search_read(
-            'sale.order',
-            domain=[['x_pdl', '!=', False]],  # Seulement ceux avec PDL
-            fields=['name', 'x_pdl', 'partner_id', 'date_order', 'invoice_ids', 'state']
-        )
-
-        nb_orders = len(orders)
-
-        mo.md(f\"\"\"
-        **Résultat**: {nb_orders} commandes trouvées avec un PDL
-        \"\"\")
-
-        if nb_orders > 0:
-            # Afficher les premières lignes
-            display_orders = orders.head(5) if nb_orders > 5 else orders
-            mo.plain(display_orders)
-        else:
-            mo.md(\"⚠️ Aucune commande trouvée avec un PDL (champ `x_pdl`)\")
-    """,
-    name="explore_sale_orders"
-)
-
-
-app._unparsable_cell(
-    r"""
-    \"\"\"Sélection d'une commande d'exemple pour explorer les factures\"\"\"
-    if nb_orders == 0:
-        return None
-
-    mo.md(\"\"\"
-    ## 3. Sélection d'une commande avec factures
-
-    Trouvons une commande qui a des factures associées pour explorer la structure.
-    \"\"\")
-
-    # Prendre la première commande qui a des factures
-    sample_order = None
-    for row in orders.iter_rows(named=True):
-        if row['invoice_ids'] and len(row['invoice_ids']) > 0:
-            sample_order = row
-            break
-
-    if sample_order:
-        mo.md(f\"\"\"
-        **Commande sélectionnée**: `{sample_order['name']}`
-        - **PDL**: `{sample_order['x_pdl']}`
-        - **Client**: {sample_order['partner_id'][1] if sample_order['partner_id'] else 'N/A'}
-        - **Factures**: {len(sample_order['invoice_ids'])} facture(s) associée(s)
-        - **IDs factures**: {sample_order['invoice_ids']}
-        \"\"\")
+        _msg = mo.md("🛑 **Arrêt**: Impossible de se connecter à Odoo.")
+        orders = None
+        nb_orders = 0
     else:
-        mo.md(\"⚠️ Aucune commande trouvée avec des factures associées\")
-    """,
-    name="select_sample_order"
-)
+        _intro = mo.md("""
+        ## 2. Exploration des commandes de vente (sale.order)
 
+        Recherchons les commandes qui contiennent un PDL dans le champ `x_pdl`.
+        """)
 
-app._unparsable_cell(
-    r"""
-    \"\"\"Exploration des factures associées à la commande\"\"\"
-    if not sample_order:
-        return None
-
-    mo.md(\"\"\"
-    ## 4. Exploration des factures (account.move)
-
-    Explorons les factures associées à notre commande d'exemple.
-    \"\"\")
-
-    with OdooReader(config=config) as odoo:
-        # Récupérer les détails des factures
-        invoice_ids = sample_order['invoice_ids']
-        invoices = odoo.read(
-            'account.move',
-            invoice_ids,
-            fields=['name', 'invoice_date', 'amount_total', 'state', 'move_type', 'invoice_line_ids']
-        )
-
-        mo.md(f\"\"\"
-        **Factures de la commande `{sample_order['name']}`**:
-        \"\"\")
-        mo.plain(invoices)
-    """,
-    name="explore_invoices"
-)
-
-
-app._unparsable_cell(
-    r"""
-    \"\"\"Exploration des lignes de facture\"\"\"
-    if invoices is None or len(invoices) == 0:
-        return None, []
-
-    mo.md(\"\"\"
-    ## 5. Exploration des lignes de facture (account.move.line)
-
-    Explorons les lignes de la première facture pour voir le détail des produits/services.
-    \"\"\")
-
-    # Prendre la première facture
-    sample_invoice = invoices.row(0, named=True)
-    invoice_line_ids = sample_invoice['invoice_line_ids']
-
-    mo.md(f\"\"\"
-    **Facture sélectionnée**: `{sample_invoice['name']}`
-    - **Date**: {sample_invoice['invoice_date']}
-    - **Montant total**: {sample_invoice['amount_total']}€
-    - **Lignes**: {len(invoice_line_ids)} ligne(s)
-    \"\"\")
-
-    if invoice_line_ids:
-        with OdooReader(config=config) as odoo:
-            # Récupérer les détails des lignes de facture
-            lines = odoo.read(
-                'account.move.line',
-                invoice_line_ids,
-                fields=[
-                    'name', 'product_id', 'quantity', 'price_unit',
-                    'price_subtotal', 'price_total', 'account_id'
-                ]
+        with OdooReader(config=config) as _odoo:
+            # Récupérer quelques sale.order avec PDL
+            orders = _odoo.search_read(
+                'sale.order',
+                domain=[['x_pdl', '!=', False]],  # Seulement ceux avec PDL
+                fields=['name', 'x_pdl', 'partner_id', 'date_order', 'invoice_ids', 'state']
             )
 
-            mo.md(\"\"\"
-            **Lignes de facture**:
-            \"\"\")
-            mo.plain(lines)
+            nb_orders = len(orders)
+
+            if nb_orders > 0:
+                # Afficher les premières lignes
+                display_orders = orders.head(5) if nb_orders > 5 else orders
+                _msg = mo.vstack([
+                    _intro,
+                    mo.md(f"**Résultat**: {nb_orders} commandes trouvées avec un PDL"),
+                    mo.as_html(display_orders)
+                ])
+            else:
+                _msg = mo.vstack([
+                    _intro,
+                    mo.md("⚠️ Aucune commande trouvée avec un PDL (champ `x_pdl`)")
+                ])
+
+    _msg
+    return orders, nb_orders
+
+
+@app.cell
+def select_sample_order(orders, nb_orders):
+    """Sélection d'une commande d'exemple pour explorer les factures"""
+    if nb_orders == 0:
+        _msg = mo.md("🛑 **Pas de commandes disponibles**")
+        sample_order = None
     else:
-        lines = None
-    """,
-    name="explore_invoice_lines"
-)
+        _intro = mo.md("""
+        ## 3. Sélection d'une commande avec factures
 
+        Trouvons une commande qui a des factures associées pour explorer la structure.
+        """)
 
-app._unparsable_cell(
-    r"""
-    \"\"\"Analyse de la structure des données\"\"\"
-    if not all([sample_order, sample_invoice, lines]):
-        return
+        # Prendre la première commande qui a des factures
+        sample_order = None
+        for row in orders.iter_rows(named=True):
+            if row['invoice_ids'] and len(row['invoice_ids']) > 0:
+                sample_order = row
+                break
 
-    mo.md(\"\"\"
-    ## 6. Analyse de la structure des données
-
-    Basé sur l'exploration, voici la structure recommandée pour extraire les factures par PDL.
-    \"\"\")
-
-    # Analyser les types de produits
-    if lines is not None:
-        products_summary = (
-            lines
-            .select(['product_id', 'name', 'quantity', 'price_unit', 'price_total'])
-            .with_columns([
-                pl.when(pl.col('product_id').is_not_null())
-                .then(pl.col('product_id').list.get(1))  # Nom du produit depuis many2one
-                .otherwise(pl.col('name'))
-                .alias('product_name')
+        if sample_order:
+            _msg = mo.vstack([
+                _intro,
+                mo.md(f"""
+                **Commande sélectionnée**: `{sample_order['name']}`
+                - **PDL**: `{sample_order['x_pdl']}`
+                - **Client**: {sample_order['partner_id'][1] if sample_order['partner_id'] else 'N/A'}
+                - **Factures**: {len(sample_order['invoice_ids'])} facture(s) associée(s)
+                - **IDs factures**: {sample_order['invoice_ids']}
+                """)
             ])
-        )
+        else:
+            _msg = mo.vstack([
+                _intro,
+                mo.md("⚠️ Aucune commande trouvée avec des factures associées")
+            ])
 
-        mo.md(\"\"\"
-        **Types de produits/services facturés**:
-        \"\"\")
-        mo.plain(products_summary.select(['product_name', 'quantity', 'price_unit', 'price_total']))
+    _msg
+    return sample_order
 
-        mo.md(f\"\"\"
-        ## 7. Structure cible du DataFrame
 
-        **Données extraites de l'exemple**:
-        - **PDL**: `{sample_order['x_pdl']}`
-        - **Commande**: `{sample_order['name']}`
-        - **Facture**: `{sample_invoice['name']}`
-        - **Date**: `{sample_invoice['invoice_date']}`
-        - **Lignes**: {len(lines)} produits/services
+@app.cell
+def explore_invoices(config, sample_order):
+    """Exploration des factures associées à la commande"""
+    if not sample_order:
+        _msg = mo.md("🛑 **Pas de commande sélectionnée**")
+        invoices = None
+    else:
+        _intro = mo.md("""
+        ## 4. Exploration des factures (account.move)
 
-        **Structure proposée pour le DataFrame final**:
-        ```
-        | pdl | order_ref | invoice_ref | invoice_date | product_name | quantity | price_unit | price_total |
-        ```
-        \"\"\")
-    """,
-    name="analyze_structure"
-)
+        Explorons les factures associées à notre commande d'exemple.
+        """)
+
+        with OdooReader(config=config) as _odoo:
+            # Récupérer les détails des factures
+            invoice_ids = sample_order['invoice_ids']
+            invoices = _odoo.read(
+                'account.move',
+                invoice_ids,
+                fields=['name', 'invoice_date', 'amount_total', 'state', 'move_type', 'invoice_line_ids']
+            )
+
+            _msg = mo.vstack([
+                _intro,
+                mo.md(f"**Factures de la commande `{sample_order['name']}`**:"),
+                mo.as_html(invoices)
+            ])
+
+    _msg
+    return invoices
+
+
+@app.cell
+def explore_invoice_lines(config, invoices):
+    """Exploration des lignes de facture"""
+    if invoices is None or len(invoices) == 0:
+        _msg = mo.md("🛑 **Pas de factures disponibles**")
+        sample_invoice = None
+        lines = None
+    else:
+        # Prendre la première facture
+        sample_invoice = invoices.row(0, named=True)
+        invoice_line_ids = sample_invoice['invoice_line_ids']
+
+        _intro = mo.md("""
+        ## 5. Exploration des lignes de facture (account.move.line)
+
+        Explorons les lignes de la première facture pour voir le détail des produits/services.
+        """)
+
+        _invoice_info = mo.md(f"""
+        **Facture sélectionnée**: `{sample_invoice['name']}`
+        - **Date**: {sample_invoice['invoice_date']}
+        - **Montant total**: {sample_invoice['amount_total']}€
+        - **Lignes**: {len(invoice_line_ids)} ligne(s)
+        """)
+
+        if invoice_line_ids:
+            with OdooReader(config=config) as _odoo:
+                # Récupérer les détails des lignes de facture
+                lines = _odoo.read(
+                    'account.move.line',
+                    invoice_line_ids,
+                    fields=[
+                        'name', 'product_id', 'quantity', 'price_unit',
+                        'price_subtotal', 'price_total', 'account_id'
+                    ]
+                )
+
+                _msg = mo.vstack([
+                    _intro,
+                    _invoice_info,
+                    mo.md("**Lignes de facture**:"),
+                    mo.as_html(lines)
+                ])
+        else:
+            lines = None
+            _msg = mo.vstack([
+                _intro,
+                _invoice_info,
+                mo.md("⚠️ Aucune ligne de facture trouvée")
+            ])
+
+    _msg
+    return sample_invoice, lines
+
+
+@app.cell
+def analyze_structure(sample_order, sample_invoice, lines):
+    """Analyse de la structure des données"""
+    if not all([sample_order, sample_invoice, lines]):
+        _msg = mo.md("🛑 **Données incomplètes pour l'analyse**")
+    else:
+        _intro = mo.md("""
+        ## 6. Analyse de la structure des données
+
+        Basé sur l'exploration, voici la structure recommandée pour extraire les factures par PDL.
+        """)
+
+        # Analyser les types de produits
+        if lines is not None:
+            products_summary = (
+                lines
+                .select(['product_id', 'name', 'quantity', 'price_unit', 'price_total'])
+                .with_columns([
+                    pl.when(pl.col('product_id').is_not_null())
+                    .then(pl.col('product_id').list.get(1))  # Nom du produit depuis many2one
+                    .otherwise(pl.col('name'))
+                    .alias('product_name')
+                ])
+            )
+
+            _summary = mo.md(f"""
+            ## 7. Structure cible du DataFrame
+
+            **Données extraites de l'exemple**:
+            - **PDL**: `{sample_order['x_pdl']}`
+            - **Commande**: `{sample_order['name']}`
+            - **Facture**: `{sample_invoice['name']}`
+            - **Date**: `{sample_invoice['invoice_date']}`
+            - **Lignes**: {len(lines)} produits/services
+
+            **Structure proposée pour le DataFrame final**:
+            ```
+            | pdl | order_ref | invoice_ref | invoice_date | product_name | quantity | price_unit | price_total |
+            ```
+            """)
+
+            _msg = mo.vstack([
+                _intro,
+                mo.md("**Types de produits/services facturés**:"),
+                mo.as_html(products_summary.select(['product_name', 'quantity', 'price_unit', 'price_total'])),
+                _summary
+            ])
+
+    _msg
+    return
 
 
 @app.cell
@@ -383,54 +433,62 @@ def extraction_function():
     return
 
 
-app._unparsable_cell(
-    r"""
-    \"\"\"Test de la fonction d'extraction complète\"\"\"
+@app.cell
+def test_extraction(config, connection_ok, extract_factures_par_pdl):
+    """Test de la fonction d'extraction complète"""
     if not connection_ok:
-        return None
-
-    mo.md(\"\"\"
-    ## 9. Test de l'extraction complète
-
-    Testons la fonction d'extraction sur un échantillon limité.
-    \"\"\")
-
-    try:
-        with OdooReader(config=config) as odoo:
-            # Test avec limite de 3 commandes
-            df_test = extract_factures_par_pdl(odoo, limit=3)
-
-            mo.md(f\"\"\"
-            **Résultat du test** ({len(df_test)} lignes extraites):
-            \"\"\")
-
-            if len(df_test) > 0:
-                mo.plain(df_test.head(10))  # Afficher les 10 premières lignes
-
-                # Statistiques rapides
-                stats = {
-                    'nb_pdl_uniques': df_test['pdl'].n_unique(),
-                    'nb_factures_uniques': df_test['invoice_ref'].n_unique(),
-                    'montant_total': df_test['price_total'].sum(),
-                    'nb_lignes': len(df_test)
-                }
-
-                mo.md(f\"\"\"
-                **Statistiques de l'extraction**:
-                - **PDL uniques**: {stats['nb_pdl_uniques']}
-                - **Factures uniques**: {stats['nb_factures_uniques']}
-                - **Lignes extraites**: {stats['nb_lignes']}
-                - **Montant total**: {stats['montant_total']:.2f}€
-                \"\"\")
-            else:
-                mo.md(\"⚠️ Aucune donnée extraite. Vérifiez les filtres et l'état des factures.\")
-
-    except Exception as e:
-        mo.md(f\"❌ **Erreur lors du test**: {e}\")
+        _msg = mo.md("🛑 **Pas de connexion disponible**")
         df_test = None
-    """,
-    name="test_extraction"
-)
+    else:
+        _intro = mo.md("""
+        ## 9. Test de l'extraction complète
+
+        Testons la fonction d'extraction sur un échantillon limité.
+        """)
+
+        try:
+            with OdooReader(config=config) as _odoo:
+                # Test avec limite de 3 commandes
+                df_test = extract_factures_par_pdl(_odoo, limit=3)
+
+                if len(df_test) > 0:
+                    # Statistiques rapides
+                    stats = {
+                        'nb_pdl_uniques': df_test['pdl'].n_unique(),
+                        'nb_factures_uniques': df_test['invoice_ref'].n_unique(),
+                        'montant_total': df_test['price_total'].sum(),
+                        'nb_lignes': len(df_test)
+                    }
+
+                    _stats = mo.md(f"""
+                    **Statistiques de l'extraction**:
+                    - **PDL uniques**: {stats['nb_pdl_uniques']}
+                    - **Factures uniques**: {stats['nb_factures_uniques']}
+                    - **Lignes extraites**: {stats['nb_lignes']}
+                    - **Montant total**: {stats['montant_total']:.2f}€
+                    """)
+
+                    _msg = mo.vstack([
+                        _intro,
+                        mo.md(f"**Résultat du test** ({len(df_test)} lignes extraites):"),
+                        mo.as_html(df_test.head(10)),
+                        _stats
+                    ])
+                else:
+                    _msg = mo.vstack([
+                        _intro,
+                        mo.md("⚠️ Aucune donnée extraite. Vérifiez les filtres et l'état des factures.")
+                    ])
+
+        except Exception as e:
+            df_test = None
+            _msg = mo.vstack([
+                _intro,
+                mo.md(f"❌ **Erreur lors du test**: {e}")
+            ])
+
+    _msg
+    return df_test
 
 
 @app.cell
