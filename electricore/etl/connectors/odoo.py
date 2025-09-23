@@ -122,7 +122,7 @@ class OdooQuery:
         if id_col.dtype == pl.List:
             # Many2one field [id, name] - extraire les IDs
             unique_ids = [
-                id for id in current_df.select(
+                int(id) for id in current_df.select(
                     pl.col(id_field).list.get(0)
                 ).to_series().unique().to_list()
                 if id is not None
@@ -130,7 +130,7 @@ class OdooQuery:
         else:
             # Simple ID field
             unique_ids = [
-                id for id in current_df[id_field].unique().to_list()
+                int(id) for id in current_df[id_field].unique().to_list()
                 if id is not None
             ]
 
@@ -140,9 +140,18 @@ class OdooQuery:
         # Récupérer les données depuis Odoo
         related_df = self.connector.read(target_model, unique_ids, fields)
 
-        # Générer un alias unique
+        # Vérifier si on a récupéré des données
+        if related_df.is_empty():
+            # Pas de données trouvées, retourner le DataFrame actuel sans modification
+            return self
+
+        # Générer un alias unique et renommer la colonne 'id'
         target_alias = target_model.replace('.', '_')
         id_column = f'{target_alias}_id'
+
+        # Renommer 'id' vers le nom avec alias pour éviter les conflits
+        if 'id' in related_df.columns:
+            related_df = related_df.rename({'id': id_column})
 
         # Renommer pour éviter les conflits
         rename_mapping = {}
@@ -156,12 +165,16 @@ class OdooQuery:
 
         # Préparer la clé de jointure
         if current_df[id_field].dtype == pl.List:
-            # Extraire l'ID depuis [id, name]
+            # Extraire l'ID depuis [id, name] et convertir en entier
             current_df = current_df.with_columns([
-                pl.col(id_field).list.get(0).alias(f'{id_field}_id_join')
+                pl.col(id_field).list.get(0).cast(pl.Int64).alias(f'{id_field}_id_join')
             ])
             join_key = f'{id_field}_id_join'
         else:
+            # S'assurer que la clé est en entier
+            current_df = current_df.with_columns([
+                pl.col(id_field).cast(pl.Int64)
+            ])
             join_key = id_field
 
         # Join
@@ -209,10 +222,6 @@ class OdooQuery:
     def collect(self) -> pl.DataFrame:
         """Exécute la query et retourne le DataFrame."""
         return self.lazy_frame.collect()
-
-    def head(self, n: int = 10) -> pl.DataFrame:
-        """Retourne les n premières lignes."""
-        return self.lazy_frame.head(n).collect()
 
 
 class OdooReader:
