@@ -82,19 +82,39 @@ def run_production_pipeline(
     try:
         # Pipeline complet: Extract + Normalize + Load
         load_info = pipeline.run(source)
-        
+
         print()
         print("="*80)
         print("✅ PIPELINE RÉUSSI!")
         print("="*80)
-        
-        # Afficher les statistiques
-        print(f"📦 Load info: {load_info}")
-        
+
+        # Extraire les statistiques depuis le trace
+        trace = pipeline.last_trace
+        total_rows = 0
+
+        if trace and trace.last_normalize_info:
+            table_metrics = trace.last_normalize_info.row_counts
+
+            print("\n📊 STATISTIQUES DU CHARGEMENT:")
+            for table_name, row_count in table_metrics.items():
+                if not table_name.startswith("_dlt"):  # Ignorer les tables système
+                    print(f"   - {table_name}: {row_count} nouveaux enregistrements")
+                    total_rows += row_count
+
+            if total_rows == 0:
+                print("   ⚠️ Aucune nouvelle donnée à traiter")
+            else:
+                print(f"   ✅ Total: {total_rows} enregistrements ajoutés")
+        else:
+            print("\n📊 Pas de métriques disponibles dans le trace")
+
+        # Afficher les informations de timing
+        print(f"\n📦 Load info: {load_info}")
+
         # Résumé simple
         packages_count = len(load_info.load_packages) if hasattr(load_info, 'load_packages') else 1
         print(f"📋 {packages_count} package(s) traité(s) avec succès")
-        
+
         print()
         print("🎉 ARCHITECTURE REFACTORISÉE OPÉRATIONNELLE!")
         
