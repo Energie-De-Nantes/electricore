@@ -31,23 +31,33 @@ class OdooQuery:
     connector: OdooReader
     lazy_frame: pl.LazyFrame
     _field_mappings: Dict[str, str] = field(default_factory=dict)
+    _current_model: Optional[str] = None
 
-    def follow(self, relation_field: str, target_model: str, fields: Optional[List[str]] = None) -> OdooQuery:
+    def follow(self, relation_field: str, target_model: Optional[str] = None, fields: Optional[List[str]] = None) -> OdooQuery:
         """
         Suit une relation one-to-many (explode + enrichit).
 
         Args:
             relation_field: Champ contenant les IDs (ex: 'invoice_ids')
-            target_model: Modèle cible (ex: 'account.move')
+            target_model: Modèle cible (ex: 'account.move') - détecté automatiquement si non fourni
             fields: Champs à récupérer du modèle cible
 
         Returns:
             Nouvelle OdooQuery avec les données enrichies
 
         Example:
-            >>> query.follow('invoice_ids', 'account.move',
-            ...               fields=['name', 'invoice_date'])
+            >>> query.follow('invoice_ids', fields=['name', 'invoice_date'])
+            >>> # ou explicite: query.follow('invoice_ids', 'account.move', ['name'])
         """
+        # Détection automatique du modèle cible si non fourni
+        if target_model is None and self._current_model is not None:
+            target_model = self.connector.get_relation_model(self._current_model, relation_field)
+            if target_model is None:
+                raise ValueError(f"Cannot determine target model for field '{relation_field}' in model '{self._current_model}'. Please specify target_model explicitly.")
+
+        if target_model is None:
+            raise ValueError("target_model must be specified when _current_model is not set")
+
         # Collecter le DataFrame actuel pour avoir les IDs
         current_df = self.lazy_frame.collect()
 
@@ -96,25 +106,35 @@ class OdooQuery:
         return OdooQuery(
             connector=self.connector,
             lazy_frame=result.lazy(),
-            _field_mappings={**self._field_mappings, **rename_mapping}
+            _field_mappings={**self._field_mappings, **rename_mapping},
+            _current_model=target_model
         )
 
-    def with_details(self, id_field: str, target_model: str, fields: Optional[List[str]] = None) -> OdooQuery:
+    def with_details(self, id_field: str, target_model: Optional[str] = None, fields: Optional[List[str]] = None) -> OdooQuery:
         """
         Enrichit avec des détails d'un modèle lié (many-to-one).
 
         Args:
             id_field: Champ contenant l'ID ou [id, name] (ex: 'partner_id')
-            target_model: Modèle cible (ex: 'res.partner')
+            target_model: Modèle cible (ex: 'res.partner') - détecté automatiquement si non fourni
             fields: Champs à récupérer
 
         Returns:
             Nouvelle OdooQuery avec les détails ajoutés
 
         Example:
-            >>> query.with_details('partner_id', 'res.partner',
-            ...                    fields=['name', 'email'])
+            >>> query.with_details('partner_id', fields=['name', 'email'])
+            >>> # ou explicite: query.with_details('partner_id', 'res.partner', ['name'])
         """
+        # Détection automatique du modèle cible si non fourni
+        if target_model is None and self._current_model is not None:
+            target_model = self.connector.get_relation_model(self._current_model, id_field)
+            if target_model is None:
+                raise ValueError(f"Cannot determine target model for field '{id_field}' in model '{self._current_model}'. Please specify target_model explicitly.")
+
+        if target_model is None:
+            raise ValueError("target_model must be specified when _current_model is not set")
+
         current_df = self.lazy_frame.collect()
 
         # Extraire les IDs (gérer les many2one [id, name])
@@ -188,7 +208,8 @@ class OdooQuery:
         return OdooQuery(
             connector=self.connector,
             lazy_frame=result.lazy(),
-            _field_mappings={**self._field_mappings, **rename_mapping}
+            _field_mappings={**self._field_mappings, **rename_mapping},
+            _current_model=self._current_model  # Garder le modèle actuel car with_details n'en change pas
         )
 
     def filter(self, *conditions) -> OdooQuery:
@@ -196,7 +217,8 @@ class OdooQuery:
         return OdooQuery(
             connector=self.connector,
             lazy_frame=self.lazy_frame.filter(*conditions),
-            _field_mappings=self._field_mappings
+            _field_mappings=self._field_mappings,
+            _current_model=self._current_model
         )
 
     def select(self, *columns) -> OdooQuery:
@@ -204,7 +226,8 @@ class OdooQuery:
         return OdooQuery(
             connector=self.connector,
             lazy_frame=self.lazy_frame.select(*columns),
-            _field_mappings=self._field_mappings
+            _field_mappings=self._field_mappings,
+            _current_model=self._current_model
         )
 
     def rename(self, mapping: Dict[str, str]) -> OdooQuery:
@@ -212,7 +235,8 @@ class OdooQuery:
         return OdooQuery(
             connector=self.connector,
             lazy_frame=self.lazy_frame.rename(mapping),
-            _field_mappings={**self._field_mappings, **mapping}
+            _field_mappings={**self._field_mappings, **mapping},
+            _current_model=self._current_model
         )
 
     def lazy(self) -> pl.LazyFrame:
@@ -254,6 +278,8 @@ class OdooReader:
             username: Nom d'utilisateur (surcharge config si fourni)
             password: Mot de passe (surcharge config si fourni)
         """
+        # Cache pour les métadonnées des champs
+        self._fields_cache: Dict[str, Dict[str, Dict]] = {}
         # Configuration explicite obligatoire
         self._url = url or config.get('url') or config.get('ODOO_URL')
         self._db = db or config.get('db') or config.get('ODOO_DB')
@@ -455,6 +481,49 @@ class OdooReader:
 
         return df
 
+    def get_field_info(self, model: str, field_name: str) -> Optional[Dict]:
+        """
+        Récupère les métadonnées d'un champ avec cache.
+
+        Args:
+            model: Modèle Odoo
+            field_name: Nom du champ
+
+        Returns:
+            Dict: Métadonnées du champ (type, relation, etc.) ou None si non trouvé
+        """
+        # Vérifier le cache
+        if model not in self._fields_cache:
+            self._fields_cache[model] = {}
+
+        if field_name not in self._fields_cache[model]:
+            # Récupérer les métadonnées depuis Odoo
+            try:
+                result = self.execute(model, 'fields_get', args=[[field_name]])
+                fields_info = result[0] if isinstance(result, list) else result
+                self._fields_cache[model][field_name] = fields_info.get(field_name)
+            except Exception as e:
+                logger.warning(f"Cannot get field info for {model}.{field_name}: {e}")
+                self._fields_cache[model][field_name] = None
+
+        return self._fields_cache[model][field_name]
+
+    def get_relation_model(self, model: str, field_name: str) -> Optional[str]:
+        """
+        Détermine automatiquement le modèle cible d'une relation.
+
+        Args:
+            model: Modèle source
+            field_name: Champ de relation
+
+        Returns:
+            str: Nom du modèle cible ou None si pas une relation
+        """
+        field_info = self.get_field_info(model, field_name)
+        if field_info and field_info.get('type') in ['many2one', 'one2many', 'many2many']:
+            return field_info.get('relation')
+        return None
+
     def query(self, model: str, domain: List = None, fields: Optional[List[str]] = None) -> OdooQuery:
         """
         Point d'entrée du query builder.
@@ -476,7 +545,7 @@ class OdooReader:
             ...         .collect())
         """
         df = self.search_read(model, domain, fields)
-        return OdooQuery(connector=self, lazy_frame=df.lazy())
+        return OdooQuery(connector=self, lazy_frame=df.lazy(), _current_model=model)
 
     @classmethod
     def as_dlt_resource(cls, model: str, resource_name: Optional[str] = None,
