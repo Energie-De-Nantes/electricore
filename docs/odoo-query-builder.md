@@ -200,11 +200,11 @@ stats = facturation.with_columns([
 ])
 ```
 
-### Audit des données clients
+### Audit des données usager·ères
 
 ```python
-# Vue complète client avec historique
-audit_client = (odoo.query('res.partner', domain=[('is_company', '=', True)])
+# Vue complète usager·ère avec historique
+audit_usager = (odoo.query('res.partner', domain=[('is_company', '=', True)])
     .enrich('category_id', fields=['name'])             # Catégories
     .enrich('sale_order_ids', fields=['name', 'state']) # Commandes (explode)
     .collect())
@@ -212,25 +212,30 @@ audit_client = (odoo.query('res.partner', domain=[('is_company', '=', True)])
 
 ## Évolutions futures possibles
 
-### 1. **Nouveaux wrappers sémantiques**
+### Intégration dans l'API REST ElectriCore
 
-```python
-.aggregate('invoice_ids', agg='sum', field='amount_total')  # Agrégation directe
-.pivot('invoice_line_ids', rows='product_id', values='quantity')  # Pivot
-.window('create_date', period='month')  # Fenêtres temporelles
+```http
+# Endpoints REST pour accès externe
+GET /api/odoo/facturation-pdl?pdl=12345&format=parquet
+GET /api/odoo/audit-usager?partner_id=67890
+POST /api/odoo/query
+{
+  "model": "sale.order",
+  "operations": [
+    {"type": "follow", "field": "invoice_ids"},
+    {"type": "enrich", "field": "partner_id", "fields": ["name", "email"]}
+  ]
+}
 ```
 
-### 2. **Optimisations avancées**
+### Templates de requêtes pré-construites
 
-- Requêtes Odoo en batch
-- Cache Redis pour métadonnées
-- Parallélisation des requêtes indépendantes
-
-### 3. **Extensions métier**
-
-- Wrappers spécialisés pour domaines (comptabilité, CRM, etc.)
-- Validation des domaines business
-- Templates de requêtes pré-construites
+```python
+# Templates métier pour cas d'usage fréquents
+core.odoo.template_facturation_pdl()  # Factures détaillées par PDL
+core.odoo.template_audit_usager()     # Vue complète usager·ère
+core.odoo.template_analytics_sales()  # Analytics ventes avec KPIs
+```
 
 ## Conclusion
 
