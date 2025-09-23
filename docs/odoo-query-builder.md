@@ -84,6 +84,8 @@ class OdooQuery:
 
 ```
 1. query('sale.order')
+   ↓ [search_read] → extraction initiale depuis Odoo
+   ↓ [pl.DataFrame.lazy()] → conversion en LazyFrame
    ↓ [_current_model = 'sale.order']
 
 2. .follow('invoice_ids')
