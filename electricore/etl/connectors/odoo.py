@@ -185,7 +185,7 @@ class OdooReader:
                 schema = {'id': pl.Int64}
             return pl.DataFrame(schema=schema)
 
-        df = pl.DataFrame(response)
+        df = pl.DataFrame(response, strict=False)
         # Renommer la colonne id pour éviter les conflits
         if 'id' in df.columns:
             df = df.rename({'id': f'{model.replace(".", "_")}_id'})
@@ -216,7 +216,7 @@ class OdooReader:
         kwargs = {'fields': fields} if fields else {}
         response = self.execute(model, 'read', [ids], kwargs)
 
-        df = pl.DataFrame(response)
+        df = pl.DataFrame(response, strict=False)
         # Renommer la colonne id pour éviter les conflits
         if 'id' in df.columns:
             df = df.rename({'id': f'{model.replace(".", "_")}_id'})
