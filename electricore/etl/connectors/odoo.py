@@ -168,6 +168,11 @@ class OdooQuery:
             how='left'
         )
 
+        # Nettoyer les colonnes temporaires de jointure (*_id_join)
+        temp_join_columns = [col for col in result.columns if col.endswith('_id_join')]
+        if temp_join_columns:
+            result = result.drop(temp_join_columns)
+
         return result
 
     # === Méthode centrale ===
