@@ -130,7 +130,7 @@ def _():
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def demo_query_builder(config):
     """Démonstration du Query Builder"""
 
@@ -216,7 +216,7 @@ def demo_query_builder(config):
     ])
 
     _msg
-    return
+    return (navigation_result,)
 
 
 @app.cell

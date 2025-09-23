@@ -33,7 +33,7 @@ Plus besoin de spécifier manuellement les modèles cibles. Le système utilise 
 # AVANT (verbeux et sujet aux erreurs)
 .follow('invoice_ids', 'account.move', fields=['name'])
 .follow('invoice_line_ids', 'account.move.line', fields=['product_id'])
-.with_details('product_id', 'product.product', fields=['name'])
+.enrich('product_id', 'product.product', fields=['name'])
 
 # APRÈS (simplifié et robuste)
 .follow('invoice_ids', fields=['name'])

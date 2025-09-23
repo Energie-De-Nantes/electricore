@@ -48,7 +48,6 @@ def _():
     des pipelines pandas et Polars pour le calcul des périodes d'énergie.
     """
     )
-    return
 
 
 @app.cell(hide_code=True)
@@ -157,13 +156,11 @@ def load_data():
 @app.cell
 def _(df_historique):
     df_historique.head()
-    return
 
 
 @app.cell
 def _():
     mo.md(r"""# Calcul des Périodes d'Énergie""")
-    return
 
 
 @app.cell
@@ -252,13 +249,11 @@ def pipeline_polars_energie(
 @app.cell
 def _(periodes_polars_collect):
     periodes_polars_collect
-    return
 
 
 @app.cell
 def _(periodes_polars_collect):
     periodes_polars_collect.filter(pl.col('pdl') == '14287988313383')
-    return
 
 
 @app.cell
@@ -312,49 +307,142 @@ def comparaison_periodes(periodes_pandas, periodes_polars_lf):
     periodes_polars = periodes_polars_lf.collect()
 
     print("\n🔍 COMPARAISON DES PÉRIODES D'ÉNERGIE :")
-    print("=" * 50)
+    print("=" * 60)
 
     # Comparer le nombre de périodes
     nb_pandas = len(periodes_pandas)
     nb_polars = len(periodes_polars)
 
     print(f"📊 Nombre de périodes :")
-    print(f"- Pandas : {nb_pandas}")
-    print(f"- Polars : {nb_polars}")
+    print(f"- Pandas : {nb_pandas:,}")
+    print(f"- Polars : {nb_polars:,}")
 
     if nb_pandas == nb_polars:
         print("✅ Même nombre de périodes générées")
     else:
-        print("❌ Nombre de périodes différent")
+        diff = abs(nb_pandas - nb_polars)
+        print(f"⚠️  Différence: {diff:,} périodes")
 
-    # Statistiques des énergies Polars
-    if nb_polars > 0:
-        _cadrans_energie = [col for col in periodes_polars.columns if col.endswith('_energie')]
-        if _cadrans_energie:
-            _stats_polars = periodes_polars.select([
-                pl.col("nb_jours").sum().alias("total_jours"),
-                pl.col("nb_jours").mean().alias("jours_moyen"),
-                *[pl.col(cadran).sum().alias(f"total_{cadran}") for cadran in _cadrans_energie if cadran in periodes_polars.columns]
-            ]).to_dicts()[0]
+    # Comparaison détaillée des énergies calculées
+    print(f"\n🔋 COMPARAISON DES ÉNERGIES CALCULÉES :")
+    print("-" * 50)
 
-            print(f"\n📈 Statistiques des périodes (Polars) :")
-            print(f"- Total jours    : {_stats_polars['total_jours']}")
-            print(f"- Durée moyenne  : {_stats_polars['jours_moyen']:.1f} jours")
+    cadrans_energie = ["base_energie", "hp_energie", "hc_energie"]
 
-            for cadran in _cadrans_energie:
-                if f"total_{cadran}" in _stats_polars:
-                    print(f"- Total {cadran}: {_stats_polars[f'total_{cadran}']:.0f} kWh")
-    return
+    for cadran in cadrans_energie:
+        if cadran in periodes_pandas.columns and cadran in periodes_polars.columns:
+            # Statistiques pandas
+            pandas_non_null = periodes_pandas[cadran].dropna()
+            polars_non_null = periodes_polars[cadran].drop_nulls().to_pandas()
+
+            if len(pandas_non_null) > 0 and len(polars_non_null) > 0:
+                pandas_sum = pandas_non_null.sum()
+                polars_sum = polars_non_null.sum()
+                pandas_mean = pandas_non_null.mean()
+                polars_mean = polars_non_null.mean()
+                pandas_count = len(pandas_non_null)
+                polars_count = len(polars_non_null)
+
+                print(f"\n📈 {cadran.upper().replace('_', ' ')}:")
+                print(f"  🐼 Pandas  : {pandas_count:,} périodes, somme={pandas_sum:,.0f} kWh, moyenne={pandas_mean:.1f} kWh")
+                print(f"  ⚡ Polars  : {polars_count:,} périodes, somme={polars_sum:,.0f} kWh, moyenne={polars_mean:.1f} kWh")
+
+                if pandas_sum > 0:
+                    _diff_relative = abs(pandas_sum - polars_sum) / pandas_sum * 100
+                    if _diff_relative < 0.1:
+                        print(f"  ✅ Différence: {_diff_relative:.3f}% (excellente)")
+                    elif _diff_relative < 1:
+                        print(f"  ✅ Différence: {_diff_relative:.2f}% (très bonne)")
+                    elif _diff_relative < 5:
+                        print(f"  ⚠️  Différence: {_diff_relative:.2f}% (acceptable)")
+                    else:
+                        print(f"  ❌ Différence: {_diff_relative:.2f}% (significative)")
+
+    # Comparaison des flags de qualité
+    print(f"\n🏷️  COMPARAISON FLAGS QUALITÉ :")
+    print("-" * 50)
+
+    flags_qualite = ["data_complete", "periode_irreguliere"]
+
+    for flag in flags_qualite:
+        if flag in periodes_pandas.columns and flag in periodes_polars.columns:
+            pandas_true = periodes_pandas[flag].sum()
+            polars_true = periodes_polars[flag].sum()
+            pandas_ratio = pandas_true / len(periodes_pandas) * 100 if len(periodes_pandas) > 0 else 0
+            polars_ratio = polars_true / len(periodes_polars) * 100 if len(periodes_polars) > 0 else 0
+
+            print(f"\n🏁 {flag.replace('_', ' ').title()}:")
+            print(f"  🐼 Pandas  : {pandas_true:,} périodes ({pandas_ratio:.1f}%)")
+            print(f"  ⚡ Polars  : {polars_true:,} périodes ({polars_ratio:.1f}%)")
+
+            if pandas_true == polars_true:
+                print(f"  ✅ Identique")
+            else:
+                diff = abs(pandas_true - polars_true)
+                print(f"  ⚠️  Différence: {diff:,} périodes")
+
+    return periodes_polars
 
 
 @app.cell
 def _():
     mo.md(r"""# Calcul TURPE Variable (optionnel)""")
-    return
 
 
 @app.cell(hide_code=True)
-def turpe_variable_polars(periodes_polars_lf):
+def calcul_turpe_pandas(periodes_pandas):
+    """Calcul TURPE variable avec pandas - utilise directement calculer_turpe_variable"""
+    from electricore.core.taxes.turpe import calculer_turpe_variable, load_turpe_rules
+
+    print("🐼 Calcul TURPE variable avec pandas...")
+
+    if len(periodes_pandas) == 0:
+        print("⚠️ Pas de données pandas pour calculer le TURPE")
+        turpe_variable_pandas = pd.Series(dtype=float)
+    else:
+        try:
+            # Charger les règles TURPE
+            regles_turpe = load_turpe_rules()
+            print(f"✅ {len(regles_turpe)} règles TURPE chargées")
+
+            # Préparer les données : convertir snake_case → PascalCase pour compatibilité
+            _data = periodes_pandas.copy()
+
+            # Mapping colonnes essentielles
+            if 'formule_tarifaire_acheminement' in _data.columns:
+                _data = _data.rename(columns={'formule_tarifaire_acheminement': 'Formule_Tarifaire_Acheminement'})
+
+            # Colonnes énergie
+            for old, new in [
+                ('base_energie', 'BASE_energie'),
+                ('hp_energie', 'HP_energie'),
+                ('hc_energie', 'HC_energie'),
+                ('hph_energie', 'HPH_energie'),
+                ('hpb_energie', 'HPB_energie'),
+                ('hch_energie', 'HCH_energie'),
+                ('hcb_energie', 'HCB_energie')
+            ]:
+                if old in _data.columns:
+                    _data = _data.rename(columns={old: new})
+
+            # Créer colonne debut si manquante
+            if 'debut' not in _data.columns and 'debut_lisible' in _data.columns:
+                _data['debut'] = pd.to_datetime(_data['debut_lisible']).dt.tz_localize('Europe/Paris')
+
+            # Calculer TURPE variable
+            turpe_variable_pandas = calculer_turpe_variable(regles_turpe, _data)
+
+            total = turpe_variable_pandas.sum()
+            print(f"✅ TURPE variable calculé: {total:.2f}€ total")
+
+        except Exception as e:
+            print(f"❌ Erreur calcul TURPE pandas: {e}")
+            turpe_variable_pandas = pd.Series(dtype=float)
+
+    return turpe_variable_pandas
+
+@app.cell(hide_code=True)
+def calcul_turpe_polars(periodes_polars_lf):
     """Calcul TURPE variable avec Polars (déjà inclus dans le pipeline)"""
 
     print("⚡ TURPE variable déjà inclus dans le pipeline Polars...")
@@ -377,9 +465,74 @@ def turpe_variable_polars(periodes_polars_lf):
         print(f"✅ TURPE variable calculé pour {len(periodes_avec_turpe)} périodes")
         print(f"💰 Total TURPE variable : {total_turpe:.2f}€")
         print(f"📊 TURPE variable moyen : {turpe_moyen:.2f}€")
+
+        turpe_variable_polars = periodes_avec_turpe["turpe_variable"].to_pandas()
     else:
         print("⚠️ Colonne turpe_variable non trouvée")
-        total_turpe = turpe_moyen = 0
+        turpe_variable_polars = pd.Series(dtype=float)
+
+    return turpe_variable_polars
+
+@app.cell
+def comparaison_turpe_variable(turpe_variable_pandas, turpe_variable_polars):
+    """Comparer les calculs TURPE variable entre pandas et Polars"""
+
+    print("\n💰 COMPARAISON TURPE VARIABLE :")
+    print("=" * 60)
+
+    # Statistiques pandas
+    if len(turpe_variable_pandas) > 0:
+        total_pandas = turpe_variable_pandas.sum()
+        moyen_pandas = turpe_variable_pandas.mean()
+        median_pandas = turpe_variable_pandas.median()
+        count_pandas = len(turpe_variable_pandas)
+    else:
+        total_pandas = moyen_pandas = median_pandas = count_pandas = 0
+
+    # Statistiques Polars
+    if len(turpe_variable_polars) > 0:
+        total_polars = turpe_variable_polars.sum()
+        moyen_polars = turpe_variable_polars.mean()
+        median_polars = turpe_variable_polars.median()
+        count_polars = len(turpe_variable_polars)
+    else:
+        total_polars = moyen_polars = median_polars = count_polars = 0
+
+    print(f"📊 Statistiques TURPE variable :")
+    print(f"  🐼 Pandas  : {count_pandas:,} périodes")
+    print(f"     Total   : {total_pandas:,.2f}€")
+    print(f"     Moyenne : {moyen_pandas:.2f}€")
+    print(f"     Médiane : {median_pandas:.2f}€")
+
+    print(f"  ⚡ Polars  : {count_polars:,} périodes")
+    print(f"     Total   : {total_polars:,.2f}€")
+    print(f"     Moyenne : {moyen_polars:.2f}€")
+    print(f"     Médiane : {median_polars:.2f}€")
+
+    # Comparaison
+    if total_pandas > 0 and total_polars > 0:
+        diff_absolue = abs(total_pandas - total_polars)
+        _diff_relative_turpe = diff_absolue / total_pandas * 100
+
+        print(f"\n🔍 Analyse des différences :")
+        print(f"  Différence absolue : {diff_absolue:.2f}€")
+        print(f"  Différence relative : {_diff_relative_turpe:.3f}%")
+
+        if _diff_relative_turpe < 0.01:
+            print(f"  ✅ Excellente concordance (< 0.01%)")
+        elif _diff_relative_turpe < 0.1:
+            print(f"  ✅ Très bonne concordance (< 0.1%)")
+        elif _diff_relative_turpe < 1:
+            print(f"  ✅ Bonne concordance (< 1%)")
+        elif _diff_relative_turpe < 5:
+            print(f"  ⚠️  Différence acceptable (< 5%)")
+        else:
+            print(f"  ❌ Différence significative (≥ 5%)")
+    elif total_pandas == 0 and total_polars == 0:
+        print(f"  ✅ Aucun TURPE calculé dans les deux cas")
+    else:
+        print(f"  ❌ Un seul pipeline a calculé du TURPE")
+
     return
 
 
