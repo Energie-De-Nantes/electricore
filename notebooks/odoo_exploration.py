@@ -354,22 +354,86 @@ def explore_invoice_lines(config, invoices, orders):
 
 
 @app.cell
-def analyze_structure(lines_long):
+def demo_query_builder(config, orders):
+    """Démonstration du Query Builder"""
+
+    _intro = mo.md("""
+    ## 6. Démonstration du Query Builder 🚀
+
+    Comparaison entre l'approche manuelle et le Query Builder pour créer le DataFrame long.
+    """)
+
+    # Sélectionner quelques commandes avec factures pour la démo
+    with_invoices = orders.filter(pl.col('invoice_ids').list.len() > 0)
+    sample_ids = with_invoices['sale_order_id'].head(3).to_list()
+
+    with OdooReader(config=config) as _odoo:
+        # Query Builder : 1 ligne élégante !
+        query_builder_result = (_odoo.query('sale.order',
+                                          domain=[('id', 'in', sample_ids)],
+                                          fields=['name', 'x_pdl', 'partner_id', 'invoice_ids'])
+                              .follow('invoice_ids', 'account.move',
+                                     fields=['name', 'invoice_date', 'invoice_line_ids'])
+                              .follow('invoice_line_ids', 'account.move.line',
+                                     fields=['name', 'product_id', 'quantity', 'price_unit', 'price_total'])
+                              .select([
+                                  pl.col('x_pdl').alias('pdl'),
+                                  pl.col('name').alias('order_name'),
+                                  pl.col('name_account_move').alias('invoice_name'),
+                                  pl.col('invoice_date'),
+                                  pl.when(pl.col('product_id').is_not_null())
+                                    .then(pl.col('product_id').list.get(1))
+                                    .otherwise(pl.col('name_account_move_line'))
+                                    .alias('product_name'),
+                                  pl.col('quantity'),
+                                  pl.col('price_unit'),
+                                  pl.col('price_total')
+                              ])
+                              .filter(pl.col('quantity') > 0)
+                              .collect())
+
+    _comparison = mo.md(f"""
+    ### Avant (30+ lignes de code) vs Après (3 lignes)
+
+    **Query Builder** :
+    ```python
+    result = (odoo.query('sale.order', domain=[...])
+        .follow('invoice_ids', 'account.move')
+        .follow('invoice_line_ids', 'account.move.line')
+        .collect())
+    ```
+
+    **Résultat** : {query_builder_result.shape[0]} lignes × {query_builder_result.shape[1]} colonnes
+    """)
+
+    _msg = mo.vstack([
+        _intro,
+        _comparison,
+        mo.md("**DataFrame long créé avec le Query Builder** :"),
+        mo.as_html(query_builder_result.head(10))
+    ])
+
+    _msg
+    return query_builder_result,
+
+
+@app.cell
+def analyze_structure(query_builder_result):
     """Analyse de la structure des données"""
 
     _intro = mo.md("""
-    ## 6. Analyse de la structure des données
+    ## 7. Analyse de la structure des données
 
     Basé sur l'exploration, voici la structure recommandée pour extraire les factures par PDL.
     """)
 
     # Analyser les types de produits
-    if lines_long is not None:
+    if query_builder_result is not None:
         _summary = mo.md(f"""
-        ## 6. Structure du DataFrame long créé
+        ## Structure du DataFrame long créé
 
         **Format long avec toutes les informations contextuelles** :
-    
+
         - ✅ **PDL** : Point de livraison depuis la commande
         - ✅ **Commande** : Numéro de commande (order_name)
         - ✅ **Facture** : Numéro et date de facture

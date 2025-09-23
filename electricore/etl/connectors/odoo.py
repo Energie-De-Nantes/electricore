@@ -5,15 +5,214 @@ Adapté du connecteur original pour retourner des DataFrames Polars
 au lieu de pandas DataFrame.
 """
 
+from __future__ import annotations
+
 import xmlrpc.client
 import polars as pl
 import dlt
 from typing import Any, Hashable, Optional, Dict, List
+from dataclasses import dataclass, field
 import copy
 import time
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class OdooQuery:
+    """
+    Query builder immutable pour chaîner les opérations Odoo + Polars.
+
+    Permet de composer facilement des requêtes complexes avec suivis de relations
+    et enrichissements de données depuis Odoo.
+    """
+
+    connector: OdooReader
+    lazy_frame: pl.LazyFrame
+    _field_mappings: Dict[str, str] = field(default_factory=dict)
+
+    def follow(self, relation_field: str, target_model: str, fields: Optional[List[str]] = None) -> OdooQuery:
+        """
+        Suit une relation one-to-many (explode + enrichit).
+
+        Args:
+            relation_field: Champ contenant les IDs (ex: 'invoice_ids')
+            target_model: Modèle cible (ex: 'account.move')
+            fields: Champs à récupérer du modèle cible
+
+        Returns:
+            Nouvelle OdooQuery avec les données enrichies
+
+        Example:
+            >>> query.follow('invoice_ids', 'account.move',
+            ...               fields=['name', 'invoice_date'])
+        """
+        # Collecter le DataFrame actuel pour avoir les IDs
+        current_df = self.lazy_frame.collect()
+
+        # Explode sur le champ de relation
+        exploded = current_df.explode(relation_field)
+
+        # Extraire les IDs uniques (filtrer les None)
+        unique_ids = [
+            id for id in exploded[relation_field].unique().to_list()
+            if id is not None
+        ]
+
+        if not unique_ids:
+            # Pas d'IDs, retourner query vide mais avec la structure
+            return OdooQuery(
+                connector=self.connector,
+                lazy_frame=exploded.lazy(),
+                _field_mappings=self._field_mappings
+            )
+
+        # Récupérer les données depuis Odoo
+        related_df = self.connector.read(target_model, unique_ids, fields)
+
+        # Générer un alias unique pour éviter les conflits
+        target_alias = target_model.replace('.', '_')
+        id_column = f'{target_alias}_id'
+
+        # Renommer les colonnes du DataFrame lié pour éviter les conflits
+        rename_mapping = {}
+        for col in related_df.columns:
+            if col != id_column and col in exploded.columns:
+                new_name = f'{col}_{target_alias}'
+                rename_mapping[col] = new_name
+
+        if rename_mapping:
+            related_df = related_df.rename(rename_mapping)
+
+        # Join
+        result = exploded.join(
+            related_df,
+            left_on=relation_field,
+            right_on=id_column,
+            how='left'
+        )
+
+        return OdooQuery(
+            connector=self.connector,
+            lazy_frame=result.lazy(),
+            _field_mappings={**self._field_mappings, **rename_mapping}
+        )
+
+    def with_details(self, id_field: str, target_model: str, fields: Optional[List[str]] = None) -> OdooQuery:
+        """
+        Enrichit avec des détails d'un modèle lié (many-to-one).
+
+        Args:
+            id_field: Champ contenant l'ID ou [id, name] (ex: 'partner_id')
+            target_model: Modèle cible (ex: 'res.partner')
+            fields: Champs à récupérer
+
+        Returns:
+            Nouvelle OdooQuery avec les détails ajoutés
+
+        Example:
+            >>> query.with_details('partner_id', 'res.partner',
+            ...                    fields=['name', 'email'])
+        """
+        current_df = self.lazy_frame.collect()
+
+        # Extraire les IDs (gérer les many2one [id, name])
+        id_col = current_df[id_field]
+        if id_col.dtype == pl.List:
+            # Many2one field [id, name] - extraire les IDs
+            unique_ids = [
+                id for id in current_df.select(
+                    pl.col(id_field).list.get(0)
+                ).to_series().unique().to_list()
+                if id is not None
+            ]
+        else:
+            # Simple ID field
+            unique_ids = [
+                id for id in current_df[id_field].unique().to_list()
+                if id is not None
+            ]
+
+        if not unique_ids:
+            return self
+
+        # Récupérer les données depuis Odoo
+        related_df = self.connector.read(target_model, unique_ids, fields)
+
+        # Générer un alias unique
+        target_alias = target_model.replace('.', '_')
+        id_column = f'{target_alias}_id'
+
+        # Renommer pour éviter les conflits
+        rename_mapping = {}
+        for col in related_df.columns:
+            if col != id_column and col in current_df.columns:
+                new_name = f'{col}_{target_alias}'
+                rename_mapping[col] = new_name
+
+        if rename_mapping:
+            related_df = related_df.rename(rename_mapping)
+
+        # Préparer la clé de jointure
+        if current_df[id_field].dtype == pl.List:
+            # Extraire l'ID depuis [id, name]
+            current_df = current_df.with_columns([
+                pl.col(id_field).list.get(0).alias(f'{id_field}_id_join')
+            ])
+            join_key = f'{id_field}_id_join'
+        else:
+            join_key = id_field
+
+        # Join
+        result = current_df.join(
+            related_df,
+            left_on=join_key,
+            right_on=id_column,
+            how='left'
+        )
+
+        return OdooQuery(
+            connector=self.connector,
+            lazy_frame=result.lazy(),
+            _field_mappings={**self._field_mappings, **rename_mapping}
+        )
+
+    def filter(self, *conditions) -> OdooQuery:
+        """Applique des filtres Polars."""
+        return OdooQuery(
+            connector=self.connector,
+            lazy_frame=self.lazy_frame.filter(*conditions),
+            _field_mappings=self._field_mappings
+        )
+
+    def select(self, *columns) -> OdooQuery:
+        """Sélectionne des colonnes spécifiques."""
+        return OdooQuery(
+            connector=self.connector,
+            lazy_frame=self.lazy_frame.select(*columns),
+            _field_mappings=self._field_mappings
+        )
+
+    def rename(self, mapping: Dict[str, str]) -> OdooQuery:
+        """Renomme des colonnes."""
+        return OdooQuery(
+            connector=self.connector,
+            lazy_frame=self.lazy_frame.rename(mapping),
+            _field_mappings={**self._field_mappings, **mapping}
+        )
+
+    def lazy(self) -> pl.LazyFrame:
+        """Retourne le LazyFrame pour opérations Polars avancées."""
+        return self.lazy_frame
+
+    def collect(self) -> pl.DataFrame:
+        """Exécute la query et retourne le DataFrame."""
+        return self.lazy_frame.collect()
+
+    def head(self, n: int = 10) -> pl.DataFrame:
+        """Retourne les n premières lignes."""
+        return self.lazy_frame.head(n).collect()
 
 
 class OdooReader:
@@ -246,6 +445,29 @@ class OdooReader:
             df = df.rename({'id': f'{model.replace(".", "_")}_id'})
 
         return df
+
+    def query(self, model: str, domain: List = None, fields: Optional[List[str]] = None) -> OdooQuery:
+        """
+        Point d'entrée du query builder.
+
+        Args:
+            model: Modèle Odoo à requêter
+            domain: Filtre Odoo (ex: [('state', '=', 'sale')])
+            fields: Champs à récupérer initialement
+
+        Returns:
+            OdooQuery pour chaîner les opérations
+
+        Example:
+            >>> with OdooReader(config) as odoo:
+            ...     df = (odoo.query('sale.order', domain=[('x_pdl', '!=', False)])
+            ...         .follow('invoice_ids', 'account.move')
+            ...         .follow('invoice_line_ids', 'account.move.line')
+            ...         .filter(pl.col('quantity') > 0)
+            ...         .collect())
+        """
+        df = self.search_read(model, domain, fields)
+        return OdooQuery(connector=self, lazy_frame=df.lazy())
 
     @classmethod
     def as_dlt_resource(cls, model: str, resource_name: Optional[str] = None,
