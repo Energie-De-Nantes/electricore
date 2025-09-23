@@ -86,7 +86,7 @@ def config_odoo():
     else:
         _msg = mo.md(f"""
         **Configuration chargée depuis**: `{secrets_file_found}`
-    
+
         - URL: `{config.get('url', 'NON CONFIGURÉ')}`
         - Base: `{config.get('db', 'NON CONFIGURÉ')}`
         - Utilisateur: `{config.get('username', 'NON CONFIGURÉ')}`
@@ -115,10 +115,10 @@ def test_connexion(config):
         """)
         connection_ok = False
     _msg
-    return
+    return (connection_ok,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def explore_sale_orders(config, connection_ok):
     """Exploration des commandes de vente avec PDL"""
     if not connection_ok:
@@ -137,7 +137,7 @@ def explore_sale_orders(config, connection_ok):
             orders = _odoo.search_read(
                 'sale.order',
                 domain=[['x_pdl', '!=', False]],  # Seulement ceux avec PDL
-                fields=['name', 'x_pdl', 'partner_id', 'date_order', 'invoice_ids', 'state']
+                fields=['name', 'x_pdl', 'partner_id', 'invoice_ids', 'state']
             )
 
             nb_orders = len(orders)
@@ -157,11 +157,23 @@ def explore_sale_orders(config, connection_ok):
                 ])
 
     _msg
-    return orders, nb_orders
+    return nb_orders, orders
+
+
+@app.cell(hide_code=True)
+def _():
+    min_invoices_slider = mo.ui.slider(
+        start=0,
+        stop=20,
+        step=1,
+        value=0,
+        label=f"Commande à explorer (parmi commandes avec factures)"
+    )
+    return (min_invoices_slider,)
 
 
 @app.cell
-def select_sample_order(orders, nb_orders):
+def select_sample_order(min_invoices_slider, nb_orders, orders):
     """Sélection d'une commande d'exemple pour explorer les factures"""
     if nb_orders == 0:
         _msg = mo.md("🛑 **Pas de commandes disponibles**")
@@ -172,19 +184,19 @@ def select_sample_order(orders, nb_orders):
 
         Trouvons une commande qui a des factures associées pour explorer la structure.
         """)
-
-        # Prendre la première commande qui a des factures
         sample_order = None
+        # Filtrer les commandes qui ont des factures
         for row in orders.iter_rows(named=True):
-            if row['invoice_ids'] and len(row['invoice_ids']) > 0:
+            if row['invoice_ids'] and len(row['invoice_ids']) > min_invoices_slider.value:
                 sample_order = row
-                break
 
         if sample_order:
             _msg = mo.vstack([
                 _intro,
+                min_invoices_slider,
                 mo.md(f"""
                 **Commande sélectionnée**: `{sample_order['name']}`
+
                 - **PDL**: `{sample_order['x_pdl']}`
                 - **Client**: {sample_order['partner_id'][1] if sample_order['partner_id'] else 'N/A'}
                 - **Factures**: {len(sample_order['invoice_ids'])} facture(s) associée(s)
@@ -194,14 +206,14 @@ def select_sample_order(orders, nb_orders):
         else:
             _msg = mo.vstack([
                 _intro,
-                mo.md("⚠️ Aucune commande trouvée avec des factures associées")
+                min_invoices_slider,
+                mo.md(f"Pas d'abonnement avec min {min_invoices_slider.value} factures trouvé")
             ])
-
     _msg
-    return sample_order
+    return (sample_order,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def explore_invoices(config, sample_order):
     """Exploration des factures associées à la commande"""
     if not sample_order:
@@ -230,111 +242,153 @@ def explore_invoices(config, sample_order):
             ])
 
     _msg
-    return invoices
+    return (invoices,)
 
 
-@app.cell
-def explore_invoice_lines(config, invoices):
+@app.cell(hide_code=True)
+def explore_invoice_lines(config, invoices, orders):
     """Exploration des lignes de facture"""
     if invoices is None or len(invoices) == 0:
         _msg = mo.md("🛑 **Pas de factures disponibles**")
         sample_invoice = None
         lines = None
     else:
-        # Prendre la première facture
-        sample_invoice = invoices.row(0, named=True)
-        invoice_line_ids = sample_invoice['invoice_line_ids']
-
+        # Récupérer TOUTES les lignes de TOUTES les factures
         _intro = mo.md("""
         ## 5. Exploration des lignes de facture (account.move.line)
 
-        Explorons les lignes de la première facture pour voir le détail des produits/services.
+        Récupérons toutes les lignes de toutes les factures pour avoir une vue d'ensemble.
         """)
+
+        # Collecter tous les IDs de lignes de factures
+        all_invoice_line_ids = []
+        for _row in invoices.iter_rows(named=True):
+            if _row['invoice_line_ids']:
+                all_invoice_line_ids.extend(_row['invoice_line_ids'])
 
         _invoice_info = mo.md(f"""
-        **Facture sélectionnée**: `{sample_invoice['name']}`
-        - **Date**: {sample_invoice['invoice_date']}
-        - **Montant total**: {sample_invoice['amount_total']}€
-        - **Lignes**: {len(invoice_line_ids)} ligne(s)
+        **Toutes les factures analysées**: {len(invoices)} facture(s)
+        - **Total lignes de factures**: {len(all_invoice_line_ids)} ligne(s)
         """)
 
-        if invoice_line_ids:
+        if all_invoice_line_ids:
             with OdooReader(config=config) as _odoo:
-                # Récupérer les détails des lignes de facture
-                lines = _odoo.read(
-                    'account.move.line',
-                    invoice_line_ids,
-                    fields=[
-                        'name', 'product_id', 'quantity', 'price_unit',
-                        'price_subtotal', 'price_total', 'account_id'
-                    ]
-                )
+                # Approche propre avec explode() et join()
+
+                # 1. Explode orders sur invoice_ids -> une ligne par facture
+                orders_exploded = orders.explode('invoice_ids').rename({'invoice_ids': 'invoice_id'})
+
+                # 2. Récupérer les factures depuis Odoo (filtrer les None)
+                unique_invoice_ids = [id for id in orders_exploded['invoice_id'].unique().to_list() if id is not None]
+                if not unique_invoice_ids:
+                    lines_long = pl.DataFrame()
+                else:
+                    invoices_df = _odoo.read('account.move', unique_invoice_ids,
+                                           fields=['name', 'invoice_date', 'amount_total', 'invoice_line_ids'])
+
+                    # Renommer les colonnes pour éviter les conflits
+                    invoices_df = invoices_df.rename({'name': 'invoice_name'})
+
+                    # 3. Join orders + invoices
+                    df_with_invoices = orders_exploded.join(
+                        invoices_df,
+                        left_on='invoice_id',
+                        right_on='account_move_id'
+                    )
+
+                    # 4. Explode sur invoice_line_ids -> une ligne par ligne de facture
+                    df_exploded = df_with_invoices.explode('invoice_line_ids').rename({'invoice_line_ids': 'line_id'})
+
+                    # 5. Récupérer les lignes depuis Odoo (filtrer les None)
+                    unique_line_ids = [id for id in df_exploded['line_id'].unique().to_list() if id is not None]
+                    if not unique_line_ids:
+                        lines_long = pl.DataFrame()
+                    else:
+                        lines_df = _odoo.read('account.move.line', unique_line_ids,
+                                            fields=['name', 'product_id', 'quantity', 'price_unit', 'price_total'])
+
+                        # Renommer les colonnes pour éviter les conflits
+                        lines_df = lines_df.rename({'name': 'line_name'})
+
+                        # 6. Join final pour le DataFrame long complet
+                        lines_long = df_exploded.join(
+                            lines_df,
+                            left_on='line_id',
+                            right_on='account_move_line_id'
+                        )
+
+                        # 7. Nettoyer et sélectionner les colonnes finales
+                        lines_long = lines_long.select([
+                            pl.col('x_pdl').alias('pdl'),
+                            pl.col('name').alias('order_name'),
+                            pl.col('invoice_name'),
+                            pl.col('invoice_date'),
+                            pl.when(pl.col('product_id').is_not_null())
+                            .then(pl.col('product_id').list.get(1))
+                            .otherwise(pl.col('line_name'))
+                            .alias('product_name'),
+                            pl.col('quantity'),
+                            pl.col('price_unit'),
+                            pl.col('price_total')
+                        ])
 
                 _msg = mo.vstack([
                     _intro,
                     _invoice_info,
-                    mo.md("**Lignes de facture**:"),
-                    mo.as_html(lines)
+                    mo.md("**Format long : avec explode() et join() Polars**:"),
+                    mo.as_html(lines_long.head(10))
                 ])
         else:
-            lines = None
+            lines_long = None
             _msg = mo.vstack([
                 _intro,
                 _invoice_info,
                 mo.md("⚠️ Aucune ligne de facture trouvée")
             ])
 
+        # Pour la compatibilité, on prend la première facture comme échantillon
+        sample_invoice = invoices.row(0, named=True) if len(invoices) > 0 else None
+
     _msg
-    return sample_invoice, lines
+    return (lines_long,)
 
 
 @app.cell
-def analyze_structure(sample_order, sample_invoice, lines):
+def analyze_structure(lines_long):
     """Analyse de la structure des données"""
-    if not all([sample_order, sample_invoice, lines]):
-        _msg = mo.md("🛑 **Données incomplètes pour l'analyse**")
-    else:
-        _intro = mo.md("""
-        ## 6. Analyse de la structure des données
 
-        Basé sur l'exploration, voici la structure recommandée pour extraire les factures par PDL.
+    _intro = mo.md("""
+    ## 6. Analyse de la structure des données
+
+    Basé sur l'exploration, voici la structure recommandée pour extraire les factures par PDL.
+    """)
+
+    # Analyser les types de produits
+    if lines_long is not None:
+        _summary = mo.md(f"""
+        ## 6. Structure du DataFrame long créé
+
+        **Format long avec toutes les informations contextuelles** :
+    
+        - ✅ **PDL** : Point de livraison depuis la commande
+        - ✅ **Commande** : Numéro de commande (order_name)
+        - ✅ **Facture** : Numéro et date de facture
+        - ✅ **Produit** : Nom et ID du produit/service
+        - ✅ **Quantité/Prix** : Détails de facturation
+
+        **Colonnes du DataFrame** :
+        ```
+        | pdl | order_name | invoice_name | invoice_date | product_name | quantity | price_unit | price_total |
+        ```
+
+        **Aperçu des données** :
         """)
 
-        # Analyser les types de produits
-        if lines is not None:
-            products_summary = (
-                lines
-                .select(['product_id', 'name', 'quantity', 'price_unit', 'price_total'])
-                .with_columns([
-                    pl.when(pl.col('product_id').is_not_null())
-                    .then(pl.col('product_id').list.get(1))  # Nom du produit depuis many2one
-                    .otherwise(pl.col('name'))
-                    .alias('product_name')
-                ])
-            )
-
-            _summary = mo.md(f"""
-            ## 7. Structure cible du DataFrame
-
-            **Données extraites de l'exemple**:
-            - **PDL**: `{sample_order['x_pdl']}`
-            - **Commande**: `{sample_order['name']}`
-            - **Facture**: `{sample_invoice['name']}`
-            - **Date**: `{sample_invoice['invoice_date']}`
-            - **Lignes**: {len(lines)} produits/services
-
-            **Structure proposée pour le DataFrame final**:
-            ```
-            | pdl | order_ref | invoice_ref | invoice_date | product_name | quantity | price_unit | price_total |
-            ```
-            """)
-
-            _msg = mo.vstack([
-                _intro,
-                mo.md("**Types de produits/services facturés**:"),
-                mo.as_html(products_summary.select(['product_name', 'quantity', 'price_unit', 'price_total'])),
-                _summary
-            ])
+        _msg = mo.vstack([
+            _intro,
+            _summary,
+            mo.as_html(lines_long.head(10))
+        ])
 
     _msg
     return
@@ -430,7 +484,7 @@ def extraction_function():
         return pl.DataFrame(results)
 
     mo.md("✅ Fonction `extract_factures_par_pdl` définie")
-    return
+    return (extract_factures_par_pdl,)
 
 
 @app.cell
@@ -488,7 +542,7 @@ def test_extraction(config, connection_ok, extract_factures_par_pdl):
             ])
 
     _msg
-    return df_test
+    return (df_test,)
 
 
 @app.cell
