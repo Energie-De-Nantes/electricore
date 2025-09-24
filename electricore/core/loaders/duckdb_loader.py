@@ -108,6 +108,27 @@ FROM enedis_production.flux_r15
 WHERE date_releve IS NOT NULL
 """
 
+BASE_QUERY_F15 = """
+SELECT
+    CAST(date_facture AS TIMESTAMP) as date_facture,
+    pdl,
+    num_facture,
+    type_facturation,
+    id_ev,
+    nature_ev,
+    formule_tarifaire_acheminement,
+    taux_tva_applicable,
+    unite,
+    CAST(prix_unitaire AS DOUBLE) as prix_unitaire,
+    CAST(quantite AS DOUBLE) as quantite,
+    CAST(montant_ht AS DOUBLE) as montant_ht,
+    CAST(date_debut AS TIMESTAMP) as date_debut,
+    CAST(date_fin AS TIMESTAMP) as date_fin,
+    libelle_ev,
+    'flux_F15' as source
+FROM enedis_production.flux_f15_detail
+"""
+
 BASE_QUERY_RELEVES_UNIFIES = """
 WITH releves_unifies AS (
     -- Flux R151 (relevés périodiques)
@@ -540,6 +561,31 @@ def r15(database_path: Union[str, Path] = None) -> QueryBuilder:
     )
 
 
+def f15(database_path: Union[str, Path] = None) -> QueryBuilder:
+    """
+    Crée un QueryBuilder pour les données flux F15 (factures détaillées).
+
+    Args:
+        database_path: Chemin vers la base DuckDB (optionnel)
+
+    Returns:
+        QueryBuilder configuré pour flux F15
+
+    Example:
+        >>> # Factures pour un PDL spécifique
+        >>> df = f15().filter({"pdl": "PDL123"}).exec()
+        >>>
+        >>> # Factures sur une période
+        >>> df = f15().filter({"date_facture": ">= '2024-01-01'"}).limit(100).exec()
+    """
+    return QueryBuilder(
+        base_query=BASE_QUERY_F15,
+        transform_func=_transform_factures,
+        validator_class=None,  # Pas encore de modèle Pandera pour les factures
+        database_path=database_path
+    )
+
+
 def releves(database_path: Union[str, Path] = None) -> QueryBuilder:
     """
     Crée un QueryBuilder pour les relevés unifiés (R151 + R15).
@@ -710,6 +756,24 @@ def _transform_releves(lf: pl.LazyFrame) -> pl.LazyFrame:
         .then(pl.lit("kWh"))
         .otherwise(pl.col("precision"))
         .alias("precision")
+    ])
+
+
+def _transform_factures(lf: pl.LazyFrame) -> pl.LazyFrame:
+    """
+    Transforme les données DuckDB pour les factures F15.
+
+    Args:
+        lf: LazyFrame source depuis DuckDB
+
+    Returns:
+        LazyFrame transformé avec dates au timezone Europe/Paris
+    """
+    return lf.with_columns([
+        # Conversion des dates avec timezone Europe/Paris
+        pl.col("date_facture").dt.convert_time_zone("Europe/Paris"),
+        pl.col("date_debut").dt.convert_time_zone("Europe/Paris"),
+        pl.col("date_fin").dt.convert_time_zone("Europe/Paris"),
     ])
 
 
