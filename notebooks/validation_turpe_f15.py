@@ -517,81 +517,19 @@ def compare_turpe_fixe(df_f15_turpe, df_turpe_fixe_pdl):
     print(f"   💰 Calculé fixe: {total_calcule_fixe:,.2f} € ({nb_pdl_calcule} PDL)")
     print(f"   ⚖️ Écart global: {ecart_global_fixe:+,.2f} € ({_ecart_global_pct:+.1f}%)")
     print(f"   🎯 Couverture: {nb_pdl_communs}/{nb_pdl_f15} PDL ({taux_couverture:.1f}%)")
+    return
 
-    return df_comparison_fixe, total_f15_fixe, total_calcule_fixe, ecart_global_fixe
 
-
-@app.cell(hide_code=True)
-def analyze_turpe_fixe_gaps(df_comparison_fixe):
-    """Analyse des écarts TURPE fixe par catégorie"""
-
-    print("\n🔍 ANALYSE DES ÉCARTS PAR CATÉGORIE:")
-
-    # Statistiques par statut PDL
-    stats_par_statut = (
-        df_comparison_fixe
-        .group_by("statut_pdl")
-        .agg([
-            pl.len().alias("nb_pdl"),
-            pl.col("turpe_fixe_f15").sum().alias("montant_f15"),
-            pl.col("turpe_fixe_total").sum().alias("montant_calcule"),
-            pl.col("ecart_absolu").sum().alias("ecart_total")
-        ])
-        .sort("ecart_total", descending=True)
-    )
-
-    for row in stats_par_statut.iter_rows(named=True):
-        statut = row['statut_pdl']
-        nb_pdl = row['nb_pdl']
-        montant_f15 = row['montant_f15']
-        montant_calcule = row['montant_calcule']
-        ecart = row['ecart_total']
-
-        print(f"   📋 {statut}: {nb_pdl} PDL")
-        print(f"      F15: {montant_f15:,.2f} € | Calculé: {montant_calcule:,.2f} € | Écart: {ecart:+,.2f} €")
-
-    # Top 10 des écarts les plus importants (PDL communs seulement)
-    top_ecarts = (
-        df_comparison_fixe
-        .filter(pl.col("statut_pdl") == "Présent des 2 côtés")
-        .filter(pl.col("ecart_relatif_pct").abs() > 0.1)  # Écarts > 0.1%
-        .head(10)
-        .select([
-            "pdl", "turpe_fixe_f15", "turpe_fixe_total",
-            "ecart_absolu", "ecart_relatif_pct"
-        ])
-    )
-
-    print(f"\n📈 TOP 10 ÉCARTS SIGNIFICATIFS (PDL communs):")
-    if len(top_ecarts) > 0:
-        print(top_ecarts.to_pandas().to_string(index=False))
-    else:
-        print("   ✅ Aucun écart significatif détecté!")
-
-    return stats_par_statut, top_ecarts
+@app.cell
+def _():
+    mo.md(r"""## ⏰ Calcul de prorata temporel""")
+    return
 
 
 @app.cell(hide_code=True)
-def funnel_analysis_turpe_fixe(df_f15_turpe, df_turpe_fixe_pdl, df_pdl_odoo):
-    """Analyse en entonnoir pour attribuer les écarts du TURPE fixe"""
+def calcul_prorata_temporel(df_f15_turpe):
+    """Calcul du prorata temporel pour exclure la facturation à échoir"""
 
-    print("\n📊 ANALYSE EN ENTONNOIR - TURPE FIXE")
-
-    # Étape 1: Montant F15 global fixe
-    _df_f15_fixe_entonnoir = df_f15_turpe.filter(pl.col("part_turpe") == "Fixe")
-    montant_f15_global = _df_f15_fixe_entonnoir.select(pl.col("montant_ht").sum()).item()
-    nb_pdl_f15_global = _df_f15_fixe_entonnoir.select(pl.col("pdl").n_unique()).item()
-
-    # Étape 2: Filtrage segment C5 uniquement
-    df_f15_c5 = _df_f15_fixe_entonnoir.filter(
-        (pl.col("formule_tarifaire_acheminement").str.contains("C5")) |
-        (pl.col("formule_tarifaire_acheminement").str.contains("CU"))
-    )
-    montant_f15_c5 = df_f15_c5.select(pl.col("montant_ht").sum()).item()
-    nb_pdl_c5 = df_f15_c5.select(pl.col("pdl").n_unique()).item()
-    ecart_hors_c5 = montant_f15_global - montant_f15_c5
-
-    # Étape 3: Filtrage temporel (exclure facturation à échoir)
     # Date de coupure = fin du mois dernier révolu
     from datetime import date
     import calendar
@@ -605,121 +543,125 @@ def funnel_analysis_turpe_fixe(df_f15_turpe, df_turpe_fixe_pdl, df_pdl_odoo):
         _last_day = calendar.monthrange(_prev_year, _prev_month)[1]
         _date_coupure = date(_prev_year, _prev_month, _last_day)
 
-    df_f15_c5_temporel = df_f15_c5.filter(
-        pl.col("date_fin").str.to_date() <= pl.date(_date_coupure.year, _date_coupure.month, _date_coupure.day)
-    )
-    montant_f15_c5_temporel = df_f15_c5_temporel.select(pl.col("montant_ht").sum()).item()
-    nb_pdl_c5_temporel = df_f15_c5_temporel.select(pl.col("pdl").n_unique()).item()
-    ecart_a_echoir = montant_f15_c5 - montant_f15_c5_temporel
+    print(f"📅 Date de coupure pour prorata: {_date_coupure}")
 
-    # Étape 4: Filtrage périmètre EDN (si données Odoo disponibles)
-    if len(df_pdl_odoo) > 0:
-        pdl_perimetre = df_pdl_odoo.select("pdl").to_series().to_list()
-        df_f15_perimetre = df_f15_c5_temporel.filter(
-            pl.col("pdl").is_in(pdl_perimetre)
-        )
-        _montant_f15_perimetre = df_f15_perimetre.select(pl.col("montant_ht").sum()).item()
-        _nb_pdl_perimetre = df_f15_perimetre.select(pl.col("pdl").n_unique()).item()
-        ecart_hors_perimetre = montant_f15_c5_temporel - _montant_f15_perimetre
-        df_f15_final = df_f15_perimetre
-    else:
-        _montant_f15_perimetre = montant_f15_c5_temporel
-        _nb_pdl_perimetre = nb_pdl_c5_temporel
-        ecart_hors_perimetre = 0
-        df_f15_final = df_f15_c5_temporel
+    # Filtrer TURPE fixe uniquement
+    df_f15_fixe = df_f15_turpe.filter(pl.col("part_turpe") == "Fixe")
 
-    # Étape 5: Comparaison avec le calculé (PDL présents des deux côtés)
-    # Agrégation F15 par PDL pour la comparaison finale
-    df_f15_final_par_pdl = df_f15_final.group_by("pdl").agg([
-        pl.col("montant_ht").sum().alias("turpe_fixe_f15")
+    # Calcul du prorata pour chaque ligne
+    df_prorata = df_f15_fixe.with_columns([
+        # Conversion des dates
+        pl.col("date_debut").str.to_date().alias("debut_dt"),
+        pl.col("date_fin").str.to_date().alias("fin_dt"),
+        pl.date(_date_coupure.year, _date_coupure.month, _date_coupure.day).alias("date_coupure_dt")
+    ]).with_columns([
+        # Calcul des durées
+        (pl.col("fin_dt") - pl.col("debut_dt") + pl.duration(days=1)).dt.total_days().alias("duree_totale_jours"),
+        # Calcul de la fin effective (min entre fin période et date coupure)
+        pl.min_horizontal(pl.col("fin_dt"), pl.col("date_coupure_dt")).alias("fin_effective"),
+    ]).with_columns([
+        # Calcul des jours avant coupure
+        pl.max_horizontal(
+            pl.lit(0),
+            (pl.col("fin_effective") - pl.col("debut_dt") + pl.duration(days=1)).dt.total_days()
+        ).alias("jours_avant_coupure")
+    ]).with_columns([
+        # Calcul du ratio de prorata
+        (pl.col("jours_avant_coupure") / pl.col("duree_totale_jours")).alias("ratio_prorata"),
+        # Montant proratisé
+        (pl.col("montant_ht") * pl.col("jours_avant_coupure") / pl.col("duree_totale_jours")).alias("montant_proratise")
     ])
 
-    # Jointure avec le calculé (inner = uniquement PDL présents des deux côtés)
-    _df_comparison_final = df_f15_final_par_pdl.join(
-        df_turpe_fixe_pdl,
-        on="pdl",
-        how="inner"
-    )
+    # Classification des périodes
+    df_classification = df_prorata.with_columns([
+        pl.when(pl.col("debut_dt") > pl.col("date_coupure_dt"))
+        .then(pl.lit("Entièrement après coupure"))
+        .when(pl.col("fin_dt") <= pl.col("date_coupure_dt"))
+        .then(pl.lit("Entièrement avant coupure"))
+        .otherwise(pl.lit("Partiellement après coupure"))
+        .alias("classification_temporelle")
+    ])
 
-    montant_f15_avec_calcul = _df_comparison_final.select(pl.col("turpe_fixe_f15").sum()).item()
-    montant_calcule_final = _df_comparison_final.select(pl.col("turpe_fixe_total").sum()).item()
-    nb_pdl_avec_calcul = len(_df_comparison_final)
-    ecart_pdl_sans_calcul = _montant_f15_perimetre - montant_f15_avec_calcul
+    # Statistiques globales
+    stats = df_classification.group_by("classification_temporelle").agg([
+        pl.len().alias("nb_lignes"),
+        pl.col("montant_ht").sum().alias("montant_original"),
+        pl.col("montant_proratise").sum().alias("montant_proratise"),
+        pl.col("ratio_prorata").mean().alias("ratio_moyen")
+    ]).sort("montant_original", descending=True)
 
-    # Écart résiduel = vraie erreur de calcul
-    ecart_residuel = montant_calcule_final - montant_f15_avec_calcul
+    print(f"\n📊 STATISTIQUES DE PRORATA TEMPOREL:")
+    print(stats.to_pandas().to_string(index=False, float_format="%.2f"))
 
-    # Affichage en cascade
-    print(f"\n🎯 ÉTAPE 1 - Montant F15 fixe global:")
-    print(f"   💰 {montant_f15_global:,.2f} € sur {nb_pdl_f15_global} PDL")
+    # Totaux
+    total_original = df_classification.select(pl.col("montant_ht").sum()).item()
+    total_proratise = df_classification.select(pl.col("montant_proratise").sum()).item()
+    difference = total_original - total_proratise
 
-    print(f"\n🎯 ÉTAPE 2 - Filtrage segment C5:")
-    print(f"   💰 Montant C5: {montant_f15_c5:,.2f} € ({nb_pdl_c5} PDL)")
-    print(f"   ❌ Écart hors C5: {ecart_hors_c5:,.2f} € ({ecart_hors_c5/montant_f15_global*100:.1f}%)")
+    print(f"\n💰 RÉSUMÉ FINANCIER:")
+    print(f"   Montant original (F15 fixe): {total_original:,.2f} €")
+    print(f"   Montant proratisé: {total_proratise:,.2f} €")
+    print(f"   Différence (à échoir): {difference:,.2f} € ({difference/total_original*100:.1f}%)")
+    return (df_classification,)
 
-    print(f"\n🎯 ÉTAPE 3 - Filtrage temporel (≤ {_date_coupure}):")
-    print(f"   💰 Montant hors à échoir: {montant_f15_c5_temporel:,.2f} € ({nb_pdl_c5_temporel} PDL)")
-    print(f"   ❌ Écart facturation à échoir: {ecart_a_echoir:,.2f} € ({ecart_a_echoir/montant_f15_global*100:.1f}%)")
 
-    if len(df_pdl_odoo) > 0:
-        print(f"\n🎯 ÉTAPE 4 - Filtrage périmètre EDN:")
-        print(f"   💰 Montant périmètre: {_montant_f15_perimetre:,.2f} € ({_nb_pdl_perimetre} PDL)")
-        print(f"   ❌ Écart hors périmètre: {ecart_hors_perimetre:,.2f} € ({ecart_hors_perimetre/montant_f15_global*100:.1f}%)")
-
-    print(f"\n🎯 ÉTAPE 5 - PDL avec calcul disponible:")
-    print(f"   💰 Montant F15 (PDL avec calcul): {montant_f15_avec_calcul:,.2f} € ({nb_pdl_avec_calcul} PDL)")
-    print(f"   💰 Montant calculé: {montant_calcule_final:,.2f} €")
-    print(f"   ❌ Écart PDL sans C15: {ecart_pdl_sans_calcul:,.2f} € ({ecart_pdl_sans_calcul/montant_f15_global*100:.1f}%)")
-
-    print(f"\n🎯 ÉTAPE 6 - ÉCART RÉSIDUEL (vraie erreur):")
-    print(f"   ⚠️ Écart de calcul: {ecart_residuel:+,.2f} € ({ecart_residuel/montant_f15_global*100:+.1f}%)")
-
-    # Résumé des attributions
-    total_ecart_brut = montant_calcule_final - montant_f15_global
-    print(f"\n📈 ATTRIBUTION DES ÉCARTS:")
-    print(f"   Écart total brut: {total_ecart_brut:+,.2f} € (100%)")
-
-    if total_ecart_brut != 0:
-        print(f"   • Hors C5: {-ecart_hors_c5:,.2f} € ({-ecart_hors_c5/abs(total_ecart_brut)*100:.1f}%)")
-        print(f"   • Facturation à échoir: {-ecart_a_echoir:,.2f} € ({-ecart_a_echoir/abs(total_ecart_brut)*100:.1f}%)")
-        if len(df_pdl_odoo) > 0:
-            print(f"   • Hors périmètre: {-ecart_hors_perimetre:,.2f} € ({-ecart_hors_perimetre/abs(total_ecart_brut)*100:.1f}%)")
-        print(f"   • PDL sans C15: {-ecart_pdl_sans_calcul:,.2f} € ({-ecart_pdl_sans_calcul/abs(total_ecart_brut)*100:.1f}%)")
-        print(f"   • Erreur de calcul: {ecart_residuel:,.2f} € ({ecart_residuel/abs(total_ecart_brut)*100:.1f}%)")
-
-    df_comparison_final_entonnoir = _df_comparison_final
-    return df_comparison_final_entonnoir
+@app.cell
+def _(df_classification):
+    # Agrégation des montants F15 proratisés par PDL
+    df_f15_prorata_pdl = df_classification.group_by("pdl").agg([
+        pl.col("montant_proratise").sum().alias("turpe_fixe_f15_prorata")
+    ])
+    return (df_f15_prorata_pdl,)
 
 
 @app.cell(hide_code=True)
-def turpe_fixe_quality_metrics(df_comparison_fixe, ecart_global_fixe, total_f15_fixe):
-    """Métriques de qualité pour le TURPE fixe"""
+def turpe_fixe_quality_metrics_prorata(df_f15_prorata_pdl, df_turpe_fixe_pdl):
+    """Métriques de qualité TURPE fixe avec montants proratisés"""
 
-    # Calculs sur PDL communs uniquement
-    df_communs = df_comparison_fixe.filter(pl.col("statut_pdl") == "Présent des 2 côtés")
+    print(f"\n🎯 MÉTRIQUES DE QUALITÉ AVEC PRORATA TEMPOREL")
 
-    if len(df_communs) == 0:
-        print("⚠️ Aucun PDL commun trouvé!")
-        df_quality_result = None
-    else:
-        # Métriques de précision
-        nb_precise_1eur = df_communs.filter(pl.col("ecart_absolu").abs() <= 1.0).select(pl.len()).item()
-        nb_precise_5pct = df_communs.filter(pl.col("ecart_relatif_pct").abs() <= 5.0).select(pl.len()).item()
-        nb_total_communs = len(df_communs)
 
-        precision_1eur = (nb_precise_1eur / nb_total_communs) * 100
-        precision_5pct = (nb_precise_5pct / nb_total_communs) * 100
 
-        ecart_moyen = df_communs.select(pl.col("ecart_absolu").mean()).item()
-        ecart_median = df_communs.select(pl.col("ecart_absolu").median()).item()
+    # Jointure avec les montants calculés
+    df_comparison_prorata = df_f15_prorata_pdl.join(
+        df_turpe_fixe_pdl,
+        on="pdl",
+        how="inner"
+    ).with_columns([
+        # Calcul des écarts avec prorata
+        (pl.col("turpe_fixe_total") - pl.col("turpe_fixe_f15_prorata")).alias("ecart_absolu_prorata"),
+        (((pl.col("turpe_fixe_total") - pl.col("turpe_fixe_f15_prorata")) / pl.col("turpe_fixe_f15_prorata")) * 100).alias("ecart_relatif_pct_prorata")
+    ])
 
-        # Évaluation qualitative
-        _ecart_global_pct = abs(ecart_global_fixe / total_f15_fixe) * 100 if total_f15_fixe > 0 else 0
+    # Statistiques globales avec prorata
+    total_calcule = df_comparison_prorata.select(pl.col("turpe_fixe_total").sum()).item()
+    total_f15_prorata = df_comparison_prorata.select(pl.col("turpe_fixe_f15_prorata").sum()).item()
+    ecart_global_prorata = total_calcule - total_f15_prorata
+    _nb_pdl_communs_prorata = len(df_comparison_prorata)
 
-        if _ecart_global_pct < 1.0 and precision_5pct > 95:
+    print(f"\n💰 COMPARAISON AVEC PRORATA:")
+    print(f"   F15 proratisé: {total_f15_prorata:,.2f} € ({_nb_pdl_communs_prorata} PDL)")
+    print(f"   Calculé: {total_calcule:,.2f} €")
+    print(f"   Écart global: {ecart_global_prorata:+,.2f} € ({ecart_global_prorata/total_f15_prorata*100:+.1f}%)")
+
+    # Métriques de précision avec prorata
+    if _nb_pdl_communs_prorata > 0:
+        _nb_precise_1eur_prorata = df_comparison_prorata.filter(pl.col("ecart_absolu_prorata").abs() <= 1.0).select(pl.len()).item()
+        _nb_precise_5pct_prorata = df_comparison_prorata.filter(pl.col("ecart_relatif_pct_prorata").abs() <= 5.0).select(pl.len()).item()
+
+        _precision_1eur_prorata = (_nb_precise_1eur_prorata / _nb_pdl_communs_prorata) * 100
+        _precision_5pct_prorata = (_nb_precise_5pct_prorata / _nb_pdl_communs_prorata) * 100
+
+        _ecart_moyen_prorata = df_comparison_prorata.select(pl.col("ecart_absolu_prorata").mean()).item()
+        _ecart_median_prorata = df_comparison_prorata.select(pl.col("ecart_absolu_prorata").median()).item()
+
+        # Évaluation qualitative avec prorata
+        _ecart_global_pct = abs(ecart_global_prorata / total_f15_prorata) * 100 if total_f15_prorata > 0 else 0
+
+        if _ecart_global_pct < 1.0 and _precision_5pct_prorata > 95:
             _evaluation = "🟢 EXCELLENTE"
-            _recommandation = "TURPE fixe très fiable"
-        elif _ecart_global_pct < 2.0 and precision_5pct > 90:
+            _recommandation = "TURPE fixe très fiable avec prorata"
+        elif _ecart_global_pct < 2.0 and _precision_5pct_prorata > 90:
             _evaluation = "🟡 BONNE"
             _recommandation = "Quelques ajustements mineurs"
         elif _ecart_global_pct < 5.0:
@@ -729,35 +671,91 @@ def turpe_fixe_quality_metrics(df_comparison_fixe, ecart_global_fixe, total_f15_
             _evaluation = "🔴 À AMÉLIORER"
             _recommandation = "Problèmes majeurs dans le calcul"
 
-        print(f"\n🎯 MÉTRIQUES DE QUALITÉ TURPE FIXE:")
-        print(f"   📊 Précision ±1€: {precision_1eur:.1f}% ({nb_precise_1eur}/{nb_total_communs} PDL)")
-        print(f"   📊 Précision ±5%: {precision_5pct:.1f}% ({nb_precise_5pct}/{nb_total_communs} PDL)")
-        print(f"   📊 Écart moyen: {ecart_moyen:+.2f} € | Écart médian: {ecart_median:+.2f} €")
+        print(f"\n📊 MÉTRIQUES DE PRÉCISION (PRORATA):")
+        print(f"   Précision ±1€: {_precision_1eur_prorata:.1f}% ({_nb_precise_1eur_prorata}/{_nb_pdl_communs_prorata} PDL)")
+        print(f"   Précision ±5%: {_precision_5pct_prorata:.1f}% ({_nb_precise_5pct_prorata}/{_nb_pdl_communs_prorata} PDL)")
+        print(f"   Écart moyen: {_ecart_moyen_prorata:+.2f} € | Écart médian: {_ecart_median_prorata:+.2f} €")
         print(f"   🎯 Évaluation: {_evaluation}")
         print(f"   💡 Recommandation: {_recommandation}")
 
-        df_quality_result = {
-            'evaluation': _evaluation,
-            'precision_1eur': precision_1eur,
-            'precision_5pct': precision_5pct,
-            'ecart_moyen': ecart_moyen,
-            'recommandation': _recommandation
-        }
-
-    df_quality_result
-
-
-@app.cell
-def _():
-    mo.md(r"""## Entonnoir d'attribution des écarts - TURPE Fixe""")
+        df_comparison_prorata_result = df_comparison_prorata
+        ecart_global_prorata_result = ecart_global_prorata
+    else:
+        print("⚠️ Aucun PDL commun trouvé pour la comparaison prorata!")
+        df_comparison_prorata_result = None
+        ecart_global_prorata_result = 0
     return
 
 
-@app.cell
-def run_funnel_analysis_turpe_fixe(df_f15_turpe, df_turpe_fixe_pdl, df_pdl_odoo):
-    """Exécution de l'analyse en entonnoir pour le TURPE fixe"""
-    df_entonnoir_result = funnel_analysis_turpe_fixe(df_f15_turpe, df_turpe_fixe_pdl, df_pdl_odoo)
-    return (df_entonnoir_result,)
+@app.cell(hide_code=True)
+def analyze_turpe_fixe_gaps_prorata(df_f15_prorata_pdl, df_turpe_fixe_pdl):
+    """Analyse des écarts TURPE fixe avec montants proratisés"""
+
+    print("\n🔍 ANALYSE DES ÉCARTS PAR CATÉGORIE (PRORATA):")
+
+    # Jointure complète pour analyser tous les PDL
+    df_comparison_prorata_full = df_f15_prorata_pdl.join(
+        df_turpe_fixe_pdl,
+        on="pdl",
+        how="outer"
+    ).with_columns([
+        # Gestion des valeurs nulles et statut PDL
+        pl.col("turpe_fixe_f15_prorata").fill_null(0),
+        pl.col("turpe_fixe_total").fill_null(0),
+        pl.when(pl.col("turpe_fixe_f15_prorata").is_null())
+        .then(pl.lit("Seulement dans calculé"))
+        .when(pl.col("turpe_fixe_total").is_null())
+        .then(pl.lit("Seulement dans F15 prorata"))
+        .otherwise(pl.lit("Présent des 2 côtés"))
+        .alias("statut_pdl")
+    ]).with_columns([
+        # Calcul des écarts avec prorata
+        (pl.col("turpe_fixe_total") - pl.col("turpe_fixe_f15_prorata")).alias("ecart_absolu_prorata"),
+        (((pl.col("turpe_fixe_total") - pl.col("turpe_fixe_f15_prorata")) / pl.col("turpe_fixe_f15_prorata")) * 100).alias("ecart_relatif_pct_prorata")
+    ])
+
+    # Statistiques par statut PDL avec prorata
+    _stats_par_statut_prorata = (
+        df_comparison_prorata_full
+        .group_by("statut_pdl")
+        .agg([
+            pl.len().alias("nb_pdl"),
+            pl.col("turpe_fixe_f15_prorata").sum().alias("montant_f15_prorata"),
+            pl.col("turpe_fixe_total").sum().alias("montant_calcule"),
+            pl.col("ecart_absolu_prorata").sum().alias("ecart_total_prorata")
+        ])
+        .sort("ecart_total_prorata", descending=True)
+    )
+
+    for row in _stats_par_statut_prorata.iter_rows(named=True):
+        statut = row['statut_pdl']
+        nb_pdl = row['nb_pdl']
+        montant_f15_prorata = row['montant_f15_prorata']
+        montant_calcule = row['montant_calcule']
+        ecart = row['ecart_total_prorata']
+
+        print(f"   📋 {statut}: {nb_pdl} PDL")
+        print(f"      F15 prorata: {montant_f15_prorata:,.2f} € | Calculé: {montant_calcule:,.2f} € | Écart: {ecart:+,.2f} €")
+
+    # Top 10 des écarts les plus importants avec prorata (PDL communs seulement)
+    _top_ecarts_prorata = (
+        df_comparison_prorata_full
+        .filter(pl.col("statut_pdl") == "Présent des 2 côtés")
+        .filter(pl.col("ecart_relatif_pct_prorata").abs() > 0.1)  # Écarts > 0.1%
+        .sort("ecart_absolu_prorata", descending=True)
+        .head(10)
+        .select([
+            "pdl", "turpe_fixe_f15_prorata", "turpe_fixe_total",
+            "ecart_absolu_prorata", "ecart_relatif_pct_prorata"
+        ])
+    )
+
+    print(f"\n📈 TOP 10 ÉCARTS SIGNIFICATIFS (PDL communs - PRORATA):")
+    if len(_top_ecarts_prorata) > 0:
+        print(_top_ecarts_prorata.to_pandas().to_string(index=False, float_format="%.2f"))
+    else:
+        print("   ✅ Aucun écart significatif détecté avec prorata!")
+    return
 
 
 @app.cell
@@ -907,81 +905,6 @@ def funnel_analysis_variable(
             'nb_pdl_r151': nb_pdl_avec_r151,
             'nb_pdl_perimetre': nb_pdl_avec_r151
         }
-    return
-
-
-@app.cell
-def decomposition_summary(funnel_fixe, funnel_variable):
-    """Synthèse de la décomposition des écarts"""
-
-    mo.md("## 📋 Synthèse de la décomposition des écarts")
-
-    # Calcul des pourcentages
-    montant_global = funnel_variable['montant_f15_global'] + funnel_fixe['montant_f15_fixe']
-
-    pct_sans_r151 = (abs(funnel_variable['ecart_sans_r151']) / montant_global) * 100
-    pct_hors_perimetre = (abs(funnel_variable['ecart_hors_perimetre']) / montant_global) * 100
-    pct_erreur_variable = (abs(funnel_variable['ecart_residuel']) / montant_global) * 100
-    pct_erreur_fixe = (abs(funnel_fixe['ecart_fixe']) / montant_global) * 100
-
-    # Tableau de décomposition
-    decomposition = pl.DataFrame({
-        "Composante": [
-            "💰 Montant F15 total",
-            "📊 PDL sans données R151",
-            "🏢 PDL hors périmètre",
-            "⚠️ Erreur calcul variable",
-            "⚠️ Erreur calcul fixe",
-            "✅ Total écarts expliqués"
-        ],
-        "Montant (€)": [
-            f"{montant_global:,.2f}",
-            f"{funnel_variable['ecart_sans_r151']:+,.2f}",
-            f"{funnel_variable['ecart_hors_perimetre']:+,.2f}",
-            f"{funnel_variable['ecart_residuel']:+,.2f}",
-            f"{funnel_fixe['ecart_fixe']:+,.2f}",
-            f"{funnel_variable['ecart_sans_r151'] + funnel_variable['ecart_hors_perimetre'] + funnel_variable['ecart_residuel'] + funnel_fixe['ecart_fixe']:+,.2f}"
-        ],
-        "% du total": [
-            "100.0%",
-            f"{pct_sans_r151:.1f}%",
-            f"{pct_hors_perimetre:.1f}%",
-            f"{pct_erreur_variable:.1f}%",
-            f"{pct_erreur_fixe:.1f}%",
-            f"{pct_sans_r151 + pct_hors_perimetre + pct_erreur_variable + pct_erreur_fixe:.1f}%"
-        ],
-        "Type": [
-            "Référence",
-            "Attendu (pas de données)",
-            "Attendu (hors scope)",
-            "À corriger",
-            "À corriger",
-            "Total"
-        ]
-    })
-
-    print("📊 DÉCOMPOSITION DES ÉCARTS TURPE:")
-    print(decomposition.to_pandas().to_string(index=False))
-
-    # Évaluation qualitative
-    erreur_totale_pct = pct_erreur_variable + pct_erreur_fixe
-
-    if erreur_totale_pct < 2:
-        _evaluation = "🟢 EXCELLENTE"
-        _recommandation = "Validation très satisfaisante"
-    elif erreur_totale_pct < 5:
-        _evaluation = "🟡 BONNE"
-        _recommandation = "Quelques écarts mineurs à analyser"
-    elif erreur_totale_pct < 10:
-        _evaluation = "🟠 CORRECTE"
-        _recommandation = "Ajustements nécessaires"
-    else:
-        _evaluation = "🔴 À AMÉLIORER"
-        _recommandation = "Révision du pipeline requise"
-
-    print(f"\n🎯 ÉVALUATION: {_evaluation}")
-    print(f"   Erreur totale de calcul: {erreur_totale_pct:.1f}%")
-    print(f"   Recommandation: {_recommandation}")
     return
 
 
