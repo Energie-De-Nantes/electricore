@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.15.3"
+__generated_with = "0.16.0"
 app = marimo.App(width="medium")
 
 with app.setup:
@@ -35,7 +35,7 @@ with app.setup:
     )
 
     # Import des loaders DuckDB
-    from electricore.core.loaders.duckdb_loader import c15, r151
+    from electricore.core.loaders.duckdb_loader import c15, r151, f15
 
 
 @app.cell
@@ -48,6 +48,7 @@ def _():
     des pipelines pandas et Polars pour le calcul des périodes d'énergie.
     """
     )
+    return
 
 
 @app.cell(hide_code=True)
@@ -156,11 +157,13 @@ def load_data():
 @app.cell
 def _(df_historique):
     df_historique.head()
+    return
 
 
 @app.cell
 def _():
     mo.md(r"""# Calcul des Périodes d'Énergie""")
+    return
 
 
 @app.cell
@@ -249,11 +252,13 @@ def pipeline_polars_energie(
 @app.cell
 def _(periodes_polars_collect):
     periodes_polars_collect
+    return
 
 
 @app.cell
 def _(periodes_polars_collect):
     periodes_polars_collect.filter(pl.col('pdl') == '14287988313383')
+    return
 
 
 @app.cell
@@ -380,13 +385,13 @@ def comparaison_periodes(periodes_pandas, periodes_polars_lf):
             else:
                 diff = abs(pandas_true - polars_true)
                 print(f"  ⚠️  Différence: {diff:,} périodes")
-
-    return periodes_polars
+    return
 
 
 @app.cell
 def _():
     mo.md(r"""# Calcul TURPE Variable (optionnel)""")
+    return
 
 
 @app.cell(hide_code=True)
@@ -438,8 +443,8 @@ def calcul_turpe_pandas(periodes_pandas):
         except Exception as e:
             print(f"❌ Erreur calcul TURPE pandas: {e}")
             turpe_variable_pandas = pd.Series(dtype=float)
+    return (turpe_variable_pandas,)
 
-    return turpe_variable_pandas
 
 @app.cell(hide_code=True)
 def calcul_turpe_polars(periodes_polars_lf):
@@ -470,8 +475,8 @@ def calcul_turpe_polars(periodes_polars_lf):
     else:
         print("⚠️ Colonne turpe_variable non trouvée")
         turpe_variable_polars = pd.Series(dtype=float)
+    return (turpe_variable_polars,)
 
-    return turpe_variable_polars
 
 @app.cell
 def comparaison_turpe_variable(turpe_variable_pandas, turpe_variable_polars):
@@ -532,7 +537,18 @@ def comparaison_turpe_variable(turpe_variable_pandas, turpe_variable_polars):
         print(f"  ✅ Aucun TURPE calculé dans les deux cas")
     else:
         print(f"  ❌ Un seul pipeline a calculé du TURPE")
+    return
 
+
+@app.cell
+def _():
+    mo.md(r"""# Vérif Turpe""")
+    return
+
+
+@app.cell
+def _():
+    f15().exec()
     return
 
 
