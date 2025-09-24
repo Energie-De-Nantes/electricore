@@ -67,7 +67,7 @@ C15:
 F12:
   zip_pattern: "**/*_F12_*.zip"
   xml_configs:
-    - name: "flux_f12"
+    - name: "flux_f12_detail"
       file_regex: 'FL_\d+_\d+\.xml'
       row_level: './/Element_Valorise'
       metadata_fields:
@@ -117,6 +117,8 @@ F15:
       data_fields:
         type_facturation: '../../Type_Facturation'
         pdl: '../../Donnees_PRM/Id_PRM'
+        ref_situation_contractuelle: '../../Donnees_PRM/Ref_Situation_Contractuelle'
+        type_compteur: '../../Donnees_PRM/Type_Compteur'
         id_ev: 'Id_EV'
         nature_ev: '../Nature_EV'
         taux_tva_applicable: 'Taux_TVA_Applicable'
@@ -230,32 +232,32 @@ R151:
           id_field: 'Id_Classe_Temporelle'
           value_field: 'Valeur'
 
-R64:
-  zip_pattern: "**/R63_R64_R65_R66_R67_C68/*_R64_*.zip"
-  csv_configs:
-    - name: "flux_r64"
-      file_regex: "*.csv"
-      delimiter: ";"
-      encoding: "utf-8"
-      primary_key: ["id_prm", "date_debut", "contexte_releve", "type_releve"]  # Déduplication sur PDL + date
-      column_mapping:
-        'Identifiant PRM': 'pdl'
-        'Date de début': 'date_debut' 
-        'Date de fin': 'date_fin'
-        'Grandeur physique': 'grandeur_physique'
-        'Grandeur metier': 'grandeur_metier'
-        'Etape metier': 'etape_metier'
-        'Unite': 'unite'
-        'Horodate': 'horodate'
-        'Contexte de relève': 'contexte_releve'
-        'Type de releve': 'type_releve'
-        'Motif de relève': 'motif_releve'
-        'Grille': 'grille'
-        'Identifiant calendrier': 'id_calendrier'
-        'Libellé calendrier': 'libelle_calendrier'
-        'Identifiant classe temporelle': 'id_classe_temporelle'
-        'Libellé classe temporelle': 'libelle_classe_temporelle'
-        'Cadran': 'cadran'
-        'Valeur': 'valeur'
-        'Indice de vraisemblance': 'indice_vraisemblance'
+# R64:
+#   zip_pattern: "**/R63_R64_R65_R66_R67_C68/*_R64_*.zip"
+#   csv_configs:
+#     - name: "flux_r64"
+#       file_regex: "*.csv"
+#       delimiter: ";"
+#       encoding: "utf-8"
+#       primary_key: ["id_prm", "date_debut", "contexte_releve", "type_releve"]  # Déduplication sur PDL + date
+#       column_mapping:
+#         'Identifiant PRM': 'pdl'
+#         'Date de début': 'date_debut' 
+#         'Date de fin': 'date_fin'
+#         'Grandeur physique': 'grandeur_physique'
+#         'Grandeur metier': 'grandeur_metier'
+#         'Etape metier': 'etape_metier'
+#         'Unite': 'unite'
+#         'Horodate': 'horodate'
+#         'Contexte de relève': 'contexte_releve'
+#         'Type de releve': 'type_releve'
+#         'Motif de relève': 'motif_releve'
+#         'Grille': 'grille'
+#         'Identifiant calendrier': 'id_calendrier'
+#         'Libellé calendrier': 'libelle_calendrier'
+#         'Identifiant classe temporelle': 'id_classe_temporelle'
+#         'Libellé classe temporelle': 'libelle_classe_temporelle'
+#         'Cadran': 'cadran'
+#         'Valeur': 'valeur'
+#         'Indice de vraisemblance': 'indice_vraisemblance'
 

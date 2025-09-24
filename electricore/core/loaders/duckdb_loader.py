@@ -57,7 +57,7 @@ SELECT
     CAST(apres_base AS DOUBLE) as apres_base,
     -- Métadonnées
     'flux_C15' as source
-FROM enedis_production.flux_c15
+FROM flux_enedis.flux_c15
 """
 
 BASE_QUERY_R151 = """
@@ -80,7 +80,7 @@ SELECT
     FALSE as ordre_index,
     unite,
     unite as precision
-FROM enedis_production.flux_r151
+FROM flux_enedis.flux_r151
 WHERE date_releve IS NOT NULL
 """
 
@@ -104,7 +104,7 @@ SELECT
     FALSE as ordre_index,
     'kWh' as unite,
     'kWh' as precision
-FROM enedis_production.flux_r15
+FROM flux_enedis.flux_r15
 WHERE date_releve IS NOT NULL
 """
 
@@ -114,6 +114,8 @@ SELECT
     pdl,
     num_facture,
     type_facturation,
+    ref_situation_contractuelle,
+    type_compteur,
     id_ev,
     nature_ev,
     formule_tarifaire_acheminement,
@@ -126,7 +128,7 @@ SELECT
     CAST(date_fin AS TIMESTAMP) as date_fin,
     libelle_ev,
     'flux_F15' as source
-FROM enedis_production.flux_f15_detail
+FROM flux_enedis.flux_f15_detail
 """
 
 BASE_QUERY_RELEVES_UNIFIES = """
@@ -151,7 +153,7 @@ WITH releves_unifies AS (
         FALSE as ordre_index,
         unite,
         unite as precision
-    FROM enedis_production.flux_r151
+    FROM flux_enedis.flux_r151
     WHERE date_releve IS NOT NULL
 
     UNION ALL
@@ -176,7 +178,7 @@ WITH releves_unifies AS (
         FALSE as ordre_index,
         'kWh' as unite,
         'kWh' as precision
-    FROM enedis_production.flux_r15
+    FROM flux_enedis.flux_r15
     WHERE date_releve IS NOT NULL
 )
 SELECT * FROM releves_unifies
@@ -199,18 +201,18 @@ class DuckDBConfig:
         """
         if database_path is None:
             # Utiliser la base par défaut du projet
-            self.database_path = Path("electricore/etl/flux_enedis.duckdb")
+            self.database_path = Path("electricore/etl/flux_enedis_pipeline.duckdb")
         else:
             self.database_path = Path(database_path)
 
         # Mapping des tables DuckDB vers schémas métier
         self.table_mappings = {
             "historique_perimetre": {
-                "source_tables": ["enedis_production.flux_c15"],
+                "source_tables": ["flux_enedis.flux_c15"],
                 "description": "Historique des événements contractuels avec relevés avant/après"
             },
             "releves": {
-                "source_tables": ["enedis_production.flux_r151", "enedis_production.flux_r15"],
+                "source_tables": ["flux_enedis.flux_r151", "flux_enedis.flux_r15"],
                 "description": "Relevés de compteurs unifiés depuis R151 et R15"
             }
         }
@@ -785,7 +787,7 @@ def get_available_tables(database_path: Union[str, Path] = None) -> List[str]:
         database_path: Chemin vers la base DuckDB
 
     Returns:
-        Liste des noms de tables avec schéma (ex: ["enedis_production.flux_c15"])
+        Liste des noms de tables avec schéma (ex: ["flux_enedis.flux_c15"])
     """
     config = DuckDBConfig(database_path)
 

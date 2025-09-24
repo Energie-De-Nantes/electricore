@@ -4,13 +4,34 @@ Utilise le chaînage de transformers DLT pour une architecture propre.
 """
 
 import dlt
+import re
 from typing import Iterator
 from dlt.sources.filesystem import filesystem
 
+def mask_password_in_url(url: str) -> str:
+    """
+    Masque le mot de passe dans une URL SFTP pour les logs.
+
+    Args:
+        url: URL SFTP avec mot de passe
+
+    Returns:
+        URL avec mot de passe masqué
+
+    Example:
+        >>> mask_password_in_url("sftp://user:pass@host:22/path")
+        "sftp://user:****@host:22/path"
+    """
+    # Pattern pour capturer: protocol://user:password@host
+    pattern = r'(sftp://[^:]+:)[^@]+(@.+)'
+    replacement = r'\1****\2'
+    return re.sub(pattern, replacement, url)
+
+
 # Imports des transformers modulaires
-from transformers.crypto import create_decrypt_transformer
-from transformers.archive import create_unzip_transformer
-from transformers.parsers import (
+from electricore.etl.transformers.crypto import create_decrypt_transformer
+from electricore.etl.transformers.archive import create_unzip_transformer
+from electricore.etl.transformers.parsers import (
     create_xml_parser_transformer,
     create_csv_parser_transformer
 )
@@ -32,7 +53,7 @@ def create_sftp_resource(flux_type: str, table_name: str, zip_pattern: str, sftp
         write_disposition="append"
     )
     def sftp_files_resource():
-        print(f"🔍 SFTP {flux_type}: {sftp_url} avec pattern {zip_pattern}")
+        print(f"🔍 SFTP {flux_type}: {mask_password_in_url(sftp_url)} avec pattern {zip_pattern}")
         
         encrypted_files = filesystem(
             bucket_url=sftp_url,
@@ -75,7 +96,7 @@ def flux_enedis(flux_config: dict, max_files: int = None):
     print("=" * 80)
     print("🚀 ARCHITECTURE REFACTORÉE - TOUS LES FLUX")
     print("=" * 80)
-    print(f"🌐 SFTP: {sftp_url}")
+    print(f"🌐 SFTP: {mask_password_in_url(sftp_url)}")
     
     # Créer les transformers communs une seule fois (optimisation)
     decrypt_transformer = create_decrypt_transformer()
