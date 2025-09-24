@@ -258,7 +258,7 @@ def _():
 @app.cell
 def _(df_f15_turpe):
     # Extraction du TURPE fixe depuis F15
-    df_f15_fixe = (
+    _df_f15_fixe = (
         df_f15_turpe
         .filter(pl.col("part_turpe") == "Fixe")
         # .group_by("pdl")
@@ -268,17 +268,17 @@ def _(df_f15_turpe):
     )
 
     # Statistiques de base
-    _total_montant = df_f15_fixe.select(pl.col("montant_ht").sum()).item()
-    _nb_pdl_uniques = df_f15_fixe.select(pl.col("pdl").n_unique()).item()
-    _date_min = df_f15_fixe.select(pl.col("date_debut").min()).item()
-    _date_max = df_f15_fixe.select(pl.col("date_fin").max()).item()
+    _total_montant = _df_f15_fixe.select(pl.col("montant_ht").sum()).item()
+    _nb_pdl_uniques = _df_f15_fixe.select(pl.col("pdl").n_unique()).item()
+    _date_min = _df_f15_fixe.select(pl.col("date_debut").min()).item()
+    _date_max = _df_f15_fixe.select(pl.col("date_fin").max()).item()
 
     print(f"✅ Données F15 turpe fixe")
-    print(f"📊 {len(df_f15_fixe):,} lignes de facturation TURPE")
+    print(f"📊 {len(_df_f15_fixe):,} lignes de facturation TURPE")
     print(f"💰 Montant total TURPE F15: {_total_montant:,.2f} €")
     print(f"🏠 {_nb_pdl_uniques} PDL uniques")
     print(f"📅 Période: {_date_min} → {_date_max}")
-    df_f15_fixe
+    _df_f15_fixe
     return
 
 
@@ -515,7 +515,7 @@ def compare_turpe_fixe(df_f15_turpe, df_turpe_fixe_pdl):
     print(f"📊 RÉSULTATS COMPARAISON TURPE FIXE:")
     print(f"   💰 F15 fixe: {total_f15_fixe:,.2f} € ({nb_pdl_f15} PDL)")
     print(f"   💰 Calculé fixe: {total_calcule_fixe:,.2f} € ({nb_pdl_calcule} PDL)")
-    print(f"   ⚖️ Écart global: {ecart_global_fixe:+,.2f} € ({ecart_global_pct:+.1f}%)")
+    print(f"   ⚖️ Écart global: {ecart_global_fixe:+,.2f} € ({_ecart_global_pct:+.1f}%)")
     print(f"   🎯 Couverture: {nb_pdl_communs}/{nb_pdl_f15} PDL ({taux_couverture:.1f}%)")
 
     return df_comparison_fixe, total_f15_fixe, total_calcule_fixe, ecart_global_fixe
@@ -572,6 +572,126 @@ def analyze_turpe_fixe_gaps(df_comparison_fixe):
 
 
 @app.cell(hide_code=True)
+def funnel_analysis_turpe_fixe(df_f15_turpe, df_turpe_fixe_pdl, df_pdl_odoo):
+    """Analyse en entonnoir pour attribuer les écarts du TURPE fixe"""
+
+    print("\n📊 ANALYSE EN ENTONNOIR - TURPE FIXE")
+
+    # Étape 1: Montant F15 global fixe
+    _df_f15_fixe_entonnoir = df_f15_turpe.filter(pl.col("part_turpe") == "Fixe")
+    montant_f15_global = _df_f15_fixe_entonnoir.select(pl.col("montant_ht").sum()).item()
+    nb_pdl_f15_global = _df_f15_fixe_entonnoir.select(pl.col("pdl").n_unique()).item()
+
+    # Étape 2: Filtrage segment C5 uniquement
+    df_f15_c5 = _df_f15_fixe_entonnoir.filter(
+        (pl.col("formule_tarifaire_acheminement").str.contains("C5")) |
+        (pl.col("formule_tarifaire_acheminement").str.contains("CU"))
+    )
+    montant_f15_c5 = df_f15_c5.select(pl.col("montant_ht").sum()).item()
+    nb_pdl_c5 = df_f15_c5.select(pl.col("pdl").n_unique()).item()
+    ecart_hors_c5 = montant_f15_global - montant_f15_c5
+
+    # Étape 3: Filtrage temporel (exclure facturation à échoir)
+    # Date de coupure = fin du mois dernier révolu
+    from datetime import date
+    import calendar
+    _today = date.today()
+    if _today.month == 1:
+        _date_coupure = date(_today.year - 1, 12, 31)
+    else:
+        # Dernier jour du mois précédent
+        _prev_month = _today.month - 1
+        _prev_year = _today.year
+        _last_day = calendar.monthrange(_prev_year, _prev_month)[1]
+        _date_coupure = date(_prev_year, _prev_month, _last_day)
+
+    df_f15_c5_temporel = df_f15_c5.filter(
+        pl.col("date_fin").str.to_date() <= pl.date(_date_coupure.year, _date_coupure.month, _date_coupure.day)
+    )
+    montant_f15_c5_temporel = df_f15_c5_temporel.select(pl.col("montant_ht").sum()).item()
+    nb_pdl_c5_temporel = df_f15_c5_temporel.select(pl.col("pdl").n_unique()).item()
+    ecart_a_echoir = montant_f15_c5 - montant_f15_c5_temporel
+
+    # Étape 4: Filtrage périmètre EDN (si données Odoo disponibles)
+    if len(df_pdl_odoo) > 0:
+        pdl_perimetre = df_pdl_odoo.select("pdl").to_series().to_list()
+        df_f15_perimetre = df_f15_c5_temporel.filter(
+            pl.col("pdl").is_in(pdl_perimetre)
+        )
+        _montant_f15_perimetre = df_f15_perimetre.select(pl.col("montant_ht").sum()).item()
+        _nb_pdl_perimetre = df_f15_perimetre.select(pl.col("pdl").n_unique()).item()
+        ecart_hors_perimetre = montant_f15_c5_temporel - _montant_f15_perimetre
+        df_f15_final = df_f15_perimetre
+    else:
+        _montant_f15_perimetre = montant_f15_c5_temporel
+        _nb_pdl_perimetre = nb_pdl_c5_temporel
+        ecart_hors_perimetre = 0
+        df_f15_final = df_f15_c5_temporel
+
+    # Étape 5: Comparaison avec le calculé (PDL présents des deux côtés)
+    # Agrégation F15 par PDL pour la comparaison finale
+    df_f15_final_par_pdl = df_f15_final.group_by("pdl").agg([
+        pl.col("montant_ht").sum().alias("turpe_fixe_f15")
+    ])
+
+    # Jointure avec le calculé (inner = uniquement PDL présents des deux côtés)
+    _df_comparison_final = df_f15_final_par_pdl.join(
+        df_turpe_fixe_pdl,
+        on="pdl",
+        how="inner"
+    )
+
+    montant_f15_avec_calcul = _df_comparison_final.select(pl.col("turpe_fixe_f15").sum()).item()
+    montant_calcule_final = _df_comparison_final.select(pl.col("turpe_fixe_total").sum()).item()
+    nb_pdl_avec_calcul = len(_df_comparison_final)
+    ecart_pdl_sans_calcul = _montant_f15_perimetre - montant_f15_avec_calcul
+
+    # Écart résiduel = vraie erreur de calcul
+    ecart_residuel = montant_calcule_final - montant_f15_avec_calcul
+
+    # Affichage en cascade
+    print(f"\n🎯 ÉTAPE 1 - Montant F15 fixe global:")
+    print(f"   💰 {montant_f15_global:,.2f} € sur {nb_pdl_f15_global} PDL")
+
+    print(f"\n🎯 ÉTAPE 2 - Filtrage segment C5:")
+    print(f"   💰 Montant C5: {montant_f15_c5:,.2f} € ({nb_pdl_c5} PDL)")
+    print(f"   ❌ Écart hors C5: {ecart_hors_c5:,.2f} € ({ecart_hors_c5/montant_f15_global*100:.1f}%)")
+
+    print(f"\n🎯 ÉTAPE 3 - Filtrage temporel (≤ {_date_coupure}):")
+    print(f"   💰 Montant hors à échoir: {montant_f15_c5_temporel:,.2f} € ({nb_pdl_c5_temporel} PDL)")
+    print(f"   ❌ Écart facturation à échoir: {ecart_a_echoir:,.2f} € ({ecart_a_echoir/montant_f15_global*100:.1f}%)")
+
+    if len(df_pdl_odoo) > 0:
+        print(f"\n🎯 ÉTAPE 4 - Filtrage périmètre EDN:")
+        print(f"   💰 Montant périmètre: {_montant_f15_perimetre:,.2f} € ({_nb_pdl_perimetre} PDL)")
+        print(f"   ❌ Écart hors périmètre: {ecart_hors_perimetre:,.2f} € ({ecart_hors_perimetre/montant_f15_global*100:.1f}%)")
+
+    print(f"\n🎯 ÉTAPE 5 - PDL avec calcul disponible:")
+    print(f"   💰 Montant F15 (PDL avec calcul): {montant_f15_avec_calcul:,.2f} € ({nb_pdl_avec_calcul} PDL)")
+    print(f"   💰 Montant calculé: {montant_calcule_final:,.2f} €")
+    print(f"   ❌ Écart PDL sans C15: {ecart_pdl_sans_calcul:,.2f} € ({ecart_pdl_sans_calcul/montant_f15_global*100:.1f}%)")
+
+    print(f"\n🎯 ÉTAPE 6 - ÉCART RÉSIDUEL (vraie erreur):")
+    print(f"   ⚠️ Écart de calcul: {ecart_residuel:+,.2f} € ({ecart_residuel/montant_f15_global*100:+.1f}%)")
+
+    # Résumé des attributions
+    total_ecart_brut = montant_calcule_final - montant_f15_global
+    print(f"\n📈 ATTRIBUTION DES ÉCARTS:")
+    print(f"   Écart total brut: {total_ecart_brut:+,.2f} € (100%)")
+
+    if total_ecart_brut != 0:
+        print(f"   • Hors C5: {-ecart_hors_c5:,.2f} € ({-ecart_hors_c5/abs(total_ecart_brut)*100:.1f}%)")
+        print(f"   • Facturation à échoir: {-ecart_a_echoir:,.2f} € ({-ecart_a_echoir/abs(total_ecart_brut)*100:.1f}%)")
+        if len(df_pdl_odoo) > 0:
+            print(f"   • Hors périmètre: {-ecart_hors_perimetre:,.2f} € ({-ecart_hors_perimetre/abs(total_ecart_brut)*100:.1f}%)")
+        print(f"   • PDL sans C15: {-ecart_pdl_sans_calcul:,.2f} € ({-ecart_pdl_sans_calcul/abs(total_ecart_brut)*100:.1f}%)")
+        print(f"   • Erreur de calcul: {ecart_residuel:,.2f} € ({ecart_residuel/abs(total_ecart_brut)*100:.1f}%)")
+
+    df_comparison_final_entonnoir = _df_comparison_final
+    return df_comparison_final_entonnoir
+
+
+@app.cell(hide_code=True)
 def turpe_fixe_quality_metrics(df_comparison_fixe, ecart_global_fixe, total_f15_fixe):
     """Métriques de qualité pour le TURPE fixe"""
 
@@ -625,6 +745,19 @@ def turpe_fixe_quality_metrics(df_comparison_fixe, ecart_global_fixe, total_f15_
         }
 
     df_quality_result
+
+
+@app.cell
+def _():
+    mo.md(r"""## Entonnoir d'attribution des écarts - TURPE Fixe""")
+    return
+
+
+@app.cell
+def run_funnel_analysis_turpe_fixe(df_f15_turpe, df_turpe_fixe_pdl, df_pdl_odoo):
+    """Exécution de l'analyse en entonnoir pour le TURPE fixe"""
+    df_entonnoir_result = funnel_analysis_turpe_fixe(df_f15_turpe, df_turpe_fixe_pdl, df_pdl_odoo)
+    return (df_entonnoir_result,)
 
 
 @app.cell
@@ -686,15 +819,22 @@ def funnel_analysis_variable(
 
     mo.md("## 📊 Analyse en entonnoir - TURPE Variable")
 
-    montant_f15_variable_global = df_f15_variable.select(pl.col("turpe_variable_f15").sum()).item()
+    montant_f15_variable_global = df_f15_variable.select(pl.col("montant_ht").sum()).item()
     nb_pdl_f15_variable = df_f15_variable.select(pl.col("pdl").n_unique()).item()
 
     print(f"🎯 ÉTAPE 1 - Montant F15 variable global:")
     print(f"   💰 {montant_f15_variable_global:,.2f} € sur {nb_pdl_f15_variable} PDL")
 
     # Étape 2: Réduction aux PDL avec données R151
-    df_variable_avec_r151 = (
+    # D'abord agrégér F15 par PDL, puis joindre avec calculé
+    df_f15_variable_par_pdl = (
         df_f15_variable
+        .group_by("pdl")
+        .agg([pl.col("montant_ht").sum().alias("turpe_variable_f15")])
+    )
+
+    df_variable_avec_r151 = (
+        df_f15_variable_par_pdl
         .join(df_turpe_variable_pdl, on="pdl", how="inner")
         .with_columns([
             (pl.col("turpe_variable_total") - pl.col("turpe_variable_f15")).alias("ecart_variable")

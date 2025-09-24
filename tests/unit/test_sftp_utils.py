@@ -17,8 +17,8 @@ class TestMaskPasswordInUrl:
 
     def test_mask_complex_password(self):
         """Test du masquage avec un mot de passe complexe (caractères spéciaux)."""
-        url = "sftp://edn_ro:Ax*jp15cwmVPT8BRYcfP@84.46.252.128:22/flux_enedis"
-        expected = "sftp://edn_ro:****@84.46.252.128:22/flux_enedis"
+        url = "sftp://edn_ro:cO2923mplex234sadq2@84.42.42.128:22/flux_enedis"
+        expected = "sftp://edn_ro:****@84.42.42.128:22/flux_enedis"
         assert mask_password_in_url(url) == expected
 
     def test_mask_no_path(self):
