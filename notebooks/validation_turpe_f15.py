@@ -688,13 +688,32 @@ def turpe_fixe_quality_metrics_prorata(df_f15_prorata_pdl, df_turpe_fixe_pdl):
 
 
 @app.cell(hide_code=True)
-def analyze_turpe_fixe_gaps_prorata(df_f15_prorata_pdl, df_turpe_fixe_pdl):
+def analyze_turpe_fixe_gaps_prorata(df_classification, df_turpe_fixe_pdl, df_periodes_abonnement):
     """Analyse des écarts TURPE fixe avec montants proratisés"""
 
     print("\n🔍 ANALYSE DES ÉCARTS PAR CATÉGORIE (PRORATA):")
 
+    # Agrégation des montants F15 proratisés par PDL
+    df_f15_prorata_base = df_classification.group_by("pdl").agg([
+        pl.col("montant_proratise").sum().alias("turpe_fixe_f15_prorata"),
+        pl.col("date_debut").min().alias("date_arrivee_pdl")  # Première date de facturation
+    ])
+
+    # Récupération des métadonnées métier depuis les périodes d'abonnement
+    df_metadonnees_pdl = df_periodes_abonnement.group_by("pdl").agg([
+        pl.col("formule_tarifaire_acheminement").cast(pl.String).first(),  # FTA du PDL
+        pl.col("puissance_souscrite").first()  # Puissance souscrite en kVA
+    ])
+
+    # Jointure des montants proratisés avec les métadonnées
+    df_f15_prorata_avec_metadonnees = df_f15_prorata_base.join(
+        df_metadonnees_pdl,
+        on="pdl",
+        how="left"  # Garder tous les PDL même sans métadonnées
+    )
+
     # Jointure complète pour analyser tous les PDL
-    df_comparison_prorata_full = df_f15_prorata_pdl.join(
+    df_comparison_prorata_full = df_f15_prorata_avec_metadonnees.join(
         df_turpe_fixe_pdl,
         on="pdl",
         how="outer"
@@ -743,18 +762,15 @@ def analyze_turpe_fixe_gaps_prorata(df_f15_prorata_pdl, df_turpe_fixe_pdl):
         .filter(pl.col("statut_pdl") == "Présent des 2 côtés")
         .filter(pl.col("ecart_relatif_pct_prorata").abs() > 0.1)  # Écarts > 0.1%
         .sort("ecart_absolu_prorata", descending=True)
-        .head(10)
         .select([
-            "pdl", "turpe_fixe_f15_prorata", "turpe_fixe_total",
+            "pdl", "date_arrivee_pdl", "formule_tarifaire_acheminement", "puissance_souscrite",
+            "turpe_fixe_f15_prorata", "turpe_fixe_total",
             "ecart_absolu_prorata", "ecart_relatif_pct_prorata"
         ])
     )
 
-    print(f"\n📈 TOP 10 ÉCARTS SIGNIFICATIFS (PDL communs - PRORATA):")
-    if len(_top_ecarts_prorata) > 0:
-        print(_top_ecarts_prorata.to_pandas().to_string(index=False, float_format="%.2f"))
-    else:
-        print("   ✅ Aucun écart significatif détecté avec prorata!")
+
+    mo.vstack([mo.md(f"\n📈 ÉCARTS SIGNIFICATIFS (PDL communs - PRORATA):"), _top_ecarts_prorata])
     return
 
 
