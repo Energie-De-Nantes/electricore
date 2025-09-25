@@ -547,12 +547,13 @@ def compare_with_transformations(
 ):
     """Comparaison des montants après transformations temporelles"""
 
-    print("🔍 Comparaison F15 (après transformations) vs Calculé...")
+    print("🔍 Comparaison F15 (après transformations) vs Calculé (PDL avec calculs réels)...")
 
-    # Jointure des PDL communs uniquement
+    # Jointure des PDL communs avec calculs réels uniquement
     df_comparison = (
         df_f15_variable_prorata_pdl
         .join(df_turpe_variable_pdl, on="pdl", how="inner")
+        .filter(pl.col("turpe_variable_calcule") > 0)  # Garder uniquement les PDL avec calcul réel
         .with_columns([
             # Calcul des écarts
             (pl.col("turpe_variable_calcule") - pl.col("turpe_variable_f15_prorata")).alias("ecart_absolu"),
@@ -649,25 +650,40 @@ def attribution_funnel_simple(
     print(f"   Écart après exclusion: {_ecart_apres_exclusion:+,.2f} € ({_ecart_apres_exclusion/_total_f15_filtre*100:+.1f}%)")
 
     # 3. Impact des transformations temporelles (prorata)
+    # Recalculer les montants F15 filtrés mais uniquement sur les PDL avec calculs réels
+    _pdl_avec_calculs = set(df_comparison.select("pdl").to_series().to_list())
+
+    _montant_f15_filtre_calculs_reels = (
+        df_f15_variable_filtre
+        .filter(pl.col("pdl").is_in(list(_pdl_avec_calculs)))
+        .select(pl.col("turpe_variable_f15").sum())
+        .item()
+    )
+
     _montant_f15_prorata = df_comparison.select(pl.col("turpe_variable_f15_prorata").sum()).item()
     _montant_calcule_communs = df_comparison.select(pl.col("turpe_variable_calcule").sum()).item()
-    _impact_prorata = _total_f15_filtre - _montant_f15_prorata
+    _impact_prorata = _montant_f15_filtre_calculs_reels - _montant_f15_prorata
     _ecart_final = _montant_calcule_communs - _montant_f15_prorata
 
     print(f"\n📊 NIVEAU 3 - Impact transformations temporelles:")
-    print(f"   F15 filtré avant prorata: {_total_f15_filtre:,.2f} €")
+    print(f"   F15 filtré (PDL avec calculs): {_montant_f15_filtre_calculs_reels:,.2f} €")
     print(f"   F15 filtré après prorata: {_montant_f15_prorata:,.2f} €")
     print(f"   Impact prorata temporel: {-_impact_prorata:+,.2f} €")
-    print(f"   Calculé (PDL communs): {_montant_calcule_communs:,.2f} €")
+    print(f"   Calculé (PDL avec calculs): {_montant_calcule_communs:,.2f} €")
     print(f"   Écart final: {_ecart_final:+,.2f} € ({_ecart_final/_montant_f15_prorata*100:+.1f}%)")
 
-    # 4. Synthèse finale simplifiée
+    # 4. Synthèse finale simplifiée avec cohérence des montants
+    _ecart_calculs_reels = _montant_calcule_communs - _montant_f15_filtre_calculs_reels
+    _montant_pdl_sans_calculs = _total_f15_filtre - _montant_f15_filtre_calculs_reels
+
     print(f"\n🎯 SYNTHÈSE D'ATTRIBUTION:")
     print(f"   1. Écart brut initial: {_ecart_brut:+,.2f} €")
     print(f"   2. - PDL sans R151 exclus: {-_montant_pdl_exclus:+,.2f} €")
-    print(f"   3. = Écart sur périmètre comparable: {_ecart_apres_exclusion:+,.2f} €")
-    print(f"   4. - Impact prorata temporel: {-_impact_prorata:+,.2f} €")
-    print(f"   5. = Écart final ajusté: {_ecart_final:+,.2f} €")
+    print(f"   3. = Écart sur PDL avec R151: {_ecart_apres_exclusion:+,.2f} €")
+    print(f"   4. - PDL avec R151 mais sans calcul: {-_montant_pdl_sans_calculs:+,.2f} €")
+    print(f"   5. = Écart sur PDL avec calculs: {_ecart_calculs_reels:+,.2f} €")
+    print(f"   6. - Impact prorata temporel: {-_impact_prorata:+,.2f} €")
+    print(f"   7. = Écart final ajusté: {_ecart_final:+,.2f} €")
 
     _taux_explication = abs(_montant_pdl_exclus) / abs(_ecart_brut) * 100 if _ecart_brut != 0 else 0
     print(f"   📊 Taux d'explication par exclusion PDL sans R151: {_taux_explication:.1f}%")
