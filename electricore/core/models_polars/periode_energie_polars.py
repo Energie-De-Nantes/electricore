@@ -33,7 +33,6 @@ class PeriodeEnergiePolars(pa.DataFrameModel):
 
     # Flags de qualité des données
     data_complete: pl.Boolean = pa.Field(nullable=False)
-    periode_irreguliere: pl.Boolean = pa.Field(nullable=False)
 
     # Énergies par cadran (optionnelles selon le type de compteur)
     base_energie: Optional[pl.Float64] = pa.Field(nullable=True)

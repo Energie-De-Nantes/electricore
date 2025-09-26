@@ -823,5 +823,312 @@ def calculate_turpe_variable(df_historique, df_releves):
     return (df_turpe_variable_pdl,)
 
 
+@app.cell
+def _():
+    mo.md(r"""# Validation de l'hypothèse des périodes manquantes""")
+    return
+
+
+@app.cell
+def _():
+    mo.md(r"""## Analyse des périodes manquantes par PDL""")
+    return
+
+
+@app.cell(hide_code=True)
+def analyser_periodes_manquantes(df_periodes_energie, df_f15_variable):
+    """Analyse des périodes manquantes pour valider l'hypothèse des 3% d'écart"""
+
+    print("🔍 Analyse des périodes manquantes par PDL...")
+
+    # 1. Calculer les statistiques par PDL pour les périodes calculées
+    stats_calcules = (
+        df_periodes_energie
+        .group_by("pdl")
+        .agg([
+            pl.col("debut").min().alias("premiere_periode_calculee"),
+            pl.col("fin").max().alias("derniere_periode_calculee"),
+            pl.len().alias("nb_periodes_calculees"),
+            pl.col("turpe_variable").sum().alias("turpe_variable_total")
+        ])
+    )
+
+    # 2. Calculer les statistiques par PDL pour les périodes F15
+    stats_f15 = (
+        df_f15_variable
+        .group_by("pdl")
+        .agg([
+            pl.col("date_debut").min().alias("premiere_periode_f15"),
+            pl.col("date_fin").max().alias("derniere_periode_f15"),
+            pl.len().alias("nb_periodes_f15"),
+            pl.col("montant_ht").sum().alias("turpe_f15_total")
+        ])
+    )
+
+    # 3. Jointure pour comparer les deux sources
+    comparaison_periodes = (
+        stats_f15
+        .join(stats_calcules, on="pdl", how="inner")
+        .with_columns([
+            # Conversion en dates pour calculs
+            pl.col("premiere_periode_f15").str.to_date(),
+            pl.col("derniere_periode_f15").str.to_date(),
+            pl.col("premiere_periode_calculee").dt.date(),
+            pl.col("derniere_periode_calculee").dt.date()
+        ])
+        .with_columns([
+            # Calcul des jours de décalage en début/fin
+            (pl.col("premiere_periode_calculee") - pl.col("premiere_periode_f15")).dt.total_days().alias("decalage_debut_jours"),
+            (pl.col("derniere_periode_f15") - pl.col("derniere_periode_calculee")).dt.total_days().alias("decalage_fin_jours"),
+            # Ratio de périodes
+            (pl.col("nb_periodes_calculees") / pl.col("nb_periodes_f15") * 100).alias("taux_couverture_pct")
+        ])
+        .with_columns([
+            # Classification des PDL par taux de couverture
+            pl.when(pl.col("taux_couverture_pct") >= 95)
+            .then(pl.lit("Couverture complète (≥95%)"))
+            .when(pl.col("taux_couverture_pct") >= 80)
+            .then(pl.lit("Couverture élevée (80-94%)"))
+            .when(pl.col("taux_couverture_pct") >= 50)
+            .then(pl.lit("Couverture partielle (50-79%)"))
+            .otherwise(pl.lit("Couverture faible (<50%)"))
+            .alias("categorie_couverture")
+        ])
+    )
+
+    # 4. Statistiques globales
+    nb_pdl_total = len(comparaison_periodes)
+    stats_par_categorie = (
+        comparaison_periodes
+        .group_by("categorie_couverture")
+        .agg([
+            pl.len().alias("nb_pdl"),
+            pl.col("taux_couverture_pct").mean().alias("taux_moyen"),
+            pl.col("nb_periodes_calculees").sum().alias("periodes_calculees"),
+            pl.col("nb_periodes_f15").sum().alias("periodes_f15"),
+            pl.col("turpe_variable_total").sum().alias("montant_calcule"),
+            pl.col("turpe_f15_total").sum().alias("montant_f15")
+        ])
+        .with_columns([
+            (pl.col("nb_pdl") / nb_pdl_total * 100).alias("proportion_pdl_pct"),
+            (pl.col("montant_calcule") - pl.col("montant_f15")).alias("ecart_montant"),
+            ((pl.col("montant_calcule") - pl.col("montant_f15")) / pl.col("montant_f15") * 100).alias("ecart_pct")
+        ])
+        .sort("taux_moyen", descending=True)
+    )
+
+    print(f"\n📊 ANALYSE COUVERTURE TEMPORELLE:")
+    print(f"   Total PDL analysés: {nb_pdl_total}")
+
+    for _row in stats_par_categorie.iter_rows(named=True):
+        _cat = _row['categorie_couverture']
+        _nb_pdl = _row['nb_pdl']
+        _prop_pct = _row['proportion_pdl_pct']
+        _taux_moyen = _row['taux_moyen']
+        _ecart_pct = _row['ecart_pct']
+
+        print(f"   📋 {_cat}:")
+        print(f"      {_nb_pdl} PDL ({_prop_pct:.1f}%) - Couverture moyenne: {_taux_moyen:.1f}%")
+        print(f"      Écart TURPE: {_ecart_pct:+.1f}%")
+
+    return comparaison_periodes, stats_par_categorie
+
+
+@app.cell
+def _():
+    mo.md(r"""## Ajustement de la vérité F15 au périmètre calculé""")
+    return
+
+
+@app.cell(hide_code=True)
+def ajuster_verite_f15(df_f15_variable, comparaison_periodes):
+    """Ajuste les données F15 pour ne couvrir que les périodes calculées"""
+
+    print("🔧 Ajustement des données F15 au périmètre calculé...")
+
+    # Récupérer les bornes temporelles par PDL
+    bornes_pdl = (
+        comparaison_periodes
+        .select([
+            "pdl",
+            "premiere_periode_calculee",
+            "derniere_periode_calculee"
+        ])
+    )
+
+    # Joindre avec F15 et filtrer
+    df_f15_ajuste = (
+        df_f15_variable
+        .join(bornes_pdl, on="pdl", how="inner")
+        .with_columns([
+            pl.col("date_debut").str.to_date().alias("debut_f15"),
+            pl.col("date_fin").str.to_date().alias("fin_f15")
+        ])
+        .filter(
+            # Garder seulement les périodes F15 qui chevauchent avec nos calculs
+            (pl.col("debut_f15") <= pl.col("derniere_periode_calculee")) &
+            (pl.col("fin_f15") >= pl.col("premiere_periode_calculee"))
+        )
+    )
+
+    # Statistiques avant/après ajustement
+    montant_f15_original = df_f15_variable.select(pl.col("montant_ht").sum()).item()
+    montant_f15_ajuste = df_f15_ajuste.select(pl.col("montant_ht").sum()).item()
+    nb_lignes_original = len(df_f15_variable)
+    nb_lignes_ajuste = len(df_f15_ajuste)
+
+    reduction_montant = (montant_f15_original - montant_f15_ajuste) / montant_f15_original * 100
+    reduction_lignes = (nb_lignes_original - nb_lignes_ajuste) / nb_lignes_original * 100
+
+    print(f"\n📊 AJUSTEMENT F15:")
+    print(f"   Montant original: {montant_f15_original:,.2f} € ({nb_lignes_original:,} lignes)")
+    print(f"   Montant ajusté: {montant_f15_ajuste:,.2f} € ({nb_lignes_ajuste:,} lignes)")
+    print(f"   Réduction: -{reduction_montant:.1f}% montant, -{reduction_lignes:.1f}% lignes")
+
+    return df_f15_ajuste
+
+
+@app.cell
+def _():
+    mo.md(r"""## Validation de l'hypothèse""")
+    return
+
+
+@app.cell(hide_code=True)
+def valider_hypothese(df_turpe_variable_pdl, df_f15_ajuste, stats_par_categorie):
+    """Test de validation de l'hypothèse des périodes manquantes"""
+
+    print("🎯 VALIDATION DE L'HYPOTHÈSE DES PÉRIODES MANQUANTES")
+
+    # 1. Comparaison globale avec F15 ajusté
+    df_f15_ajuste_par_pdl = (
+        df_f15_ajuste
+        .group_by("pdl")
+        .agg([
+            pl.col("montant_ht").sum().alias("turpe_f15_ajuste")
+        ])
+    )
+
+    comparison_ajustee = (
+        df_turpe_variable_pdl
+        .join(df_f15_ajuste_par_pdl, on="pdl", how="inner")
+        .with_columns([
+            (pl.col("turpe_variable_total") - pl.col("turpe_f15_ajuste")).alias("ecart_absolu"),
+            ((pl.col("turpe_variable_total") - pl.col("turpe_f15_ajuste")) / pl.col("turpe_f15_ajuste") * 100).alias("ecart_pct")
+        ])
+    )
+
+    # Statistiques globales ajustées
+    _total_calcule = comparison_ajustee.select(pl.col("turpe_variable_total").sum()).item()
+    _total_f15_ajuste = comparison_ajustee.select(pl.col("turpe_f15_ajuste").sum()).item()
+    ecart_global_ajuste = _total_calcule - _total_f15_ajuste
+    ecart_pct_ajuste = ecart_global_ajuste / _total_f15_ajuste * 100
+
+    print(f"\n💰 COMPARAISON AJUSTÉE:")
+    print(f"   Calculé: {_total_calcule:,.2f} €")
+    print(f"   F15 ajusté: {_total_f15_ajuste:,.2f} €")
+    print(f"   Écart ajusté: {ecart_global_ajuste:+,.2f} € ({ecart_pct_ajuste:+.2f}%)")
+
+    # 2. Analyse de corrélation
+    correlation_data = (
+        stats_par_categorie
+        .select(["taux_moyen", "ecart_pct"])
+        .to_pandas()
+    )
+
+    if len(correlation_data) >= 2:
+        _correlation = correlation_data['taux_moyen'].corr(correlation_data['ecart_pct'])
+        print(f"\n📈 CORRÉLATION:")
+        print(f"   Taux de couverture vs Écart: {_correlation:.3f}")
+        if _correlation < -0.5:
+            print("   → Corrélation négative forte: plus de couverture = moins d'écart ✅")
+        elif _correlation < -0.3:
+            print("   → Corrélation négative modérée: hypothèse partiellement validée ⚠️")
+        else:
+            print("   → Pas de corrélation significative: hypothèse non validée ❌")
+
+    # 3. Conclusion
+    print(f"\n🏆 CONCLUSION:")
+    if abs(ecart_pct_ajuste) < 1.0:
+        print("   ✅ HYPOTHÈSE VALIDÉE: L'ajustement temporel ramène l'écart à <1%")
+        print("   Les périodes manquantes expliquent bien l'écart de 3%")
+    elif abs(ecart_pct_ajuste) < 2.0:
+        print("   ⚠️ HYPOTHÈSE PARTIELLEMENT VALIDÉE: Écart réduit mais résiduel")
+        print("   Les périodes manquantes expliquent en partie l'écart")
+    else:
+        print("   ❌ HYPOTHÈSE NON VALIDÉE: Écart résiduel important")
+        print("   D'autres facteurs que les périodes manquantes sont en jeu")
+
+    return comparison_ajustee, ecart_pct_ajuste
+
+
+@app.cell
+def _():
+    mo.md(r"""## Rapport synthèse""")
+    return
+
+
+@app.cell(hide_code=True)
+def rapport_synthese(stats_par_categorie, ecart_pct_ajuste):
+    """Génère un rapport de synthèse de la validation"""
+
+    # Calcul des statistiques clés
+    pdl_couverture_complete = stats_par_categorie.filter(
+        pl.col("categorie_couverture") == "Couverture complète (≥95%)"
+    ).select(pl.col("nb_pdl").sum()).item() or 0
+
+    pdl_total = stats_par_categorie.select(pl.col("nb_pdl").sum()).item()
+
+    proportion_complete = (pdl_couverture_complete / pdl_total * 100) if pdl_total > 0 else 0
+
+    # Classification du résultat
+    if abs(ecart_pct_ajuste) < 1.0:
+        resultat = "✅ VALIDÉE"
+        recommandation = "Les périodes manquantes expliquent l'écart. Continuer le calcul normal."
+    elif abs(ecart_pct_ajuste) < 2.0:
+        resultat = "⚠️ PARTIELLEMENT VALIDÉE"
+        recommandation = "Les périodes manquantes sont un facteur important. Investiguer autres causes."
+    else:
+        resultat = "❌ NON VALIDÉE"
+        recommandation = "Chercher d'autres sources d'écart que les périodes manquantes."
+
+    rapport = f"""
+## 🎯 VALIDATION DE L'HYPOTHÈSE DES 3% D'ÉCART
+
+### Résultat: {resultat}
+
+**Hypothèse testée:** Les 3% d'écart restants s'expliquent par l'absence de calcul
+des premières périodes énergie des PDL (R151 non configuré initialement).
+
+### Métriques clés:
+- **{pdl_total}** PDL analysés
+- **{proportion_complete:.1f}%** avec couverture complète (≥95%)
+- **Écart après ajustement:** {ecart_pct_ajuste:+.2f}%
+
+### Distribution des PDL:
+"""
+
+    for _row in stats_par_categorie.iter_rows(named=True):
+        _cat = _row['categorie_couverture']
+        _nb = _row['nb_pdl']
+        _prop = _row['proportion_pdl_pct']
+        _ecart = _row['ecart_pct']
+        rapport += f"- {_cat}: **{_nb}** PDL ({_prop:.1f}%) - Écart: {_ecart:+.1f}%\n"
+
+    rapport += f"""
+### 💡 Recommandation:
+{recommandation}
+
+### 📊 Méthode:
+1. Analysé la couverture temporelle par PDL (calculé vs F15)
+2. Ajusté la vérité F15 au périmètre temporel de nos calculs
+3. Recalculé l'écart sur ce périmètre restreint
+4. Testé la corrélation couverture/écart
+"""
+
+    mo.md(rapport)
+    return
+
+
 if __name__ == "__main__":
     app.run()
