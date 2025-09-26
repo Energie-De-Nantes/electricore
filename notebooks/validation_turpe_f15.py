@@ -858,8 +858,8 @@ def analyser_periodes_manquantes(df_periodes_energie, df_f15_variable):
         df_f15_variable
         .group_by("pdl")
         .agg([
-            pl.col("date_debut").min().alias("premiere_periode_f15"),
-            pl.col("date_fin").max().alias("derniere_periode_f15"),
+            pl.col("date_debut").str.to_date().min().alias("premiere_periode_f15"),
+            pl.col("date_fin").str.to_date().max().alias("derniere_periode_f15"),
             pl.len().alias("nb_periodes_f15"),
             pl.col("montant_ht").sum().alias("turpe_f15_total")
         ])
@@ -870,18 +870,17 @@ def analyser_periodes_manquantes(df_periodes_energie, df_f15_variable):
         stats_f15
         .join(stats_calcules, on="pdl", how="inner")
         .with_columns([
-            # Conversion en dates pour calculs
-            pl.col("premiere_periode_f15").str.to_date(),
-            pl.col("derniere_periode_f15").str.to_date(),
+            # Normaliser toutes les dates en type date
             pl.col("premiere_periode_calculee").dt.date(),
             pl.col("derniere_periode_calculee").dt.date()
+            # premiere_periode_f15 et derniere_periode_f15 sont déjà en type date après l'agrégation
         ])
         .with_columns([
             # Calcul des jours de décalage en début/fin
             (pl.col("premiere_periode_calculee") - pl.col("premiere_periode_f15")).dt.total_days().alias("decalage_debut_jours"),
             (pl.col("derniere_periode_f15") - pl.col("derniere_periode_calculee")).dt.total_days().alias("decalage_fin_jours"),
-            # Ratio de périodes
-            (pl.col("nb_periodes_calculees") / pl.col("nb_periodes_f15") * 100).alias("taux_couverture_pct")
+            # Ratio de périodes (cast en float pour éviter erreurs de division)
+            (pl.col("nb_periodes_calculees").cast(pl.Float64) / pl.col("nb_periodes_f15").cast(pl.Float64) * 100).alias("taux_couverture_pct")
         ])
         .with_columns([
             # Classification des PDL par taux de couverture
