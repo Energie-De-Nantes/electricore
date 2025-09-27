@@ -1,1 +1,0 @@
-# Tests de comparaison temporaires pandas vs Polars
