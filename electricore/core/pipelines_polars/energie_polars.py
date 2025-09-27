@@ -425,8 +425,9 @@ def interroger_releves_polars(requete: pl.LazyFrame, releves: pl.LazyFrame) -> p
     return (
         requete
         .sort(["pdl", "date_releve"])
+        .set_sorted("pdl")
         .join_asof(
-            releves.sort(["pdl", "date_releve"]),
+            releves.sort(["pdl", "date_releve"]).set_sorted("pdl"),
             on="date_releve",
             by="pdl",
             strategy="nearest",
@@ -500,10 +501,12 @@ def reconstituer_chronologie_releves_polars(evenements: pl.LazyFrame, releves: p
         ])
         # Appliquer priorité des sources (flux_C15 < flux_R151 alphabétiquement)
         .sort(["pdl", "date_releve", "source"])
+        .set_sorted("pdl")
         # Déduplication par contrat, gardant la première occurrence (priorité alphabétique)
         .unique(subset=["ref_situation_contractuelle", "date_releve", "ordre_index"], keep="first")
         # Tri final chronologique
         .sort(["pdl", "date_releve", "ordre_index"])
+        .set_sorted("pdl")
     )
 
 
