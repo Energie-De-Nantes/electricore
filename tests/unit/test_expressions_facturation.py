@@ -10,7 +10,7 @@ import pytest
 from datetime import datetime
 import polars.testing as pl_testing
 
-from electricore.core.pipelines_polars.facturation_polars import (
+from electricore.core.pipelines.facturation import (
     expr_puissance_moyenne,
     expr_memo_puissance_simple,
     expr_coverage_temporelle,

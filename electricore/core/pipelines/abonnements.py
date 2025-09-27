@@ -262,7 +262,7 @@ def pipeline_abonnements(historique: pl.LazyFrame) -> pl.LazyFrame:
         >>> abonnements = pipeline_abonnements(historique_enrichi)
         >>> df = abonnements.collect()
     """
-    from .turpe_polars import ajouter_turpe_fixe
+    from .turpe import ajouter_turpe_fixe
 
     return (
         historique

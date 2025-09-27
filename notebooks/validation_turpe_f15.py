@@ -22,20 +22,20 @@ with app.setup:
     from electricore.core.loaders.duckdb_loader import f15, c15, r151, execute_custom_query
 
     # Imports des pipelines Polars
-    from electricore.core.pipelines_polars.energie_polars import (
-        pipeline_energie_polars,
-        calculer_periodes_energie_polars
+    from electricore.core.pipelines.energie import (
+        pipeline_energie,
+        calculer_periodes_energie
     )
-    from electricore.core.pipelines_polars.abonnements_polars import (
+    from electricore.core.pipelines.abonnements import (
         pipeline_abonnements,
         calculer_periodes_abonnement
     )
-    from electricore.core.pipelines_polars.turpe_polars import (
-        load_turpe_rules_polars,
+    from electricore.core.pipelines.turpe import (
+        load_turpe_rules,
         ajouter_turpe_fixe,
         ajouter_turpe_variable
     )
-    from electricore.core.pipelines_polars.perimetre_polars import (
+    from electricore.core.pipelines.perimetre import (
         detecter_points_de_rupture,
         inserer_evenements_facturation
     )
@@ -386,7 +386,7 @@ def load_pipeline_data():
 
     # Charger les règles TURPE
     print("📄 Chargement règles TURPE...")
-    lf_regles_turpe = load_turpe_rules_polars()
+    lf_regles_turpe = load_turpe_rules()
     df_regles_turpe = lf_regles_turpe.collect()
 
     _load_time_pipeline = time.time() - _start_time_pipeline
@@ -796,7 +796,7 @@ def calculate_turpe_variable(df_historique, df_releves):
     _start_time_variable = time.time()
 
     # Pipeline énergie complet (inclut chronologie + calcul + TURPE variable)
-    lf_periodes_energie = pipeline_energie_polars(
+    lf_periodes_energie = pipeline_energie(
         pl.LazyFrame(df_historique),
         pl.LazyFrame(df_releves)
     )

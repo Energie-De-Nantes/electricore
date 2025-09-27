@@ -1,9 +1,14 @@
 """
-Modèles de données centralisés pour ElectriCore.
+Modèles Pandera pour Polars DataFrames.
 
-⚠️  Les modèles pandas ont été supprimés.
-Utilisez les modèles Polars dans electricore.core.models_polars
+Ces modèles sont adaptés pour fonctionner avec Polars et remplacent 
+progressivement les modèles pandas existants.
 """
 
-# Plus de modèles pandas - tous migrés vers models_polars
-__all__ = []
+from .releve_index import RelevéIndexPolars
+from .historique_perimetre import HistoriquePérimètrePolars
+
+__all__ = [
+    "RelevéIndexPolars", 
+    "HistoriquePérimètrePolars"
+]

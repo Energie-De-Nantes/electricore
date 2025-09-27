@@ -18,7 +18,7 @@ from typing import List, Optional
 # CHARGEMENT DES RÈGLES TURPE
 # =============================================================================
 
-def load_turpe_rules_polars() -> pl.LazyFrame:
+def load_turpe_rules() -> pl.LazyFrame:
     """
     Charge les règles tarifaires TURPE depuis le fichier CSV.
 
@@ -26,7 +26,7 @@ def load_turpe_rules_polars() -> pl.LazyFrame:
         LazyFrame Polars contenant toutes les règles TURPE avec types correctement définis
 
     Example:
-        >>> regles = load_turpe_rules_polars()
+        >>> regles = load_turpe_rules()
         >>> regles.collect()
     """
     file_path = Path(__file__).parent.parent.parent / "config" / "turpe_rules.csv"
@@ -218,7 +218,7 @@ def expr_filtrer_regles_temporelles() -> pl.Expr:
     )
 
 
-def valider_regles_presentes_polars(lf: pl.LazyFrame) -> pl.LazyFrame:
+def valider_regles_presentes(lf: pl.LazyFrame) -> pl.LazyFrame:
     """
     Valide que toutes les FTA ont des règles TURPE correspondantes.
 
@@ -232,7 +232,7 @@ def valider_regles_presentes_polars(lf: pl.LazyFrame) -> pl.LazyFrame:
         ValueError: Si des FTA n'ont pas de règles TURPE correspondantes
 
     Example:
-        >>> df_valide = valider_regles_presentes_polars(df_joint)
+        >>> df_valide = valider_regles_presentes(df_joint)
     """
     # Vérifier s'il y a des règles manquantes
     fta_manquantes = (
@@ -276,7 +276,7 @@ def ajouter_turpe_fixe(
         >>> df = periodes_avec_turpe.collect()
     """
     if regles is None:
-        regles = load_turpe_rules_polars()
+        regles = load_turpe_rules()
 
     return (
         periodes
@@ -289,7 +289,7 @@ def ajouter_turpe_fixe(
         )
 
         # Validation des règles présentes
-        .pipe(valider_regles_presentes_polars)
+        .pipe(valider_regles_presentes)
 
         # Filtrage temporel des règles applicables
         .filter(expr_filtrer_regles_temporelles())
@@ -331,7 +331,7 @@ def ajouter_turpe_variable(
         >>> df = periodes_avec_turpe.collect()
     """
     if regles is None:
-        regles = load_turpe_rules_polars()
+        regles = load_turpe_rules()
 
     # Récupérer la liste des colonnes originales
     colonnes_originales = periodes.collect_schema().names()
@@ -349,7 +349,7 @@ def ajouter_turpe_variable(
         )
 
         # Validation des règles présentes
-        .pipe(valider_regles_presentes_polars)
+        .pipe(valider_regles_presentes)
 
         # Filtrage temporel des règles applicables
         .filter(expr_filtrer_regles_temporelles())
@@ -406,7 +406,7 @@ def debug_turpe_variable(lf: pl.LazyFrame) -> pl.LazyFrame:
     return lf.with_columns(debug_expressions)
 
 
-def comparer_avec_pandas(lf_polars: pl.LazyFrame, df_pandas) -> dict:
+def comparer_avec_pandas(lf: pl.LazyFrame, df_pandas) -> dict:
     """
     Compare les résultats Polars avec pandas pour la validation de migration.
 
@@ -414,25 +414,25 @@ def comparer_avec_pandas(lf_polars: pl.LazyFrame, df_pandas) -> dict:
     les mêmes résultats que l'implémentation pandas existante.
 
     Args:
-        lf_polars: LazyFrame Polars avec résultats
+        lf: LazyFrame Polars avec résultats
         df_pandas: DataFrame pandas avec résultats de référence
 
     Returns:
         Dictionnaire avec statistiques de comparaison
 
     Example:
-        >>> stats = comparer_avec_pandas(lf_polars, df_pandas)
+        >>> stats = comparer_avec_pandas(lf, df_pandas)
         >>> print(f"Différence moyenne TURPE: {stats['turpe_variable_diff_moyenne']}")
     """
-    df_polars = lf_polars.collect().to_pandas()
+    df = lf.collect().to_pandas()
 
     # Comparer les colonnes communes
-    colonnes_communes = set(df_polars.columns) & set(df_pandas.columns)
+    colonnes_communes = set(df.columns) & set(df_pandas.columns)
 
     stats = {}
     for col in colonnes_communes:
-        if df_polars[col].dtype in ['float64', 'int64'] and df_pandas[col].dtype in ['float64', 'int64']:
-            diff = abs(df_polars[col] - df_pandas[col])
+        if df[col].dtype in ['float64', 'int64'] and df_pandas[col].dtype in ['float64', 'int64']:
+            diff = abs(df[col] - df_pandas[col])
             stats[f"{col}_diff_max"] = diff.max()
             stats[f"{col}_diff_moyenne"] = diff.mean()
 

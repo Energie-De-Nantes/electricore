@@ -24,11 +24,11 @@ with app.setup:
     )
 
     # Import des pipelines Polars
-    from electricore.core.pipelines_polars.abonnements_polars import (
-        pipeline_abonnements as pipeline_polars,
-        generer_periodes_abonnement as generer_periodes_polars
+    from electricore.core.pipelines.abonnements import (
+        pipeline_abonnements as pipeline,
+        generer_periodes_abonnement as generer_periodes
     )
-    from electricore.core.pipelines_polars.perimetre_polars import detecter_points_de_rupture, inserer_evenements_facturation
+    from electricore.core.pipelines.perimetre import detecter_points_de_rupture, inserer_evenements_facturation
 
     # Import des loaders DuckDB
     from electricore.core.loaders.duckdb_loader import c15
@@ -53,15 +53,15 @@ def load_data():
 
     # Essayer de charger depuis DuckDB avec le loader c15
     print("📄 Tentative de chargement depuis DuckDB...")
-    lf_polars = c15().lazy()
+    lf = c15().lazy()
 
     # Enrichir avec le pipeline périmètre pour avoir les colonnes d'impact
-    lf_polars = inserer_evenements_facturation(detecter_points_de_rupture(lf_polars))
-    df_polars_raw = lf_polars.collect()
+    lf = inserer_evenements_facturation(detecter_points_de_rupture(lf))
+    df_raw = lf.collect()
 
-    if len(df_polars_raw) > 0:
+    if len(df_raw) > 0:
         # Conversion pour pandas avec mapping colonnes
-        df_pandas = df_polars_raw.to_pandas()
+        df_pandas = df_raw.to_pandas()
 
         # Mapping snake_case → majuscules pour pandas
         column_mapping = {
@@ -88,12 +88,12 @@ def load_data():
 
         df_pandas = df_pandas.rename(columns=column_mapping)
         print(f"✅ {len(df_pandas)} lignes chargées depuis DuckDB")
-    return df_pandas, df_polars_raw, lf_polars
+    return df_pandas, df_raw, lf
 
 
 @app.cell
-def _(df_polars_raw):
-    df_polars_raw
+def _(df_raw):
+    df_raw
     return
 
 
@@ -138,28 +138,28 @@ def pipeline_pandas_abonnements(colonnes_interessantes, df_pandas):
 
 
 @app.cell(hide_code=True)
-def pipeline_polars_abonnements(colonnes_interessantes, lf_polars):
+def pipeline_abonnements(colonnes_interessantes, lf):
     """Exécuter le pipeline Polars pour les abonnements"""
 
     print("⚡ Exécution du pipeline POLARS abonnements...")
 
     # Générer les périodes d'abonnement avec Polars
-    periodes_polars_lf = generer_periodes_polars(lf_polars)
-    periodes_polars_collect = periodes_polars_lf.collect()
+    periodes_lf = generer_periodes(lf)
+    periodes_collect = periodes_lf.collect()
 
-    print(f"✅ {len(periodes_polars_collect)} périodes générées")
+    print(f"✅ {len(periodes_collect)} périodes générées")
 
     _snake_cols = [col.lower() for col in colonnes_interessantes]
     print(_snake_cols)
-    if all(col in periodes_polars_collect.columns for col in _snake_cols):
-        _display_periodes = periodes_polars_collect.select(_snake_cols).head(5)
+    if all(col in periodes_collect.columns for col in _snake_cols):
+        _display_periodes = periodes_collect.select(_snake_cols).head(5)
         print("\n📋 Exemple de périodes (5 premières):")
         print(_display_periodes)
-    return (periodes_polars_lf,)
+    return (periodes_lf,)
 
 
 @app.cell
-def benchmark_performance(df_pandas, lf_polars):
+def benchmark_performance(df_pandas, lf):
     """Évaluer les performances des deux approches"""
 
     print("⏱️ BENCHMARK DES PERFORMANCES :")
@@ -175,14 +175,14 @@ def benchmark_performance(df_pandas, lf_polars):
     # Benchmark Polars
     start = time.perf_counter()
     for _ in range(iterations):
-        _ = generer_periodes_polars(lf_polars).collect()
-    temps_polars = (time.perf_counter() - start) / iterations
+        _ = generer_periodes(lf).collect()
+    temps = (time.perf_counter() - start) / iterations
 
     # Résultats
-    acceleration = temps_pandas / temps_polars if temps_polars > 0 else 0
+    acceleration = temps_pandas / temps if temps > 0 else 0
 
     print(f"🐼 Pandas  : {temps_pandas*1000:.1f}ms")
-    print(f"⚡ Polars  : {temps_polars*1000:.1f}ms")
+    print(f"⚡ Polars  : {temps*1000:.1f}ms")
     print(f"🚀 Accélération : {acceleration:.1f}x")
 
     if acceleration > 1:
@@ -192,50 +192,50 @@ def benchmark_performance(df_pandas, lf_polars):
     else:
         print("🟰 Performances équivalentes")
 
-    benchmark_results = {"pandas_ms": temps_pandas*1000, "polars_ms": temps_polars*1000, "speedup": acceleration}
+    benchmark_results = {"pandas_ms": temps_pandas*1000, "polars_ms": temps*1000, "speedup": acceleration}
     return
 
 
 @app.cell
-def comparaison_periodes(periodes_pandas, periodes_polars_lf):
+def comparaison_periodes(periodes_pandas, periodes_lf):
     """Comparer les résultats des deux pipelines"""
 
     # Collecter le résultat Polars
-    periodes_polars = periodes_polars_lf.collect()
+    periodes = periodes_lf.collect()
 
     print("\n🔍 COMPARAISON DES PÉRIODES GÉNÉRÉES :")
     print("=" * 50)
 
     # Comparer le nombre de périodes
     nb_pandas = len(periodes_pandas)
-    nb_polars = len(periodes_polars)
+    nb = len(periodes)
 
     print(f"📊 Nombre de périodes :")
     print(f"- Pandas : {nb_pandas}")
-    print(f"- Polars : {nb_polars}")
+    print(f"- Polars : {nb}")
 
-    if nb_pandas == nb_polars:
+    if nb_pandas == nb:
         print("✅ Même nombre de périodes générées")
     else:
         print("❌ Nombre de périodes différent")
 
     # Statistiques des périodes Polars
-    if nb_polars > 0:
-        stats_polars = periodes_polars.select([
+    if nb > 0:
+        stats = periodes.select([
             pl.col("nb_jours").sum().alias("total_jours"),
             pl.col("nb_jours").mean().alias("jours_moyen"),
             pl.col("puissance_souscrite").mean().alias("puissance_moyenne"),
         ]).to_dicts()[0]
 
         print(f"\n📈 Statistiques des périodes (Polars) :")
-        print(f"- Total jours    : {stats_polars['total_jours']}")
-        print(f"- Durée moyenne  : {stats_polars['jours_moyen']:.1f} jours")
-        print(f"- Puissance moy. : {stats_polars['puissance_moyenne']:.1f} kVA")
+        print(f"- Total jours    : {stats['total_jours']}")
+        print(f"- Durée moyenne  : {stats['jours_moyen']:.1f} jours")
+        print(f"- Puissance moy. : {stats['puissance_moyenne']:.1f} kVA")
 
     # Répartition par FTA
-    if nb_polars > 0:
+    if nb > 0:
         fta_stats = (
-            periodes_polars
+            periodes
             .group_by("formule_tarifaire_acheminement")
             .agg(pl.len().alias("count"))
             .sort("count", descending=True)
@@ -245,7 +245,7 @@ def comparaison_periodes(periodes_pandas, periodes_polars_lf):
         for row in fta_stats.iter_rows(named=True):
             print(f"- {row['formule_tarifaire_acheminement']}: {row['count']} périodes")
 
-    nb_pandas == nb_polars
+    nb_pandas == nb
     return
 
 
@@ -282,21 +282,21 @@ def turpe_pandas(periodes_pandas):
 
 
 @app.cell(hide_code=True)
-def turpe_polars(periodes_polars_lf):
+def turpe(periodes_lf):
     """Appliquer le calcul TURPE avec Polars"""
 
     print("⚡ Calcul TURPE avec POLARS...")
 
     try:
         # Appliquer le TURPE avec Polars
-        from electricore.core.pipelines_polars.turpe_polars import ajouter_turpe_fixe as ajouter_turpe_fixe_polars
+        from electricore.core.pipelines.turpe import ajouter_turpe_fixe as ajouter_turpe_fixe
 
-        periodes_avec_turpe_polars_lf = ajouter_turpe_fixe_polars(periodes_polars_lf)
-        periodes_avec_turpe_polars = periodes_avec_turpe_polars_lf.collect()
+        periodes_avec_turpe_lf = ajouter_turpe_fixe(periodes_lf)
+        periodes_avec_turpe = periodes_avec_turpe_lf.collect()
 
-        if "turpe_fixe" in periodes_avec_turpe_polars.columns:
+        if "turpe_fixe" in periodes_avec_turpe.columns:
             stats_turpe = (
-                periodes_avec_turpe_polars
+                periodes_avec_turpe
                 .select([
                     pl.col("turpe_fixe").sum().alias("total"),
                     pl.col("turpe_fixe").mean().alias("moyen"),
@@ -304,29 +304,29 @@ def turpe_polars(periodes_polars_lf):
                 .to_dicts()[0]
             )
 
-            total_turpe_polars = stats_turpe["total"]
-            turpe_moyen_polars = stats_turpe["moyen"]
+            total_turpe = stats_turpe["total"]
+            turpe_moyen = stats_turpe["moyen"]
 
-            print(f"✅ TURPE calculé pour {len(periodes_avec_turpe_polars)} périodes")
-            print(f"💰 Total TURPE : {total_turpe_polars:.2f}€")
-            print(f"📊 TURPE moyen : {turpe_moyen_polars:.2f}€")
+            print(f"✅ TURPE calculé pour {len(periodes_avec_turpe)} périodes")
+            print(f"💰 Total TURPE : {total_turpe:.2f}€")
+            print(f"📊 TURPE moyen : {turpe_moyen:.2f}€")
         else:
             print("⚠️ Colonne turpe_fixe non trouvée")
-            total_turpe_polars = turpe_moyen_polars = 0
+            total_turpe = turpe_moyen = 0
 
     except Exception as e:
         print(f"❌ Erreur TURPE Polars: {e}")
-        periodes_avec_turpe_polars = periodes_polars_lf.collect()
-        total_turpe_polars = turpe_moyen_polars = 0
-    return total_turpe_polars, turpe_moyen_polars
+        periodes_avec_turpe = periodes_lf.collect()
+        total_turpe = turpe_moyen = 0
+    return total_turpe, turpe_moyen
 
 
 @app.cell
 def comparaison_turpe(
     total_turpe_pandas,
-    total_turpe_polars,
+    total_turpe,
     turpe_moyen_pandas,
-    turpe_moyen_polars,
+    turpe_moyen,
 ):
     """Comparer les résultats TURPE"""
 
@@ -335,25 +335,25 @@ def comparaison_turpe(
 
     print(f"📊 TURPE Total :")
     print(f"- Pandas : {total_turpe_pandas:.2f}€")
-    print(f"- Polars : {total_turpe_polars:.2f}€")
+    print(f"- Polars : {total_turpe:.2f}€")
 
-    if abs(total_turpe_pandas - total_turpe_polars) < 0.01:
+    if abs(total_turpe_pandas - total_turpe) < 0.01:
         print("✅ Montants totaux identiques")
     else:
-        diff = abs(total_turpe_pandas - total_turpe_polars)
+        diff = abs(total_turpe_pandas - total_turpe)
         print(f"❌ Différence : {diff:.2f}€")
 
     print(f"\n📈 TURPE Moyen :")
     print(f"- Pandas : {turpe_moyen_pandas:.2f}€")
-    print(f"- Polars : {turpe_moyen_polars:.2f}€")
+    print(f"- Polars : {turpe_moyen:.2f}€")
 
-    if abs(turpe_moyen_pandas - turpe_moyen_polars) < 0.01:
+    if abs(turpe_moyen_pandas - turpe_moyen) < 0.01:
         print("✅ Montants moyens identiques")
     else:
-        diff = abs(turpe_moyen_pandas - turpe_moyen_polars)
+        diff = abs(turpe_moyen_pandas - turpe_moyen)
         print(f"❌ Différence : {diff:.2f}€")
 
-    turpe_equivalent = abs(total_turpe_pandas - total_turpe_polars) < 0.01
+    turpe_equivalent = abs(total_turpe_pandas - total_turpe) < 0.01
     return
 
 

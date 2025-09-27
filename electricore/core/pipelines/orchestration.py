@@ -5,17 +5,17 @@ Fournit des fonctions d'orchestration qui composent les pipelines purs Polars
 et retournent des ResultatFacturationPolars immutables.
 
 Ce module centralise l'orchestration de tous les pipelines Polars, garantissant
-que pipeline_perimetre_polars n'est appelé qu'une seule fois et que les résultats
+que pipeline_perimetre n'est appelé qu'une seule fois et que les résultats
 intermédiaires sont accessibles via le container ResultatFacturationPolars.
 """
 
 from typing import NamedTuple, Optional
 import polars as pl
 
-from electricore.core.pipelines_polars.perimetre_polars import pipeline_perimetre_polars
-from electricore.core.pipelines_polars.abonnements_polars import pipeline_abonnements
-from electricore.core.pipelines_polars.energie_polars import pipeline_energie_polars
-from electricore.core.pipelines_polars.facturation_polars import pipeline_facturation_polars
+from electricore.core.pipelines.perimetre import pipeline_perimetre
+from electricore.core.pipelines.abonnements import pipeline_abonnements
+from electricore.core.pipelines.energie import pipeline_energie
+from electricore.core.pipelines.facturation import pipeline_facturation
 
 
 class ResultatFacturationPolars(NamedTuple):
@@ -34,7 +34,7 @@ class ResultatFacturationPolars(NamedTuple):
 
     Examples:
         # Accès par attributs
-        result = facturation_polars(historique_lf, releves_lf)
+        result = facturation(historique_lf, releves_lf)
         abonnements_lf = result.abonnements
 
         # Unpacking complet
@@ -50,7 +50,7 @@ class ResultatFacturationPolars(NamedTuple):
     facturation: Optional[pl.DataFrame] = None  # Collecté pour l'agrégation finale
 
 
-def calculer_historique_enrichi_polars(
+def calculer_historique_enrichi(
     historique: pl.LazyFrame,
     date_limite: pl.Expr | None = None
 ) -> ResultatFacturationPolars:
@@ -68,18 +68,18 @@ def calculer_historique_enrichi_polars(
     Returns:
         ResultatFacturationPolars avec historique_enrichi seulement
     """
-    historique_enrichi = pipeline_perimetre_polars(historique, date_limite=date_limite)
+    historique_enrichi = pipeline_perimetre(historique, date_limite=date_limite)
     return ResultatFacturationPolars(historique_enrichi=historique_enrichi)
 
 
-def calculer_abonnements_polars(
+def calculer_abonnements(
     historique: pl.LazyFrame,
     date_limite: pl.Expr | None = None
 ) -> ResultatFacturationPolars:
     """
     Calcule les abonnements avec leur contexte (historique enrichi) - Version Polars.
 
-    Orchestre pipeline_perimetre_polars + pipeline_abonnements pour obtenir
+    Orchestre pipeline_perimetre + pipeline_abonnements pour obtenir
     les périodes d'abonnement avec TURPE fixe.
 
     Args:
@@ -90,7 +90,7 @@ def calculer_abonnements_polars(
     Returns:
         ResultatFacturationPolars avec historique_enrichi + abonnements
     """
-    historique_enrichi = pipeline_perimetre_polars(historique, date_limite=date_limite)
+    historique_enrichi = pipeline_perimetre(historique, date_limite=date_limite)
     abonnements = pipeline_abonnements(historique_enrichi)
 
     return ResultatFacturationPolars(
@@ -99,7 +99,7 @@ def calculer_abonnements_polars(
     )
 
 
-def calculer_energie_polars(
+def calculer_energie(
     historique: pl.LazyFrame,
     releves: pl.LazyFrame,
     date_limite: pl.Expr | None = None
@@ -107,7 +107,7 @@ def calculer_energie_polars(
     """
     Calcule l'énergie avec son contexte (historique enrichi) - Version Polars.
 
-    Orchestre pipeline_perimetre_polars + pipeline_energie_polars pour obtenir
+    Orchestre pipeline_perimetre + pipeline_energie pour obtenir
     les périodes d'énergie avec TURPE variable.
 
     Args:
@@ -119,8 +119,8 @@ def calculer_energie_polars(
     Returns:
         ResultatFacturationPolars avec historique_enrichi + energie
     """
-    historique_enrichi = pipeline_perimetre_polars(historique, date_limite=date_limite)
-    energie = pipeline_energie_polars(historique_enrichi, releves)
+    historique_enrichi = pipeline_perimetre(historique, date_limite=date_limite)
+    energie = pipeline_energie(historique_enrichi, releves)
 
     return ResultatFacturationPolars(
         historique_enrichi=historique_enrichi,
@@ -128,7 +128,7 @@ def calculer_energie_polars(
     )
 
 
-def facturation_polars(
+def facturation(
     historique: pl.LazyFrame,
     releves: pl.LazyFrame,
     date_limite: pl.Expr | None = None
@@ -136,7 +136,7 @@ def facturation_polars(
     """
     Pipeline complet de facturation avec méta-périodes mensuelles - Version Polars.
 
-    Orchestre toute la chaîne de traitement en appelant pipeline_perimetre_polars
+    Orchestre toute la chaîne de traitement en appelant pipeline_perimetre
     une seule fois puis en composant tous les autres pipelines :
     1. Détection des points de rupture et événements de facturation
     2. Génération des périodes d'abonnement avec TURPE fixe
@@ -155,7 +155,7 @@ def facturation_polars(
 
     Examples:
         # Usage complet
-        result = facturation_polars(historique_lf, releves_lf)
+        result = facturation(historique_lf, releves_lf)
 
         # Accès à la facturation mensuelle (déjà collectée)
         factures_mensuelles = result.facturation
@@ -170,15 +170,15 @@ def facturation_polars(
         # Unpacking
         hist, abo, ener, fact = result
     """
-    # Une seule fois pipeline_perimetre_polars - évite la duplication
-    historique_enrichi = pipeline_perimetre_polars(historique, date_limite=date_limite)
+    # Une seule fois pipeline_perimetre - évite la duplication
+    historique_enrichi = pipeline_perimetre(historique, date_limite=date_limite)
 
     # Calculs en parallèle possibles (même historique enrichi)
     abonnements = pipeline_abonnements(historique_enrichi)
-    energie = pipeline_energie_polars(historique_enrichi, releves)
+    energie = pipeline_energie(historique_enrichi, releves)
 
     # Agrégation finale - nécessite la collecte pour l'agrégation
-    facturation_mensuelle = pipeline_facturation_polars(abonnements, energie)
+    facturation_mensuelle = pipeline_facturation(abonnements, energie)
 
     return ResultatFacturationPolars(
         historique_enrichi=historique_enrichi,
@@ -191,8 +191,8 @@ def facturation_polars(
 # Export des fonctions principales
 __all__ = [
     'ResultatFacturationPolars',
-    'calculer_historique_enrichi_polars',
-    'calculer_abonnements_polars',
-    'calculer_energie_polars',
-    'facturation_polars'
+    'calculer_historique_enrichi',
+    'calculer_abonnements',
+    'calculer_energie',
+    'facturation'
 ]

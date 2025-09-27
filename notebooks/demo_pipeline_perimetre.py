@@ -19,9 +19,9 @@ with app.setup:
         detecter_points_de_rupture as detecter_pandas,
         inserer_evenements_facturation as inserer_evenements_factu_pandas
     )
-    from electricore.core.pipelines_polars.perimetre_polars import (
-        detecter_points_de_rupture as detecter_polars,
-        inserer_evenements_facturation as inserer_evenements_factu_polars
+    from electricore.core.pipelines.perimetre import (
+        detecter_points_de_rupture as detecter,
+        inserer_evenements_facturation as inserer_evenements_factu
     )
     # Import des loaders DuckDB
     from electricore.core.loaders.duckdb_loader import c15
@@ -95,8 +95,8 @@ def load_data(demo_data):
     try:
         # Essayer de charger depuis DuckDB avec le loader c15
         print("📄 Chargement depuis DuckDB...")
-        lf_polars = c15().limit(10000).lazy()  # Limiter pour la démo
-        df_pandas = lf_polars.collect().to_pandas()
+        lf = c15().limit(10000).lazy()  # Limiter pour la démo
+        df_pandas = lf.collect().to_pandas()
 
         # Convertir les colonnes pour compatibilité avec le pipeline pandas (majuscules)
         column_mapping = {
@@ -157,8 +157,8 @@ def load_data(demo_data):
         print(f"❌ Erreur DuckDB: {e}")
         print("📝 Utilisation des données de démonstration")
         df_pandas = pd.DataFrame(demo_data)
-        lf_polars = pl.LazyFrame(demo_data)
-    return df_pandas, lf_polars
+        lf = pl.LazyFrame(demo_data)
+    return df_pandas, lf
 
 
 @app.cell
@@ -189,14 +189,14 @@ def pipeline_pandas(df_pandas):
 
 
 @app.cell(hide_code=True)
-def pipeline_polars(lf_polars):
+def pipeline(lf):
     """Exécuter le pipeline Polars"""
 
     print("⚡ Exécution du pipeline POLARS...")
 
     # Appliquer le pipeline Polars
-    resultat_polars_lf = detecter_polars(lf_polars)
-    resultat_polars = resultat_polars_lf.collect()
+    resultat_lf = detecter(lf)
+    resultat = resultat_lf.collect()
 
     # Mêmes colonnes que pandas
     # _colonnes_interessantes = [
@@ -205,13 +205,13 @@ def pipeline_polars(lf_polars):
     #     "resume_modification"
     # ]
 
-    # polars_result = resultat_polars.select(_colonnes_interessantes)
-    resultat_polars
-    return (resultat_polars_lf,)
+    # polars_result = resultat.select(_colonnes_interessantes)
+    resultat
+    return (resultat_lf,)
 
 
 @app.cell
-def benchmark_performance(df_pandas, lf_polars):
+def benchmark_performance(df_pandas, lf):
     """Évaluer les performances des deux approches"""
     import time
 
@@ -227,14 +227,14 @@ def benchmark_performance(df_pandas, lf_polars):
     # Benchmark Polars 
     start = time.perf_counter()
     for _ in range(10):
-        _ = detecter_polars(lf_polars).collect()
-    temps_polars = (time.perf_counter() - start) / 10
+        _ = detecter(lf).collect()
+    temps = (time.perf_counter() - start) / 10
 
     # Résultats
-    acceleration = temps_pandas / temps_polars if temps_polars > 0 else 0
+    acceleration = temps_pandas / temps if temps > 0 else 0
 
     print(f"🐼 Pandas  : {temps_pandas*1000:.1f}ms")
-    print(f"⚡ Polars  : {temps_polars*1000:.1f}ms") 
+    print(f"⚡ Polars  : {temps*1000:.1f}ms") 
     print(f"🚀 Accélération : {acceleration:.1f}x")
 
     if acceleration > 1:
@@ -244,16 +244,16 @@ def benchmark_performance(df_pandas, lf_polars):
     else:
         print("🟰 Performances équivalentes")
 
-    {"pandas_ms": temps_pandas*1000, "polars_ms": temps_polars*1000, "speedup": acceleration}
+    {"pandas_ms": temps_pandas*1000, "polars_ms": temps*1000, "speedup": acceleration}
     return
 
 
 @app.cell
-def comparaison(resultat_pandas, resultat_polars_lf):
+def comparaison(resultat_pandas, resultat_lf):
     """Comparer les résultats des deux pipelines"""
 
     # Collecter le résultat Polars
-    polars_result = resultat_polars_lf.collect()
+    polars_result = resultat_lf.collect()
 
     print("\n🔍 COMPARAISON DES RÉSULTATS :")
     print("=" * 50)
@@ -310,8 +310,8 @@ def _(resultat_pandas):
 
 
 @app.cell
-def _(resultat_polars_lf):
-    inserer_evenements_factu_polars(resultat_polars_lf).collect()
+def _(resultat_lf):
+    inserer_evenements_factu(resultat_lf).collect()
     return
 
 

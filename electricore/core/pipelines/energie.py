@@ -10,7 +10,7 @@ import polars as pl
 from typing import Optional, List
 
 # Import du calcul TURPE variable
-from .turpe_polars import ajouter_turpe_variable
+from .turpe import ajouter_turpe_variable
 
 
 # =============================================================================
@@ -317,7 +317,7 @@ def expr_date_formatee_fr(col: str, format_type: str = "complet") -> pl.Expr:
 # =============================================================================
 
 
-def extraire_releves_evenements_polars(historique: pl.LazyFrame) -> pl.LazyFrame:
+def extraire_releves_evenements(historique: pl.LazyFrame) -> pl.LazyFrame:
     """
     Génère des relevés d'index (avant/après) à partir d'un historique enrichi des événements contractuels - Version Polars.
 
@@ -331,7 +331,7 @@ def extraire_releves_evenements_polars(historique: pl.LazyFrame) -> pl.LazyFrame
         LazyFrame des relevés d'index conformes au modèle RelevéIndex Polars
 
     Example:
-        >>> releves = extraire_releves_evenements_polars(evenements_lf)
+        >>> releves = extraire_releves_evenements(evenements_lf)
     """
     # Colonnes d'index numériques et métadonnées (schéma fixe)
     index_cols = ["base", "hp", "hc", "hch", "hph", "hpb", "hcb"]
@@ -404,7 +404,7 @@ def extraire_releves_evenements_polars(historique: pl.LazyFrame) -> pl.LazyFrame
     )
 
 
-def interroger_releves_polars(requete: pl.LazyFrame, releves: pl.LazyFrame) -> pl.LazyFrame:
+def interroger_releves(requete: pl.LazyFrame, releves: pl.LazyFrame) -> pl.LazyFrame:
     """
     Interroge les relevés avec tolérance temporelle et GARANTIT un résultat de même taille que la requête.
 
@@ -420,7 +420,7 @@ def interroger_releves_polars(requete: pl.LazyFrame, releves: pl.LazyFrame) -> p
         LazyFrame de MÊME TAILLE que requête avec flag releve_manquant
 
     Example:
-        >>> releves_avec_manquants = interroger_releves_polars(requete_lf, releves_lf)
+        >>> releves_avec_manquants = interroger_releves(requete_lf, releves_lf)
     """
     return (
         requete
@@ -447,7 +447,7 @@ def interroger_releves_polars(requete: pl.LazyFrame, releves: pl.LazyFrame) -> p
     )
 
 
-def reconstituer_chronologie_releves_polars(evenements: pl.LazyFrame, releves: pl.LazyFrame) -> pl.LazyFrame:
+def reconstituer_chronologie_releves(evenements: pl.LazyFrame, releves: pl.LazyFrame) -> pl.LazyFrame:
     """
     Reconstitue la chronologie complète des relevés nécessaires pour la facturation - Version Polars.
 
@@ -463,14 +463,14 @@ def reconstituer_chronologie_releves_polars(evenements: pl.LazyFrame, releves: p
         LazyFrame chronologique avec priorité : flux_C15 > flux_R151
 
     Example:
-        >>> chronologie = reconstituer_chronologie_releves_polars(evt_lf, releves_lf)
+        >>> chronologie = reconstituer_chronologie_releves(evt_lf, releves_lf)
     """
     # 1. Séparer les événements contractuels des événements FACTURATION
     evt_contractuels = evenements.filter(pl.col("evenement_declencheur") != "FACTURATION")
     evt_facturation = evenements.filter(pl.col("evenement_declencheur") == "FACTURATION")
 
     # 2. Extraire les relevés des événements contractuels
-    rel_evenements = extraire_releves_evenements_polars(evt_contractuels)
+    rel_evenements = extraire_releves_evenements(evt_contractuels)
 
     # 3. Pour FACTURATION : construire requête et interroger les relevés existants
     requete_facturation = (
@@ -483,7 +483,7 @@ def reconstituer_chronologie_releves_polars(evenements: pl.LazyFrame, releves: p
         ])
     )
 
-    rel_facturation = interroger_releves_polars(requete_facturation, releves)
+    rel_facturation = interroger_releves(requete_facturation, releves)
 
     # 4. Combiner les deux sources de relevés
     return (
@@ -510,7 +510,7 @@ def reconstituer_chronologie_releves_polars(evenements: pl.LazyFrame, releves: p
     )
 
 
-def calculer_periodes_energie_polars(lf: pl.LazyFrame) -> pl.LazyFrame:
+def calculer_periodes_energie(lf: pl.LazyFrame) -> pl.LazyFrame:
     """
     Pipeline de calcul des périodes d'énergie avec approche fonctionnelle Polars.
 
@@ -537,7 +537,7 @@ def calculer_periodes_energie_polars(lf: pl.LazyFrame) -> pl.LazyFrame:
         LazyFrame avec périodes d'énergie calculées et validées
 
     Example:
-        >>> periodes = calculer_periodes_energie_polars(releves_lf).collect()
+        >>> periodes = calculer_periodes_energie(releves_lf).collect()
     """
     # Cadrans d'index électriques standard
     cadrans = ["base", "hp", "hc", "hph", "hpb", "hcb", "hch"]
@@ -576,11 +576,11 @@ def calculer_periodes_energie_polars(lf: pl.LazyFrame) -> pl.LazyFrame:
             *expr_enrichir_cadrans_principaux()
         ])
 
-        # Note: La sélection finale des colonnes se fait après l'ajout du TURPE dans pipeline_energie_polars
+        # Note: La sélection finale des colonnes se fait après l'ajout du TURPE dans pipeline_energie
     )
 
 
-def pipeline_energie_polars(
+def pipeline_energie(
     historique: pl.LazyFrame,
     releves: pl.LazyFrame
 ) -> pl.LazyFrame:
@@ -602,10 +602,10 @@ def pipeline_energie_polars(
         LazyFrame avec les périodes d'énergie et TURPE variable
 
     Example:
-        >>> periodes_energie = pipeline_energie_polars(historique_lf, releves_lf)
+        >>> periodes_energie = pipeline_energie(historique_lf, releves_lf)
         >>> df = periodes_energie.collect()
     """
-    from .perimetre_polars import detecter_points_de_rupture
+    from .perimetre import detecter_points_de_rupture
 
     schema_columns = historique.collect_schema().names()
     
@@ -615,8 +615,8 @@ def pipeline_energie_polars(
     return (
         historique
         .filter(pl.col("impacte_energie"))
-        .pipe(reconstituer_chronologie_releves_polars, releves)
-        .pipe(calculer_periodes_energie_polars)
+        .pipe(reconstituer_chronologie_releves, releves)
+        .pipe(calculer_periodes_energie)
         .pipe(ajouter_turpe_variable)
         # Sélection finale des colonnes (exclut les index bruts BASE, HP, HC, etc.)
         .select([

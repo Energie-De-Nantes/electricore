@@ -24,12 +24,12 @@ with app.setup:
     )
 
     # Import des pipelines Polars
-    from electricore.core.pipelines_polars.energie_polars import (
-        pipeline_energie_polars,
-        reconstituer_chronologie_releves_polars,
-        calculer_periodes_energie_polars
+    from electricore.core.pipelines.energie import (
+        pipeline_energie,
+        reconstituer_chronologie_releves,
+        calculer_periodes_energie
     )
-    from electricore.core.pipelines_polars.perimetre_polars import (
+    from electricore.core.pipelines.perimetre import (
         detecter_points_de_rupture,
         inserer_evenements_facturation
     )
@@ -225,7 +225,7 @@ def pipeline_pandas_energie(
 
 
 @app.cell(hide_code=True)
-def pipeline_polars_energie(
+def pipeline_energie(
     colonnes_interessantes,
     lf_historique_enrichi,
     lf_releves,
@@ -235,29 +235,29 @@ def pipeline_polars_energie(
     print("⚡ Exécution du pipeline POLARS énergie...")
 
     # Calculer les périodes d'énergie avec Polars
-    periodes_polars_lf = pipeline_energie_polars(lf_historique_enrichi, lf_releves)
-    periodes_polars_collect = periodes_polars_lf.collect()
+    periodes_lf = pipeline_energie(lf_historique_enrichi, lf_releves)
+    periodes_collect = periodes_lf.collect()
 
-    print(f"✅ {len(periodes_polars_collect)} périodes générées")
+    print(f"✅ {len(periodes_collect)} périodes générées")
 
-    if len(periodes_polars_collect) > 0:
-        _display_cols = [col for col in colonnes_interessantes if col in periodes_polars_collect.columns]
+    if len(periodes_collect) > 0:
+        _display_cols = [col for col in colonnes_interessantes if col in periodes_collect.columns]
         if _display_cols:
-            _display_periodes = periodes_polars_collect.select(_display_cols).head(5)
+            _display_periodes = periodes_collect.select(_display_cols).head(5)
             print("\n📋 Exemple de périodes (5 premières):")
             print(_display_periodes)
-    return periodes_polars_collect, periodes_polars_lf
+    return periodes_collect, periodes_lf
 
 
 @app.cell
-def _(periodes_polars_collect):
-    periodes_polars_collect
+def _(periodes_collect):
+    periodes_collect
     return
 
 
 @app.cell
-def _(periodes_polars_collect):
-    periodes_polars_collect.filter(pl.col('pdl') == '14287988313383')
+def _(periodes_collect):
+    periodes_collect.filter(pl.col('pdl') == '14287988313383')
     return
 
 
@@ -285,14 +285,14 @@ def benchmark_performance(
     # Benchmark Polars
     start = time.perf_counter()
     for _ in range(iterations):
-        _ = pipeline_energie_polars(lf_historique_enrichi, lf_releves).collect()
-    temps_polars = (time.perf_counter() - start) / iterations
+        _ = pipeline_energie(lf_historique_enrichi, lf_releves).collect()
+    temps = (time.perf_counter() - start) / iterations
 
     # Résultats
-    acceleration = temps_pandas / temps_polars if temps_polars > 0 else 0
+    acceleration = temps_pandas / temps if temps > 0 else 0
 
     print(f"🐼 Pandas  : {temps_pandas*1000:.1f}ms")
-    print(f"⚡ Polars  : {temps_polars*1000:.1f}ms")
+    print(f"⚡ Polars  : {temps*1000:.1f}ms")
     print(f"🚀 Accélération : {acceleration:.1f}x")
 
     if acceleration > 1:
@@ -305,27 +305,27 @@ def benchmark_performance(
 
 
 @app.cell
-def comparaison_periodes(periodes_pandas, periodes_polars_lf):
+def comparaison_periodes(periodes_pandas, periodes_lf):
     """Comparer les résultats des deux pipelines"""
 
     # Collecter le résultat Polars
-    periodes_polars = periodes_polars_lf.collect()
+    periodes = periodes_lf.collect()
 
     print("\n🔍 COMPARAISON DES PÉRIODES D'ÉNERGIE :")
     print("=" * 60)
 
     # Comparer le nombre de périodes
     nb_pandas = len(periodes_pandas)
-    nb_polars = len(periodes_polars)
+    nb = len(periodes)
 
     print(f"📊 Nombre de périodes :")
     print(f"- Pandas : {nb_pandas:,}")
-    print(f"- Polars : {nb_polars:,}")
+    print(f"- Polars : {nb:,}")
 
-    if nb_pandas == nb_polars:
+    if nb_pandas == nb:
         print("✅ Même nombre de périodes générées")
     else:
-        diff = abs(nb_pandas - nb_polars)
+        diff = abs(nb_pandas - nb)
         print(f"⚠️  Différence: {diff:,} périodes")
 
     # Comparaison détaillée des énergies calculées
@@ -335,10 +335,10 @@ def comparaison_periodes(periodes_pandas, periodes_polars_lf):
     cadrans_energie = ["base_energie", "hp_energie", "hc_energie"]
 
     for cadran in cadrans_energie:
-        if cadran in periodes_pandas.columns and cadran in periodes_polars.columns:
+        if cadran in periodes_pandas.columns and cadran in periodes.columns:
             # Statistiques pandas
             pandas_non_null = periodes_pandas[cadran].dropna()
-            polars_non_null = periodes_polars[cadran].drop_nulls().to_pandas()
+            polars_non_null = periodes[cadran].drop_nulls().to_pandas()
 
             if len(pandas_non_null) > 0 and len(polars_non_null) > 0:
                 pandas_sum = pandas_non_null.sum()
@@ -370,11 +370,11 @@ def comparaison_periodes(periodes_pandas, periodes_polars_lf):
     flags_qualite = ["data_complete", "periode_irreguliere"]
 
     for flag in flags_qualite:
-        if flag in periodes_pandas.columns and flag in periodes_polars.columns:
+        if flag in periodes_pandas.columns and flag in periodes.columns:
             pandas_true = periodes_pandas[flag].sum()
-            polars_true = periodes_polars[flag].sum()
+            polars_true = periodes[flag].sum()
             pandas_ratio = pandas_true / len(periodes_pandas) * 100 if len(periodes_pandas) > 0 else 0
-            polars_ratio = polars_true / len(periodes_polars) * 100 if len(periodes_polars) > 0 else 0
+            polars_ratio = polars_true / len(periodes) * 100 if len(periodes) > 0 else 0
 
             print(f"\n🏁 {flag.replace('_', ' ').title()}:")
             print(f"  🐼 Pandas  : {pandas_true:,} périodes ({pandas_ratio:.1f}%)")
@@ -447,12 +447,12 @@ def calcul_turpe_pandas(periodes_pandas):
 
 
 @app.cell(hide_code=True)
-def calcul_turpe_polars(periodes_polars_lf):
+def calcul_turpe(periodes_lf):
     """Calcul TURPE variable avec Polars (déjà inclus dans le pipeline)"""
 
     print("⚡ TURPE variable déjà inclus dans le pipeline Polars...")
 
-    periodes_avec_turpe = periodes_polars_lf.collect()
+    periodes_avec_turpe = periodes_lf.collect()
 
     if "turpe_variable" in periodes_avec_turpe.columns:
         _stats_turpe = (
@@ -471,15 +471,15 @@ def calcul_turpe_polars(periodes_polars_lf):
         print(f"💰 Total TURPE variable : {total_turpe:.2f}€")
         print(f"📊 TURPE variable moyen : {turpe_moyen:.2f}€")
 
-        turpe_variable_polars = periodes_avec_turpe["turpe_variable"].to_pandas()
+        turpe_variable = periodes_avec_turpe["turpe_variable"].to_pandas()
     else:
         print("⚠️ Colonne turpe_variable non trouvée")
-        turpe_variable_polars = pd.Series(dtype=float)
-    return (turpe_variable_polars,)
+        turpe_variable = pd.Series(dtype=float)
+    return (turpe_variable,)
 
 
 @app.cell
-def comparaison_turpe_variable(turpe_variable_pandas, turpe_variable_polars):
+def comparaison_turpe_variable(turpe_variable_pandas, turpe_variable):
     """Comparer les calculs TURPE variable entre pandas et Polars"""
 
     print("\n💰 COMPARAISON TURPE VARIABLE :")
@@ -495,13 +495,13 @@ def comparaison_turpe_variable(turpe_variable_pandas, turpe_variable_polars):
         total_pandas = moyen_pandas = median_pandas = count_pandas = 0
 
     # Statistiques Polars
-    if len(turpe_variable_polars) > 0:
-        total_polars = turpe_variable_polars.sum()
-        moyen_polars = turpe_variable_polars.mean()
-        median_polars = turpe_variable_polars.median()
-        count_polars = len(turpe_variable_polars)
+    if len(turpe_variable) > 0:
+        total = turpe_variable.sum()
+        moyen = turpe_variable.mean()
+        median = turpe_variable.median()
+        count = len(turpe_variable)
     else:
-        total_polars = moyen_polars = median_polars = count_polars = 0
+        total = moyen = median = count = 0
 
     print(f"📊 Statistiques TURPE variable :")
     print(f"  🐼 Pandas  : {count_pandas:,} périodes")
@@ -509,14 +509,14 @@ def comparaison_turpe_variable(turpe_variable_pandas, turpe_variable_polars):
     print(f"     Moyenne : {moyen_pandas:.2f}€")
     print(f"     Médiane : {median_pandas:.2f}€")
 
-    print(f"  ⚡ Polars  : {count_polars:,} périodes")
-    print(f"     Total   : {total_polars:,.2f}€")
-    print(f"     Moyenne : {moyen_polars:.2f}€")
-    print(f"     Médiane : {median_polars:.2f}€")
+    print(f"  ⚡ Polars  : {count:,} périodes")
+    print(f"     Total   : {total:,.2f}€")
+    print(f"     Moyenne : {moyen:.2f}€")
+    print(f"     Médiane : {median:.2f}€")
 
     # Comparaison
-    if total_pandas > 0 and total_polars > 0:
-        diff_absolue = abs(total_pandas - total_polars)
+    if total_pandas > 0 and total > 0:
+        diff_absolue = abs(total_pandas - total)
         _diff_relative_turpe = diff_absolue / total_pandas * 100
 
         print(f"\n🔍 Analyse des différences :")
@@ -533,7 +533,7 @@ def comparaison_turpe_variable(turpe_variable_pandas, turpe_variable_polars):
             print(f"  ⚠️  Différence acceptable (< 5%)")
         else:
             print(f"  ❌ Différence significative (≥ 5%)")
-    elif total_pandas == 0 and total_polars == 0:
+    elif total_pandas == 0 and total == 0:
         print(f"  ✅ Aucun TURPE calculé dans les deux cas")
     else:
         print(f"  ❌ Un seul pipeline a calculé du TURPE")

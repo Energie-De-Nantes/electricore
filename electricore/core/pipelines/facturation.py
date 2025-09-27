@@ -12,10 +12,10 @@ from pandera.typing.polars import DataFrame, LazyFrame
 from typing import Optional, List
 
 # Import des modèles Pandera
-from ..models_polars.periode_meta_polars import PeriodeMetaPolars
-from ..models_polars.periode_abonnement_polars import PeriodeAbonnementPolars
-from ..models_polars.periode_energie_polars import PeriodeEnergiePolars
-from ..models_polars.aggregates_polars import AbonnementMensuelPolars, EnergieMensuelPolars
+from ..models.periode_meta import PeriodeMetaPolars
+from ..models.periode_abonnement import PeriodeAbonnementPolars
+from ..models.periode_energie import PeriodeEnergiePolars
+from ..models.aggregates import AbonnementMensuelPolars, EnergieMensuelPolars
 
 
 # =============================================================================
@@ -331,7 +331,7 @@ def joindre_meta_periodes(
 # =============================================================================
 
 @pa.check_types(lazy=True)
-def pipeline_facturation_polars(
+def pipeline_facturation(
     abonnements_lf: LazyFrame[PeriodeAbonnementPolars],
     energies_lf: LazyFrame[PeriodeEnergiePolars]
 ) -> DataFrame[PeriodeMetaPolars]:
@@ -382,7 +382,7 @@ def pipeline_facturation_polars(
 
 # Export des fonctions principales
 __all__ = [
-    'pipeline_facturation_polars',
+    'pipeline_facturation',
     'agreger_abonnements_mensuel',
     'agreger_energies_mensuel',
     'joindre_meta_periodes',

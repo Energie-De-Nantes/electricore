@@ -22,14 +22,14 @@ def _():
         execute_custom_query,
         get_available_tables
     )
-    from electricore.core.pipeline_perimetre import pipeline_perimetre_polars
+    from electricore.core.pipeline_perimetre import pipeline_perimetre
 
     return (
         execute_custom_query,
         get_available_tables,
         load_historique_perimetre,
         mo,
-        pipeline_perimetre_polars,
+        pipeline_perimetre,
         pl,
     )
 
@@ -148,11 +148,11 @@ def _(mo):
 
 
 @app.cell
-def _(mo, pipeline_perimetre_polars, pl):
+def _(mo, pipeline_perimetre, pl):
     # Test du pipeline Polars moderne
     if _result_historique is not None and len(_result_historique) > 0:
         try:
-            _lf_pipeline = pipeline_perimetre_polars(
+            _lf_pipeline = pipeline_perimetre(
                 source="duckdb",
                 filters=_filters if _filters else None,
                 limit=min(_limit.value, 20)  # Limiter pour le test

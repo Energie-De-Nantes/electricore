@@ -2,7 +2,7 @@
 
 import polars as pl
 import pytest
-from electricore.core.pipelines_polars.perimetre_polars import (
+from electricore.core.pipelines.perimetre import (
     expr_changement,
     expr_resume_changement,
     expr_impacte_abonnement,

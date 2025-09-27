@@ -185,8 +185,8 @@ SELECT * FROM releves_unifies
 """
 
 
-from ..models_polars.releve_index_polars import RelevéIndexPolars
-from ..models_polars.historique_perimetre_polars import HistoriquePérimètrePolars
+from ..models.releve_index import RelevéIndexPolars
+from ..models.historique_perimetre import HistoriquePérimètrePolars
 
 
 class DuckDBConfig:

@@ -4,12 +4,12 @@ import polars as pl
 import pytest
 from datetime import datetime
 
-from electricore.core.pipelines_polars.energie_polars import (
+from electricore.core.pipelines.energie import (
     expr_bornes_depuis_shift,
-    extraire_releves_evenements_polars,
-    interroger_releves_polars,
-    reconstituer_chronologie_releves_polars,
-    calculer_periodes_energie_polars,
+    extraire_releves_evenements,
+    interroger_releves,
+    reconstituer_chronologie_releves,
+    calculer_periodes_energie,
     # Tests d'expressions ajoutés localement dans chaque test
 )
 
@@ -51,7 +51,7 @@ def test_expr_bornes_depuis_shift():
 
 
 class TestExtraireRelevesEvenementsPolars:
-    """Tests pour extraire_releves_evenements_polars."""
+    """Tests pour extraire_releves_evenements."""
 
     def test_extraction_releves_avant_apres(self):
         """Test nominal : extraction des relevés avant et après d'un événement."""
@@ -78,7 +78,7 @@ class TestExtraireRelevesEvenementsPolars:
             "apres_id_calendrier_distributeur": [1]
         })
 
-        result = extraire_releves_evenements_polars(historique).collect()
+        result = extraire_releves_evenements(historique).collect()
 
         assert len(result) == 2  # avant + après
 
@@ -93,7 +93,7 @@ class TestExtraireRelevesEvenementsPolars:
 
 
 class TestInterrogerRelevesPolars:
-    """Tests pour interroger_releves_polars."""
+    """Tests pour interroger_releves."""
 
     def test_interrogation_tous_releves_trouves(self):
         """Test cas nominal : tous les relevés demandés sont trouvés."""
@@ -112,7 +112,7 @@ class TestInterrogerRelevesPolars:
             "id_calendrier_distributeur": ["DI000001", "DI000001", "DI000001"],
         })
 
-        result = interroger_releves_polars(requete, releves).collect()
+        result = interroger_releves(requete, releves).collect()
 
         assert len(result) == 2  # Même taille que la requête
         assert not any(result["releve_manquant"])  # Aucun relevé manquant
@@ -135,7 +135,7 @@ class TestInterrogerRelevesPolars:
             "id_calendrier_distributeur": ["DI000001"],
         })
 
-        result = interroger_releves_polars(requete, releves).collect()
+        result = interroger_releves(requete, releves).collect()
 
         assert len(result) == 2  # Même taille que la requête
 
@@ -151,7 +151,7 @@ class TestInterrogerRelevesPolars:
 
 
 class TestReconstituerChronologieRelevesPolars:
-    """Tests pour reconstituer_chronologie_releves_polars."""
+    """Tests pour reconstituer_chronologie_releves."""
 
     def test_reconstitution_avec_evenements_et_facturation(self):
         """Test nominal : combinaison d'événements contractuels + facturation."""
@@ -192,7 +192,7 @@ class TestReconstituerChronologieRelevesPolars:
             "id_calendrier_distributeur": ["DI000001"],
         })
 
-        result = reconstituer_chronologie_releves_polars(evenements, releves).collect()
+        result = reconstituer_chronologie_releves(evenements, releves).collect()
 
         # Vérifications
         assert len(result) >= 3  # Au moins : MES avant, MES après, FACTURATION PDL001
@@ -239,7 +239,7 @@ class TestReconstituerChronologieRelevesPolars:
             "id_calendrier_distributeur": ["DI000001"],
         })
 
-        result = reconstituer_chronologie_releves_polars(evenements, releves).collect()
+        result = reconstituer_chronologie_releves(evenements, releves).collect()
 
         # À cette date, seuls les relevés flux_C15 doivent rester (priorité)
         releves_date = result.filter(pl.col("date_releve") == datetime(2024, 1, 15))
@@ -272,7 +272,7 @@ def test_propagation_flags_releve_manquant():
         "ordre_index": [0, 0, 0]
     })
 
-    result = calculer_periodes_energie_polars(releves).collect()
+    result = calculer_periodes_energie(releves).collect()
 
     # Vérifier qu'on a 2 périodes (la première sera filtrée car pas de début)
     periodes = result.filter(pl.col("debut").is_not_null())
@@ -299,7 +299,7 @@ def test_expr_arrondir_index_kwh():
         "hc": [None, 400.7, 401.3],
     }).lazy()
 
-    from electricore.core.pipelines_polars.energie_polars import expr_arrondir_index_kwh
+    from electricore.core.pipelines.energie import expr_arrondir_index_kwh
 
     result = df.with_columns(expr_arrondir_index_kwh(["base", "hp", "hc"])).collect()
 
@@ -316,7 +316,7 @@ def test_expr_calculer_energie_cadran():
         "base": [1000.0, 1050.0, 1100.0, 500.0, 530.0],
     }).lazy()
 
-    from electricore.core.pipelines_polars.energie_polars import expr_calculer_energie_cadran
+    from electricore.core.pipelines.energie import expr_calculer_energie_cadran
 
     result = (
         df
@@ -345,7 +345,7 @@ def test_expr_date_formatee_fr():
         "ma_date": [datetime(2024, 3, 15), datetime(2024, 12, 25)],
     }).lazy()
 
-    from electricore.core.pipelines_polars.energie_polars import expr_date_formatee_fr
+    from electricore.core.pipelines.energie import expr_date_formatee_fr
 
     result = df.with_columns(
         expr_date_formatee_fr("ma_date", "complet").alias("date_fr")
@@ -364,7 +364,7 @@ def test_expr_nb_jours():
         "fin": [datetime(2024, 1, 15), datetime(2024, 2, 29)],
     }).lazy()
 
-    from electricore.core.pipelines_polars.energie_polars import expr_nb_jours
+    from electricore.core.pipelines.energie import expr_nb_jours
 
     result = df.with_columns(expr_nb_jours()).collect()
 

@@ -464,7 +464,7 @@ class OdooReader:
 
         return result if isinstance(result, list) else [result]
 
-    def _normalize_for_polars(self, response: List[Dict]) -> pl.DataFrame:
+    def _normalize_for(self, response: List[Dict]) -> pl.DataFrame:
         """
         Normalise les données Odoo pour Polars.
 
@@ -516,7 +516,7 @@ class OdooReader:
                 schema = {'id': pl.Int64}
             return pl.DataFrame(schema=schema)
 
-        df = self._normalize_for_polars(response)
+        df = self._normalize_for(response)
         # Renommer la colonne id pour éviter les conflits
         if 'id' in df.columns:
             df = df.rename({'id': f'{model.replace(".", "_")}_id'})
@@ -547,7 +547,7 @@ class OdooReader:
         kwargs = {'fields': fields} if fields else {}
         response = self.execute(model, 'read', [ids], kwargs)
 
-        df = self._normalize_for_polars(response)
+        df = self._normalize_for(response)
         # Renommer la colonne id pour éviter les conflits
         if 'id' in df.columns:
             df = df.rename({'id': f'{model.replace(".", "_")}_id'})

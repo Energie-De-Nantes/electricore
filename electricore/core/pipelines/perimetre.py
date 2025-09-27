@@ -625,8 +625,8 @@ def inserer_evenements_facturation(lf: pl.LazyFrame) -> pl.LazyFrame:
     Example:
         >>> lf_enrichi = (
         ...     lf
-        ...     .pipe(detecter_points_de_rupture_polars)
-        ...     .pipe(inserer_evenements_facturation_polars)
+        ...     .pipe(detecter_points_de_rupture)
+        ...     .pipe(inserer_evenements_facturation)
         ... )
     """
     # Étape 1 : Générer les événements artificiels
@@ -647,7 +647,7 @@ def inserer_evenements_facturation(lf: pl.LazyFrame) -> pl.LazyFrame:
     )
 
 
-def pipeline_perimetre_polars(
+def pipeline_perimetre(
     historique: pl.LazyFrame,
     date_limite: pl.Expr | None = None
 ) -> pl.LazyFrame:
@@ -672,11 +672,11 @@ def pipeline_perimetre_polars(
         >>> import polars as pl
         >>>
         >>> # Pipeline complet
-        >>> enrichi = pipeline_perimetre_polars(historique_lf)
+        >>> enrichi = pipeline_perimetre(historique_lf)
         >>>
         >>> # Avec date limite
         >>> date_limite = pl.lit(datetime(2024, 1, 1))
-        >>> enrichi = pipeline_perimetre_polars(historique_lf, date_limite)
+        >>> enrichi = pipeline_perimetre(historique_lf, date_limite)
     """
     # Appliquer le filtrage par date si spécifié
     if date_limite is not None:

@@ -10,9 +10,9 @@ import polars as pl
 from datetime import datetime
 from pathlib import Path
 
-from electricore.core.pipelines_polars.turpe_polars import (
+from electricore.core.pipelines.turpe import (
     # Chargement des règles
-    load_turpe_rules_polars,
+    load_turpe_rules,
 
     # Expressions TURPE fixe
     expr_calculer_turpe_fixe_annuel,
@@ -26,7 +26,7 @@ from electricore.core.pipelines_polars.turpe_polars import (
 
     # Expressions communes
     expr_filtrer_regles_temporelles,
-    valider_regles_presentes_polars,
+    valider_regles_presentes,
 
     # Fonctions pipeline
     ajouter_turpe_fixe,
@@ -41,9 +41,9 @@ from electricore.core.pipelines_polars.turpe_polars import (
 class TestChargementRegles:
     """Tests pour le chargement des règles TURPE."""
 
-    def test_load_turpe_rules_polars_basic(self):
+    def test_load_turpe_rules_basic(self):
         """Test basique du chargement des règles."""
-        regles = load_turpe_rules_polars()
+        regles = load_turpe_rules()
         df = regles.collect()
 
         # Vérifications de base
@@ -60,7 +60,7 @@ class TestChargementRegles:
 
     def test_load_turpe_rules_types(self):
         """Test des types de colonnes après chargement."""
-        regles = load_turpe_rules_polars()
+        regles = load_turpe_rules()
         schema = regles.collect_schema()
 
         # Types attendus
@@ -75,7 +75,7 @@ class TestChargementRegles:
 
     def test_load_turpe_rules_valeurs_coherentes(self):
         """Test de cohérence des valeurs chargées."""
-        regles = load_turpe_rules_polars()
+        regles = load_turpe_rules()
         df = regles.collect()
 
         # Toutes les FTA doivent être non-nulles et non-vides
@@ -303,7 +303,7 @@ class TestExpressionsFiltrage:
         assert "BTINFCU4" in ftas_resultats
         assert "BTINFMU4" not in ftas_resultats
 
-    def test_valider_regles_presentes_polars_ok(self):
+    def test_valider_regles_presentes_ok(self):
         """Test de validation avec toutes les règles présentes."""
         df_test = pl.LazyFrame({
             "formule_tarifaire_acheminement": ["BTINFCUST", "BTINFMU4"],
@@ -313,10 +313,10 @@ class TestExpressionsFiltrage:
         )
 
         # Ne doit pas lever d'exception
-        df_result = valider_regles_presentes_polars(df_test).collect()
+        df_result = valider_regles_presentes(df_test).collect()
         assert df_result.shape[0] == 2
 
-    def test_valider_regles_presentes_polars_erreur(self):
+    def test_valider_regles_presentes_erreur(self):
         """Test de validation avec des règles manquantes."""
         df_test = pl.LazyFrame({
             "formule_tarifaire_acheminement": ["BTINFCUST", "FTA_INEXISTANTE"],
@@ -325,7 +325,7 @@ class TestExpressionsFiltrage:
 
         # Doit lever une ValueError
         with pytest.raises(ValueError, match="Règles TURPE manquantes"):
-            valider_regles_presentes_polars(df_test).collect()
+            valider_regles_presentes(df_test).collect()
 
 
 class TestPipelinesIntegration:
@@ -486,7 +486,7 @@ class TestFonctionsDebug:
     def test_comparer_avec_pandas(self):
         """Test de la fonction de comparaison avec pandas."""
         # Créer des données de test
-        lf_polars = pl.LazyFrame({
+        lf = pl.LazyFrame({
             "turpe_variable": [4.37, 2.34],
             "turpe_fixe": [8.20, 10.30],
             "energie": [100.0, 50.0]
@@ -501,7 +501,7 @@ class TestFonctionsDebug:
             "autre_col": ["A", "B"]          # Colonne supplémentaire
         })
 
-        stats = comparer_avec_pandas(lf_polars, df_pandas)
+        stats = comparer_avec_pandas(lf, df_pandas)
 
         # Vérifier la structure des statistiques
         assert "turpe_variable_diff_max" in stats

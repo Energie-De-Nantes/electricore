@@ -16,7 +16,7 @@ with app.setup:
         sys.path.append(str(project_root))
 
     from electricore.core.loaders.polars_loader import charger_releves, charger_historique
-    from electricore.core.models_polars import RelevéIndexPolars, HistoriquePérimètrePolars
+    from electricore.core.models import RelevéIndexPolars, HistoriquePérimètrePolars
     return Path, pd, pl, time, charger_releves, charger_historique
 
 @app.cell(hide_code=True)
@@ -80,15 +80,15 @@ def _(mo):
 def _(releves_path, charger_releves, pd, time):
     if releves_path.exists():
         _n_iterations = 3
-        _polars_times = []
+        _times = []
         _pandas_times = []
 
         for _i in range(_n_iterations):
             # Test Polars
             _start = time.time()
-            _df_polars_bench = charger_releves(releves_path, valider=False)
-            _polars_time = time.time() - _start
-            _polars_times.append(_polars_time)
+            _df_bench = charger_releves(releves_path, valider=False)
+            _time = time.time() - _start
+            _times.append(_time)
 
             # Test Pandas 
             _start = time.time()
@@ -96,20 +96,20 @@ def _(releves_path, charger_releves, pd, time):
             _pandas_time = time.time() - _start
             _pandas_times.append(_pandas_time)
 
-        _avg_polars = sum(_polars_times) / len(_polars_times)
+        _avg = sum(_times) / len(_times)
         _avg_pandas = sum(_pandas_times) / len(_pandas_times)
-        _speedup = _avg_pandas / _avg_polars
+        _speedup = _avg_pandas / _avg
 
         print(f"🏁 Résultats Benchmark ({_n_iterations} itérations):")
-        print(f"   ⚡ Polars  : {_avg_polars:.4f}s")
+        print(f"   ⚡ Polars  : {_avg:.4f}s")
         print(f"   🐼 Pandas  : {_avg_pandas:.4f}s") 
         print(f"   🚀 Speedup : {_speedup:.1f}x")
 
         benchmark_results = {
-            "polars_avg": _avg_polars,
+            "polars_avg": _avg,
             "pandas_avg": _avg_pandas, 
             "speedup": _speedup,
-            "data_shape": _df_polars_bench.shape if _df_polars_bench is not None else None
+            "data_shape": _df_bench.shape if _df_bench is not None else None
         }
     else:
         benchmark_results = {"error": "Données non disponibles"}
@@ -252,13 +252,13 @@ def _(releves_path, charger_releves, pl):
         # Démonstration de l'interopérabilité
 
         # 1. Polars → Pandas pour compatibilité legacy
-        _df_polars_interop = charger_releves(releves_path, valider=False)
-        _df_pandas_from_polars = _df_polars_interop.to_pandas()
+        _df_interop = charger_releves(releves_path, valider=False)
+        _df_pandas_from = _df_interop.to_pandas()
 
         # 2. Opérations mixtes
         # Utiliser Polars pour le preprocessing rapide
         _df_preprocessed = (
-            _df_polars_interop
+            _df_interop
             .filter(pl.col("Source") == "flux_R151")
             .group_by("pdl")
             .agg([
@@ -273,15 +273,15 @@ def _(releves_path, charger_releves, pl):
         _df_for_analysis = _df_preprocessed.to_pandas()
 
         interop_results = {
-            "polars_shape": _df_polars_interop.shape,
-            "pandas_shape": _df_pandas_from_polars.shape,
+            "polars_shape": _df_interop.shape,
+            "pandas_shape": _df_pandas_from.shape,
             "preprocessed_shape": _df_preprocessed.shape,
             "top_pdl": _df_for_analysis.head(3).to_dict('records') if len(_df_for_analysis) > 0 else []
         }
 
         print("🔄 Démonstration interopérabilité :")
-        print(f"   Original Polars    : {_df_polars_interop.shape}")
-        print(f"   Converti → Pandas  : {_df_pandas_from_polars.shape}")
+        print(f"   Original Polars    : {_df_interop.shape}")
+        print(f"   Converti → Pandas  : {_df_pandas_from.shape}")
         print(f"   Preprocessé Polars : {_df_preprocessed.shape}")
 
         if len(_df_for_analysis) > 0:

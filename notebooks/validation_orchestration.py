@@ -22,7 +22,7 @@ with app.setup(hide_code=True):
     # Imports des loaders DuckDB
     from electricore.core.loaders.duckdb_loader import f15, c15, r151, execute_custom_query
 
-    from electricore.core.pipelines_polars import facturation_polars
+    from electricore.core.pipelines import facturation
 
 
 @app.cell(hide_code=True)
@@ -58,7 +58,7 @@ def _():
 @app.cell(hide_code=True)
 def calculate_turpe_variable(historique_lf, releves_lf):
     # Pipeline complet
-    result = facturation_polars(historique_lf, releves_lf)
+    result = facturation(historique_lf, releves_lf)
 
     # Accéder aux résultats
     print("Historique enrichi:", result.historique_enrichi.collect().shape)

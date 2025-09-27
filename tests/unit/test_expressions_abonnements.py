@@ -3,7 +3,7 @@
 import polars as pl
 import pytest
 from datetime import datetime, timezone
-from electricore.core.pipelines_polars.abonnements_polars import (
+from electricore.core.pipelines.abonnements import (
     expr_bornes_periode,
     expr_nb_jours,
     expr_date_formatee_fr,

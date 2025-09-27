@@ -14,7 +14,7 @@ import polars as pl
 from datetime import datetime, timezone
 
 # Import du pipeline typé
-from electricore.core.pipelines_polars.facturation_polars import pipeline_facturation_polars
+from electricore.core.pipelines.facturation import pipeline_facturation
 
 def create_sample_abonnements() -> pl.LazyFrame:
     """Crée des données d'abonnement valides pour les tests."""
@@ -112,7 +112,7 @@ def test_validation_mode(mode: str):
     try:
         # Exécuter le pipeline
         print(f"Exécution du pipeline avec mode {mode}...")
-        result = pipeline_facturation_polars(abonnements, energies)
+        result = pipeline_facturation(abonnements, energies)
 
         print(f"✅ Succès ! {len(result)} méta-périodes générées")
         print(f"Colonnes: {list(result.columns)}")
