@@ -646,3 +646,54 @@ def inserer_evenements_facturation(lf: pl.LazyFrame) -> pl.LazyFrame:
         .with_columns(expr_colonnes_a_propager(columns=fusioned.collect_schema().names()))
     )
 
+
+def pipeline_perimetre_polars(
+    historique: pl.LazyFrame,
+    date_limite: pl.Expr | None = None
+) -> pl.LazyFrame:
+    """
+    Pipeline complet de traitement du périmètre - Version Polars.
+
+    Ce pipeline orchestre :
+    1. La détection des points de rupture
+    2. L'insertion des événements de facturation
+    3. Le filtrage optionnel par date limite
+
+    Args:
+        historique: LazyFrame contenant l'historique des événements contractuels
+        date_limite: Expression Polars pour filtrer les événements après cette date
+                    (défaut: 1er du mois courant si None)
+
+    Returns:
+        LazyFrame enrichi avec détection des ruptures et événements de facturation
+
+    Example:
+        >>> from datetime import datetime
+        >>> import polars as pl
+        >>>
+        >>> # Pipeline complet
+        >>> enrichi = pipeline_perimetre_polars(historique_lf)
+        >>>
+        >>> # Avec date limite
+        >>> date_limite = pl.lit(datetime(2024, 1, 1))
+        >>> enrichi = pipeline_perimetre_polars(historique_lf, date_limite)
+    """
+    # Appliquer le filtrage par date si spécifié
+    if date_limite is not None:
+        historique_filtre = historique.filter(pl.col("date_evenement") <= date_limite)
+    else:
+        # Date limite par défaut : 1er du mois courant avec timezone Europe/Paris
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        maintenant = datetime.now(ZoneInfo("Europe/Paris"))
+        premier_du_mois = datetime(maintenant.year, maintenant.month, 1, tzinfo=ZoneInfo("Europe/Paris"))
+        date_limite_defaut = pl.lit(premier_du_mois)
+        historique_filtre = historique.filter(pl.col("date_evenement") <= date_limite_defaut)
+
+    # Pipeline : détection ruptures + insertion événements facturation
+    return (
+        historique_filtre
+        .pipe(detecter_points_de_rupture)
+        .pipe(inserer_evenements_facturation)
+    )
+

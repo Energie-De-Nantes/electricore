@@ -316,7 +316,7 @@ def joindre_meta_periodes(
         ])
         .with_columns([
             # data_complete final basé sur les coverages
-            expr_data_complete()
+            expr_data_complete().alias("data_complete")
         ])
         .drop([
             "debut_energie", "fin_energie",
