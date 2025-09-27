@@ -16,7 +16,7 @@ with app.setup:
         sys.path.append(str(project_root))
 
     from electricore.core.loaders.polars_loader import charger_releves, charger_historique
-    from electricore.core.models import RelevéIndexPolars, HistoriquePérimètrePolars
+    from electricore.core.models import RelevéIndex, HistoriquePérimètre
     return Path, pd, pl, time, charger_releves, charger_historique
 
 @app.cell(hide_code=True)

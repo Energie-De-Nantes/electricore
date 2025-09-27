@@ -4,7 +4,7 @@ from pandera.typing.polars import DataFrame
 from pandera.engines.polars_engine import DateTime
 from typing import Optional, Annotated
 
-class RelevéIndexPolars(pa.DataFrameModel):
+class RelevéIndex(pa.DataFrameModel):
     """
     📌 Modèle Pandera pour les relevés d'index issus de différentes sources - Version Polars.
 
@@ -94,11 +94,11 @@ class RelevéIndexPolars(pa.DataFrameModel):
         strict = False  # Permet les colonnes supplémentaires durant la migration
 
 
-class RequêteRelevéPolars(pa.DataFrameModel):
+class RequêteRelevé(pa.DataFrameModel):
     """
     📌 Modèle Pandera pour les requêtes d'interrogation des relevés d'index - Version Polars.
 
-    Assure que les requêtes sont bien formatées avant d'interroger le DataFrame `RelevéIndexPolars`.
+    Assure que les requêtes sont bien formatées avant d'interroger le DataFrame `RelevéIndex`.
     """
     # 📆 Date du relevé demandée
     date_releve: DateTime = pa.Field(nullable=False, dtype_kwargs={"time_unit": "ns", "time_zone": "Europe/Paris"})

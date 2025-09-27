@@ -5,7 +5,7 @@ from pandera.engines.polars_engine import DateTime
 from typing import Optional
 
 
-class PeriodeEnergiePolars(pa.DataFrameModel):
+class PeriodeEnergie(pa.DataFrameModel):
     """
     Représente une période homogène de calcul d'énergie entre deux relevés successifs - Version Polars.
 

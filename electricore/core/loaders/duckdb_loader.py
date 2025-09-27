@@ -185,8 +185,8 @@ SELECT * FROM releves_unifies
 """
 
 
-from ..models.releve_index import RelevéIndexPolars
-from ..models.historique_perimetre import HistoriquePérimètrePolars
+from ..models.releve_index import RelevéIndex
+from ..models.historique_perimetre import HistoriquePérimètre
 
 
 class DuckDBConfig:
@@ -514,7 +514,7 @@ def c15(database_path: Union[str, Path] = None) -> QueryBuilder:
     return QueryBuilder(
         base_query=BASE_QUERY_C15,
         transform_func=_transform_historique_perimetre,
-        validator_class=HistoriquePérimètrePolars,
+        validator_class=HistoriquePérimètre,
         database_path=database_path
     )
 
@@ -536,7 +536,7 @@ def r151(database_path: Union[str, Path] = None) -> QueryBuilder:
     return QueryBuilder(
         base_query=BASE_QUERY_R151,
         transform_func=_transform_releves,
-        validator_class=RelevéIndexPolars,
+        validator_class=RelevéIndex,
         database_path=database_path
     )
 
@@ -558,7 +558,7 @@ def r15(database_path: Union[str, Path] = None) -> QueryBuilder:
     return QueryBuilder(
         base_query=BASE_QUERY_R15,
         transform_func=_transform_releves,
-        validator_class=RelevéIndexPolars,
+        validator_class=RelevéIndex,
         database_path=database_path
     )
 
@@ -611,7 +611,7 @@ def releves(database_path: Union[str, Path] = None) -> QueryBuilder:
     return QueryBuilder(
         base_query=BASE_QUERY_RELEVES_UNIFIES,
         transform_func=_transform_releves,
-        validator_class=RelevéIndexPolars,
+        validator_class=RelevéIndex,
         database_path=database_path
     )
 
@@ -695,7 +695,7 @@ def load_releves(
 
 def _transform_historique_perimetre(lf: pl.LazyFrame) -> pl.LazyFrame:
     """
-    Transforme les données DuckDB pour conformité avec HistoriquePérimètrePolars.
+    Transforme les données DuckDB pour conformité avec HistoriquePérimètre.
 
     Args:
         lf: LazyFrame source depuis DuckDB
@@ -717,7 +717,7 @@ def _transform_historique_perimetre(lf: pl.LazyFrame) -> pl.LazyFrame:
 
 def _transform_releves(lf: pl.LazyFrame) -> pl.LazyFrame:
     """
-    Transforme les données DuckDB pour conformité avec RelevéIndexPolars.
+    Transforme les données DuckDB pour conformité avec RelevéIndex.
 
     Inclut la conversion Wh -> kWh avec troncature pour ne compter que les kWh complets.
 

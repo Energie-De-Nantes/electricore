@@ -13,7 +13,7 @@ from pandera.engines.polars_engine import DateTime
 from typing import Optional
 
 
-class PeriodeMetaPolars(pa.DataFrameModel):
+class PeriodeMeta(pa.DataFrameModel):
     """
     📌 Modèle Pandera pour les méta-périodes de facturation - Version Polars.
 

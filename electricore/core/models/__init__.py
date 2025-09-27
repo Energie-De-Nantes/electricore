@@ -5,10 +5,10 @@ Ces modèles sont adaptés pour fonctionner avec Polars et remplacent
 progressivement les modèles pandas existants.
 """
 
-from .releve_index import RelevéIndexPolars
-from .historique_perimetre import HistoriquePérimètrePolars
+from .releve_index import RelevéIndex
+from .historique_perimetre import HistoriquePérimètre
 
 __all__ = [
-    "RelevéIndexPolars", 
-    "HistoriquePérimètrePolars"
+    "RelevéIndex", 
+    "HistoriquePérimètre"
 ]

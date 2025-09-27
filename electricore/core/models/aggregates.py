@@ -12,7 +12,7 @@ from pandera.engines.polars_engine import DateTime
 from typing import Optional
 
 
-class AbonnementMensuelPolars(pa.DataFrameModel):
+class AbonnementMensuel(pa.DataFrameModel):
     """
     Modèle pour les abonnements agrégés par mois.
 
@@ -56,7 +56,7 @@ class AbonnementMensuelPolars(pa.DataFrameModel):
         coerce = True
 
 
-class EnergieMensuelPolars(pa.DataFrameModel):
+class EnergieMensuel(pa.DataFrameModel):
     """
     Modèle pour les énergies agrégées par mois.
 

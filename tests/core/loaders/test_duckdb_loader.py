@@ -282,7 +282,7 @@ class TestLoadFunctions:
         with patch('electricore.core.loaders.duckdb_loader._transform_historique_perimetre') as mock_transform:
             mock_transform.return_value = mock_lazy_frame
 
-            with patch('electricore.core.loaders.duckdb_loader.HistoriquePérimètrePolars') as mock_model:
+            with patch('electricore.core.loaders.duckdb_loader.HistoriquePérimètre') as mock_model:
                 # Mock de l'existence du fichier DuckDB
                 with patch('pathlib.Path.exists', return_value=True):
                     # Appeler la fonction
@@ -318,7 +318,7 @@ class TestLoadFunctions:
         with patch('electricore.core.loaders.duckdb_loader._transform_releves') as mock_transform:
             mock_transform.return_value = mock_lazy_frame
 
-            with patch('electricore.core.loaders.duckdb_loader.RelevéIndexPolars') as mock_model:
+            with patch('electricore.core.loaders.duckdb_loader.RelevéIndex') as mock_model:
                 # Mock de l'existence du fichier DuckDB
                 with patch('pathlib.Path.exists', return_value=True):
                     # Appeler la fonction

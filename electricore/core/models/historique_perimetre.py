@@ -4,7 +4,7 @@ from pandera.typing.polars import DataFrame
 from pandera.engines.polars_engine import DateTime
 from typing import Optional, Annotated
 
-class HistoriquePérimètrePolars(pa.DataFrameModel):
+class HistoriquePérimètre(pa.DataFrameModel):
     """
     📌 Modèle Pandera pour l'historique des événements contractuels - Version Polars.
     

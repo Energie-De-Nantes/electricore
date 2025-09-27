@@ -13,7 +13,7 @@ from pandera.engines.polars_engine import DateTime
 from typing import Optional
 
 
-class PeriodeAbonnementPolars(pa.DataFrameModel):
+class PeriodeAbonnement(pa.DataFrameModel):
     """
     📌 Modèle Pandera pour les périodes d'abonnement - Version Polars.
 
