@@ -6,6 +6,7 @@ Inclut les fonctions pures de parsing et les transformers DLT.
 import dlt
 import io
 import re
+import json
 import fnmatch
 from typing import Iterator, Dict, Any, Optional, List
 import polars as pl
@@ -330,5 +331,347 @@ def create_csv_parser_transformer(
         )
     
     return configured_csv_parser
+
+# =============================================================================
+# TRANSFORMER JSON DLT
+# =============================================================================
+
+def _json_parser_transformer_base(
+    extracted_file: dict,
+    record_path: str,
+    metadata_fields: Dict[str, str],
+    data_fields: Dict[str, str],
+    nested_fields: List[Dict[str, Any]],
+    flux_type: str
+) -> Iterator[dict]:
+    """
+    Fonction de base pour parser les fichiers JSON.
+    Parallèle à _xml_parser_transformer_base.
+
+    Args:
+        extracted_file: Fichier extrait du transformer archive
+        record_path: Chemin vers les enregistrements
+        metadata_fields: Champs de métadonnées
+        data_fields: Champs de données principaux
+        nested_fields: Configuration des champs imbriqués
+        flux_type: Type de flux pour traçabilité
+
+    Yields:
+        dict: Enregistrements parsés avec métadonnées de traçabilité
+    """
+    # Gérer les deux cas : JSON extrait de ZIP ou JSON direct du SFTP
+    if 'source_zip' in extracted_file:
+        # Cas 1: JSON extrait d'un ZIP
+        zip_name = extracted_file['source_zip']
+        zip_modified = extracted_file['modification_date']
+        json_name = extracted_file['extracted_file_name']
+        json_content = extracted_file['extracted_content']
+    else:
+        # Cas 2: JSON décrypté du SFTP (R64)
+        zip_name = extracted_file['file_name']  # Nom du fichier JSON
+        zip_modified = extracted_file['modification_date']
+        json_name = extracted_file['file_name']
+        json_content = extracted_file['decrypted_content']
+
+    try:
+        print(f"📄 Parsing JSON: {json_name}")
+
+        records_count = 0
+
+        # Parser le JSON et extraire les enregistrements
+        for record in json_to_dict_from_bytes(
+            json_content, record_path, metadata_fields, data_fields, nested_fields
+        ):
+            # Enrichir avec métadonnées de traçabilité DLT
+            enriched_record = {
+                **record,
+                'modification_date': zip_modified,
+                '_source_zip': zip_name,
+                '_flux_type': flux_type,
+                '_json_name': json_name
+            }
+
+            yield enriched_record
+            records_count += 1
+
+        print(f"✅ Parsé: {records_count} enregistrements depuis {json_name}")
+
+    except Exception as e:
+        print(f"❌ Erreur parsing JSON {json_name}: {e}")
+        return
+
+
+def create_json_parser_transformer(
+    record_path: str,
+    metadata_fields: Dict[str, str] = None,
+    data_fields: Dict[str, str] = None,
+    nested_fields: List[Dict[str, Any]] = None,
+    flux_type: str = "unknown"
+):
+    """
+    Factory pour créer un transformer de parsing JSON configuré.
+    Parallèle à create_xml_parser_transformer.
+
+    Args:
+        record_path: Chemin vers les enregistrements dans le JSON
+        metadata_fields: Champs de métadonnées JSON
+        data_fields: Champs de données JSON
+        nested_fields: Configuration des champs imbriqués
+        flux_type: Type de flux
+
+    Returns:
+        Transformer DLT configuré
+    """
+    @dlt.transformer
+    def configured_json_parser(extracted_file: dict) -> Iterator[dict]:
+        return _json_parser_transformer_base(
+            extracted_file, record_path, metadata_fields or {},
+            data_fields or {}, nested_fields or [], flux_type
+        )
+
+    return configured_json_parser
+
+
+# =============================================================================
+# TRANSFORMER JSON R64 SPÉCIALISÉ - FORMAT WIDE
+# =============================================================================
+
+def r64_timeseries_to_wide_format(
+    json_bytes: bytes,
+    flux_type: str
+) -> Iterator[Dict[str, Any]]:
+    """
+    Transforme les timeseries R64 en format WIDE pour cohérence avec R15/R151.
+
+    Chaque enregistrement de sortie = 1 PDL + 1 date + tous les cadrans.
+
+    Args:
+        json_bytes: Contenu JSON R64 en bytes
+        flux_type: Type de flux pour traçabilité
+
+    Yields:
+        dict: Enregistrements en format wide par date
+    """
+    try:
+        # Parser JSON R64
+        data = json.loads(json_bytes.decode('utf-8'))
+
+        # Extraire métadonnées du header
+        header = data.get('header', {})
+        header_metadata = {
+            'id_demande': header.get('idDemande'),
+            'si_demandeur': header.get('siDemandeur'),
+            'code_flux': header.get('codeFlux'),
+            'format': header.get('format')
+        }
+
+        # Traiter chaque mesure (PDL)
+        mesures = data.get('mesures', [])
+        for mesure in mesures:
+            pdl = mesure.get('idPrm')
+            periode = mesure.get('periode', {})
+
+            print(f"📊 Traitement PDL {pdl} - {len(mesure.get('contexte', []))} contexte(s)")
+
+            # Collecteur de données par date pour ce PDL
+            values_by_date = {}
+
+            # Traiter chaque contexte de la mesure
+            for contexte in mesure.get('contexte', []):
+                etape_metier = contexte.get('etapeMetier')
+                contexte_releve = contexte.get('contexteReleve')
+                type_releve = contexte.get('typeReleve')
+
+                # Traiter chaque grandeur du contexte
+                for grandeur in contexte.get('grandeur', []):
+                    grandeur_physique = grandeur.get('grandeurPhysique')
+                    grandeur_metier = grandeur.get('grandeurMetier')
+                    unite = grandeur.get('unite')
+
+                    # Traiter chaque calendrier de la grandeur
+                    for calendrier in grandeur.get('calendrier', []):
+                        id_calendrier = calendrier.get('idCalendrier')
+                        libelle_calendrier = calendrier.get('libelleCalendrier', '')
+
+                        # Traiter chaque classe temporelle du calendrier
+                        for classe in calendrier.get('classeTemporelle', []):
+                            id_classe = classe.get('idClasseTemporelle')
+                            libelle_classe = classe.get('libelleClasseTemporelle')
+                            code_cadran = classe.get('codeCadran')
+
+                            # Déterminer le nom de colonne selon le libellé du calendrier
+                            libelle_lower = libelle_calendrier.lower()
+                            if 'distributeur' in libelle_lower:
+                                # Calendrier distributeur - 4 classes temporelles
+                                if id_classe == 'HPB':
+                                    col_prefix = 'hpb'
+                                elif id_classe == 'HPH':
+                                    col_prefix = 'hph'
+                                elif id_classe == 'HCH':
+                                    col_prefix = 'hch'
+                                elif id_classe == 'HCB':
+                                    col_prefix = 'hcb'
+                                else:
+                                    col_prefix = f'dist_{id_classe.lower()}'
+                            elif 'fournisseur' in libelle_lower:
+                                # Calendrier fournisseur - 2 classes HP/HC
+                                if id_classe == 'HP':
+                                    col_prefix = 'hp_f'
+                                elif id_classe == 'HC':
+                                    col_prefix = 'hc_f'
+                                else:
+                                    col_prefix = f'four_{id_classe.lower()}'
+                            else:
+                                # Calendrier inconnu
+                                col_prefix = f'{id_classe.lower()}'
+
+                            # Traiter chaque point de la timeseries
+                            for point in classe.get('valeur', []):
+                                date_str = point.get('d')
+                                valeur = point.get('v')
+                                indice_vraisemblance = point.get('iv')
+
+                                if not date_str:
+                                    continue
+
+                                # Initialiser l'enregistrement pour cette date si nécessaire
+                                if date_str not in values_by_date:
+                                    values_by_date[date_str] = {
+                                        # Métadonnées de base
+                                        'pdl': pdl,
+                                        'date_releve': date_str,
+
+                                        # Métadonnées contexte
+                                        'etape_metier': etape_metier,
+                                        'contexte_releve': contexte_releve,
+                                        'type_releve': type_releve,
+
+                                        # Métadonnées grandeur
+                                        'grandeur_physique': grandeur_physique,
+                                        'grandeur_metier': grandeur_metier,
+                                        'unite': unite,
+
+                                        # Métadonnées période
+                                        'periode_debut': periode.get('dateDebut'),
+                                        'periode_fin': periode.get('dateFin'),
+
+                                        # Métadonnées header
+                                        **header_metadata
+                                    }
+
+                                # Ajouter valeur et indice pour cette classe
+                                values_by_date[date_str][col_prefix] = valeur
+                                if indice_vraisemblance is not None:
+                                    values_by_date[date_str][f'{col_prefix}_iv'] = indice_vraisemblance
+
+                        # Traiter le cadran totalisateur s'il existe
+                        cadran_total = calendrier.get('cadranTotalisateur')
+                        if cadran_total:
+                            code_cadran_total = cadran_total.get('codeCadran')
+
+                            for point in cadran_total.get('valeur', []):
+                                date_str = point.get('d')
+                                valeur = point.get('v')
+                                indice_vraisemblance = point.get('iv')
+
+                                if not date_str:
+                                    continue
+
+                                # Initialiser si nécessaire
+                                if date_str not in values_by_date:
+                                    values_by_date[date_str] = {
+                                        'pdl': pdl,
+                                        'date_releve': date_str,
+                                        **header_metadata
+                                    }
+
+                                # Ajouter totalisateur
+                                values_by_date[date_str]['total'] = valeur
+                                if indice_vraisemblance is not None:
+                                    values_by_date[date_str]['total_iv'] = indice_vraisemblance
+
+            # Générer les enregistrements pour ce PDL
+            for date_str, row_data in values_by_date.items():
+                yield row_data
+
+        print(f"✅ R64 transformé en format WIDE: {len(values_by_date)} dates par PDL")
+
+    except json.JSONDecodeError as e:
+        print(f"❌ Erreur parsing JSON R64: {e}")
+        return
+    except Exception as e:
+        print(f"❌ Erreur transformation R64: {e}")
+        return
+
+
+def _json_r64_transformer_base(
+    extracted_file: dict,
+    flux_type: str
+) -> Iterator[dict]:
+    """
+    Transformer de base pour R64 avec gestion des timeseries en format WIDE.
+
+    Args:
+        extracted_file: Fichier extrait du transformer archive
+        flux_type: Type de flux pour traçabilité
+
+    Yields:
+        dict: Enregistrements R64 en format wide avec métadonnées DLT
+    """
+    # Gérer les deux cas : JSON extrait de ZIP ou JSON direct du SFTP
+    if 'source_zip' in extracted_file:
+        # Cas 1: JSON extrait d'un ZIP
+        zip_name = extracted_file['source_zip']
+        zip_modified = extracted_file['modification_date']
+        json_name = extracted_file['extracted_file_name']
+        json_content = extracted_file['extracted_content']
+    else:
+        # Cas 2: JSON décrypté du SFTP
+        zip_name = extracted_file['file_name']
+        zip_modified = extracted_file['modification_date']
+        json_name = extracted_file['file_name']
+        json_content = extracted_file['decrypted_content']
+
+    try:
+        print(f"📄 Parsing JSON R64: {json_name}")
+
+        records_count = 0
+
+        # Transformer les timeseries R64 en format WIDE
+        for record in r64_timeseries_to_wide_format(json_content, flux_type):
+            # Enrichir avec métadonnées de traçabilité DLT
+            enriched_record = {
+                **record,
+                'modification_date': zip_modified,
+                '_source_zip': zip_name,
+                '_flux_type': flux_type,
+                '_json_name': json_name
+            }
+
+            yield enriched_record
+            records_count += 1
+
+        print(f"✅ R64 parsé: {records_count} enregistrements WIDE depuis {json_name}")
+
+    except Exception as e:
+        print(f"❌ Erreur parsing JSON R64 {json_name}: {e}")
+        return
+
+
+def create_json_r64_transformer(flux_type: str = "R64"):
+    """
+    Factory pour créer un transformer R64 spécialisé avec format WIDE.
+
+    Args:
+        flux_type: Type de flux (R64)
+
+    Returns:
+        Transformer DLT configuré pour R64
+    """
+    @dlt.transformer
+    def configured_r64_parser(extracted_file: dict) -> Iterator[dict]:
+        return _json_r64_transformer_base(extracted_file, flux_type)
+
+    return configured_r64_parser
 
 

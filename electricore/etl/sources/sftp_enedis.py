@@ -33,18 +33,20 @@ from electricore.etl.transformers.crypto import create_decrypt_transformer
 from electricore.etl.transformers.archive import create_unzip_transformer
 from electricore.etl.transformers.parsers import (
     create_xml_parser_transformer,
-    create_csv_parser_transformer
+    create_csv_parser_transformer,
+    create_json_parser_transformer,
+    create_json_r64_transformer
 )
 
 
-def create_sftp_resource(flux_type: str, table_name: str, zip_pattern: str, sftp_url: str, max_files: int = None):
+def create_sftp_resource(flux_type: str, table_name: str, file_pattern: str, sftp_url: str, max_files: int = None):
     """
     Crée une resource SFTP réutilisable avec limitation optionnelle.
-    
+
     Args:
         flux_type: Type de flux (R15, C15, etc.)
         table_name: Nom de la table cible (pour un état incrémental unique)
-        zip_pattern: Pattern pour les fichiers ZIP
+        file_pattern: Pattern pour les fichiers (ZIP ou JSON directs)
         sftp_url: URL du serveur SFTP
         max_files: Nombre max de fichiers à traiter
     """
@@ -53,27 +55,27 @@ def create_sftp_resource(flux_type: str, table_name: str, zip_pattern: str, sftp
         write_disposition="append"
     )
     def sftp_files_resource():
-        print(f"🔍 SFTP {flux_type}: {mask_password_in_url(sftp_url)} avec pattern {zip_pattern}")
-        
-        encrypted_files = filesystem(
+        print(f"🔍 SFTP {flux_type}: {mask_password_in_url(sftp_url)} avec pattern {file_pattern}")
+
+        files = filesystem(
             bucket_url=sftp_url,
-            file_glob=zip_pattern
+            file_glob=file_pattern
         ).with_name(f"filesystem_{table_name}")  # Nom unique pour état incrémental indépendant
-        
+
         # Appliquer l'incrémental sur la date de modification
-        encrypted_files.apply_hints(
+        files.apply_hints(
             incremental=dlt.sources.incremental("modification_date")
         )
-        
+
         # Limiter le nombre de fichiers si spécifié
         file_count = 0
-        for encrypted_item in encrypted_files:
+        for file_item in files:
             if max_files and file_count >= max_files:
                 print(f"🔄 Limitation atteinte: {max_files} fichiers traités")
                 break
             file_count += 1
-            yield encrypted_item
-    
+            yield file_item
+
     return sftp_files_resource
 
 
@@ -103,24 +105,24 @@ def flux_enedis(flux_config: dict, max_files: int = None):
     
     # Traiter chaque type de flux
     for flux_type, flux_config_data in flux_config.items():
-        zip_pattern = flux_config_data['zip_pattern']
-        
+        file_pattern = flux_config_data['file_pattern']
+
         print(f"\n🏗️  FLUX {flux_type}")
-        print(f"   📁 Pattern: {zip_pattern}")
-        
+        print(f"   📁 Pattern: {file_pattern}")
+
         # === FLUX XML ===
         if 'xml_configs' in flux_config_data:
             xml_configs = flux_config_data['xml_configs']
             print(f"   📄 {len(xml_configs)} config(s) XML")
-            
+
             for xml_config in xml_configs:
                 table_name = xml_config['name']
                 file_regex = xml_config.get('file_regex', '*.xml')
-                
+
                 print(f"   🔧 Pipeline XML: {table_name}")
-                
+
                 # 1. Resource SFTP
-                sftp_resource = create_sftp_resource(flux_type, table_name, zip_pattern, sftp_url, max_files)
+                sftp_resource = create_sftp_resource(flux_type, table_name, file_pattern, sftp_url, max_files)
                 
                 # 2. Transformer unzip configuré pour ce flux
                 unzip_transformer = create_unzip_transformer('.xml', file_regex)
@@ -163,7 +165,7 @@ def flux_enedis(flux_config: dict, max_files: int = None):
                 print(f"   🔧 Pipeline CSV: {table_name}")
                 
                 # 1. Resource SFTP
-                sftp_resource = create_sftp_resource(flux_type, table_name, zip_pattern, sftp_url, max_files)
+                sftp_resource = create_sftp_resource(flux_type, table_name, file_pattern, sftp_url, max_files)
                 
                 # 2. Transformer unzip configuré
                 unzip_transformer = create_unzip_transformer('.csv', file_regex)
@@ -200,7 +202,66 @@ def flux_enedis(flux_config: dict, max_files: int = None):
                     print(f"   🔑 Clé primaire: {primary_key}")
                 
                 yield csv_pipeline
-    
+
+        # === FLUX JSON ===
+        if 'json_configs' in flux_config_data:
+            json_configs = flux_config_data['json_configs']
+            print(f"   🔧 {len(json_configs)} config(s) JSON")
+
+            for json_config in json_configs:
+                table_name = json_config['name']
+                file_regex = json_config.get('file_regex', '*.json')
+                transformer_type = json_config.get('transformer_type', 'standard')
+                primary_key = json_config.get('primary_key', [])
+
+                print(f"   🔧 Pipeline JSON: {table_name} (type: {transformer_type})")
+
+                # 1. Resource SFTP
+                sftp_resource = create_sftp_resource(flux_type, table_name, file_pattern, sftp_url, max_files)
+
+                # 2. Transformer unzip configuré
+                unzip_transformer = create_unzip_transformer('.json', file_regex)
+
+                # 3. Choisir le transformer JSON selon le type
+                if transformer_type == 'r64_timeseries':
+                    # Transformer R64 spécialisé pour timeseries en format WIDE
+                    json_parser = create_json_r64_transformer(flux_type=flux_type)
+                    print(f"   📊 Utilisation transformer R64 spécialisé (format WIDE)")
+                else:
+                    # Transformer JSON générique
+                    record_path = json_config['record_path']
+                    json_parser = create_json_parser_transformer(
+                        record_path=record_path,
+                        metadata_fields=json_config.get('metadata_fields', {}),
+                        data_fields=json_config.get('data_fields', {}),
+                        nested_fields=json_config.get('nested_fields', []),
+                        flux_type=flux_type
+                    )
+                    print(f"   📄 Utilisation transformer JSON standard")
+
+                # 4. 🎯 CHAÎNAGE COMPLET JSON
+                json_pipeline = (
+                    sftp_resource |
+                    decrypt_transformer |
+                    unzip_transformer |
+                    json_parser
+                ).with_name(table_name)
+
+                # 5. Configuration DLT avec déduplication si clé primaire
+                if primary_key:
+                    json_pipeline.apply_hints(
+                        primary_key=primary_key,
+                        write_disposition="merge"
+                    )
+                else:
+                    json_pipeline.apply_hints(write_disposition="append")
+
+                print(f"   ✅ {table_name}: SFTP | decrypt | unzip | parse")
+                if primary_key:
+                    print(f"   🔑 Clé primaire: {primary_key}")
+
+                yield json_pipeline
+
     print("\n" + "=" * 80)
     print("✅ ARCHITECTURE REFACTORÉE COMPLÈTE")
     print("   🔗 Chaînage unifié pour tous les flux")
