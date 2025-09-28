@@ -436,6 +436,198 @@ def create_json_parser_transformer(
 # TRANSFORMER JSON R64 SPÉCIALISÉ - FORMAT WIDE
 # =============================================================================
 
+def extract_header_metadata(data: dict) -> dict:
+    """
+    Extrait les métadonnées du header JSON R64.
+
+    Args:
+        data: Données JSON R64 complètes
+
+    Returns:
+        dict: Métadonnées du header
+    """
+    header = data.get('header', {})
+    return {
+        'id_demande': header.get('idDemande'),
+        'si_demandeur': header.get('siDemandeur'),
+        'code_flux': header.get('codeFlux'),
+        'format': header.get('format')
+    }
+
+
+def is_valid_calendrier(calendrier: dict) -> bool:
+    """
+    Vérifie si le calendrier est un calendrier distributeur valide.
+
+    Args:
+        calendrier: Données du calendrier
+
+    Returns:
+        bool: True si calendrier distributeur valide
+    """
+    id_calendrier = calendrier.get('idCalendrier')
+    libelle_calendrier = calendrier.get('libelleCalendrier', '').lower()
+
+    # Filtrer par ID calendrier ou par libellé distributeur
+    valid_ids = {'DI000001', 'DI000002', 'DI000003'}
+    return (id_calendrier in valid_ids or 'distributeur' in libelle_calendrier)
+
+
+def is_valid_data_point(point: dict) -> bool:
+    """
+    Vérifie si un point de données est valide (iv == 0).
+
+    Args:
+        point: Point de données avec 'd', 'v', 'iv'
+
+    Returns:
+        bool: True si point valide
+    """
+    return (
+        point.get('d') and
+        point.get('v') is not None and
+        point.get('iv') == 0
+    )
+
+
+def should_process_grandeur(grandeur: dict) -> bool:
+    """
+    Vérifie si une grandeur doit être traitée (CONS + EA).
+
+    Args:
+        grandeur: Données de grandeur
+
+    Returns:
+        bool: True si grandeur à traiter
+    """
+    return (
+        grandeur.get('grandeurMetier') == 'CONS' and
+        grandeur.get('grandeurPhysique') == 'EA'
+    )
+
+
+def build_base_record(mesure: dict, contexte: dict, grandeur: dict, header_meta: dict) -> dict:
+    """
+    Construit l'enregistrement de base avec toutes les métadonnées.
+
+    Args:
+        mesure: Données de mesure (PDL)
+        contexte: Données de contexte
+        grandeur: Données de grandeur
+        header_meta: Métadonnées du header
+
+    Returns:
+        dict: Enregistrement de base avec métadonnées
+    """
+    periode = mesure.get('periode', {})
+
+    return {
+        # Métadonnées de base
+        'pdl': mesure.get('idPrm'),
+
+        # Métadonnées contexte
+        'etape_metier': contexte.get('etapeMetier'),
+        'contexte_releve': contexte.get('contexteReleve'),
+        'type_releve': contexte.get('typeReleve'),
+
+        # Métadonnées grandeur
+        'grandeur_physique': grandeur.get('grandeurPhysique'),
+        'grandeur_metier': grandeur.get('grandeurMetier'),
+        'unite': grandeur.get('unite'),
+
+        # Métadonnées header
+        **header_meta
+    }
+
+
+def collect_timeseries_data(mesure: dict, base_record: dict) -> dict:
+    """
+    Collecte toutes les données de timeseries d'une mesure en format wide.
+
+    Args:
+        mesure: Données de mesure complète
+        base_record: Enregistrement de base avec métadonnées
+
+    Returns:
+        dict: Données par date avec colonnes de cadrans
+    """
+    values_by_date = {}
+
+    for contexte in mesure.get('contexte', []):
+        for grandeur in contexte.get('grandeur', []):
+            if not should_process_grandeur(grandeur):
+                continue
+
+            for calendrier in grandeur.get('calendrier', []):
+                if not is_valid_calendrier(calendrier):
+                    continue
+
+                # Traiter les classes temporelles
+                for classe in calendrier.get('classeTemporelle', []):
+                    id_classe = classe.get('idClasseTemporelle')
+                    if not id_classe:
+                        continue
+
+                    col_name = id_classe.lower()
+
+                    # Traiter chaque point de données
+                    for point in classe.get('valeur', []):
+                        if not is_valid_data_point(point):
+                            continue
+
+                        date_str = point.get('d')
+                        valeur = point.get('v')
+
+                        # Initialiser l'enregistrement pour cette date
+                        if date_str not in values_by_date:
+                            values_by_date[date_str] = {
+                                **base_record,
+                                'date_releve': date_str
+                            }
+
+                        # Ajouter la valeur pour cette classe
+                        values_by_date[date_str][col_name] = valeur
+
+    return values_by_date
+
+
+def process_single_mesure(mesure: dict, header_meta: dict) -> Iterator[dict]:
+    """
+    Traite une mesure unique et génère les enregistrements wide.
+
+    Args:
+        mesure: Données d'une mesure (PDL)
+        header_meta: Métadonnées du header
+
+    Yields:
+        dict: Enregistrements wide par date
+    """
+    pdl = mesure.get('idPrm')
+    print(f"📊 Traitement PDL {pdl} - {len(mesure.get('contexte', []))} contexte(s)")
+
+    # Pour trouver le premier contexte/grandeur valide pour les métadonnées
+    base_record = None
+
+    for contexte in mesure.get('contexte', []):
+        for grandeur in contexte.get('grandeur', []):
+            if should_process_grandeur(grandeur):
+                base_record = build_base_record(mesure, contexte, grandeur, header_meta)
+                break
+        if base_record:
+            break
+
+    if not base_record:
+        print(f"⚠️ Aucune grandeur CONS/EA trouvée pour PDL {pdl}")
+        return
+
+    # Collecter toutes les données timeseries
+    values_by_date = collect_timeseries_data(mesure, base_record)
+
+    # Générer les enregistrements
+    for date_str, row_data in values_by_date.items():
+        yield row_data
+
+
 def r64_timeseries_to_wide_format(
     json_bytes: bytes,
     flux_type: str
@@ -457,144 +649,16 @@ def r64_timeseries_to_wide_format(
         data = json.loads(json_bytes.decode('utf-8'))
 
         # Extraire métadonnées du header
-        header = data.get('header', {})
-        header_metadata = {
-            'id_demande': header.get('idDemande'),
-            'si_demandeur': header.get('siDemandeur'),
-            'code_flux': header.get('codeFlux'),
-            'format': header.get('format')
-        }
+        header_metadata = extract_header_metadata(data)
 
         # Traiter chaque mesure (PDL)
-        mesures = data.get('mesures', [])
-        for mesure in mesures:
-            pdl = mesure.get('idPrm')
-            periode = mesure.get('periode', {})
+        total_records = 0
+        for mesure in data.get('mesures', []):
+            for record in process_single_mesure(mesure, header_metadata):
+                yield record
+                total_records += 1
 
-            print(f"📊 Traitement PDL {pdl} - {len(mesure.get('contexte', []))} contexte(s)")
-
-            # Collecteur de données par date pour ce PDL
-            values_by_date = {}
-
-            # Traiter chaque contexte de la mesure
-            for contexte in mesure.get('contexte', []):
-                etape_metier = contexte.get('etapeMetier')
-                contexte_releve = contexte.get('contexteReleve')
-                type_releve = contexte.get('typeReleve')
-
-                # Traiter chaque grandeur du contexte
-                for grandeur in contexte.get('grandeur', []):
-                    grandeur_physique = grandeur.get('grandeurPhysique')
-                    grandeur_metier = grandeur.get('grandeurMetier')
-                    unite = grandeur.get('unite')
-
-                    # Traiter chaque calendrier de la grandeur
-                    for calendrier in grandeur.get('calendrier', []):
-                        id_calendrier = calendrier.get('idCalendrier')
-                        libelle_calendrier = calendrier.get('libelleCalendrier', '')
-
-                        # Traiter chaque classe temporelle du calendrier
-                        for classe in calendrier.get('classeTemporelle', []):
-                            id_classe = classe.get('idClasseTemporelle')
-                            libelle_classe = classe.get('libelleClasseTemporelle')
-                            code_cadran = classe.get('codeCadran')
-
-                            # Déterminer le nom de colonne selon le libellé du calendrier
-                            libelle_lower = libelle_calendrier.lower()
-                            if 'distributeur' in libelle_lower:
-                                # Calendrier distributeur - 4 classes temporelles
-                                if id_classe == 'HPB':
-                                    col_prefix = 'hpb'
-                                elif id_classe == 'HPH':
-                                    col_prefix = 'hph'
-                                elif id_classe == 'HCH':
-                                    col_prefix = 'hch'
-                                elif id_classe == 'HCB':
-                                    col_prefix = 'hcb'
-                                else:
-                                    col_prefix = f'dist_{id_classe.lower()}'
-                            elif 'fournisseur' in libelle_lower:
-                                # Calendrier fournisseur - 2 classes HP/HC
-                                if id_classe == 'HP':
-                                    col_prefix = 'hp_f'
-                                elif id_classe == 'HC':
-                                    col_prefix = 'hc_f'
-                                else:
-                                    col_prefix = f'four_{id_classe.lower()}'
-                            else:
-                                # Calendrier inconnu
-                                col_prefix = f'{id_classe.lower()}'
-
-                            # Traiter chaque point de la timeseries
-                            for point in classe.get('valeur', []):
-                                date_str = point.get('d')
-                                valeur = point.get('v')
-                                indice_vraisemblance = point.get('iv')
-
-                                if not date_str:
-                                    continue
-
-                                # Initialiser l'enregistrement pour cette date si nécessaire
-                                if date_str not in values_by_date:
-                                    values_by_date[date_str] = {
-                                        # Métadonnées de base
-                                        'pdl': pdl,
-                                        'date_releve': date_str,
-
-                                        # Métadonnées contexte
-                                        'etape_metier': etape_metier,
-                                        'contexte_releve': contexte_releve,
-                                        'type_releve': type_releve,
-
-                                        # Métadonnées grandeur
-                                        'grandeur_physique': grandeur_physique,
-                                        'grandeur_metier': grandeur_metier,
-                                        'unite': unite,
-
-                                        # Métadonnées période
-                                        'periode_debut': periode.get('dateDebut'),
-                                        'periode_fin': periode.get('dateFin'),
-
-                                        # Métadonnées header
-                                        **header_metadata
-                                    }
-
-                                # Ajouter valeur et indice pour cette classe
-                                values_by_date[date_str][col_prefix] = valeur
-                                if indice_vraisemblance is not None:
-                                    values_by_date[date_str][f'{col_prefix}_iv'] = indice_vraisemblance
-
-                        # Traiter le cadran totalisateur s'il existe
-                        cadran_total = calendrier.get('cadranTotalisateur')
-                        if cadran_total:
-                            code_cadran_total = cadran_total.get('codeCadran')
-
-                            for point in cadran_total.get('valeur', []):
-                                date_str = point.get('d')
-                                valeur = point.get('v')
-                                indice_vraisemblance = point.get('iv')
-
-                                if not date_str:
-                                    continue
-
-                                # Initialiser si nécessaire
-                                if date_str not in values_by_date:
-                                    values_by_date[date_str] = {
-                                        'pdl': pdl,
-                                        'date_releve': date_str,
-                                        **header_metadata
-                                    }
-
-                                # Ajouter totalisateur
-                                values_by_date[date_str]['total'] = valeur
-                                if indice_vraisemblance is not None:
-                                    values_by_date[date_str]['total_iv'] = indice_vraisemblance
-
-            # Générer les enregistrements pour ce PDL
-            for date_str, row_data in values_by_date.items():
-                yield row_data
-
-        print(f"✅ R64 transformé en format WIDE: {len(values_by_date)} dates par PDL")
+        print(f"✅ R64 transformé en format WIDE: {total_records} enregistrements")
 
     except json.JSONDecodeError as e:
         print(f"❌ Erreur parsing JSON R64: {e}")
