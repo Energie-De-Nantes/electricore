@@ -217,6 +217,108 @@ WITH releves_unifies AS (
 SELECT * FROM releves_unifies
 """
 
+BASE_QUERY_RELEVES_HARMONISES = """
+WITH releves_harmonises AS (
+    -- Flux R15 (relevés avec événements)
+    SELECT
+        CAST(date_releve AS TIMESTAMP) as date_releve,
+        pdl,
+        CAST(false AS BOOLEAN) as ordre_index,  -- Valeur par défaut pour R15
+        CAST(hp AS DOUBLE) as hp,
+        CAST(hc AS DOUBLE) as hc,
+        CAST(hpb AS DOUBLE) as hpb,
+        CAST(hcb AS DOUBLE) as hcb,
+        CAST(hph AS DOUBLE) as hph,
+        CAST(hch AS DOUBLE) as hch,
+        CAST(base AS DOUBLE) as base,
+        CAST('kWh' AS VARCHAR) as unite,  -- Valeur par défaut pour R15
+        CAST('kWh' AS VARCHAR) as precision,  -- Valeur par défaut pour R15
+        CAST('flux_R15' AS VARCHAR) as source,
+        -- Colonnes spécifiques R15/R151
+        id_calendrier as id_calendrier_distributeur,  -- R15 utilise id_calendrier
+        CAST(NULL AS VARCHAR) as id_calendrier_fournisseur,
+        ref_situation_contractuelle,
+        id_affaire,
+        -- Colonnes spécifiques R64 (NULL pour R15)
+        CAST(NULL AS VARCHAR) as type_releve,
+        CAST(NULL AS VARCHAR) as contexte_releve,
+        CAST(NULL AS VARCHAR) as etape_metier,
+        CAST(NULL AS VARCHAR) as grandeur_physique,
+        CAST(NULL AS VARCHAR) as grandeur_metier,
+        -- Identification du flux d'origine
+        'R15' as flux_origine
+    FROM flux_enedis.flux_r15
+    WHERE date_releve IS NOT NULL
+
+    UNION ALL
+
+    -- Flux R151 (relevés périodiques)
+    SELECT
+        CAST(date_releve AS TIMESTAMP) as date_releve,
+        pdl,
+        CAST(false AS BOOLEAN) as ordre_index,  -- Valeur par défaut pour R151
+        CAST(hp AS DOUBLE) as hp,
+        CAST(hc AS DOUBLE) as hc,
+        CAST(hpb AS DOUBLE) as hpb,
+        CAST(hcb AS DOUBLE) as hcb,
+        CAST(hph AS DOUBLE) as hph,
+        CAST(hch AS DOUBLE) as hch,
+        CAST(base AS DOUBLE) as base,
+        unite,
+        unite as precision,  -- R151 a unite mais pas precision
+        CAST('flux_R151' AS VARCHAR) as source,
+        -- Colonnes spécifiques R15/R151
+        id_calendrier_distributeur,
+        id_calendrier_fournisseur,
+        CAST(NULL AS VARCHAR) as ref_situation_contractuelle,  -- R151 n'a pas cette colonne
+        id_affaire,
+        -- Colonnes spécifiques R64 (NULL pour R151)
+        CAST(NULL AS VARCHAR) as type_releve,
+        CAST(NULL AS VARCHAR) as contexte_releve,
+        CAST(NULL AS VARCHAR) as etape_metier,
+        CAST(NULL AS VARCHAR) as grandeur_physique,
+        CAST(NULL AS VARCHAR) as grandeur_metier,
+        -- Identification du flux d'origine
+        'R151' as flux_origine
+    FROM flux_enedis.flux_r151
+    WHERE date_releve IS NOT NULL
+
+    UNION ALL
+
+    -- Flux R64 (relevés JSON timeseries)
+    SELECT
+        CAST(date_releve AS TIMESTAMP) as date_releve,
+        pdl,
+        CAST(false AS BOOLEAN) as ordre_index,  -- Valeur par défaut pour R64
+        CAST(hp AS DOUBLE) as hp,
+        CAST(hc AS DOUBLE) as hc,
+        CAST(hpb AS DOUBLE) as hpb,
+        CAST(hcb AS DOUBLE) as hcb,
+        CAST(hph AS DOUBLE) as hph,
+        CAST(hch AS DOUBLE) as hch,
+        CAST(base AS DOUBLE) as base,
+        unite,
+        unite as precision,  -- R64 a unite mais pas precision
+        CAST('flux_R64' AS VARCHAR) as source,
+        -- Colonnes spécifiques R15/R151 (NULL pour R64)
+        CAST(NULL AS VARCHAR) as id_calendrier_distributeur,
+        CAST(NULL AS VARCHAR) as id_calendrier_fournisseur,
+        CAST(NULL AS VARCHAR) as ref_situation_contractuelle,
+        CAST(NULL AS VARCHAR) as id_affaire,
+        -- Colonnes spécifiques R64
+        type_releve,
+        contexte_releve,
+        etape_metier,
+        grandeur_physique,
+        grandeur_metier,
+        -- Identification du flux d'origine
+        'R64' as flux_origine
+    FROM flux_enedis.flux_r64
+    WHERE date_releve IS NOT NULL
+)
+SELECT * FROM releves_harmonises
+"""
+
 
 from ..models.releve_index import RelevéIndex
 from ..models.historique_perimetre import HistoriquePérimètre
@@ -677,6 +779,42 @@ def r64(database_path: Union[str, Path] = None) -> QueryBuilder:
     )
 
 
+def releves_harmonises(database_path: Union[str, Path] = None) -> QueryBuilder:
+    """
+    Crée un QueryBuilder pour les relevés harmonisés (R15 + R151 + R64).
+
+    Cette fonction unifie les 3 flux de relevés avec un schéma commun :
+    - Colonnes communes : pdl, date_releve, cadrans (hp, hc, hpb, hcb, hph, hch, base)
+    - Colonnes optionnelles selon le flux d'origine
+    - Colonne flux_origine pour identifier la source des données
+
+    Args:
+        database_path: Chemin vers la base DuckDB (optionnel)
+
+    Returns:
+        QueryBuilder configuré pour les relevés harmonisés
+
+    Example:
+        >>> # Tous les relevés harmonisés
+        >>> df = releves_harmonises().exec()
+        >>>
+        >>> # Relevés par flux d'origine
+        >>> df = releves_harmonises().filter({"flux_origine": "R64"}).exec()
+        >>>
+        >>> # Relevés cross-flux pour un PDL
+        >>> df = releves_harmonises().filter({"pdl": "PDL123"}).exec()
+        >>>
+        >>> # Analyse temporelle multi-sources
+        >>> df = releves_harmonises().filter({"date_releve": ">= '2024-01-01'"}).exec()
+    """
+    return QueryBuilder(
+        base_query=BASE_QUERY_RELEVES_HARMONISES,
+        transform_func=_transform_releves_harmonises,
+        validator_class=RelevéIndex,
+        database_path=database_path
+    )
+
+
 # ============================================================
 # Fonctions de compatibilité (legacy API)
 # ============================================================
@@ -885,6 +1023,70 @@ def _transform_r64(lf: pl.LazyFrame) -> pl.LazyFrame:
         .then(pl.lit("kWh"))
         .otherwise(pl.col("unite"))
         .alias("precision")
+    ])
+
+
+def _transform_releves_harmonises(lf: pl.LazyFrame) -> pl.LazyFrame:
+    """
+    Transforme les données DuckDB pour les relevés harmonisés (R15 + R151 + R64).
+
+    Applique les transformations communes à tous les flux :
+    - Conversion timezone Europe/Paris
+    - Conversion Wh -> kWh avec troncature
+    - Normalisation des types de données
+    - Ajout de métadonnées dérivées
+
+    Args:
+        lf: LazyFrame source depuis DuckDB (vue harmonisée)
+
+    Returns:
+        LazyFrame transformé conforme aux standards ElectriCore
+    """
+    # Colonnes d'index numériques à traiter
+    index_cols = ["hpb", "hph", "hch", "hcb", "hp", "hc", "base"]
+
+    return lf.with_columns([
+        # Conversion des dates avec timezone Europe/Paris
+        pl.col("date_releve").dt.convert_time_zone("Europe/Paris"),
+
+        # Conversion Wh -> kWh avec troncature si nécessaire
+        *[
+            pl.when(pl.col("unite") == "Wh")
+            .then(
+                pl.when(pl.col(col).is_not_null())
+                .then((pl.col(col) / 1000).floor())
+                .otherwise(pl.col(col))
+            )
+            .otherwise(pl.col(col))
+            .alias(col)
+            for col in index_cols
+        ],
+
+        # Mettre à jour l'unité après conversion
+        pl.when(pl.col("unite") == "Wh")
+        .then(pl.lit("kWh"))
+        .otherwise(pl.col("unite"))
+        .alias("unite"),
+
+        # Mettre à jour la précision après conversion
+        pl.when(pl.col("precision") == "Wh")
+        .then(pl.lit("kWh"))
+        .otherwise(pl.col("precision"))
+        .alias("precision"),
+
+        # Ajouter des métadonnées dérivées
+        pl.col("flux_origine").alias("flux_origine"),  # Garder tel quel
+
+        # Indicateur de présence de données par flux
+        pl.when(pl.col("flux_origine") == "R64")
+        .then(pl.col("type_releve").is_not_null())
+        .otherwise(pl.col("id_calendrier_distributeur").is_not_null())
+        .alias("has_metadata"),
+
+        # Compteur de cadrans avec valeurs
+        pl.sum_horizontal([
+            pl.col(col).is_not_null().cast(pl.Int32) for col in index_cols
+        ]).alias("cadrans_count")
     ])
 
 

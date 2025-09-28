@@ -29,7 +29,7 @@ class TestDuckDBConfig:
     def test_config_default_path(self):
         """Test de la configuration par défaut."""
         config = DuckDBConfig()
-        assert config.database_path == Path("electricore/etl/flux_enedis.duckdb")
+        assert config.database_path == Path("electricore/etl/flux_enedis_pipeline.duckdb")
 
     def test_config_custom_path(self):
         """Test avec un chemin personnalisé."""

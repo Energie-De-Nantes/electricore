@@ -23,11 +23,11 @@ class RelevéIndex(pa.DataFrameModel):
 
     # 🏢 Références Fournisseur & Distributeur
     id_calendrier_fournisseur: Optional[pl.Utf8] = pa.Field(nullable=True)
-    id_calendrier_distributeur: pl.Utf8 = pa.Field(nullable=True, isin=["DI000001", "DI000002", "DI000003"])
+    id_calendrier_distributeur: Optional[pl.Utf8] = pa.Field(nullable=True)
     id_affaire: Optional[pl.Utf8] = pa.Field(nullable=True)
 
     # Source des données
-    source: pl.Utf8 = pa.Field(nullable=False, isin=["flux_R151", "flux_R15", "flux_C15", "FACTURATION"])
+    source: pl.Utf8 = pa.Field(nullable=False, isin=["flux_R151", "flux_R15", "flux_C15", "flux_R64", "FACTURATION"])
 
     # 📏 Unité de mesure
     unite: pl.Utf8 = pa.Field(nullable=False, isin=["kWh", "Wh", "MWh"])
@@ -41,6 +41,13 @@ class RelevéIndex(pa.DataFrameModel):
     hpb: Optional[pl.Float64] = pa.Field(nullable=True)
     hcb: Optional[pl.Float64] = pa.Field(nullable=True)
     base: Optional[pl.Float64] = pa.Field(nullable=True)
+
+    # 🔌 Métadonnées spécifiques R64 (optionnelles)
+    type_releve: Optional[pl.Utf8] = pa.Field(nullable=True, isin=["AQ", "AM", "AC"])
+    contexte_releve: Optional[pl.Utf8] = pa.Field(nullable=True, isin=["COL", "IND"])
+    etape_metier: Optional[pl.Utf8] = pa.Field(nullable=True, isin=["BRUT", "CORR", "VALID"])
+    grandeur_physique: Optional[pl.Utf8] = pa.Field(nullable=True, isin=["EA", "ER"])
+    grandeur_metier: Optional[pl.Utf8] = pa.Field(nullable=True, isin=["CONS", "PROD"])
 
     @pa.dataframe_check
     def verifier_presence_mesures(cls, data) -> pl.LazyFrame:
