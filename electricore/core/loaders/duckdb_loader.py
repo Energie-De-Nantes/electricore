@@ -131,6 +131,39 @@ SELECT
 FROM flux_enedis.flux_f15_detail
 """
 
+BASE_QUERY_R64 = """
+SELECT
+    CAST(date_releve AS TIMESTAMP) as date_releve,
+    pdl,
+    etape_metier,
+    contexte_releve,
+    type_releve,
+    grandeur_physique,
+    grandeur_metier,
+    unite,
+    -- Métadonnées header
+    id_demande,
+    si_demandeur,
+    code_flux,
+    format,
+    -- Colonnes de cadrans (format WIDE)
+    CAST(hpb AS DOUBLE) as hpb,
+    CAST(hph AS DOUBLE) as hph,
+    CAST(hch AS DOUBLE) as hch,
+    CAST(hcb AS DOUBLE) as hcb,
+    CAST(hp AS DOUBLE) as hp,
+    CAST(hc AS DOUBLE) as hc,
+    CAST(base AS DOUBLE) as base,
+    -- Métadonnées système
+    modification_date,
+    _source_zip,
+    _flux_type,
+    _json_name,
+    'flux_R64' as source
+FROM flux_enedis.flux_r64
+WHERE date_releve IS NOT NULL
+"""
+
 BASE_QUERY_RELEVES_UNIFIES = """
 WITH releves_unifies AS (
     -- Flux R151 (relevés périodiques)
@@ -616,6 +649,34 @@ def releves(database_path: Union[str, Path] = None) -> QueryBuilder:
     )
 
 
+def r64(database_path: Union[str, Path] = None) -> QueryBuilder:
+    """
+    Crée un QueryBuilder pour les données flux R64 (relevés JSON timeseries).
+
+    Args:
+        database_path: Chemin vers la base DuckDB (optionnel)
+
+    Returns:
+        QueryBuilder configuré pour flux R64
+
+    Example:
+        >>> # Relevés R64 récents
+        >>> df = r64().filter({"date_releve": ">= '2024-01-01'"}).limit(100).exec()
+        >>>
+        >>> # Filtrer par PDL et type de relevé
+        >>> df = r64().filter({"pdl": "PDL123", "type_releve": "AQ"}).exec()
+        >>>
+        >>> # Données R64 avec métadonnées
+        >>> df = r64().filter({"etape_metier": "BRUT"}).exec()
+    """
+    return QueryBuilder(
+        base_query=BASE_QUERY_R64,
+        transform_func=_transform_r64,
+        validator_class=None,  # Pas encore de modèle Pandera pour R64
+        database_path=database_path
+    )
+
+
 # ============================================================
 # Fonctions de compatibilité (legacy API)
 # ============================================================
@@ -776,6 +837,54 @@ def _transform_factures(lf: pl.LazyFrame) -> pl.LazyFrame:
         pl.col("date_facture").dt.convert_time_zone("Europe/Paris"),
         pl.col("date_debut").dt.convert_time_zone("Europe/Paris"),
         pl.col("date_fin").dt.convert_time_zone("Europe/Paris"),
+    ])
+
+
+def _transform_r64(lf: pl.LazyFrame) -> pl.LazyFrame:
+    """
+    Transforme les données DuckDB pour les relevés R64.
+
+    Les données R64 sont déjà en format WIDE et ont les unités correctes (Wh).
+    Cette fonction applique principalement la conversion timezone et quelques nettoyages.
+
+    Args:
+        lf: LazyFrame source depuis DuckDB
+
+    Returns:
+        LazyFrame transformé conforme aux standards ElectriCore
+    """
+    # Colonnes d'index numériques à traiter
+    index_cols = ["hpb", "hph", "hch", "hcb", "hp", "hc", "base"]
+
+    return lf.with_columns([
+        # Conversion des dates avec timezone Europe/Paris
+        pl.col("date_releve").dt.convert_time_zone("Europe/Paris"),
+        pl.col("modification_date").dt.convert_time_zone("Europe/Paris"),
+
+        # Conversion Wh -> kWh avec troncature si nécessaire
+        *[
+            pl.when(pl.col("unite") == "Wh")
+            .then(
+                pl.when(pl.col(col).is_not_null())
+                .then((pl.col(col) / 1000).floor())
+                .otherwise(pl.col(col))
+            )
+            .otherwise(pl.col(col))
+            .alias(col)
+            for col in index_cols
+        ],
+
+        # Mettre à jour l'unité après conversion
+        pl.when(pl.col("unite") == "Wh")
+        .then(pl.lit("kWh"))
+        .otherwise(pl.col("unite"))
+        .alias("unite"),
+
+        # Ajouter une colonne precision basée sur l'unité
+        pl.when(pl.col("unite") == "Wh")
+        .then(pl.lit("kWh"))
+        .otherwise(pl.col("unite"))
+        .alias("precision")
     ])
 
 
