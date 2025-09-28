@@ -1,13 +1,13 @@
 import marimo
 
-__generated_with = "0.15.3"
+__generated_with = "0.16.0"
 app = marimo.App()
 
 
 @app.cell
 def _():
     import duckdb
-    DATABASE_URL = "/home/virgile/workspace/electricore/electricore/etl/flux_enedis.duckdb"
+    DATABASE_URL = "/home/virgile/workspace/electricore/electricore/etl/flux_enedis_pipeline.duckdb"
     engine = duckdb.connect(DATABASE_URL, read_only=True)
     return (engine,)
 
@@ -19,7 +19,7 @@ def _(engine, mo):
         SELECT
             *
         FROM
-            enedis_production.flux_r64
+            flux_enedis.flux_r64
         """,
         engine=engine
     )
@@ -71,6 +71,11 @@ def _(mo):
     - Explorez les relations entre tables
     - Identifiez les patterns dans vos données Enedis !
     """)
+    return
+
+
+@app.cell
+def _():
     return
 
 
