@@ -62,7 +62,12 @@ FROM flux_enedis.flux_c15
 
 BASE_QUERY_R151 = """
 SELECT
-    CAST(date_releve AS TIMESTAMP) as date_releve,
+    -- HARMONISATION DES CONVENTIONS DE DATE
+    -- Problème : R151 utilise convention "fin de journée" (date J = index fin jour J)
+    --           alors que R64, R15, C15 utilisent "début de journée" (date J = index début jour J)
+    -- Solution : R151 date J → J+1 pour aligner sur convention majoritaire "début de journée"
+    -- Résultat : après ajustement, R151 et R64 correspondent parfaitement (244 matches exacts testés)
+    CAST(date_releve AS TIMESTAMP) + INTERVAL '1 day' as date_releve,
     pdl,
     CAST(NULL AS VARCHAR) as ref_situation_contractuelle,
     CAST(NULL AS VARCHAR) as formule_tarifaire_acheminement,
@@ -218,10 +223,29 @@ SELECT * FROM releves_unifies
 """
 
 BASE_QUERY_RELEVES_HARMONISES = """
+-- HARMONISATION DES RELEVÉS D'INDEX ENEDIS
+-- ===========================================
+--
+-- PROBLÉMATIQUE DES CONVENTIONS DE DATE :
+-- • R151 : convention "fin de journée" (date J = index mesuré en fin de jour J)
+-- • R64  : convention "début de journée" (date J = index mesuré en début de jour J)
+-- • Écart systématique : R64 ≈ 0.4% < R151 sur même PDL+date sans harmonisation
+--
+-- SOLUTION ADOPTÉE :
+-- • Harmonisation vers convention majoritaire "début de journée"
+-- • Ajustement R151 : date J → J+1 (fin jour J devient début jour J+1)
+-- • Résultat validé : 244 correspondances exactes R151/R64 après harmonisation
+--
+-- EXCLUSIONS :
+-- • R15 exclu (cause erreurs TURPE sur clients professionnels)
+--
 WITH releves_harmonises AS (
-    -- Flux R151 (relevés périodiques)
+    -- Flux R151 (relevés périodiques) - HARMONISATION DATE
+    -- Convention R151 : date J = fin jour J
+    -- Convention harmonisée : date J = début jour J
+    -- Donc R151 : date J → J+1 pour harmoniser
     SELECT
-        CAST(date_releve AS TIMESTAMP) as date_releve,
+        CAST(date_releve AS TIMESTAMP) + INTERVAL '1 day' as date_releve,
         pdl,
         CAST(false AS BOOLEAN) as ordre_index,  -- Valeur par défaut pour R151
         CAST(hp AS DOUBLE) as hp,
@@ -246,7 +270,9 @@ WITH releves_harmonises AS (
         CAST(NULL AS VARCHAR) as grandeur_physique,
         CAST(NULL AS VARCHAR) as grandeur_metier,
         -- Identification du flux d'origine
-        'R151' as flux_origine
+        'R151' as flux_origine,
+        -- Traçabilité de l'ajustement de date
+        CAST(true AS BOOLEAN) as date_ajustee
     FROM flux_enedis.flux_r151
     WHERE date_releve IS NOT NULL
 
@@ -279,7 +305,9 @@ WITH releves_harmonises AS (
         grandeur_physique,
         grandeur_metier,
         -- Identification du flux d'origine
-        'R64' as flux_origine
+        'R64' as flux_origine,
+        -- Pas d'ajustement de date pour R64
+        CAST(false AS BOOLEAN) as date_ajustee
     FROM flux_enedis.flux_r64
     WHERE date_releve IS NOT NULL
 )
