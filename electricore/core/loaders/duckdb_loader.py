@@ -219,39 +219,6 @@ SELECT * FROM releves_unifies
 
 BASE_QUERY_RELEVES_HARMONISES = """
 WITH releves_harmonises AS (
-    -- Flux R15 (relevés avec événements)
-    SELECT
-        CAST(date_releve AS TIMESTAMP) as date_releve,
-        pdl,
-        CAST(false AS BOOLEAN) as ordre_index,  -- Valeur par défaut pour R15
-        CAST(hp AS DOUBLE) as hp,
-        CAST(hc AS DOUBLE) as hc,
-        CAST(hpb AS DOUBLE) as hpb,
-        CAST(hcb AS DOUBLE) as hcb,
-        CAST(hph AS DOUBLE) as hph,
-        CAST(hch AS DOUBLE) as hch,
-        CAST(base AS DOUBLE) as base,
-        CAST('kWh' AS VARCHAR) as unite,  -- Valeur par défaut pour R15
-        CAST('kWh' AS VARCHAR) as precision,  -- Valeur par défaut pour R15
-        CAST('flux_R15' AS VARCHAR) as source,
-        -- Colonnes spécifiques R15/R151
-        id_calendrier as id_calendrier_distributeur,  -- R15 utilise id_calendrier
-        CAST(NULL AS VARCHAR) as id_calendrier_fournisseur,
-        ref_situation_contractuelle,
-        id_affaire,
-        -- Colonnes spécifiques R64 (NULL pour R15)
-        CAST(NULL AS VARCHAR) as type_releve,
-        CAST(NULL AS VARCHAR) as contexte_releve,
-        CAST(NULL AS VARCHAR) as etape_metier,
-        CAST(NULL AS VARCHAR) as grandeur_physique,
-        CAST(NULL AS VARCHAR) as grandeur_metier,
-        -- Identification du flux d'origine
-        'R15' as flux_origine
-    FROM flux_enedis.flux_r15
-    WHERE date_releve IS NOT NULL
-
-    UNION ALL
-
     -- Flux R151 (relevés périodiques)
     SELECT
         CAST(date_releve AS TIMESTAMP) as date_releve,
@@ -781,9 +748,13 @@ def r64(database_path: Union[str, Path] = None) -> QueryBuilder:
 
 def releves_harmonises(database_path: Union[str, Path] = None) -> QueryBuilder:
     """
-    Crée un QueryBuilder pour les relevés harmonisés (R15 + R151 + R64).
+    Crée un QueryBuilder pour les relevés harmonisés (R151 + R64).
 
-    Cette fonction unifie les 3 flux de relevés avec un schéma commun :
+    Cette fonction unifie les 2 flux de relevés quotidiens :
+    - R151 : Relevés périodiques XML (particuliers et petites entreprises)
+    - R64 : Relevés JSON timeseries (gros consommateurs industriels)
+
+    Schéma commun :
     - Colonnes communes : pdl, date_releve, cadrans (hp, hc, hpb, hcb, hph, hch, base)
     - Colonnes optionnelles selon le flux d'origine
     - Colonne flux_origine pour identifier la source des données
@@ -795,7 +766,7 @@ def releves_harmonises(database_path: Union[str, Path] = None) -> QueryBuilder:
         QueryBuilder configuré pour les relevés harmonisés
 
     Example:
-        >>> # Tous les relevés harmonisés
+        >>> # Tous les relevés harmonisés (R151 + R64 seulement)
         >>> df = releves_harmonises().exec()
         >>>
         >>> # Relevés par flux d'origine
@@ -1028,13 +999,14 @@ def _transform_r64(lf: pl.LazyFrame) -> pl.LazyFrame:
 
 def _transform_releves_harmonises(lf: pl.LazyFrame) -> pl.LazyFrame:
     """
-    Transforme les données DuckDB pour les relevés harmonisés (R15 + R151 + R64).
+    Transforme les données DuckDB pour les relevés harmonisés (R151 + R64).
 
-    Applique les transformations communes à tous les flux :
+    Applique les transformations communes aux flux professionnels :
     - Conversion timezone Europe/Paris
     - Conversion Wh -> kWh avec troncature
     - Normalisation des types de données
     - Ajout de métadonnées dérivées
+    - Exclusion du flux R15 pour éviter les erreurs TURPE sur les pros
 
     Args:
         lf: LazyFrame source depuis DuckDB (vue harmonisée)
