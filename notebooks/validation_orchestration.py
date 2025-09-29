@@ -262,6 +262,7 @@ def _(fact):
             .filter(pl.col('data_complete') == True)
             .select([
                 'pdl', 'periode',
+                'ref_situation_contractuelle',  # Référence contrat pour groupby
                 # Quantités physiques
                 'nb_jours',  # jours d'abonnement
                 'puissance_moyenne',  # kVA souscrite
@@ -454,27 +455,38 @@ def _(comparison):
 
 @app.cell(hide_code=True)
 def _(comparison):
-    """Analyse des données par PDL"""
-    if comparison is None:
-        print("❌ Pas de données de comparaison")
-    else:
-        # Synthèse par PDL des quantités ElectriCore
-        synthese_pdl = (
-            comparison
-            .group_by('pdl')
-            .agg([
-                pl.len().alias('nb_periodes'),
-                pl.col('jours_abo').sum().alias('total_jours_abo'),
-                pl.col('base_kwh').sum().alias('total_base_kwh'),
-                pl.col('hp_kwh').sum().alias('total_hp_kwh'),
-                pl.col('hc_kwh').sum().alias('total_hc_kwh'),
-                pl.col('turpe_fixe_eur').sum().alias('total_turpe_fixe'),
-                pl.col('turpe_variable_eur').sum().alias('total_turpe_variable')
-            ])
-            .sort('total_turpe_fixe', descending=True)
-        )
+    # Agrégation par référence contractuelle
+    ecarts_par_contrat = (
+        comparison
+        .group_by('ref_situation_contractuelle')
+        .agg([
+            pl.len().alias('nb_periodes'),
+            pl.col('pdl').first().alias('pdl'),  # Garder le PDL
+            pl.col('type_tarification').first().alias('type_tarif'),
 
-    synthese_pdl
+            # Totaux quantités ElectriCore
+            pl.col('base_kwh').sum().alias('total_base_kwh_electricore'),
+            pl.col('hp_kwh').sum().alias('total_hp_kwh_electricore'),
+            pl.col('hc_kwh').sum().alias('total_hc_kwh_electricore'),
+
+            # Totaux quantités Odoo
+            pl.col('base').sum().alias('total_base_kwh_odoo'),
+            pl.col('HP').sum().alias('total_hp_kwh_odoo'),
+            pl.col('HC').sum().alias('total_hc_kwh_odoo'),
+
+            # Totaux écarts absolus
+            pl.col('ecart_base_kwh').sum().alias('total_ecart_base_kwh'),
+            pl.col('ecart_hp_kwh').sum().alias('total_ecart_hp_kwh'),
+            pl.col('ecart_hc_kwh').sum().alias('total_ecart_hc_kwh'),
+
+            # Moyennes écarts relatifs (sans les null)
+            pl.col('ecart_pct_base_kwh').mean().alias('moy_ecart_pct_base'),
+            pl.col('ecart_pct_hp_kwh').mean().alias('moy_ecart_pct_hp'),
+            pl.col('ecart_pct_hc_kwh').mean().alias('moy_ecart_pct_hc'),
+        ])
+        .sort('nb_periodes', descending=True)
+    )
+    ecarts_par_contrat
     return
 
 
