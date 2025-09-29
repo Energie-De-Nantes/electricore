@@ -53,7 +53,7 @@ def load_pipeline_data():
 
 @app.cell(hide_code=True)
 def _():
-    mo.md(r"""# Calcul du TURPE Variable""")
+    mo.md(r"""# Calcul Facturation""")
     return
 
 
@@ -70,21 +70,7 @@ def calculate_turpe_variable(historique_lf, releves_lf):
 
     # Unpacking pour récupérer les 3 DataFrames
     hist, abo, ener, fact = result
-    return abo, ener, fact
-
-
-@app.cell
-def _(abo, ener, fact):
-    # Affichage des DataFrames pour inspection
-    mo.vstack([
-        mo.md("**Facturation (fact)** :"),
-        fact.head(5),
-        mo.md("**Abonnements (abo)** :"),
-        abo.head(5),
-        mo.md("**Énergies (ener)** :"),
-        ener.head(5)
-    ])
-    return
+    return (fact,)
 
 
 @app.cell(hide_code=True)
@@ -160,6 +146,9 @@ def _(config):
                         pl.col('price_total'),
                     ])
                     .collect()
+                    .with_columns([
+                        pl.col('lisse').fill_null(False).alias('lisse')
+                    ])
                 )
 
             print(f"✅ lignes de factures extraites")
@@ -172,28 +161,105 @@ def _(config):
 
 @app.cell
 def _(odoo_factures):
-    if odoo_factures is not None:
-        odoo_factures.head(10)
-    else:
-        mo.md("⚠️ Pas de données Odoo disponibles")
+    odoo_factures
     return
 
 
 @app.cell(hide_code=True)
-def _(fact, odoo_factures):
-    """Prépare les données physiques pour la comparaison"""
-    if odoo_factures is None:
-        print("❌ Pas de données Odoo pour la comparaison")
-        electricore_agg, odoo_agg = None, None
-    else:
-        print("🔄 Préparation des données pour la comparaison...")
+def _():
+    mo.md(
+        """
+    ## 🎯 Préparation des données Odoo pour comparaison
 
-        # Préparer les données ElectriCore - Utiliser directement les méta-périodes
-        # fact contient déjà les quantités physiques agrégées par mois
-        electricore_agg = (
+    **Objectif** : Filtrer et préparer les données de facturation Odoo pour une comparaison pertinente.
+
+    **Étapes** :
+
+    1. **Exclusion des abonnements lissés** : Les abonnements lissés ne correspondent pas aux consommations réelles
+    2. **Décalage temporel** : Date facture (mois N+1) → Période consommation (mois N)
+    3. **Classification des produits** : Identifier BASE, HP, HC, ABONNEMENT, TURPE
+    4. **Détection du type de tarification** :
+       - Si BASE facturé → Client en tarif Base
+       - Si HP ou HC facturé → Client en tarif HP/HC
+
+    **Résultat** : DataFrame `odoo_prepare` avec le type de tarification identifié pour chaque PDL×période
+    """
+    )
+    return
+
+
+@app.cell(hide_code=True)
+def _(odoo_factures):
+    odoo_prepare = (
+        odoo_factures
+        .filter(pl.col('lisse') == False)
+        .with_columns([
+            # DÉCALAGE D'UN MOIS : date facture Odoo (mois N+1) → période consommation (mois N)
+            pl.col('invoice_date').str.to_date().dt.offset_by('-1mo').dt.strftime('%Y-%m').alias('periode'),
+        ])
+        .group_by(['pdl', 'periode', 'categorie'])
+        .agg([
+            pl.col('quantity').sum().alias('quantite'),
+            pl.col('price_total').sum().alias('montant')
+        ])
+        .pivot(on='categorie', index=['pdl', 'periode'], values='quantite')
+        .rename(mapping={'Base': 'base'})
+        .with_columns([
+            pl.when(pl.col('base') > 0)
+              .then(pl.lit('BASE'))
+              .when((pl.col('HP') > 0) | (pl.col('HC') > 0))
+              .then(pl.lit('HPHC'))
+              .otherwise(pl.lit('INCONNU'))
+              .alias('type_tarification')
+        ])
+    )
+
+    print(f"✅ Odoo préparé: {len(odoo_prepare)} PDL×périodes")
+    print(f"📊 Colonnes finales: {odoo_prepare.columns}")
+    return (odoo_prepare,)
+
+
+@app.cell
+def _(odoo_prepare):
+    odoo_prepare
+    return
+
+
+@app.cell(hide_code=True)
+def _():
+    mo.md(
+        """
+    ## 🔧 Préparation des données ElectriCore
+
+    **Objectif** : Préparer les quantités physiques calculées par ElectriCore pour la comparaison.
+
+    **Données utilisées** :
+
+    - DataFrame `fact` : Méta-périodes de facturation (déjà agrégées par mois)
+    - Quantités physiques : kWh Base/HP/HC, jours d'abonnement, puissance souscrite
+    - Montants TURPE : seuls montants calculés à comparer avec Odoo
+
+    **Résultat** : DataFrame `electricore_prepare` prêt pour la jointure avec les données Odoo
+    """
+    )
+    return
+
+
+@app.cell(hide_code=True)
+def _(fact):
+    """Prépare les données ElectriCore : quantités physiques calculées"""
+    if fact is None:
+        print("❌ Pas de données ElectriCore")
+        electricore_prepare = None
+    else:
+        print("🔄 Préparation des données ElectriCore...")
+
+        # Utiliser directement les méta-périodes (fact contient déjà les agrégations mensuelles)
+        electricore_prepare = (
             fact.with_columns([
                 pl.col('debut').dt.strftime('%Y-%m').alias('periode'),
             ])
+            .filter(pl.col('data_complete') == True)
             .select([
                 'pdl', 'periode',
                 # Quantités physiques
@@ -207,261 +273,182 @@ def _(fact, odoo_factures):
                 'turpe_variable'
             ])
             .rename({
-                'nb_jours': 'jours_abo_electricore',
-                'puissance_moyenne': 'puissance_electricore',
-                'base_energie': 'base_kwh_electricore',
-                'hp_energie': 'hp_kwh_electricore',
-                'hc_energie': 'hc_kwh_electricore',
-                'turpe_fixe': 'turpe_fixe_electricore',
-                'turpe_variable': 'turpe_variable_electricore'
+                'nb_jours': 'jours_abo',
+                'puissance_moyenne': 'puissance_kva',
+                'base_energie': 'base_kwh',
+                'hp_energie': 'hp_kwh',
+                'hc_energie': 'hc_kwh',
+                'turpe_fixe': 'turpe_fixe_eur',
+                'turpe_variable': 'turpe_variable_eur'
             })
         )
 
-        # Préparer les données Odoo - PAR TYPE DE PRODUIT
-        odoo_agg = (
-            odoo_factures.with_columns([
-                # DÉCALAGE D'UN MOIS : date facture Odoo (mois N+1) → période consommation (mois N)
-                # Car facture émise le mois suivant la consommation
-                pl.col('invoice_date').str.to_date().dt.offset_by('-1mo').dt.strftime('%Y-%m').alias('periode'),
-                # Classification des produits par catégorie ou nom
-                pl.when(pl.col('categorie').str.contains('(?i)abonnement|fixe'))
-                  .then(pl.lit('ABONNEMENT'))
-                  .when(pl.col('categorie').str.contains('(?i)hp|pleine'))
-                  .then(pl.lit('HP'))
-                  .when(pl.col('categorie').str.contains('(?i)hc|creuse'))
-                  .then(pl.lit('HC'))
-                  .when(pl.col('categorie').str.contains('(?i)base|unique'))
-                  .then(pl.lit('BASE'))
-                  .when(pl.col('categorie').str.contains('(?i)turpe'))
-                  .then(pl.lit('TURPE'))
-                  .otherwise(pl.lit('AUTRE'))
-                  .alias('type_produit')
-            ])
-            # FILTRAGE : Exclure les abonnements lissés (écarts normaux non pertinents)
-            .filter(
-                ~((pl.col('type_produit') == 'ABONNEMENT') & (pl.col('lisse') == True))
-            )
-            .group_by(['pdl', 'periode', 'type_produit'])
-            .agg([
-                pl.col('quantity').sum().alias('quantite_odoo'),
-                pl.col('price_total').sum().alias('montant_odoo')
-            ])
-        )
-
-        print(f"✅ ElectriCore: {len(electricore_agg)} PDL×périodes")
-        print(f"✅ Odoo: {len(odoo_agg)} PDL×périodes")
-    return electricore_agg, odoo_agg
+        print(f"✅ ElectriCore préparé: {len(electricore_prepare)} PDL×périodes")
+        print(f"📊 Colonnes: {electricore_prepare.columns}")
+    return (electricore_prepare,)
 
 
 @app.cell(hide_code=True)
-def _(electricore_agg, odoo_agg):
-    """Crée la comparaison entre ElectriCore et Odoo"""
-    if electricore_agg is None or odoo_agg is None:
+def _():
+    mo.md(
+        """
+    ## 🔀 Jointure et comparaison des données
+
+    **Objectif** : Joindre les données ElectriCore et Odoo puis calculer les écarts selon le type de tarification.
+
+    **Logique de comparaison** :
+
+    1. **Jointure** sur PDL + période
+    2. **Filtrage** : Garder uniquement les périodes présentes dans les deux systèmes
+    3. **Comparaison adaptée** selon le type de tarification :
+       - **Tarif Base** : Comparer uniquement `base_kwh` vs `BASE`
+       - **Tarif HP/HC** : Comparer `hp_kwh` vs `HP` et `hc_kwh` vs `HC`
+    4. **Calculs d'écarts** : Différences absolues et relatives
+
+    **Résultat** : DataFrame `comparison` avec écarts pertinents uniquement
+    """
+    )
+    return
+
+
+@app.cell(hide_code=True)
+def _(electricore_prepare, odoo_prepare):
+    """Jointure et calculs de comparaison selon le type de tarification"""
+    if electricore_prepare is None or odoo_prepare is None:
+        print("❌ Impossible de faire la jointure")
         comparison = None
     else:
         print("🔄 Jointure des données...")
 
-        # Pour simplifier la comparaison, transformons d'abord odoo_agg en format large
-        # On va créer un pivot pour avoir une ligne par PDL+période avec toutes les quantités
-        odoo_pivot = (
-            odoo_agg
-            .pivot(index=['pdl', 'periode'], columns='type_produit', values='quantite_odoo')
-            .fill_null(0)
-        )
-
-        # Renommer les colonnes Odoo selon les types de produits disponibles
-        # Les colonnes seront nommées automatiquement selon les valeurs de type_produit
-
-        # Filtrer les données avec PDL valides avant jointure
-        print(f"Avant filtrage - ElectriCore: {len(electricore_agg)} lignes")
-        print(f"Avant filtrage - Odoo: {len(odoo_pivot)} lignes")
-
-        # Filtrer ElectriCore : PDL non vide
-        electricore_clean = electricore_agg.filter(
+        # Étape 1: Filtrer les données avec PDL valides
+        electricore_clean = electricore_prepare.filter(
             (pl.col('pdl').is_not_null()) &
             (pl.col('pdl') != '') &
             (pl.col('periode').is_not_null())
         )
 
-        # Filtrer Odoo : PDL non vide
-        odoo_clean = odoo_pivot.filter(
+        odoo_clean = odoo_prepare.filter(
             (pl.col('pdl').is_not_null()) &
             (pl.col('pdl') != '') &
             (pl.col('periode').is_not_null())
         )
 
-        print(f"Après filtrage - ElectriCore: {len(electricore_clean)} lignes")
-        print(f"Après filtrage - Odoo: {len(odoo_clean)} lignes")
+        print(f"📊 ElectriCore clean: {len(electricore_clean)} lignes")
+        print(f"📊 Odoo clean: {len(odoo_clean)} lignes")
 
-        # Jointure sur PDL + période
-        comparison = electricore_clean.join(
+        # Étape 2: Jointure sur PDL + période
+        joined = electricore_clean.join(
             odoo_clean,
             on=['pdl', 'periode'],
-            how='outer'  # Garder toutes les données (ElectriCore ET Odoo)
-        ).fill_null(0)  # Gérer toutes les valeurs manquantes
-
-        # Nettoyer les colonnes dupliquées de la jointure
-        comparison = comparison.drop([col for col in comparison.columns if col.endswith('_right')])
-
-        # Vérification finale : supprimer les lignes avec PDL encore vide (ne devrait plus arriver)
-        comparison = comparison.filter(
-            (pl.col('pdl').is_not_null()) & (pl.col('pdl') != '')
+            how='inner'  # Garder uniquement les périodes communes
         )
 
-        # Calculer les écarts entre ElectriCore et Odoo
-        # Identifier les colonnes Odoo disponibles après pivot (exclure les colonnes ElectriCore)
-        odoo_cols = [col for col in comparison.columns if col not in [
-            'pdl', 'periode', 'jours_abo_electricore', 'puissance_electricore',
-            'base_kwh_electricore', 'hp_kwh_electricore', 'hc_kwh_electricore',
-            'turpe_fixe_electricore', 'turpe_variable_electricore'
-        ]]
+        print(f"🔗 Après jointure: {len(joined)} lignes communes")
 
-        print("📊 Colonnes Odoo détectées:", odoo_cols)
+        # Étape 3: Calculs d'écarts selon le type de tarification
+        comparison = joined.with_columns([
+            # Écarts jours abonnement (pas d'abonnement dans les données Odoo pour l'instant)
+            pl.lit(None).alias('ecart_jours_abo'),
 
-        # Ajouter les calculs d'écarts selon les colonnes disponibles
-        ecart_expressions = []
+            # Écarts énergétiques SEULEMENT selon le type de tarification
+            pl.when(pl.col('type_tarification') == 'BASE')
+              .then(pl.col('base_kwh') - pl.col('base'))  # Comparer Base vs base
+              .otherwise(None)
+              .alias('ecart_base_kwh'),
 
-        # Écart jours abonnement (si ABONNEMENT existe)
-        if 'ABONNEMENT' in odoo_cols:
-            ecart_expressions.extend([
-                (pl.col('jours_abo_electricore') - pl.col('ABONNEMENT')).alias('ecart_jours_abo'),
-                pl.when(pl.col('ABONNEMENT') > 0)
-                  .then(((pl.col('jours_abo_electricore') - pl.col('ABONNEMENT')) / pl.col('ABONNEMENT') * 100))
-                  .otherwise(None)
-                  .alias('ecart_pct_jours_abo')
-            ])
+            pl.when(pl.col('type_tarification') == 'HPHC')
+              .then(pl.col('hp_kwh') - pl.col('HP'))  # Comparer HP vs HP
+              .otherwise(None)
+              .alias('ecart_hp_kwh'),
 
-        # Écart HP (si HP existe)
-        if 'HP' in odoo_cols:
-            ecart_expressions.extend([
-                (pl.col('hp_kwh_electricore') - pl.col('HP')).alias('ecart_hp_kwh'),
-                pl.when(pl.col('HP') > 0)
-                  .then(((pl.col('hp_kwh_electricore') - pl.col('HP')) / pl.col('HP') * 100))
-                  .otherwise(None)
-                  .alias('ecart_pct_hp_kwh')
-            ])
+            pl.when(pl.col('type_tarification') == 'HPHC')
+              .then(pl.col('hc_kwh') - pl.col('HC'))  # Comparer HC vs HC
+              .otherwise(None)
+              .alias('ecart_hc_kwh')
+        ])
 
-        # Écart HC (si HC existe)
-        if 'HC' in odoo_cols:
-            ecart_expressions.extend([
-                (pl.col('hc_kwh_electricore') - pl.col('HC')).alias('ecart_hc_kwh'),
-                pl.when(pl.col('HC') > 0)
-                  .then(((pl.col('hc_kwh_electricore') - pl.col('HC')) / pl.col('HC') * 100))
-                  .otherwise(None)
-                  .alias('ecart_pct_hc_kwh')
-            ])
+        # Étape 4: Calculs des écarts relatifs (en %)
+        comparison = comparison.with_columns([
+            # Écarts relatifs jours abonnement (pas d'abonnement dans les données Odoo)
+            pl.lit(None).alias('ecart_pct_jours_abo'),
 
-        # Écart Base (si BASE existe)
-        if 'BASE' in odoo_cols:
-            ecart_expressions.extend([
-                (pl.col('base_kwh_electricore') - pl.col('BASE')).alias('ecart_base_kwh'),
-                pl.when(pl.col('BASE') > 0)
-                  .then(((pl.col('base_kwh_electricore') - pl.col('BASE')) / pl.col('BASE') * 100))
-                  .otherwise(None)
-                  .alias('ecart_pct_base_kwh')
-            ])
+            # Écarts relatifs énergétiques (seulement pour les quantités pertinentes)
+            pl.when((pl.col('type_tarification') == 'BASE') & (pl.col('base') > 0))
+              .then((pl.col('ecart_base_kwh') / pl.col('base') * 100))
+              .otherwise(None)
+              .alias('ecart_pct_base_kwh'),
 
-        # Ajouter les colonnes d'écarts si des expressions existent
-        if ecart_expressions:
-            comparison = comparison.with_columns(ecart_expressions)
+            pl.when((pl.col('type_tarification') == 'HPHC') & (pl.col('HP') > 0))
+              .then((pl.col('ecart_hp_kwh') / pl.col('HP') * 100))
+              .otherwise(None)
+              .alias('ecart_pct_hp_kwh'),
 
-        # Ajouter des indicateurs de concordance
-        concordance_expressions = []
-
-        # Flag pour écarts significatifs (> 5%)
-        ecart_pct_cols = [col for col in comparison.columns if col.startswith('ecart_pct_')]
-        if ecart_pct_cols:
-            # Créer une condition OR pour tous les écarts > 5%
-            significant_ecart_condition = None
-            for col in ecart_pct_cols:
-                condition = pl.col(col).abs() > 5
-                significant_ecart_condition = condition if significant_ecart_condition is None else (significant_ecart_condition | condition)
-
-            if significant_ecart_condition is not None:
-                concordance_expressions.append(
-                    significant_ecart_condition.alias('ecart_significatif')
-                )
-
-        # Flag pour données présentes des deux côtés
-        concordance_expressions.append(
-            ((pl.col('jours_abo_electricore') > 0) |
-             (pl.col('base_kwh_electricore') > 0) |
-             (pl.col('hp_kwh_electricore') > 0) |
-             (pl.col('hc_kwh_electricore') > 0)).alias('present_electricore')
-        )
-
-        # Flag pour données présentes côté Odoo (au moins une colonne > 0)
-        if odoo_cols:
-            odoo_present_condition = None
-            for col in odoo_cols:
-                condition = pl.col(col) > 0
-                odoo_present_condition = condition if odoo_present_condition is None else (odoo_present_condition | condition)
-
-            if odoo_present_condition is not None:
-                concordance_expressions.append(odoo_present_condition.alias('present_odoo'))
-
-        # Ajouter les indicateurs de concordance
-        if concordance_expressions:
-            comparison = comparison.with_columns(concordance_expressions)
+            pl.when((pl.col('type_tarification') == 'HPHC') & (pl.col('HC') > 0))
+              .then((pl.col('ecart_hc_kwh') / pl.col('HC') * 100))
+              .otherwise(None)
+              .alias('ecart_pct_hc_kwh')
+        ])
 
         print(f"✅ Comparaison créée: {len(comparison)} lignes")
-        print("📊 Colonnes disponibles:", comparison.columns)
+        print(f"📊 Colonnes: {comparison.columns}")
     return (comparison,)
 
 
 @app.cell(hide_code=True)
 def _(comparison):
-    """Filtrer les périodes présentes dans les deux systèmes"""
+    """Affichage des statistiques de comparaison"""
     if comparison is None:
-        comparison_commune = None
+        print("❌ Pas de données de comparaison")
     else:
-        comparison_commune = comparison.filter(
-            pl.col('present_electricore') & pl.col('present_odoo')
-        )
-        print(f"🔍 Périodes communes: {len(comparison_commune)} lignes (sur {len(comparison)} total)")
-    comparison_commune
-    return (comparison_commune,)
+        print(f"📊 Statistiques de la comparaison:")
+        print(f"   • Nombre total de PDL×périodes: {len(comparison)}")
+
+        # Statistiques par type de tarification
+        stats_tarif = comparison.group_by('type_tarification').len().sort('len', descending=True)
+        print(f"   • Répartition par tarification:")
+        for row in stats_tarif.iter_rows():
+            tarif, count = row
+            print(f"     - {tarif}: {count} lignes")
+    return
+
+
+@app.cell
+def _(comparison):
+    comparison
+    return
 
 
 @app.cell(hide_code=True)
-def _(comparison, comparison_commune):
-    """Statistiques de comparaison des quantités physiques"""
-    if comparison_commune is None:
-        _msg = mo.md("⚠️ Pas de données de comparaison")
+def _(comparison):
+    """Analyse des écarts de la comparaison"""
+    if comparison is None:
+        print("❌ Pas de données de comparaison")
     else:
-        # Utiliser les périodes communes déjà filtrées
-        _comparaisons = comparison_commune
+        print(f"🔍 Analyse des écarts significatifs (> 5%):")
 
-        if len(_comparaisons) == 0:
-            _msg = mo.md("⚠️ Aucune période avec données ElectriCore")
-        else:
-            nb_comp = len(_comparaisons)
+        # Compter les écarts significatifs par type
+        ecarts_base = comparison.filter(
+            (pl.col('type_tarification') == 'BASE') &
+            (pl.col('ecart_pct_base_kwh').abs() > 5)
+        )
 
-            # Calculer écarts par type de quantité (selon colonnes Odoo disponibles)
-            cols_odoo = [col for col in comparison.columns if not col.endswith('_electricore') and col not in ['pdl', 'periode']]
+        ecarts_hp = comparison.filter(
+            (pl.col('type_tarification') == 'HPHC') &
+            (pl.col('ecart_pct_hp_kwh').abs() > 5)
+        )
 
-            _msg = mo.md(f"""
-            ## 📊 Statistiques de comparaison des quantités physiques
+        ecarts_hc = comparison.filter(
+            (pl.col('type_tarification') == 'HPHC') &
+            (pl.col('ecart_pct_hc_kwh').abs() > 5)
+        )
 
-            **Couverture** : {nb_comp} périodes avec données ElectriCore
+        # Pas d'abonnements dans les données Odoo actuelles
+        ecarts_abo_count = 0
 
-            **Colonnes ElectriCore** :
-            - Jours abonnement : {_comparaisons.select(pl.col('jours_abo_electricore').sum()).item()}
-            - Base (kWh) : {_comparaisons.select(pl.col('base_kwh_electricore').sum()).item():.0f}
-            - HP (kWh) : {_comparaisons.select(pl.col('hp_kwh_electricore').sum()).item():.0f}
-            - HC (kWh) : {_comparaisons.select(pl.col('hc_kwh_electricore').sum()).item():.0f}
-            - TURPE fixe : {_comparaisons.select(pl.col('turpe_fixe_electricore').sum()).item():.0f}€
-            - TURPE variable : {_comparaisons.select(pl.col('turpe_variable_electricore').sum()).item():.0f}€
-
-            **Colonnes Odoo disponibles** : {cols_odoo}
-
-            **Prochaines étapes** :
-
-            1. Vérifier le mapping des catégories de produits Odoo
-            2. Comparer les quantités correspondantes
-            3. Analyser les écarts sur TURPE uniquement
-            """)
-    _msg
+        print(f"   • Écarts Base > 5%: {len(ecarts_base)} lignes")
+        print(f"   • Écarts HP > 5%: {len(ecarts_hp)} lignes")
+        print(f"   • Écarts HC > 5%: {len(ecarts_hc)} lignes")
+        print(f"   • Écarts Abonnement > 5%: {ecarts_abo_count} lignes")
     return
 
 
@@ -469,7 +456,7 @@ def _(comparison, comparison_commune):
 def _(comparison):
     """Analyse des données par PDL"""
     if comparison is None:
-        _msg = mo.md("⚠️ Pas de données de comparaison")
+        print("❌ Pas de données de comparaison")
     else:
         # Synthèse par PDL des quantités ElectriCore
         synthese_pdl = (
@@ -477,22 +464,17 @@ def _(comparison):
             .group_by('pdl')
             .agg([
                 pl.len().alias('nb_periodes'),
-                pl.col('jours_abo_electricore').sum().alias('total_jours_abo'),
-                pl.col('base_kwh_electricore').sum().alias('total_base_kwh'),
-                pl.col('hp_kwh_electricore').sum().alias('total_hp_kwh'),
-                pl.col('hc_kwh_electricore').sum().alias('total_hc_kwh'),
-                pl.col('turpe_fixe_electricore').sum().alias('total_turpe_fixe'),
-                pl.col('turpe_variable_electricore').sum().alias('total_turpe_variable')
+                pl.col('jours_abo').sum().alias('total_jours_abo'),
+                pl.col('base_kwh').sum().alias('total_base_kwh'),
+                pl.col('hp_kwh').sum().alias('total_hp_kwh'),
+                pl.col('hc_kwh').sum().alias('total_hc_kwh'),
+                pl.col('turpe_fixe_eur').sum().alias('total_turpe_fixe'),
+                pl.col('turpe_variable_eur').sum().alias('total_turpe_variable')
             ])
             .sort('total_turpe_fixe', descending=True)
         )
 
-        _msg = mo.vstack([
-            mo.md("## 📊 Synthèse par PDL - Quantités ElectriCore"),
-            mo.md("Totaux par Point de Livraison :"),
-            synthese_pdl.head(10)
-        ])
-    _msg
+    synthese_pdl
     return
 
 
