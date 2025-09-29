@@ -39,5 +39,19 @@ def _(r64_df):
     return
 
 
+@app.cell
+def _():
+    from electricore.core.loaders.duckdb_loader import releves_harmonises
+    df = releves_harmonises().validate(True).lazy().collect()
+    df
+    return
+
+
+@app.cell
+def _():
+    r151().exec()
+    return
+
+
 if __name__ == "__main__":
     app.run()

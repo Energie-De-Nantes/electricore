@@ -30,7 +30,7 @@ def _(engine, mo):
 def _(engine, mo):
     _df = mo.sql(
         f"""
-        SELECT * FROM enedis_production.flux_r151 LIMIT 100
+        SELECT * FROM flux_enedis.flux_r151 LIMIT 100
         """,
         engine=engine
     )

@@ -335,5 +335,25 @@ def stats_analysis(navigation_result):
     return
 
 
+@app.cell
+def _(config):
+    with OdooReader(config=config) as _odoo:
+        # Démonstration des 2 approches : follow() vs enrich()
+
+        # Approche 1: Navigation pure avec follow()
+        pdls = (
+            _odoo.query('sale.order', domain=[('state', '=', 'sale'), ('subscription_state', '=', '3_progress')],
+                fields=['x_pdl'])
+            .collect()
+        )
+    return (pdls,)
+
+
+@app.cell
+def _(pdls):
+    pdls.select([pl.col('x_pdl')])
+    return
+
+
 if __name__ == "__main__":
     app.run()

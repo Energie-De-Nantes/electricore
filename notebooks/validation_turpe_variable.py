@@ -306,8 +306,10 @@ def load_pipeline_data():
     df_historique = lf_historique_enrichi.collect()
 
     # Charger les relevés R151
-    print("📄 Chargement relevés R151...")
-    lf_releves = r151().lazy()
+    # print("📄 Chargement relevés R151...")
+    # lf_releves = r151().lazy()
+    from electricore.core.loaders.duckdb_loader import releves_harmonises
+    lf_releves = releves_harmonises().lazy()
     df_releves = lf_releves.collect()
 
     _load_time_pipeline = time.time() - _start_time_pipeline
