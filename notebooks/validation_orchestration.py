@@ -137,7 +137,7 @@ def _(config):
                 odoo_factures = (
                     odoo.query('sale.order',
                         domain=[('state', '=', 'sale'), ('x_pdl', '!=', False)],
-                        fields=['x_pdl', 'name', 'invoice_ids'])
+                        fields=['x_pdl', 'name', 'x_lisse', 'invoice_ids'])
                     .follow('invoice_ids',  # Navigation vers account.move
                         fields=['name', 'invoice_date', 'amount_total', 'invoice_line_ids'])
                     .follow('invoice_line_ids',  # Navigation vers account.move.line
@@ -150,6 +150,7 @@ def _(config):
                     .select([
                         pl.col('x_pdl').alias('pdl'),
                         pl.col('name').alias('order_name'),
+                        pl.col('x_lisse').alias('lisse'),
                         pl.col('name_account_move').alias('invoice_name'),
                         pl.col('invoice_date'),
                         pl.col('name_product_product').alias('product_name'),
@@ -219,7 +220,9 @@ def _(fact, odoo_factures):
         # Préparer les données Odoo - PAR TYPE DE PRODUIT
         odoo_agg = (
             odoo_factures.with_columns([
-                pl.col('invoice_date').str.to_date().dt.strftime('%Y-%m').alias('periode'),
+                # DÉCALAGE D'UN MOIS : date facture Odoo (mois N+1) → période consommation (mois N)
+                # Car facture émise le mois suivant la consommation
+                pl.col('invoice_date').str.to_date().dt.offset_by('-1mo').dt.strftime('%Y-%m').alias('periode'),
                 # Classification des produits par catégorie ou nom
                 pl.when(pl.col('categorie').str.contains('(?i)abonnement|fixe'))
                   .then(pl.lit('ABONNEMENT'))
@@ -234,6 +237,10 @@ def _(fact, odoo_factures):
                   .otherwise(pl.lit('AUTRE'))
                   .alias('type_produit')
             ])
+            # FILTRAGE : Exclure les abonnements lissés (écarts normaux non pertinents)
+            .filter(
+                ~((pl.col('type_produit') == 'ABONNEMENT') & (pl.col('lisse') == True))
+            )
             .group_by(['pdl', 'periode', 'type_produit'])
             .agg([
                 pl.col('quantity').sum().alias('quantite_odoo'),
@@ -404,23 +411,26 @@ def _(electricore_agg, odoo_agg):
 
 @app.cell(hide_code=True)
 def _(comparison):
-    comparison
-    return
+    """Filtrer les périodes présentes dans les deux systèmes"""
+    if comparison is None:
+        comparison_commune = None
+    else:
+        comparison_commune = comparison.filter(
+            pl.col('present_electricore') & pl.col('present_odoo')
+        )
+        print(f"🔍 Périodes communes: {len(comparison_commune)} lignes (sur {len(comparison)} total)")
+    comparison_commune
+    return (comparison_commune,)
 
 
 @app.cell(hide_code=True)
-def _(comparison):
+def _(comparison, comparison_commune):
     """Statistiques de comparaison des quantités physiques"""
-    if comparison is None:
+    if comparison_commune is None:
         _msg = mo.md("⚠️ Pas de données de comparaison")
     else:
-        # Filtrer les périodes avec des données ElectriCore et Odoo
-        _comparaisons = comparison.filter(
-            (pl.col('jours_abo_electricore') > 0) |
-            (pl.col('base_kwh_electricore') > 0) |
-            (pl.col('hp_kwh_electricore') > 0) |
-            (pl.col('hc_kwh_electricore') > 0)
-        )
+        # Utiliser les périodes communes déjà filtrées
+        _comparaisons = comparison_commune
 
         if len(_comparaisons) == 0:
             _msg = mo.md("⚠️ Aucune période avec données ElectriCore")
@@ -446,7 +456,7 @@ def _(comparison):
             **Colonnes Odoo disponibles** : {cols_odoo}
 
             **Prochaines étapes** :
-        
+
             1. Vérifier le mapping des catégories de produits Odoo
             2. Comparer les quantités correspondantes
             3. Analyser les écarts sur TURPE uniquement
