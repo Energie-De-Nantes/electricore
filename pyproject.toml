@@ -9,19 +9,14 @@ license = {text = "GPLv3"}
 readme = "README.md"
 requires-python = ">=3.12,<3.15"
 dependencies = [
-    "pandas (>=2.2.3,<3.0.0)",
     "polars (>=1.0.0,<2.0.0)",
     "pandera[polars] (>=0.24.0)",
-    "babel (>=2.17.0,<3.0.0)",
-    "toolz (>=1.0.0,<2.0.0)",
     "pyarrow (>=21.0.0,<22.0.0)",
     "dlt[workspace] (>=1.16.0,<2.0.0)",
     "pycryptodome (>=3.23.0,<4.0.0)",
     "fastapi (>=0.116.1,<0.117.0)",
     "uvicorn (>=0.35.0,<0.36.0)",
     "duckdb (>=1.3.2,<2.0.0)",
-    "vegafusion (>=2.0.2,<3.0.0)",
-    "vl-convert-python (>=1.8.0,<2.0.0)",
 ]
 
 
@@ -37,13 +32,15 @@ hypothesis = "^6.0.0"
 syrupy = "^4.7.2"
 
 
-[tool.poetry.group.dev.dependencies]
-icecream = "^2.1.5"
+[tool.poetry.group.notebook]
+optional = true
+
+[tool.poetry.group.notebook.dependencies]
 marimo = ">=0.14.11"
 altair = "^5.5.0"
 plotly = "^6.2.0"
-electriflux = ">=1.1.0, <2.0.0"
-streamlit = "^1.49.1"
+vegafusion = ">=2.0.2,<3.0.0"
+vl-convert-python = ">=1.8.0,<2.0.0"
 
 [test]
 command = "poetry run pytest -q"
