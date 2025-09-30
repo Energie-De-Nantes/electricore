@@ -100,10 +100,9 @@ Pipelines de calculs énergétiques basés sur **Polars pur** (LazyFrames + expr
 #### 1. **Périmètre** - Détection changements contractuels
 ```python
 from electricore.core.pipelines.perimetre import pipeline_perimetre
+from electricore.core.loaders import c15
 
 # Depuis DuckDB avec Query Builder
-from electricore.core.loaders.duckdb_loader import c15
-
 historique_lf = (
     c15()
     .filter({"Date_Evenement": ">= '2024-01-01'"})
@@ -131,7 +130,7 @@ abonnements_df = pipeline_abonnements(
 #### 3. **Énergies** - Consommations par cadran
 ```python
 from electricore.core.pipelines.energie import pipeline_energie
-from electricore.core.loaders.duckdb_loader import releves
+from electricore.core.loaders import releves
 
 relevés_lf = releves().filter({"date_releve": ">= '2024-01-01'"}).lazy()
 
@@ -177,16 +176,23 @@ print(resultat.factures.collect())      # Synthèses mensuelles
 
 ### 🔧 Interfaces de Requêtage
 
-#### DuckDB Query Builder - Interface fluide
+#### DuckDB Query Builder - Architecture Fonctionnelle Modulaire
+
+**Architecture en 6 modules** pour performance et maintenabilité :
+- `config.py` - Configuration et connexions DuckDB
+- `expressions.py` - Expressions Polars pures réutilisables
+- `transforms.py` - Transformations composables avec `compose()`
+- `sql.py` - Génération SQL fonctionnelle (dataclasses frozen)
+- `query.py` - Query builder immutable (`DuckDBQuery`)
+- `__init__.py` - API publique + helper `_CTEQuery` pour requêtes CTE
 
 ```python
-from electricore.core.loaders.duckdb_loader import c15, r151, releves, releves_harmonises
+from electricore.core.loaders import c15, r151, releves, releves_harmonises
 
 # Historique périmètre (flux C15)
 historique = (
     c15()
     .filter({"Date_Evenement": ">= '2024-01-01'"})
-    .where("Puissance_Souscrite > 6")
     .limit(100)
     .collect()
 )
@@ -199,10 +205,10 @@ relevés = (
     .lazy()  # Retourne LazyFrame pour optimisations
 )
 
-# Relevés unifiés (R151 + R15)
+# Relevés unifiés (R151 + R15) avec CTE
 tous_releves = releves().collect()
 
-# Relevés harmonisés (R151 + R64)
+# Relevés harmonisés (R151 + R64) avec CTE
 releves_cross_flux = (
     releves_harmonises()
     .filter({"flux_origine": "R64"})
@@ -211,6 +217,13 @@ releves_cross_flux = (
 ```
 
 **Fonctions disponibles** : `c15()`, `r151()`, `r15()`, `f15()`, `r64()`, `releves()`, `releves_harmonises()`
+
+**Caractéristiques** :
+- ✅ Immutabilité garantie (frozen dataclasses)
+- ✅ Composition fonctionnelle pure
+- ✅ Lazy evaluation optimisée
+- ✅ Support CTE (Common Table Expressions)
+- ✅ Validation Pandera intégrée
 
 📖 **Documentation complète** : [electricore/core/loaders/DUCKDB_INTEGRATION_GUIDE.md](electricore/core/loaders/DUCKDB_INTEGRATION_GUIDE.md)
 
@@ -382,11 +395,11 @@ ElectriCore utilise une architecture **100% Polars** pour des performances optim
 
 ### Complété ✅
 - Migration Polars complète (périmètre, abonnements, énergies, turpe)
-- Query Builder DuckDB avec API fluide
+- Query Builder DuckDB avec architecture fonctionnelle modulaire (6 modules)
 - Connecteur Odoo avec Query Builder
 - API FastAPI sécurisée avec authentification
 - Pipeline ETL modulaire avec DLT
-- Tests unitaires et validation
+- Tests unitaires et validation (140 tests passent)
 
 ### En cours 🔄
 - CI/CD GitHub Actions
