@@ -49,7 +49,7 @@ def _():
 
 @app.cell
 def _():
-    r151().exec()
+    r151().collect()
     return
 
 

@@ -548,7 +548,7 @@ def _():
 
 @app.cell
 def _():
-    f15().exec()
+    f15().collect()
     return
 
 

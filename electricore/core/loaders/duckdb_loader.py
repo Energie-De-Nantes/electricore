@@ -408,11 +408,11 @@ class QueryBuilder:
     Cette classe suit le pattern builder avec une approche fonctionnelle :
     - Immutabilité : chaque méthode retourne une nouvelle instance
     - Méthodes chainables pour une API fluide
-    - Lazy evaluation : la requête n'est exécutée qu'au moment de exec() ou lazy()
+    - Lazy evaluation : la requête n'est exécutée qu'au moment de collect() ou lazy()
 
     Example:
         >>> # API fluide chainable
-        >>> result = c15().filter({"Date_Evenement": ">= '2024-01-01'"}).limit(100).exec()
+        >>> result = c15().filter({"Date_Evenement": ">= '2024-01-01'"}).limit(100).collect()
         >>>
         >>> # Construction progressive
         >>> query = r151().filter({"pdl": ["PDL123", "PDL456"]})
@@ -610,7 +610,7 @@ class QueryBuilder:
 
         return lazy_frame
 
-    def exec(self) -> pl.DataFrame:
+    def collect(self) -> pl.DataFrame:
         """
         Exécute la requête et retourne un DataFrame Polars concret.
 
@@ -618,6 +618,18 @@ class QueryBuilder:
             DataFrame Polars collecté avec les transformations appliquées
         """
         return self.lazy().collect()
+
+    def exec(self) -> pl.DataFrame:
+        """
+        Exécute la requête et retourne un DataFrame Polars concret.
+
+        .. deprecated::
+            Utilisez `.collect()` à la place pour cohérence avec Polars.
+
+        Returns:
+            DataFrame Polars collecté avec les transformations appliquées
+        """
+        return self.collect()
 
 
 # ============================================================
@@ -636,7 +648,7 @@ def c15(database_path: Union[str, Path] = None) -> QueryBuilder:
 
     Example:
         >>> # Récupérer les événements récents
-        >>> df = c15().filter({"Date_Evenement": ">= '2024-01-01'"}).limit(100).exec()
+        >>> df = c15().filter({"Date_Evenement": ">= '2024-01-01'"}).limit(100).collect()
         >>>
         >>> # Filtrer par PDL spécifiques
         >>> lazy_df = c15().filter({"pdl": ["PDL123", "PDL456"]}).lazy()
@@ -661,7 +673,7 @@ def r151(database_path: Union[str, Path] = None) -> QueryBuilder:
 
     Example:
         >>> # Relevés récents avec limite
-        >>> df = r151().filter({"date_releve": ">= '2024-01-01'"}).limit(1000).exec()
+        >>> df = r151().filter({"date_releve": ">= '2024-01-01'"}).limit(1000).collect()
     """
     return QueryBuilder(
         base_query=BASE_QUERY_R151,
@@ -683,7 +695,7 @@ def r15(database_path: Union[str, Path] = None) -> QueryBuilder:
 
     Example:
         >>> # Relevés avec situation contractuelle spécifique
-        >>> df = r15().filter({"ref_situation_contractuelle": "REF123"}).exec()
+        >>> df = r15().filter({"ref_situation_contractuelle": "REF123"}).collect()
     """
     return QueryBuilder(
         base_query=BASE_QUERY_R15,
@@ -705,10 +717,10 @@ def f15(database_path: Union[str, Path] = None) -> QueryBuilder:
 
     Example:
         >>> # Factures pour un PDL spécifique
-        >>> df = f15().filter({"pdl": "PDL123"}).exec()
+        >>> df = f15().filter({"pdl": "PDL123"}).collect()
         >>>
         >>> # Factures sur une période
-        >>> df = f15().filter({"date_facture": ">= '2024-01-01'"}).limit(100).exec()
+        >>> df = f15().filter({"date_facture": ">= '2024-01-01'"}).limit(100).collect()
     """
     return QueryBuilder(
         base_query=BASE_QUERY_F15,
@@ -733,10 +745,10 @@ def releves(database_path: Union[str, Path] = None) -> QueryBuilder:
 
     Example:
         >>> # Tous les relevés récents
-        >>> df = releves().filter({"date_releve": ">= '2024-01-01'"}).exec()
+        >>> df = releves().filter({"date_releve": ">= '2024-01-01'"}).collect()
         >>>
         >>> # Relevés par source
-        >>> r151_only = releves().filter({"source": "flux_R151"}).exec()
+        >>> r151_only = releves().filter({"source": "flux_R151"}).collect()
     """
     return QueryBuilder(
         base_query=BASE_QUERY_RELEVES_UNIFIES,
@@ -758,13 +770,13 @@ def r64(database_path: Union[str, Path] = None) -> QueryBuilder:
 
     Example:
         >>> # Relevés R64 récents
-        >>> df = r64().filter({"date_releve": ">= '2024-01-01'"}).limit(100).exec()
+        >>> df = r64().filter({"date_releve": ">= '2024-01-01'"}).limit(100).collect()
         >>>
         >>> # Filtrer par PDL et type de relevé
-        >>> df = r64().filter({"pdl": "PDL123", "type_releve": "AQ"}).exec()
+        >>> df = r64().filter({"pdl": "PDL123", "type_releve": "AQ"}).collect()
         >>>
         >>> # Données R64 avec métadonnées
-        >>> df = r64().filter({"etape_metier": "BRUT"}).exec()
+        >>> df = r64().filter({"etape_metier": "BRUT"}).collect()
     """
     return QueryBuilder(
         base_query=BASE_QUERY_R64,
@@ -795,16 +807,16 @@ def releves_harmonises(database_path: Union[str, Path] = None) -> QueryBuilder:
 
     Example:
         >>> # Tous les relevés harmonisés (R151 + R64 seulement)
-        >>> df = releves_harmonises().exec()
+        >>> df = releves_harmonises().collect()
         >>>
         >>> # Relevés par flux d'origine
-        >>> df = releves_harmonises().filter({"flux_origine": "R64"}).exec()
+        >>> df = releves_harmonises().filter({"flux_origine": "R64"}).collect()
         >>>
         >>> # Relevés cross-flux pour un PDL
-        >>> df = releves_harmonises().filter({"pdl": "PDL123"}).exec()
+        >>> df = releves_harmonises().filter({"pdl": "PDL123"}).collect()
         >>>
         >>> # Analyse temporelle multi-sources
-        >>> df = releves_harmonises().filter({"date_releve": ">= '2024-01-01'"}).exec()
+        >>> df = releves_harmonises().filter({"date_releve": ">= '2024-01-01'"}).collect()
     """
     return QueryBuilder(
         base_query=BASE_QUERY_RELEVES_HARMONISES,
