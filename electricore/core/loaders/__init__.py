@@ -4,7 +4,7 @@ Chargeurs de données pour ElectriCore.
 Modules de chargement et validation des données depuis différentes sources.
 """
 
-from .polars import charger_releves, charger_historique
+from .parquet import charger_releves, charger_historique
 from .duckdb import (
     # API fluide (nouvelles fonctions recommandées)
     c15,

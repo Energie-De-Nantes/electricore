@@ -1,8 +1,8 @@
 """
-Fonctions de chargement Parquet avec validation Polars/Pandera.
+Chargement et validation de fichiers Parquet.
 
-Ce module fournit des fonctions simples pour charger les données parquet exportées
-depuis les flux Enedis et les valider avec les modèles Polars.
+Ce module fournit des fonctions pour charger des fichiers Parquet
+(exportés depuis les flux Enedis) et les valider avec Pandera.
 """
 
 import polars as pl
