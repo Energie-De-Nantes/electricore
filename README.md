@@ -353,19 +353,45 @@ poetry run marimo edit notebooks/demo_pipeline_abonnements_polars.py
 
 ## 🧪 Tests & Validation
 
+Suite de tests moderne avec **186 tests** (tous passants ✅) :
+
+### Infrastructure de test
+
+- ✅ **Configuration pytest** : 8 markers (unit, integration, slow, smoke, duckdb, odoo, hypothesis, skip_ci)
+- ✅ **Fixtures partagées** : Connexions DuckDB temporaires, données minimales, helpers d'assertion
+- ✅ **Tests paramétrés** : 39 tests avec `@pytest.mark.parametrize` pour réduire duplication
+- ✅ **Tests snapshot** : 10 tests Syrupy pour détection automatique de régression
+- ✅ **Script anonymisation** : Extraction sécurisée de cas métier réels
+
+### Types de tests
+
+- **Tests unitaires** (26 paramétrés) - Expressions Polars pures (périmètre, TURPE)
+- **Tests d'intégration** (10 snapshot) - Pipelines complets avec validation Pandera
+- **Tests DuckDB** - Query builders et transformations
+- **Fixtures métier** - Cas réels (MCT, MES/RES, changements)
+
+### Commandes
+
 ```bash
 # Tous les tests
-poetry run pytest tests/
+pytest
 
-# Tests avec couverture
-poetry run pytest tests/ --cov=electricore --cov-report=html
+# Tests rapides uniquement
+pytest -m unit
 
-# Tests spécifiques
-poetry run pytest tests/core/pipelines/ -v
-poetry run pytest tests/etl/ -k "test_r151"
+# Tests critiques (CI)
+pytest -m smoke
+
+# Exécution parallèle
+pytest -n auto
+
+# Avec coverage
+pytest --cov=electricore --cov-report=html
 ```
 
-**Approche de validation** : Tests unitaires + comparaisons pandas/Polars pendant migration
+**Couverture** : 49% (focus sur qualité plutôt que quantité)
+
+📖 Documentation complète : [tests/README.md](tests/README.md)
 
 ---
 
