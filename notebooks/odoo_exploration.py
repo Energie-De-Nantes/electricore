@@ -15,7 +15,7 @@ with app.setup:
     if str(project_root) not in sys.path:
         sys.path.append(str(project_root))
 
-    from electricore.etl.connectors.odoo import OdooReader
+    from electricore.core.loaders import OdooReader
 
     # Configuration du logging
     logging.basicConfig(level=logging.INFO)

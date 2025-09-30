@@ -42,7 +42,7 @@ with app.setup(hide_code=True):
     )
 
     # Import connecteur Odoo
-    from electricore.etl.connectors.odoo import OdooReader
+    from electricore.core.loaders import OdooReader
 
 
 @app.cell(hide_code=True)

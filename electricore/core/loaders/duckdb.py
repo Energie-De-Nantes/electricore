@@ -401,7 +401,7 @@ def _build_where_clauses(filters: Optional[Dict[str, Any]]) -> List[str]:
     return where_clauses
 
 
-class QueryBuilder:
+class DuckDBQuery:
     """
     Builder fonctionnel pour construire et exécuter des requêtes DuckDB.
 
@@ -429,7 +429,7 @@ class QueryBuilder:
                  limit_value: Optional[int] = None,
                  valider: bool = True):
         """
-        Initialise un QueryBuilder.
+        Initialise un DuckDBQuery.
 
         Args:
             base_query: Requête SQL de base sans WHERE ni LIMIT
@@ -448,7 +448,7 @@ class QueryBuilder:
         self._limit_value = limit_value
         self._valider = valider
 
-    def filter(self, filters: Dict[str, Any]) -> 'QueryBuilder':
+    def filter(self, filters: Dict[str, Any]) -> 'DuckDBQuery':
         """
         Ajoute des filtres à la requête.
 
@@ -456,13 +456,13 @@ class QueryBuilder:
             filters: Dictionnaire de filtres {colonne: condition}
 
         Returns:
-            Nouvelle instance QueryBuilder avec les filtres ajoutés
+            Nouvelle instance DuckDBQuery avec les filtres ajoutés
 
         Example:
             >>> query.filter({"Date_Evenement": ">= '2024-01-01'", "pdl": ["PDL123"]})
         """
         new_filters = {**self._filters, **filters}
-        return QueryBuilder(
+        return DuckDBQuery(
             self._base_query,
             self._transform_func,
             self._validator_class,
@@ -472,7 +472,7 @@ class QueryBuilder:
             self._valider
         )
 
-    def where(self, condition: str) -> 'QueryBuilder':
+    def where(self, condition: str) -> 'DuckDBQuery':
         """
         Ajoute une condition WHERE sous forme de chaîne brute.
 
@@ -480,14 +480,14 @@ class QueryBuilder:
             condition: Condition SQL brute (ex: "pdl IN ('PDL123', 'PDL456')")
 
         Returns:
-            Nouvelle instance QueryBuilder avec la condition ajoutée
+            Nouvelle instance DuckDBQuery avec la condition ajoutée
 
         Example:
             >>> query.where("date_evenement >= '2024-01-01' AND puissance_souscrite > 6")
         """
         # Pour les conditions brutes, on utilise une clé spéciale
         new_filters = {**self._filters, f"__raw_condition_{len(self._filters)}": condition}
-        return QueryBuilder(
+        return DuckDBQuery(
             self._base_query,
             self._transform_func,
             self._validator_class,
@@ -497,7 +497,7 @@ class QueryBuilder:
             self._valider
         )
 
-    def limit(self, count: int) -> 'QueryBuilder':
+    def limit(self, count: int) -> 'DuckDBQuery':
         """
         Ajoute une limite au nombre de lignes retournées.
 
@@ -505,12 +505,12 @@ class QueryBuilder:
             count: Nombre maximum de lignes
 
         Returns:
-            Nouvelle instance QueryBuilder avec la limite
+            Nouvelle instance DuckDBQuery avec la limite
 
         Example:
             >>> query.limit(1000)
         """
-        return QueryBuilder(
+        return DuckDBQuery(
             self._base_query,
             self._transform_func,
             self._validator_class,
@@ -520,7 +520,7 @@ class QueryBuilder:
             self._valider
         )
 
-    def validate(self, enable: bool = True) -> 'QueryBuilder':
+    def validate(self, enable: bool = True) -> 'DuckDBQuery':
         """
         Active ou désactive la validation Pandera.
 
@@ -528,9 +528,9 @@ class QueryBuilder:
             enable: True pour activer la validation
 
         Returns:
-            Nouvelle instance QueryBuilder avec la configuration de validation
+            Nouvelle instance DuckDBQuery avec la configuration de validation
         """
-        return QueryBuilder(
+        return DuckDBQuery(
             self._base_query,
             self._transform_func,
             self._validator_class,
@@ -636,15 +636,15 @@ class QueryBuilder:
 # API fluide - Fonctions factory
 # ============================================================
 
-def c15(database_path: Union[str, Path] = None) -> QueryBuilder:
+def c15(database_path: Union[str, Path] = None) -> DuckDBQuery:
     """
-    Crée un QueryBuilder pour les données flux C15 (historique périmètre).
+    Crée un DuckDBQuery pour les données flux C15 (historique périmètre).
 
     Args:
         database_path: Chemin vers la base DuckDB (optionnel)
 
     Returns:
-        QueryBuilder configuré pour flux C15
+        DuckDBQuery configuré pour flux C15
 
     Example:
         >>> # Récupérer les événements récents
@@ -653,7 +653,7 @@ def c15(database_path: Union[str, Path] = None) -> QueryBuilder:
         >>> # Filtrer par PDL spécifiques
         >>> lazy_df = c15().filter({"pdl": ["PDL123", "PDL456"]}).lazy()
     """
-    return QueryBuilder(
+    return DuckDBQuery(
         base_query=BASE_QUERY_C15,
         transform_func=_transform_historique_perimetre,
         validator_class=HistoriquePérimètre,
@@ -661,21 +661,21 @@ def c15(database_path: Union[str, Path] = None) -> QueryBuilder:
     )
 
 
-def r151(database_path: Union[str, Path] = None) -> QueryBuilder:
+def r151(database_path: Union[str, Path] = None) -> DuckDBQuery:
     """
-    Crée un QueryBuilder pour les données flux R151 (relevés périodiques).
+    Crée un DuckDBQuery pour les données flux R151 (relevés périodiques).
 
     Args:
         database_path: Chemin vers la base DuckDB (optionnel)
 
     Returns:
-        QueryBuilder configuré pour flux R151
+        DuckDBQuery configuré pour flux R151
 
     Example:
         >>> # Relevés récents avec limite
         >>> df = r151().filter({"date_releve": ">= '2024-01-01'"}).limit(1000).collect()
     """
-    return QueryBuilder(
+    return DuckDBQuery(
         base_query=BASE_QUERY_R151,
         transform_func=_transform_releves,
         validator_class=RelevéIndex,
@@ -683,21 +683,21 @@ def r151(database_path: Union[str, Path] = None) -> QueryBuilder:
     )
 
 
-def r15(database_path: Union[str, Path] = None) -> QueryBuilder:
+def r15(database_path: Union[str, Path] = None) -> DuckDBQuery:
     """
-    Crée un QueryBuilder pour les données flux R15 (relevés avec événements).
+    Crée un DuckDBQuery pour les données flux R15 (relevés avec événements).
 
     Args:
         database_path: Chemin vers la base DuckDB (optionnel)
 
     Returns:
-        QueryBuilder configuré pour flux R15
+        DuckDBQuery configuré pour flux R15
 
     Example:
         >>> # Relevés avec situation contractuelle spécifique
         >>> df = r15().filter({"ref_situation_contractuelle": "REF123"}).collect()
     """
-    return QueryBuilder(
+    return DuckDBQuery(
         base_query=BASE_QUERY_R15,
         transform_func=_transform_releves,
         validator_class=RelevéIndex,
@@ -705,15 +705,15 @@ def r15(database_path: Union[str, Path] = None) -> QueryBuilder:
     )
 
 
-def f15(database_path: Union[str, Path] = None) -> QueryBuilder:
+def f15(database_path: Union[str, Path] = None) -> DuckDBQuery:
     """
-    Crée un QueryBuilder pour les données flux F15 (factures détaillées).
+    Crée un DuckDBQuery pour les données flux F15 (factures détaillées).
 
     Args:
         database_path: Chemin vers la base DuckDB (optionnel)
 
     Returns:
-        QueryBuilder configuré pour flux F15
+        DuckDBQuery configuré pour flux F15
 
     Example:
         >>> # Factures pour un PDL spécifique
@@ -722,7 +722,7 @@ def f15(database_path: Union[str, Path] = None) -> QueryBuilder:
         >>> # Factures sur une période
         >>> df = f15().filter({"date_facture": ">= '2024-01-01'"}).limit(100).collect()
     """
-    return QueryBuilder(
+    return DuckDBQuery(
         base_query=BASE_QUERY_F15,
         transform_func=_transform_factures,
         validator_class=None,  # Pas encore de modèle Pandera pour les factures
@@ -730,9 +730,9 @@ def f15(database_path: Union[str, Path] = None) -> QueryBuilder:
     )
 
 
-def releves(database_path: Union[str, Path] = None) -> QueryBuilder:
+def releves(database_path: Union[str, Path] = None) -> DuckDBQuery:
     """
-    Crée un QueryBuilder pour les relevés unifiés (R151 + R15).
+    Crée un DuckDBQuery pour les relevés unifiés (R151 + R15).
 
     Cette fonction combine automatiquement les données des flux R151 et R15
     dans un format unifié, équivalent à load_releves().
@@ -741,7 +741,7 @@ def releves(database_path: Union[str, Path] = None) -> QueryBuilder:
         database_path: Chemin vers la base DuckDB (optionnel)
 
     Returns:
-        QueryBuilder configuré pour les relevés unifiés
+        DuckDBQuery configuré pour les relevés unifiés
 
     Example:
         >>> # Tous les relevés récents
@@ -750,7 +750,7 @@ def releves(database_path: Union[str, Path] = None) -> QueryBuilder:
         >>> # Relevés par source
         >>> r151_only = releves().filter({"source": "flux_R151"}).collect()
     """
-    return QueryBuilder(
+    return DuckDBQuery(
         base_query=BASE_QUERY_RELEVES_UNIFIES,
         transform_func=_transform_releves,
         validator_class=RelevéIndex,
@@ -758,15 +758,15 @@ def releves(database_path: Union[str, Path] = None) -> QueryBuilder:
     )
 
 
-def r64(database_path: Union[str, Path] = None) -> QueryBuilder:
+def r64(database_path: Union[str, Path] = None) -> DuckDBQuery:
     """
-    Crée un QueryBuilder pour les données flux R64 (relevés JSON timeseries).
+    Crée un DuckDBQuery pour les données flux R64 (relevés JSON timeseries).
 
     Args:
         database_path: Chemin vers la base DuckDB (optionnel)
 
     Returns:
-        QueryBuilder configuré pour flux R64
+        DuckDBQuery configuré pour flux R64
 
     Example:
         >>> # Relevés R64 récents
@@ -778,7 +778,7 @@ def r64(database_path: Union[str, Path] = None) -> QueryBuilder:
         >>> # Données R64 avec métadonnées
         >>> df = r64().filter({"etape_metier": "BRUT"}).collect()
     """
-    return QueryBuilder(
+    return DuckDBQuery(
         base_query=BASE_QUERY_R64,
         transform_func=_transform_r64,
         validator_class=None,  # Pas encore de modèle Pandera pour R64
@@ -786,9 +786,9 @@ def r64(database_path: Union[str, Path] = None) -> QueryBuilder:
     )
 
 
-def releves_harmonises(database_path: Union[str, Path] = None) -> QueryBuilder:
+def releves_harmonises(database_path: Union[str, Path] = None) -> DuckDBQuery:
     """
-    Crée un QueryBuilder pour les relevés harmonisés (R151 + R64).
+    Crée un DuckDBQuery pour les relevés harmonisés (R151 + R64).
 
     Cette fonction unifie les 2 flux de relevés quotidiens :
     - R151 : Relevés périodiques XML (particuliers et petites entreprises)
@@ -803,7 +803,7 @@ def releves_harmonises(database_path: Union[str, Path] = None) -> QueryBuilder:
         database_path: Chemin vers la base DuckDB (optionnel)
 
     Returns:
-        QueryBuilder configuré pour les relevés harmonisés
+        DuckDBQuery configuré pour les relevés harmonisés
 
     Example:
         >>> # Tous les relevés harmonisés (R151 + R64 seulement)
@@ -818,7 +818,7 @@ def releves_harmonises(database_path: Union[str, Path] = None) -> QueryBuilder:
         >>> # Analyse temporelle multi-sources
         >>> df = releves_harmonises().filter({"date_releve": ">= '2024-01-01'"}).collect()
     """
-    return QueryBuilder(
+    return DuckDBQuery(
         base_query=BASE_QUERY_RELEVES_HARMONISES,
         transform_func=_transform_releves_harmonises,
         validator_class=RelevéIndex,
@@ -855,7 +855,7 @@ def load_historique_perimetre(
         ... )
         >>> df = lf.collect()
     """
-    # Utilise le QueryBuilder en interne pour éviter la duplication
+    # Utilise le DuckDBQuery en interne pour éviter la duplication
     query_builder = c15(database_path).validate(valider)
 
     if filters:
@@ -891,7 +891,7 @@ def load_releves(
         ...     limit=1000
         ... )
     """
-    # Utilise le QueryBuilder en interne pour éviter la duplication
+    # Utilise le DuckDBQuery en interne pour éviter la duplication
     query_builder = releves(database_path).validate(valider)
 
     if filters:

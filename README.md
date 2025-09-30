@@ -217,7 +217,7 @@ releves_cross_flux = (
 #### Odoo Query Builder - Intégration ERP
 
 ```python
-from electricore.etl.connectors.odoo import OdooReader
+from electricore.core.loaders import OdooReader
 import polars as pl
 
 config = {

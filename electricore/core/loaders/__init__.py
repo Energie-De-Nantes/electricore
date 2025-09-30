@@ -4,14 +4,14 @@ Chargeurs de données pour ElectriCore.
 Modules de chargement et validation des données depuis différentes sources.
 """
 
-from .polars_loader import charger_releves, charger_historique
-from .duckdb_loader import (
+from .polars import charger_releves, charger_historique
+from .duckdb import (
     # API fluide (nouvelles fonctions recommandées)
     c15,
     r151,
     r15,
     releves,
-    QueryBuilder,
+    DuckDBQuery,
     # API legacy (compatibilité)
     load_historique_perimetre,
     load_releves,
@@ -20,6 +20,7 @@ from .duckdb_loader import (
     execute_custom_query,
     DuckDBConfig
 )
+from .odoo import OdooReader, OdooQuery
 
 __all__ = [
     # Loaders Parquet existants
@@ -30,12 +31,15 @@ __all__ = [
     "r151",
     "r15",
     "releves",
-    "QueryBuilder",
+    "DuckDBQuery",
     # API legacy DuckDB (compatibilité)
     "load_historique_perimetre",
     "load_releves",
     # Utilitaires DuckDB
     "get_available_tables",
     "execute_custom_query",
-    "DuckDBConfig"
+    "DuckDBConfig",
+    # Connecteur Odoo
+    "OdooReader",
+    "OdooQuery",
 ]

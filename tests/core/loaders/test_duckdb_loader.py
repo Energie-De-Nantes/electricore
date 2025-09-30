@@ -11,7 +11,7 @@ import pandas as pd
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
 
-from electricore.core.loaders.duckdb_loader import (
+from electricore.core.loaders.duckdb import (
     DuckDBConfig,
     load_historique_perimetre,
     load_releves,
@@ -54,7 +54,7 @@ class TestDuckDBConfig:
 class TestDuckDBConnection:
     """Tests pour la gestion des connexions DuckDB."""
 
-    @patch('electricore.core.loaders.duckdb_loader.duckdb.connect')
+    @patch('electricore.core.loaders.duckdb.duckdb.connect')
     def test_connection_context_manager(self, mock_connect):
         """Test du context manager de connexion."""
         mock_conn = Mock()
@@ -66,7 +66,7 @@ class TestDuckDBConnection:
         # Vérifier que la connexion est fermée
         mock_conn.close.assert_called_once()
 
-    @patch('electricore.core.loaders.duckdb_loader.duckdb.connect')
+    @patch('electricore.core.loaders.duckdb.duckdb.connect')
     def test_connection_exception_handling(self, mock_connect):
         """Test de la gestion d'erreur dans le context manager."""
         mock_conn = Mock()
@@ -266,8 +266,8 @@ class TestTransformationFunctions:
 class TestLoadFunctions:
     """Tests pour les fonctions de chargement de données."""
 
-    @patch('electricore.core.loaders.duckdb_loader.duckdb_connection')
-    @patch('electricore.core.loaders.duckdb_loader.pl.read_database')
+    @patch('electricore.core.loaders.duckdb.duckdb_connection')
+    @patch('electricore.core.loaders.duckdb.pl.read_database')
     def test_load_historique_perimetre_basic(self, mock_read_db, mock_conn_context):
         """Test de base du chargement d'historique."""
         # Setup des mocks
@@ -279,10 +279,10 @@ class TestLoadFunctions:
         mock_read_db.return_value.lazy.return_value = mock_lazy_frame
 
         # Mock de la transformation et validation
-        with patch('electricore.core.loaders.duckdb_loader._transform_historique_perimetre') as mock_transform:
+        with patch('electricore.core.loaders.duckdb._transform_historique_perimetre') as mock_transform:
             mock_transform.return_value = mock_lazy_frame
 
-            with patch('electricore.core.loaders.duckdb_loader.HistoriquePérimètre') as mock_model:
+            with patch('electricore.core.loaders.duckdb.HistoriquePérimètre') as mock_model:
                 # Mock de l'existence du fichier DuckDB
                 with patch('pathlib.Path.exists', return_value=True):
                     # Appeler la fonction
@@ -302,8 +302,8 @@ class TestLoadFunctions:
         with pytest.raises(FileNotFoundError):
             load_historique_perimetre(database_path="nonexistent.duckdb")
 
-    @patch('electricore.core.loaders.duckdb_loader.duckdb_connection')
-    @patch('electricore.core.loaders.duckdb_loader.pl.read_database')
+    @patch('electricore.core.loaders.duckdb.duckdb_connection')
+    @patch('electricore.core.loaders.duckdb.pl.read_database')
     def test_load_releves_basic(self, mock_read_db, mock_conn_context):
         """Test de base du chargement de relevés."""
         # Setup des mocks
@@ -315,10 +315,10 @@ class TestLoadFunctions:
         mock_read_db.return_value.lazy.return_value = mock_lazy_frame
 
         # Mock de la transformation
-        with patch('electricore.core.loaders.duckdb_loader._transform_releves') as mock_transform:
+        with patch('electricore.core.loaders.duckdb._transform_releves') as mock_transform:
             mock_transform.return_value = mock_lazy_frame
 
-            with patch('electricore.core.loaders.duckdb_loader.RelevéIndex') as mock_model:
+            with patch('electricore.core.loaders.duckdb.RelevéIndex') as mock_model:
                 # Mock de l'existence du fichier DuckDB
                 with patch('pathlib.Path.exists', return_value=True):
                     # Appeler la fonction
@@ -337,7 +337,7 @@ class TestLoadFunctions:
 class TestUtilityFunctions:
     """Tests pour les fonctions utilitaires."""
 
-    @patch('electricore.core.loaders.duckdb_loader.duckdb_connection')
+    @patch('electricore.core.loaders.duckdb.duckdb_connection')
     def test_get_available_tables(self, mock_conn_context):
         """Test de récupération des tables disponibles."""
         # Setup du mock
@@ -360,8 +360,8 @@ class TestUtilityFunctions:
             ORDER BY table_schema, table_name
         """)
 
-    @patch('electricore.core.loaders.duckdb_loader.duckdb_connection')
-    @patch('electricore.core.loaders.duckdb_loader.pl.read_database')
+    @patch('electricore.core.loaders.duckdb.duckdb_connection')
+    @patch('electricore.core.loaders.duckdb.pl.read_database')
     def test_execute_custom_query_lazy(self, mock_read_db, mock_conn_context):
         """Test d'exécution de requête personnalisée (lazy)."""
         # Setup des mocks
@@ -381,8 +381,8 @@ class TestUtilityFunctions:
         assert result == mock_lazy_frame
         mock_read_db.assert_called_once()
 
-    @patch('electricore.core.loaders.duckdb_loader.duckdb_connection')
-    @patch('electricore.core.loaders.duckdb_loader.pl.read_database')
+    @patch('electricore.core.loaders.duckdb.duckdb_connection')
+    @patch('electricore.core.loaders.duckdb.pl.read_database')
     def test_execute_custom_query_eager(self, mock_read_db, mock_conn_context):
         """Test d'exécution de requête personnalisée (eager)."""
         # Setup des mocks
