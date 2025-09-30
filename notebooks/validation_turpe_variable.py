@@ -20,7 +20,7 @@ with app.setup(hide_code=True):
         sys.path.append(str(project_root))
 
     # Imports des loaders DuckDB
-    from electricore.core.loaders.duckdb_loader import f15, c15, r151, execute_custom_query
+    from electricore.core.loaders import f15, c15, r151, execute_custom_query
 
     # Imports des pipelines Polars
     from electricore.core.pipelines.energie import (
@@ -308,7 +308,7 @@ def load_pipeline_data():
     # Charger les relevés R151
     # print("📄 Chargement relevés R151...")
     # lf_releves = r151().lazy()
-    from electricore.core.loaders.duckdb_loader import releves_harmonises
+    from electricore.core.loaders import releves_harmonises
     lf_releves = releves_harmonises().lazy()
     df_releves = lf_releves.collect()
 

@@ -24,7 +24,7 @@ with app.setup:
         inserer_evenements_facturation as inserer_evenements_factu
     )
     # Import des loaders DuckDB
-    from electricore.core.loaders.duckdb_loader import c15
+    from electricore.core.loaders import c15
 
 
 @app.cell

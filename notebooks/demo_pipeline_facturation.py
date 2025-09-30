@@ -34,7 +34,7 @@ def _():
     from electricore.core.pipelines.perimetre import detecter_points_de_rupture, inserer_evenements_facturation
 
     # Import des loaders DuckDB
-    from electricore.core.loaders.duckdb_loader import c15, r151
+    from electricore.core.loaders import c15, r151
     return (
         c15,
         calculer_abonnements,

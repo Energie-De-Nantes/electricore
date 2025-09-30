@@ -19,7 +19,7 @@ with app.setup:
         sys.path.append(str(project_root))
 
     # Imports des loaders DuckDB
-    from electricore.core.loaders.duckdb_loader import f15, c15, r151, execute_custom_query
+    from electricore.core.loaders import f15, c15, r151, execute_custom_query
 
     # Imports des pipelines Polars
     from electricore.core.pipelines.energie import (

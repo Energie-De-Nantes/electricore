@@ -19,7 +19,7 @@ with app.setup(hide_code=True):
         sys.path.append(str(project_root))
 
     # Imports des loaders DuckDB
-    from electricore.core.loaders.duckdb_loader import (
+    from electricore.core.loaders import (
         f15, c15, 
         r151, r64, 
         execute_custom_query
@@ -41,7 +41,7 @@ def _(r64_df):
 
 @app.cell
 def _():
-    from electricore.core.loaders.duckdb_loader import releves_harmonises
+    from electricore.core.loaders import releves_harmonises
     df = releves_harmonises().validate(True).lazy().collect()
     df
     return

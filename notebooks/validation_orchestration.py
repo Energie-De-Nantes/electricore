@@ -20,7 +20,7 @@ with app.setup(hide_code=True):
         sys.path.append(str(project_root))
 
     # Imports des loaders DuckDB
-    from electricore.core.loaders.duckdb_loader import f15, c15, r151, releves_harmonises, execute_custom_query
+    from electricore.core.loaders import f15, c15, r151, releves_harmonises, execute_custom_query
 
     from electricore.core.pipelines import facturation
     from electricore.core.loaders import OdooReader

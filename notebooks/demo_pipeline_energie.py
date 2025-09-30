@@ -35,7 +35,7 @@ with app.setup:
     )
 
     # Import des loaders DuckDB
-    from electricore.core.loaders.duckdb_loader import c15, r151, f15
+    from electricore.core.loaders import c15, r151, f15
 
 
 @app.cell
