@@ -315,8 +315,8 @@ SELECT * FROM releves_harmonises
 """
 
 
-from ..models.releve_index import RelevéIndex
-from ..models.historique_perimetre import HistoriquePérimètre
+from electricore.core.models.releve_index import RelevéIndex
+from electricore.core.models.historique_perimetre import HistoriquePérimètre
 
 
 class DuckDBConfig:

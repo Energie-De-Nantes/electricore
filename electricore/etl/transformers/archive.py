@@ -44,7 +44,7 @@ def extract_files_from_zip(zip_data: bytes, file_extension: str = '.xml') -> lis
 
 
 # Import de la fonction de matching depuis parsers
-from .parsers import match_xml_pattern
+from electricore.etl.transformers.parsers import match_xml_pattern
 
 
 # =============================================================================

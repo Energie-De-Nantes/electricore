@@ -8,8 +8,8 @@ depuis les flux Enedis et les valider avec les modèles Polars.
 import polars as pl
 from pathlib import Path
 from typing import Union
-from ..models.releve_index import RelevéIndex
-from ..models.historique_perimetre import HistoriquePérimètre
+from electricore.core.models.releve_index import RelevéIndex
+from electricore.core.models.historique_perimetre import HistoriquePérimètre
 
 
 def charger_releves(path: Union[str, Path], valider: bool = True) -> pl.DataFrame:

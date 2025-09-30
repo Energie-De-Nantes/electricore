@@ -12,10 +12,10 @@ from pandera.typing.polars import DataFrame, LazyFrame
 from typing import Optional, List
 
 # Import des modèles Pandera
-from ..models.periode_meta import PeriodeMeta
-from ..models.periode_abonnement import PeriodeAbonnement
-from ..models.periode_energie import PeriodeEnergie
-from ..models.aggregates import AbonnementMensuel, EnergieMensuel
+from electricore.core.models.periode_meta import PeriodeMeta
+from electricore.core.models.periode_abonnement import PeriodeAbonnement
+from electricore.core.models.periode_energie import PeriodeEnergie
+from electricore.core.models.aggregates import AbonnementMensuel, EnergieMensuel
 
 
 # =============================================================================

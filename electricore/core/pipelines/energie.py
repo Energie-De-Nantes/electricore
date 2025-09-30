@@ -10,7 +10,7 @@ import polars as pl
 from typing import Optional, List
 
 # Import du calcul TURPE variable
-from .turpe import ajouter_turpe_variable
+from electricore.core.pipelines.turpe import ajouter_turpe_variable
 
 
 # =============================================================================
