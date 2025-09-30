@@ -17,7 +17,7 @@ Cette intégration permet d'utiliser DuckDB comme source de données pour les pi
 ### 1. Chargement Direct depuis DuckDB
 
 ```python
-from electricore.core.loaders.duckdb_loader import load_historique_perimetre, load_releves
+from electricore.core.loaders import load_historique_perimetre, load_releves
 
 # Charger l'historique de périmètre
 historique_lf = load_historique_perimetre(
@@ -72,7 +72,7 @@ final_result = (
 ### 3. Requêtes Personnalisées
 
 ```python
-from electricore.core.loaders.duckdb_loader import execute_custom_query
+from electricore.core.loaders import execute_custom_query
 
 # Requête personnalisée (lazy)
 lf = execute_custom_query("""
@@ -171,7 +171,7 @@ poetry run pytest tests/core/ -k "real_database" -v
 ### Test Manuel Rapide
 
 ```python
-from electricore.core.loaders.duckdb_loader import get_available_tables
+from electricore.core.loaders import get_available_tables
 
 # Vérifier la connectivité
 tables = get_available_tables()
@@ -266,7 +266,7 @@ logging:
   log_queries: true
 
 # Tester une requête simple
-from electricore.core.loaders.duckdb_loader import execute_custom_query
+from electricore.core.loaders import execute_custom_query
 df = execute_custom_query("SELECT COUNT(*) FROM enedis_production.flux_c15")
 print(df)
 ```

@@ -23,7 +23,10 @@ poetry build
 
 ### Current Structure
 - **`electricore/core/pipelines_polars/`** - Modern Polars-based pipelines
-- **`electricore/core/`** - Legacy pandas modules (being migrated)
+- **`electricore/core/loaders/`** - Data loading (DuckDB, Polars, Odoo read)
+- **`electricore/core/writers/`** - Data export (Odoo write)
+- **`electricore/etl/`** - DLT-based ETL pipeline (SFTP → DuckDB)
+- **`electricore/api/`** - FastAPI REST endpoints
 - **`electricore/inputs/flux/`** - Enedis XML parsers (R15, R151, C15)
 
 ### Polars Migration Status
@@ -36,6 +39,7 @@ poetry build
 - **Expressions pures**: `Fn(Series) -> Series` - Composable transformations
 - **LazyFrame pipelines**: `Fn(LazyFrame) -> LazyFrame` - Optimized execution
 - **Validation**: Tests include pandas comparison for migration validation
+- **Query Builders**: `DuckDBQuery` and `OdooQuery` - Immutable, fluent API for data queries
 
 ## Important Notes
 

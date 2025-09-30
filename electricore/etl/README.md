@@ -182,6 +182,16 @@ Chaque transformer est :
 ## 🔮 Extensions Futures
 
 - `sources/api_enedis.py` : API REST Enedis
-- `sources/sftp_axpo.py` : SFTP Axpo  
-- `sources/odoo_connector.py` : Import depuis Odoo
+- `sources/sftp_axpo.py` : SFTP Axpo
 - `transformers/validators.py` : Validation Pandera des données
+
+## 🔌 Intégrations
+
+### Connecteurs disponibles
+
+Les connecteurs Odoo ont été déplacés vers les modules Core pour une meilleure séparation des responsabilités :
+
+- **Lecture** : `electricore.core.loaders` (OdooReader, OdooQuery)
+- **Écriture** : `electricore.core.writers` (OdooWriter)
+
+Voir [docs/odoo-query-builder.md](../../docs/odoo-query-builder.md) pour plus de détails.
