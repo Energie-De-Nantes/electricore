@@ -68,6 +68,7 @@ class DuckDBQuery:
     filters: tuple[tuple[str, Any], ...] = ()  # Tuple de tuples = immutable
     limit_value: Optional[int] = None
     valider: bool = True
+    base_sql: Optional[str] = None  # Pour requêtes CTE/UNION pré-construites
 
     # =========================================================================
     # MÉTHODES BUILDER (Retournent nouvelles instances)
@@ -173,8 +174,12 @@ class DuckDBQuery:
         Returns:
             Requête SQL complète prête à être exécutée
         """
-        # Requête de base depuis le schéma
-        query = build_base_query(self.config.schema)
+        # Si base_sql fourni (CTE/UNION), l'utiliser directement
+        if self.base_sql:
+            query = self.base_sql
+        else:
+            # Requête de base depuis le schéma
+            query = build_base_query(self.config.schema)
 
         # Ajouter les filtres
         if self.filters:

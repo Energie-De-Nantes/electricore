@@ -300,16 +300,17 @@ class TestLoadFunctions:
         """Test de base du chargement de relevés."""
         # Test simplifié : vérifier que la fonction API fonctionne
         from pathlib import Path
-        from electricore.core.loaders.duckdb import _CTEQuery
+        from electricore.core.loaders.duckdb import DuckDBQuery
 
         # Créer une query avec la méthode factory
-        # releves() retourne _CTEQuery car c'est une requête CTE
+        # releves() retourne maintenant DuckDBQuery avec base_sql
         query = releves()
-        assert isinstance(query, _CTEQuery)
+        assert isinstance(query, DuckDBQuery)
+        assert query.base_sql is not None  # Vérifie que c'est une requête CTE
 
         # Vérifier que le chaînage fonctionne
         query_filtered = query.filter({"pdl": ["PDL123"]}).limit(50)
-        assert isinstance(query_filtered, _CTEQuery)
+        assert isinstance(query_filtered, DuckDBQuery)
 
         # Vérifier load_releves avec base inexistante échoue correctement
         with pytest.raises(FileNotFoundError):
@@ -319,7 +320,7 @@ class TestLoadFunctions:
 class TestUtilityFunctions:
     """Tests pour les fonctions utilitaires."""
 
-    @patch('electricore.core.loaders.duckdb.duckdb_connection')
+    @patch('electricore.core.loaders.duckdb.helpers.duckdb_connection')
     def test_get_available_tables(self, mock_conn_context):
         """Test de récupération des tables disponibles."""
         # Setup du mock
@@ -342,8 +343,8 @@ class TestUtilityFunctions:
             ORDER BY table_schema, table_name
         """)
 
-    @patch('electricore.core.loaders.duckdb.duckdb_connection')
-    @patch('electricore.core.loaders.duckdb.pl.read_database')
+    @patch('electricore.core.loaders.duckdb.helpers.duckdb_connection')
+    @patch('electricore.core.loaders.duckdb.helpers.pl.read_database')
     def test_execute_custom_query_lazy(self, mock_read_db, mock_conn_context):
         """Test d'exécution de requête personnalisée (lazy)."""
         # Setup des mocks
@@ -363,8 +364,8 @@ class TestUtilityFunctions:
         assert result == mock_lazy_frame
         mock_read_db.assert_called_once()
 
-    @patch('electricore.core.loaders.duckdb.duckdb_connection')
-    @patch('electricore.core.loaders.duckdb.pl.read_database')
+    @patch('electricore.core.loaders.duckdb.helpers.duckdb_connection')
+    @patch('electricore.core.loaders.duckdb.helpers.pl.read_database')
     def test_execute_custom_query_eager(self, mock_read_db, mock_conn_context):
         """Test d'exécution de requête personnalisée (eager)."""
         # Setup des mocks
