@@ -10,7 +10,10 @@ from .duckdb import (
     c15,
     r151,
     r15,
+    f15,
+    r64,
     releves,
+    releves_harmonises,
     DuckDBQuery,
     # API legacy (compatibilité)
     load_historique_perimetre,
@@ -30,7 +33,10 @@ __all__ = [
     "c15",
     "r151",
     "r15",
+    "f15",
+    "r64",
     "releves",
+    "releves_harmonises",
     "DuckDBQuery",
     # API legacy DuckDB (compatibilité)
     "load_historique_perimetre",
