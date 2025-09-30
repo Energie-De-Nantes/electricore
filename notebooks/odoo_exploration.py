@@ -16,6 +16,7 @@ with app.setup:
         sys.path.append(str(project_root))
 
     from electricore.core.loaders import OdooReader
+    from electricore.core.loaders.odoo import query, commandes, lignes_factures, commandes_lignes
 
     # Configuration du logging
     logging.basicConfig(level=logging.INFO)
@@ -143,9 +144,9 @@ def demo_query_builder(config):
     with OdooReader(config=config) as _odoo:
         # Démonstration des 2 approches : follow() vs enrich()
 
-        # Approche 1: Navigation pure avec follow()
+        # Approche 1: Navigation pure avec follow() - API fonctionnelle
         navigation_result = (
-            _odoo.query('sale.order', #domain=[('id', 'in', sample_ids)],
+            query(_odoo, 'sale.order', #domain=[('id', 'in', sample_ids)],
                 fields=['name', 'x_pdl', 'partner_id', 'invoice_ids'])
             .follow('invoice_ids',  # Navigate → account.move
                 fields=['name', 'invoice_date', 'invoice_line_ids'])
@@ -170,32 +171,34 @@ def demo_query_builder(config):
             .collect()
         )
 
-        # Approche 2: Enrichissement sur la commande
+        # Approche 2: Enrichissement avec helper commandes()
         enrichment_result = (
-            _odoo.query('sale.order', #domain=[('id', 'in', sample_ids)],
-                fields=['name', 'x_pdl', 'partner_id'])
+            commandes(_odoo, #domain=[('id', 'in', sample_ids)]
+                )
             .enrich('partner_id', fields=['name', 'email'])  # Enrichit partenaire, reste sur sale.order
             .collect()
         )
 
     _comparison = mo.md(f"""
-    ### Nouvelle API avec follow() et enrich()
+    ### API fonctionnelle pure avec query() et helpers
 
     **🧭 Navigation avec follow()** (change le modèle courant):
     ```python
-    result = (odoo.query('sale.order')
-        .follow('invoice_ids')      # → account.move
-        .follow('invoice_line_ids') # → account.move.line
-        .enrich('product_id')       # Enrichit avec produit
-        .collect())
+    with OdooReader(config) as odoo:
+        result = (query(odoo, 'sale.order')
+            .follow('invoice_ids')      # → account.move
+            .follow('invoice_line_ids') # → account.move.line
+            .enrich('product_id')       # Enrichit avec produit
+            .collect())
     ```
     Résultat: {navigation_result.shape[0]} lignes × {navigation_result.shape[1]} colonnes
 
-    **🔗 Enrichissement avec enrich()** (garde le modèle courant):
+    **🔗 Helper commandes()** (shortcut avec champs standards):
     ```python
-    result = (odoo.query('sale.order')
-        .enrich('partner_id')       # Ajoute détails partenaire
-        .collect())                 # Reste sur sale.order
+    with OdooReader(config) as odoo:
+        result = (commandes(odoo)
+            .enrich('partner_id')       # Ajoute détails partenaire
+            .collect())                 # Reste sur sale.order
     ```
     Résultat: {enrichment_result.shape[0]} lignes × {enrichment_result.shape[1]} colonnes
 
@@ -338,11 +341,9 @@ def stats_analysis(navigation_result):
 @app.cell
 def _(config):
     with OdooReader(config=config) as _odoo:
-        # Démonstration des 2 approches : follow() vs enrich()
-
-        # Approche 1: Navigation pure avec follow()
+        # Approche avec API fonctionnelle
         pdls = (
-            _odoo.query('sale.order', domain=[('state', '=', 'sale'), ('subscription_state', '=', '3_progress')],
+            query(_odoo, 'sale.order', domain=[('state', '=', 'sale'), ('subscription_state', '=', '3_progress')],
                 fields=['x_pdl'])
             .collect()
         )
@@ -352,6 +353,28 @@ def _(config):
 @app.cell
 def _(pdls):
     pdls.select([pl.col('x_pdl')])
+    return
+
+
+@app.cell
+def _(config):
+    with OdooReader(config=config) as _odoo:
+        lignes_factures_df =(
+            lignes_factures(_odoo)
+            .collect()
+        )
+    lignes_factures_df
+    return (lignes_factures_df,)
+
+
+@app.cell
+def _(config, lignes_factures_df):
+    with OdooReader(config=config) as _odoo:
+        lignes_factures_enrichies_df =(
+            commandes_lignes(_odoo)
+            .collect()
+        )
+    lignes_factures_df
     return
 
 

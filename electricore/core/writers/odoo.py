@@ -8,7 +8,7 @@ import copy
 import logging
 from typing import Dict, List, Any, Hashable
 
-from electricore.core.loaders.odoo import OdooReader
+from electricore.core.loaders.odoo.reader import OdooReader
 
 logger = logging.getLogger(__name__)
 

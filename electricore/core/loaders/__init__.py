@@ -23,7 +23,20 @@ from .duckdb import (
     execute_custom_query,
     DuckDBConfig
 )
-from .odoo import OdooReader, OdooQuery
+from .odoo import (
+    OdooReader,
+    OdooQuery,
+    OdooConfig,
+    # API fonctionnelle - Helpers simples
+    query,
+    factures,
+    lignes_factures,
+    commandes,
+    partenaires,
+    # API fonctionnelle - Helpers avec navigation
+    commandes_factures,
+    commandes_lignes,
+)
 
 __all__ = [
     # Loaders Parquet existants
@@ -48,4 +61,14 @@ __all__ = [
     # Connecteur Odoo
     "OdooReader",
     "OdooQuery",
+    "OdooConfig",
+    # API fonctionnelle Odoo - Helpers simples
+    "query",
+    "factures",
+    "lignes_factures",
+    "commandes",
+    "partenaires",
+    # API fonctionnelle Odoo - Helpers avec navigation
+    "commandes_factures",
+    "commandes_lignes",
 ]
