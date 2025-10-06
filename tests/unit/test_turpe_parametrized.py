@@ -55,6 +55,15 @@ def test_turpe_fixe_annuel_par_fta(
         "b": [b],
         "cg": [cg],
         "cc": [cc],
+        # Colonnes C4 avec NULL (C5 n'utilise pas ces colonnes)
+        "b_hph": [None],
+        "b_hch": [None],
+        "b_hpb": [None],
+        "b_hcb": [None],
+        "puissance_souscrite_hph": [None],
+        "puissance_souscrite_hch": [None],
+        "puissance_souscrite_hpb": [None],
+        "puissance_souscrite_hcb": [None],
     })
 
     result = df.with_columns(
@@ -219,6 +228,15 @@ def test_turpe_fixe_puissances_limites(puissance, description):
         "cg": [16.2],
         "cc": [20.88],
         "nb_jours": [30],
+        # Colonnes C4 avec NULL (C5 n'utilise pas ces colonnes)
+        "b_hph": [None],
+        "b_hch": [None],
+        "b_hpb": [None],
+        "b_hcb": [None],
+        "puissance_souscrite_hph": [None],
+        "puissance_souscrite_hch": [None],
+        "puissance_souscrite_hpb": [None],
+        "puissance_souscrite_hcb": [None],
     })
 
     # Ne doit pas planter

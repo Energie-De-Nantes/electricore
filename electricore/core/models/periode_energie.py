@@ -49,6 +49,10 @@ class PeriodeEnergie(pa.DataFrameModel):
     # Calculs TURPE (colonnes optionnelles)
     turpe_variable: Optional[pl.Float64] = pa.Field(nullable=True)
 
+    # Composante dépassement C4 (colonne optionnelle en entrée, fournie par l'appelant)
+    # Durée totale de dépassement de puissance souscrite sur tous les cadrans (heures)
+    depassement_puissance_h: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)
+
     # Flags pour tracer les relevés manquants (colonnes optionnelles)
     releve_manquant_debut: Optional[pl.Boolean] = pa.Field(nullable=True)
     releve_manquant_fin: Optional[pl.Boolean] = pa.Field(nullable=True)

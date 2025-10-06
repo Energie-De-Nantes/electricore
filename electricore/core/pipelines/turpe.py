@@ -36,9 +36,16 @@ def load_turpe_rules() -> pl.LazyFrame:
         pl.scan_csv(
             file_path,
             schema_overrides={
+                # Composantes fixes
                 "cg": str, "cc": str, "b": str,
-                "hph": str, "hch": str, "hpb": str, "hcb": str,
-                "hp": str, "hc": str, "base": str
+                # Coefficients puissance C4 (€/kVA/an)
+                "b_hph": str, "b_hch": str, "b_hpb": str, "b_hcb": str,
+                # Coefficients énergie C4 (c€/kWh)
+                "c_hph": str, "c_hch": str, "c_hpb": str, "c_hcb": str,
+                # Coefficients énergie C5 (c€/kWh)
+                "c_hp": str, "c_hc": str, "c_base": str,
+                # Composante dépassement
+                "cmdps": str
             }
         )
         # Conversion des colonnes de dates avec timezone Europe/Paris
@@ -53,14 +60,25 @@ def load_turpe_rules() -> pl.LazyFrame:
             pl.col("cg").str.strip_chars().cast(pl.Float64),
             pl.col("cc").str.strip_chars().cast(pl.Float64),
 
-            # Tarifs variables par cadran (€/MWh)
-            pl.col("hph").str.strip_chars().cast(pl.Float64),
-            pl.col("hch").str.strip_chars().cast(pl.Float64),
-            pl.col("hpb").str.strip_chars().cast(pl.Float64),
-            pl.col("hcb").str.strip_chars().cast(pl.Float64),
-            pl.col("hp").str.strip_chars().cast(pl.Float64),
-            pl.col("hc").str.strip_chars().cast(pl.Float64),
-            pl.col("base").str.strip_chars().cast(pl.Float64),
+            # Coefficients puissance C4 (€/kVA/an)
+            pl.col("b_hph").str.strip_chars().cast(pl.Float64),
+            pl.col("b_hch").str.strip_chars().cast(pl.Float64),
+            pl.col("b_hpb").str.strip_chars().cast(pl.Float64),
+            pl.col("b_hcb").str.strip_chars().cast(pl.Float64),
+
+            # Coefficients énergie C4 (c€/kWh)
+            pl.col("c_hph").str.strip_chars().cast(pl.Float64),
+            pl.col("c_hch").str.strip_chars().cast(pl.Float64),
+            pl.col("c_hpb").str.strip_chars().cast(pl.Float64),
+            pl.col("c_hcb").str.strip_chars().cast(pl.Float64),
+
+            # Coefficients énergie C5 (c€/kWh)
+            pl.col("c_hp").str.strip_chars().cast(pl.Float64),
+            pl.col("c_hc").str.strip_chars().cast(pl.Float64),
+            pl.col("c_base").str.strip_chars().cast(pl.Float64),
+
+            # Composante dépassement (€/h)
+            pl.col("cmdps").str.strip_chars().cast(pl.Float64),
         ])
     )
 
@@ -71,21 +89,50 @@ def load_turpe_rules() -> pl.LazyFrame:
 
 def expr_calculer_turpe_fixe_annuel() -> pl.Expr:
     """
-    Expression pour calculer le TURPE fixe annuel.
+    Expression pour calculer le TURPE fixe annuel avec détection automatique C4/C5.
 
-    Formule : (b * Puissance_Souscrite) + cg + cc
+    Formule C5 (BT ≤ 36 kVA) : (b × P) + cg + cc (par défaut)
+    Formule C4 (BT > 36 kVA) : b_hph×P₁ + b_hch×(P₂-P₁) + b_hpb×(P₃-P₂) + b_hcb×(P₄-P₃) + cg + cc
+
+    La détection se fait sur la présence des 4 coefficients C4 (b_hph, b_hch, b_hpb, b_hcb).
+    Par défaut, le calcul C5 est appliqué.
 
     Returns:
         Expression Polars retournant le TURPE fixe annuel en €
 
     Example:
+        >>> # C5 : une seule puissance souscrite
+        >>> df.with_columns(expr_calculer_turpe_fixe_annuel().alias("turpe_fixe_annuel"))
+        >>> # C4 : 4 puissances souscrites (hph, hch, hpb, hcb)
         >>> df.with_columns(expr_calculer_turpe_fixe_annuel().alias("turpe_fixe_annuel"))
     """
-    return (
+    # Calcul C5 (par défaut) : (b × P) + cg + cc
+    turpe_c5 = (
         (pl.col("b") * pl.col("puissance_souscrite")) +
         pl.col("cg") +
         pl.col("cc")
     )
+
+    # Calcul C4 : b₁×P₁ + b₂×(P₂-P₁) + b₃×(P₃-P₂) + b₄×(P₄-P₃) + cg + cc
+    turpe_c4 = (
+        (pl.col("b_hph") * pl.col("puissance_souscrite_hph")) +
+        (pl.col("b_hch") * (pl.col("puissance_souscrite_hch") - pl.col("puissance_souscrite_hph"))) +
+        (pl.col("b_hpb") * (pl.col("puissance_souscrite_hpb") - pl.col("puissance_souscrite_hch"))) +
+        (pl.col("b_hcb") * (pl.col("puissance_souscrite_hcb") - pl.col("puissance_souscrite_hpb"))) +
+        pl.col("cg") +
+        pl.col("cc")
+    )
+
+    # Détection C4 : tous les coefficients b_* doivent être non-NULL
+    is_c4 = (
+        pl.col("b_hph").is_not_null() &
+        pl.col("b_hch").is_not_null() &
+        pl.col("b_hpb").is_not_null() &
+        pl.col("b_hcb").is_not_null()
+    )
+
+    # Si C4 → calcul C4, sinon (défaut) → calcul C5
+    return pl.when(is_c4).then(turpe_c4).otherwise(turpe_c5)
 
 
 def expr_calculer_turpe_fixe_journalier() -> pl.Expr:
@@ -118,6 +165,29 @@ def expr_calculer_turpe_fixe_periode() -> pl.Expr:
     return (expr_calculer_turpe_fixe_journalier() * pl.col("nb_jours")).round(2)
 
 
+def expr_valider_puissances_croissantes_c4() -> pl.Expr:
+    """
+    Expression pour valider la contrainte réglementaire C4 : P₁ ≤ P₂ ≤ P₃ ≤ P₄.
+
+    Vérifie que les 4 puissances souscrites C4 respectent l'ordre croissant imposé
+    par la CRE (Délibération 2025-40, p.155).
+
+    Returns:
+        Expression booléenne : True si contrainte respectée, False sinon
+
+    Example:
+        >>> df.filter(expr_valider_puissances_croissantes_c4())  # Garder lignes valides
+        >>> df.with_columns(
+        ...     expr_valider_puissances_croissantes_c4().alias("puissances_valides")
+        ... )
+    """
+    return (
+        (pl.col("puissance_souscrite_hph") <= pl.col("puissance_souscrite_hch")) &
+        (pl.col("puissance_souscrite_hch") <= pl.col("puissance_souscrite_hpb")) &
+        (pl.col("puissance_souscrite_hpb") <= pl.col("puissance_souscrite_hcb"))
+    )
+
+
 
 
 # =============================================================================
@@ -128,8 +198,8 @@ def expr_calculer_turpe_cadran(cadran: str) -> pl.Expr:
     """
     Expression pour calculer la contribution TURPE variable d'un cadran.
 
-    Formule : energie_cadran * taux_turpe_cadran / 100
-    Le /100 convertit les €/MWh en €/kWh comme requis par les règles tarifaires.
+    Formule : energie_cadran * c_cadran / 100
+    Le /100 convertit les c€/kWh (centimes) en €/kWh comme requis.
 
     Args:
         cadran: Nom du cadran (ex: "base", "hp", "hc", "hph", "hch", "hpb", "hcb")
@@ -141,7 +211,7 @@ def expr_calculer_turpe_cadran(cadran: str) -> pl.Expr:
         >>> df.with_columns(expr_calculer_turpe_cadran("base").alias("turpe_base"))
     """
     energie_col = f"{cadran}_energie"
-    tarif_col = f"taux_turpe_{cadran}"  # Utiliser le nom préfixé pour éviter les collisions
+    tarif_col = f"c_{cadran}"  # Nomenclature CRE officielle
 
     return (
         pl.when(pl.col(energie_col).is_not_null() & pl.col(tarif_col).is_not_null())
@@ -186,6 +256,46 @@ def expr_sommer_turpe_cadrans() -> pl.Expr:
     return (
         pl.sum_horizontal([pl.col(col) for col in contributions_cols])
         .round(2)
+    )
+
+
+def expr_calculer_composante_depassement() -> pl.Expr:
+    """
+    Expression pour calculer le coût des pénalités de dépassement (C4 uniquement).
+
+    Cette composante s'applique aux points BT > 36 kVA (C4) qui dépassent leur
+    puissance souscrite. Le calcul est basé sur la durée totale de dépassement
+    (tous cadrans confondus) et le tarif CMDPS (Composante Mensuelle de Dépassement
+    de Puissance Souscrite).
+
+    Formule : depassement_puissance_h × cmdps
+
+    Returns:
+        Expression retournant le coût des pénalités en € (0 si cmdps null/C5 ou durée absente)
+
+    Prérequis:
+        - Colonne 'depassement_puissance_h' (heures) - fournie par l'appelant,
+          somme des dépassements sur tous les cadrans HPH/HCH/HPB/HCB
+        - Colonne 'cmdps' (€/h) - issue de turpe_rules.csv
+
+    Notes:
+        - Pour C5 (BT ≤ 36 kVA) : cmdps = NULL → pénalités = 0
+        - Pour C4 (BT > 36 kVA) : cmdps défini (ex: 12.41 €/h) → pénalités calculées
+        - Si depassement_puissance_h absent ou NULL → pénalités = 0 (pas d'erreur)
+        - La responsabilité du calcul des dépassements par cadran incombe à l'appelant
+
+    Example:
+        >>> # C4 avec dépassement total de 10h à 12.41 €/h
+        >>> df.with_columns(expr_calculer_composante_depassement().alias("turpe_depassement"))
+        >>> # → turpe_depassement = 10 × 12.41 = 124.10 €
+    """
+    return (
+        pl.when(
+            pl.col('cmdps').is_not_null() &
+            pl.col('depassement_puissance_h').is_not_null()
+        )
+        .then(pl.col('depassement_puissance_h') * pl.col('cmdps'))
+        .otherwise(0.0)
     )
 
 
@@ -278,6 +388,18 @@ def ajouter_turpe_fixe(
     if regles is None:
         regles = load_turpe_rules()
 
+    # Récupérer la liste des colonnes originales
+    colonnes_originales = periodes.collect_schema().names()
+
+    # S'assurer que les colonnes C4 existent (avec NULL par défaut pour C5)
+    colonnes_c4 = ["puissance_souscrite_hph", "puissance_souscrite_hch",
+                   "puissance_souscrite_hpb", "puissance_souscrite_hcb"]
+
+    for col in colonnes_c4:
+        if col not in colonnes_originales:
+            periodes = periodes.with_columns(pl.lit(None, dtype=pl.Float64).alias(col))
+            colonnes_originales.append(col)
+
     return (
         periodes
         # Jointure avec les règles TURPE sur la FTA
@@ -300,8 +422,7 @@ def ajouter_turpe_fixe(
         # Sélection des colonnes finales (exclure les colonnes de règles intermédiaires)
         .select([
             # Colonnes originales des périodes
-            col for col in periodes.collect_schema().names()
-        ] + [
+            *colonnes_originales,
             # Colonne TURPE calculée
             "turpe_fixe"
         ])
@@ -336,13 +457,16 @@ def ajouter_turpe_variable(
     # Récupérer la liste des colonnes originales
     colonnes_originales = periodes.collect_schema().names()
 
+    # S'assurer que depassement_puissance_h existe (pour C5 qui n'en a pas besoin)
+    if "depassement_puissance_h" not in colonnes_originales:
+        periodes = periodes.with_columns(pl.lit(None, dtype=pl.Float64).alias("depassement_puissance_h"))
+        colonnes_originales.append("depassement_puissance_h")
+
     return (
         periodes
-        # Jointure avec les règles TURPE sur la FTA (préfixer les tarifs pour éviter collisions)
+        # Jointure avec les règles TURPE sur la FTA (nomenclature CRE : c_*)
         .join(
-            regles.rename({
-                col: f"taux_turpe_{col}" for col in ["base", "hp", "hc", "hph", "hch", "hpb", "hcb"]
-            }),
+            regles,
             left_on="formule_tarifaire_acheminement",
             right_on="Formule_Tarifaire_Acheminement",
             how="left"
@@ -357,8 +481,11 @@ def ajouter_turpe_variable(
         # Calcul des contributions TURPE variable par cadran
         .with_columns(expr_calculer_turpe_contributions_cadrans())
 
-        # Calcul du total TURPE variable
-        .with_columns(expr_sommer_turpe_cadrans().alias("turpe_variable"))
+        # Calcul du total TURPE variable (cadrans + dépassement)
+        .with_columns(
+            (expr_sommer_turpe_cadrans() + expr_calculer_composante_depassement())
+            .alias("turpe_variable")
+        )
 
         # Sélection des colonnes finales (exclure les colonnes de règles intermédiaires)
         .select([
@@ -397,10 +524,11 @@ def debug_turpe_variable(lf: pl.LazyFrame) -> pl.LazyFrame:
     # Ajouter les détails par cadran
     for cadran in cadrans:
         energie_col = f"{cadran}_energie"
+        tarif_col = f"c_{cadran}"  # Nomenclature CRE officielle
         debug_expressions.extend([
             pl.col(energie_col).alias(f"debug_energie_{cadran}"),
-            pl.col(f"taux_turpe_{cadran}").alias(f"debug_tarif_{cadran}"),
-            (pl.col(energie_col) * pl.col(f"taux_turpe_{cadran}") / 100).alias(f"debug_contribution_{cadran}")
+            pl.col(tarif_col).alias(f"debug_tarif_{cadran}"),
+            (pl.col(energie_col) * pl.col(tarif_col) / 100).alias(f"debug_contribution_{cadran}")
         ])
 
     return lf.with_columns(debug_expressions)
