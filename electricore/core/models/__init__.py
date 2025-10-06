@@ -1,16 +1,14 @@
 """
-Modèles de données centralisés pour ElectriCore.
+Modèles Pandera pour Polars DataFrames.
 
-Ce module contient tous les modèles Pandera pour la validation des DataFrames
-utilisés dans les différents modules du projet.
+Ces modèles sont adaptés pour fonctionner avec Polars et remplacent 
+progressivement les modèles pandas existants.
 """
 
-from .periode_energie import PeriodeEnergie
-from .regle_turpe import RegleTurpe
-from .periode_abonnement import PeriodeAbonnement
+from .releve_index import RelevéIndex
+from .historique_perimetre import HistoriquePérimètre
 
 __all__ = [
-    'PeriodeEnergie',
-    'RegleTurpe',
-    'PeriodeAbonnement',
+    "RelevéIndex", 
+    "HistoriquePérimètre"
 ]

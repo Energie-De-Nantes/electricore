@@ -1,19 +1,57 @@
 [project]
 name = "electricore"
-version = "0.2.7"
-description = ""
+version = "1.0.0"
+description = "Moteur de traitement données énergétiques françaises - Architecture Polars/DuckDB pour flux Enedis"
 authors = [
     {name = "Virgile"}
 ]
 license = {text = "GPLv3"}
 readme = "README.md"
-requires-python = ">=3.12,<4.0"
-dependencies = [
-    "pandas (>=2.2.3,<3.0.0)",
-    "pandera (>=0.24.0)",
-    "babel (>=2.17.0,<3.0.0)",
-    "toolz (>=1.0.0,<2.0.0)",
+requires-python = ">=3.12,<3.15"
+keywords = [
+    "energy",
+    "electricity",
+    "enedis",
+    "polars",
+    "duckdb",
+    "etl",
+    "turpe",
+    "linky",
+    "grid",
+    "data-processing"
 ]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Utilities",
+    "Typing :: Typed"
+]
+dependencies = [
+    "polars (>=1.0.0,<2.0.0)",
+    "pandera[polars] (>=0.24.0)",
+    "pyarrow (>=21.0.0,<22.0.0)",
+    "dlt[workspace] (>=1.16.0,<2.0.0)",
+    "pycryptodome (>=3.23.0,<4.0.0)",
+    "fastapi (>=0.116.1,<0.117.0)",
+    "uvicorn (>=0.35.0,<0.36.0)",
+    "duckdb (>=1.3.2,<2.0.0)",
+]
+
+[project.urls]
+Homepage = "https://github.com/Energie-De-Nantes/electricore"
+Documentation = "https://github.com/Energie-De-Nantes/electricore/blob/main/README.md"
+Repository = "https://github.com/Energie-De-Nantes/electricore"
+Issues = "https://github.com/Energie-De-Nantes/electricore/issues"
+Changelog = "https://github.com/Energie-De-Nantes/electricore/blob/main/CHANGELOG.md"
 
 
 [build-system]
@@ -23,16 +61,69 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry.group.test.dependencies]
 pytest = "^8.2.0"
 pytest-cov = "^5.0.0"
+pytest-xdist = "^3.6.1"
 hypothesis = "^6.0.0"
+syrupy = "^4.7.2"
 
 
-[tool.poetry.group.dev.dependencies]
-icecream = "^2.1.5"
-marimo = "^0.14.11"
+[tool.poetry.group.notebook]
+optional = true
+
+[tool.poetry.group.notebook.dependencies]
+marimo = ">=0.16.4"
 altair = "^5.5.0"
 plotly = "^6.2.0"
-electriflux = ">=1.1.0, <2.0.0"
+vegafusion = ">=2.0.2,<3.0.0"
+vl-convert-python = ">=1.8.0,<2.0.0"
 
 [test]
 command = "poetry run pytest -q"
 
+
+[tool.pytest.ini_options]
+# Test discovery
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+# Markers for test organization
+markers = [
+    "unit: Unit tests - fast, isolated tests of individual functions/expressions",
+    "integration: Integration tests - test interactions between components",
+    "slow: Slow tests - tests that take more than 5 seconds",
+    "smoke: Smoke tests - critical tests for CI fast feedback",
+    "skip_ci: Tests requiring real production data, skip in CI",
+    "duckdb: Tests requiring DuckDB connection",
+    "odoo: Tests requiring Odoo connection",
+    "hypothesis: Property-based tests using Hypothesis",
+]
+
+# Output and reporting
+addopts = [
+    "-ra",                    # Show all test outcomes except passed
+    "--strict-markers",       # Error on unknown markers
+    "--strict-config",        # Error on unknown config options
+    "--showlocals",          # Show local variables in tracebacks
+    "--tb=short",            # Short traceback format
+    "-v",                    # Verbose output
+]
+
+# Coverage configuration
+[tool.coverage.run]
+source = ["electricore"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+    "*/site-packages/*",
+]
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
+fail_under = 45  # Current: 49%, setting slightly below to avoid immediate fails
+
+[tool.coverage.html]
+directory = "htmlcov"
