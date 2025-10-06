@@ -70,7 +70,7 @@ syrupy = "^4.7.2"
 optional = true
 
 [tool.poetry.group.notebook.dependencies]
-marimo = ">=0.14.11"
+marimo = ">=0.16.4"
 altair = "^5.5.0"
 plotly = "^6.2.0"
 vegafusion = ">=2.0.2,<3.0.0"
