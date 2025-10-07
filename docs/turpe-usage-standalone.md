@@ -166,20 +166,20 @@ periodes = pl.LazyFrame({
 
     # Énergies par cadran (kWh) - selon FTA :
     # C4 (4 cadrans) :
-    "hph_energie": [...],  # Hiver Pleines Heures
-    "hch_energie": [...],  # Hiver Creuses Heures
-    "hpb_energie": [...],  # Été Pleines Heures
-    "hcb_energie": [...],  # Été Creuses Heures
+    "energie_hph_kwh": [...],  # Hiver Pleines Heures
+    "energie_hch_kwh": [...],  # Hiver Creuses Heures
+    "energie_hpb_kwh": [...],  # Été Pleines Heures
+    "energie_hcb_kwh": [...],  # Été Creuses Heures
 
     # OU C5 HP/HC (2 cadrans) :
-    "hp_energie": [...],   # Heures Pleines
-    "hc_energie": [...],   # Heures Creuses
+    "energie_hp_kwh": [...],   # Heures Pleines
+    "energie_hc_kwh": [...],   # Heures Creuses
 
     # OU C5 Base (1 cadran) :
-    "base_energie": [...],
+    "energie_base_kwh": [...],
 
     # Optionnel pour C4 - Dépassements de puissance :
-    "depassement_puissance_h": [...],  # Durée totale dépassement (heures)
+    "duree_depassement_h": [...],  # Durée totale dépassement (heures)
 })
 ```
 
@@ -197,13 +197,13 @@ periodes = pl.LazyFrame({
     "date_fin": ["2025-01-31"],
 
     # Énergies C4 (kWh)
-    "hph_energie": [1000.0],  # Hiver Pleines Heures
-    "hch_energie": [800.0],   # Hiver Creuses Heures
-    "hpb_energie": [600.0],   # Été Pleines Heures
-    "hcb_energie": [400.0],   # Été Creuses Heures
+    "energie_hph_kwh": [1000.0],  # Hiver Pleines Heures
+    "energie_hch_kwh": [800.0],   # Hiver Creuses Heures
+    "energie_hpb_kwh": [600.0],   # Été Pleines Heures
+    "energie_hcb_kwh": [400.0],   # Été Creuses Heures
 
     # Dépassement (optionnel)
-    "depassement_puissance_h": [10.0],  # 10h de dépassement total
+    "duree_depassement_h": [10.0],  # 10h de dépassement total
 })
 
 result = ajouter_turpe_variable(periodes).collect()
@@ -229,23 +229,23 @@ periodes_hphc = pl.LazyFrame({
     "date_fin": ["2025-01-31"],
 
     # Énergies HP/HC (kWh)
-    "hp_energie": [2000.0],
-    "hc_energie": [1500.0],
+    "energie_hp_kwh": [2000.0],
+    "energie_hc_kwh": [1500.0],
 })
 
 result = ajouter_turpe_variable(periodes_hphc).collect()
 
-print(result.select(["pdl", "hp_energie", "hc_energie", "turpe_variable"]))
+print(result.select(["pdl", "energie_hp_kwh", "energie_hc_kwh", "turpe_variable"]))
 ```
 
 **Résultat** :
 ```
-┌────────┬────────────┬────────────┬────────────────┐
-│ pdl    │ hp_energie │ hc_energie │ turpe_variable │
-│ str    │ f64        │ f64        │ f64            │
-├────────┼────────────┼────────────┼────────────────┤
-│ PDL002 │ 2000.0     │ 1500.0     │ 176.80         │
-└────────┴────────────┴────────────┴────────────────┘
+┌────────┬────────────────┬────────────────┬────────────────┐
+│ pdl    │ energie_hp_kwh │ energie_hc_kwh │ turpe_variable │
+│ str    │ f64            │ f64            │ f64            │
+├────────┼────────────────┼────────────────┼────────────────┤
+│ PDL002 │ 2000.0         │ 1500.0         │ 176.80         │
+└────────┴────────────────┴────────────────┴────────────────┘
 ```
 
 ---
@@ -320,7 +320,7 @@ from electricore.core.pipelines.turpe import (
 ```python
 # Calcul manuel pour un cadran spécifique
 df = pl.DataFrame({
-    "hph_energie": [1000.0],
+    "energie_hph_kwh": [1000.0],
     "c_hph": [6.91],  # c€/kWh (doit être récupéré des règles)
 })
 
@@ -338,7 +338,7 @@ from electricore.core.pipelines.turpe import expr_calculer_composante_depassemen
 ```
 
 **⚠️ Important** : Cette expression attend :
-- `depassement_puissance_h` (float) - Durée totale de dépassement en **heures** (tous cadrans confondus)
+- `duree_depassement_h` (float) - Durée totale de dépassement en **heures** (tous cadrans confondus)
 - `cmdps` (float) - Tarif €/h issu des règles TURPE
 
 **Le calcul des dépassements est à la charge de l'appelant** (mesure Linky/analyseur).
@@ -353,7 +353,7 @@ df = pl.DataFrame({
 
     # Durée totale de dépassement calculée en amont
     # Exemple : somme des heures où P_réelle > P_souscrite_cadran
-    "depassement_puissance_h": [10.0],  # 10 heures de dépassement
+    "duree_depassement_h": [10.0],  # 10 heures de dépassement
 })
 
 result = df.with_columns(
@@ -367,7 +367,7 @@ print(f"Pénalité : {result['penalite_depassement'][0]:.2f} €")
 ```
 Pénalité : 124.10 €
 
-Formule : depassement_puissance_h × cmdps
+Formule : duree_depassement_h × cmdps
         = 10 h × 12.41 €/h = 124.10 €
 ```
 
@@ -389,8 +389,8 @@ periodes = pl.LazyFrame({
     "date_fin": ["2025-01-31"],
 
     # Énergies HP/HC
-    "hp_energie": [500.0],
-    "hc_energie": [300.0],
+    "energie_hp_kwh": [500.0],
+    "energie_hc_kwh": [300.0],
 })
 
 # Chaînage des 2 fonctions
@@ -416,9 +416,9 @@ profils = pl.LazyFrame({
     "date_fin": ["2025-12-31"] * 3,
 
     # Même consommation pour tous
-    "base_energie": [3500.0, None, None],
-    "hp_energie": [None, 2100.0, None],
-    "hc_energie": [None, 1400.0, None],
+    "energie_base_kwh": [3500.0, None, None],
+    "energie_hp_kwh": [None, 2100.0, None],
+    "energie_hc_kwh": [None, 1400.0, None],
 })
 
 # Calculs
