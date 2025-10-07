@@ -251,8 +251,8 @@ def expr_selectionner_colonnes_finales():
         pl.col("formule_tarifaire_acheminement")
     ])
 
-    # Ajouter toutes les colonnes _energie
-    selection.append(pl.col("^.*_energie$"))
+    # Ajouter toutes les colonnes d'énergie (format: energie_xxx_kwh)
+    selection.append(pl.col("^energie_.*_kwh$"))
 
     return selection
 
@@ -625,6 +625,6 @@ def pipeline_energie(
         # Sélection finale des colonnes (exclut les index bruts BASE, HP, HC, etc.)
         .select([
             *expr_selectionner_colonnes_finales(),
-            pl.col("turpe_variable")  # Ajouté par le pipeline TURPE
+            pl.col("turpe_variable_eur")  # Ajouté par le pipeline TURPE
         ])
     )

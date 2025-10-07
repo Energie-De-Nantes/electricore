@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.16.0"
+__generated_with = "0.16.5"
 app = marimo.App(width="medium")
 
 with app.setup(hide_code=True):
@@ -31,6 +31,37 @@ def _():
     r64_df = r64().lazy().collect()
     r64_df
     return (r64_df,)
+
+
+@app.cell
+def _():
+    import duckdb
+
+    DATABASE_URL = "/home/virgile/workspace/electricore/electricore/etl/flux_enedis_pipeline.duckdb"
+    engine = duckdb.connect(DATABASE_URL, read_only=True)
+    return (engine,)
+
+
+@app.cell
+def _(engine):
+    _df = mo.sql(
+        f"""
+        SELECT * FROM flux_enedis.flux_r151
+        """,
+        engine=engine
+    )
+    return
+
+
+@app.cell
+def _(engine):
+    _df = mo.sql(
+        f"""
+        SELECT * FROM flux_enedis.flux_r64 LIMIT 100
+        """,
+        engine=engine
+    )
+    return
 
 
 @app.cell

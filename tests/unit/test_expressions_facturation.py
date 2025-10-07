@@ -39,7 +39,7 @@ class TestExpressionsAtomiques:
         result = (
             data
             .group_by(["ref_situation_contractuelle", "pdl", "mois_annee"])
-            .agg(expr_puissance_moyenne().alias("puissance_moyenne"))
+            .agg(expr_puissance_moyenne().alias("puissance_moyenne_kva"))
         )
 
         # Vérification : (6*10 + 9*20) / (10+20) = (60+180)/30 = 8.0
@@ -47,7 +47,7 @@ class TestExpressionsAtomiques:
             "ref_situation_contractuelle": ["REF1"],
             "pdl": ["PDL1"],
             "mois_annee": ["mars 2025"],
-            "puissance_moyenne": [8.0]
+            "puissance_moyenne_kva": [8.0]
         })
 
         pl_testing.assert_frame_equal(result, expected)
@@ -122,7 +122,7 @@ class TestAgregatioAbonnements:
         # Vérifications
         collected = result.collect()
         assert len(collected) == 1
-        assert collected["puissance_moyenne"][0] == 6.0  # Une seule période
+        assert collected["puissance_moyenne_kva"][0] == 6.0  # Une seule période
         assert collected["nb_jours"][0] == 31
         assert collected["turpe_fixe_eur"][0] == 50.0
         assert collected["nb_sous_periodes_abo"][0] == 1
@@ -153,7 +153,7 @@ class TestAgregatioAbonnements:
 
         # Puissance moyenne : (6*15 + 9*16) / (15+16) = (90+144)/31 ≈ 7.55
         expected_puissance = (6*15 + 9*16) / (15+16)
-        assert collected["puissance_moyenne"][0] == pytest.approx(expected_puissance)
+        assert collected["puissance_moyenne_kva"][0] == pytest.approx(expected_puissance)
 
         assert collected["nb_jours"][0] == 31  # Total
         assert collected["turpe_fixe_eur"][0] == 55.0  # Somme
@@ -243,7 +243,7 @@ class TestJointureMetaPeriodes:
             "ref_situation_contractuelle": ["REF1"],
             "pdl": ["PDL1"],
             "mois_annee": ["mars 2025"],
-            "puissance_moyenne": [6.0],
+            "puissance_moyenne_kva": [6.0],
             "nb_jours": [31],
             "turpe_fixe_eur": [50.0],
             "formule_tarifaire_acheminement": ["BTINF"],
@@ -278,7 +278,7 @@ class TestJointureMetaPeriodes:
         # Vérifications
         collected = result.collect()
         assert len(collected) == 1
-        assert collected["puissance_moyenne"][0] == 6.0
+        assert collected["puissance_moyenne_kva"][0] == 6.0
         assert collected["energie_base_kwh"][0] == 1000.0
         assert collected["has_changement"][0] is False
         assert collected["coverage_abo"][0] == 1.0  # Placeholder
@@ -291,7 +291,7 @@ class TestJointureMetaPeriodes:
             "ref_situation_contractuelle": ["REF1"],
             "pdl": ["PDL1"],
             "mois_annee": ["mars 2025"],
-            "puissance_moyenne": [6.0],
+            "puissance_moyenne_kva": [6.0],
             "nb_jours": [31],
             "turpe_fixe_eur": [50.0],
             "formule_tarifaire_acheminement": ["BTINF"],
@@ -330,13 +330,13 @@ class TestJointureMetaPeriodes:
         # Ligne mars : abo présent, énergie null
         ligne_mars = collected.filter(pl.col("mois_annee") == "mars 2025")
         assert len(ligne_mars) == 1
-        assert ligne_mars["puissance_moyenne"][0] == 6.0
+        assert ligne_mars["puissance_moyenne_kva"][0] == 6.0
         assert ligne_mars["energie_base_kwh"][0] == 0.0  # Fill null
 
         # Ligne avril : abo null, énergie présente
         ligne_avril = collected.filter(pl.col("mois_annee") == "avril 2025")
         assert len(ligne_avril) == 1
-        assert ligne_avril["puissance_moyenne"][0] == 0.0  # Fill null
+        assert ligne_avril["puissance_moyenne_kva"][0] == 0.0  # Fill null
         assert ligne_avril["energie_base_kwh"][0] == 1000.0
 
     def test_jointure_avec_donnees_partielles_meme_mois(self):
@@ -345,7 +345,7 @@ class TestJointureMetaPeriodes:
             "ref_situation_contractuelle": ["REF1", "REF2"],
             "pdl": ["PDL1", "PDL2"],
             "mois_annee": ["mars 2025", "mars 2025"],
-            "puissance_moyenne": [6.0, 9.0],
+            "puissance_moyenne_kva": [6.0, 9.0],
             "nb_jours": [31, 31],
             "turpe_fixe_eur": [50.0, 75.0],
             "formule_tarifaire_acheminement": ["BTINF", "BTINF"],
@@ -385,11 +385,11 @@ class TestJointureMetaPeriodes:
         # PDL1 : données complètes
         pdl1 = collected.filter(pl.col("pdl") == "PDL1")
         assert len(pdl1) == 1
-        assert pdl1["puissance_moyenne"][0] == 6.0
+        assert pdl1["puissance_moyenne_kva"][0] == 6.0
         assert pdl1["energie_base_kwh"][0] == 1000.0
 
         # PDL2 : seulement abonnement
         pdl2 = collected.filter(pl.col("pdl") == "PDL2")
         assert len(pdl2) == 1
-        assert pdl2["puissance_moyenne"][0] == 9.0
+        assert pdl2["puissance_moyenne_kva"][0] == 9.0
         assert pdl2["energie_base_kwh"][0] == 0.0  # Fill null

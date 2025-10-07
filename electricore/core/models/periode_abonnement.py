@@ -57,8 +57,8 @@ class PeriodeAbonnement(pa.DataFrameModel):
     )
 
     # Champs TURPE (ajoutés après calcul)
-    turpe_fixe_journalier: Optional[pl.Float64] = pa.Field(nullable=True)
-    turpe_fixe: Optional[pl.Float64] = pa.Field(nullable=True)
+    turpe_fixe_journalier_eur: Optional[pl.Float64] = pa.Field(nullable=True)
+    turpe_fixe_eur: Optional[pl.Float64] = pa.Field(nullable=True)
 
     # Métadonnées de qualité et complétude
     data_complete: Optional[pl.Boolean] = pa.Field(nullable=True)

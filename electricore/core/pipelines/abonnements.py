@@ -294,13 +294,13 @@ def selectionner_colonnes_abonnement(lf: pl.LazyFrame) -> pl.LazyFrame:
         "debut_lisible",
         "fin_lisible",
         "formule_tarifaire_acheminement",
-        "puissance_souscrite",
+        "puissance_souscrite_kva",
         "nb_jours",
         "debut",
         "fin",
         # Colonnes TURPE (optionnelles)
-        "turpe_fixe_journalier",
-        "turpe_fixe"
+        "turpe_fixe_journalier_eur",
+        "turpe_fixe_eur"
     ]
 
     # Sélectionner uniquement les colonnes qui existent

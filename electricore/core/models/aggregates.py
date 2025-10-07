@@ -36,12 +36,12 @@ class AbonnementMensuel(pa.DataFrameModel):
     )
 
     # Paramètres tarifaires agrégés
-    puissance_moyenne: pl.Float64 = pa.Field(nullable=False, ge=0.0)
+    puissance_moyenne_kva: pl.Float64 = pa.Field(nullable=False, ge=0.0)
     formule_tarifaire_acheminement: pl.Utf8 = pa.Field(nullable=False)
     nb_jours: pl.Int32 = pa.Field(nullable=False, ge=1)
 
     # Montants TURPE fixe
-    turpe_fixe: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)
+    turpe_fixe_eur: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)
 
     # Métadonnées d'agrégation
     nb_sous_periodes_abo: pl.Int32 = pa.Field(nullable=False, ge=1)

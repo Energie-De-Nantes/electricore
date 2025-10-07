@@ -144,7 +144,7 @@ def agreger_abonnements_mensuel(
         .agg([
             # Agrégations numériques
             pl.col("nb_jours").sum(),
-            expr_puissance_moyenne().alias("puissance_moyenne"),
+            expr_puissance_moyenne().alias("puissance_moyenne_kva"),
             pl.col("turpe_fixe_eur").sum(),
 
             # Métadonnées (première valeur car identique dans le groupe)
@@ -274,7 +274,7 @@ def joindre_meta_periodes(
             pl.coalesce([pl.col("fin"), pl.col("fin_energie")]).alias("fin"),
 
             # Réconciliation des valeurs manquantes
-            pl.col("puissance_moyenne").fill_null(0.0),
+            pl.col("puissance_moyenne_kva").fill_null(0.0),
             pl.col("formule_tarifaire_acheminement").fill_null("INCONNU"),
             pl.col("turpe_fixe_eur").fill_null(0.0),
             pl.col("turpe_variable_eur").fill_null(0.0),

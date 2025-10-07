@@ -268,20 +268,20 @@ def expr_calculer_composante_depassement() -> pl.Expr:
     (tous cadrans confondus) et le tarif CMDPS (Composante Mensuelle de Dépassement
     de Puissance Souscrite).
 
-    Formule : depassement_puissance_h × cmdps
+    Formule : duree_depassement_h × cmdps
 
     Returns:
         Expression retournant le coût des pénalités en € (0 si cmdps null/C5 ou durée absente)
 
     Prérequis:
-        - Colonne 'depassement_puissance_h' (heures) - fournie par l'appelant,
+        - Colonne 'duree_depassement_h' (heures) - fournie par l'appelant,
           somme des dépassements sur tous les cadrans HPH/HCH/HPB/HCB
         - Colonne 'cmdps' (€/h) - issue de turpe_rules.csv
 
     Notes:
         - Pour C5 (BT ≤ 36 kVA) : cmdps = NULL → pénalités = 0
         - Pour C4 (BT > 36 kVA) : cmdps défini (ex: 12.41 €/h) → pénalités calculées
-        - Si depassement_puissance_h absent ou NULL → pénalités = 0 (pas d'erreur)
+        - Si duree_depassement_h absent ou NULL → pénalités = 0 (pas d'erreur)
         - La responsabilité du calcul des dépassements par cadran incombe à l'appelant
 
     Example:
@@ -292,9 +292,9 @@ def expr_calculer_composante_depassement() -> pl.Expr:
     return (
         pl.when(
             pl.col('cmdps').is_not_null() &
-            pl.col('depassement_puissance_h').is_not_null()
+            pl.col('duree_depassement_h').is_not_null()
         )
-        .then(pl.col('depassement_puissance_h') * pl.col('cmdps'))
+        .then(pl.col('duree_depassement_h') * pl.col('cmdps'))
         .otherwise(0.0)
     )
 
@@ -457,10 +457,10 @@ def ajouter_turpe_variable(
     # Récupérer la liste des colonnes originales
     colonnes_originales = periodes.collect_schema().names()
 
-    # S'assurer que depassement_puissance_h existe (pour C5 qui n'en a pas besoin)
-    if "depassement_puissance_h" not in colonnes_originales:
-        periodes = periodes.with_columns(pl.lit(None, dtype=pl.Float64).alias("depassement_puissance_h"))
-        colonnes_originales.append("depassement_puissance_h")
+    # S'assurer que duree_depassement_h existe (pour C5 qui n'en a pas besoin)
+    if "duree_depassement_h" not in colonnes_originales:
+        periodes = periodes.with_columns(pl.lit(None, dtype=pl.Float64).alias("duree_depassement_h"))
+        colonnes_originales.append("duree_depassement_h")
 
     return (
         periodes

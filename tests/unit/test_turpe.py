@@ -311,7 +311,7 @@ class TestComposanteDepassement:
 
         df_test = pl.DataFrame({
             "cmdps": [12.41],  # €/h (C4)
-            "depassement_puissance_h": [10.0],  # 10 heures de dépassement
+            "duree_depassement_h": [10.0],  # 10 heures de dépassement
         })
 
         df_result = df_test.with_columns(
@@ -330,7 +330,7 @@ class TestComposanteDepassement:
 
         df_test = pl.DataFrame({
             "cmdps": [None],  # NULL (C5 - pas de pénalités)
-            "depassement_puissance_h": [10.0],  # Dépassement présent mais ignoré
+            "duree_depassement_h": [10.0],  # Dépassement présent mais ignoré
         })
 
         df_result = df_test.with_columns(
@@ -348,7 +348,7 @@ class TestComposanteDepassement:
 
         df_test = pl.DataFrame({
             "cmdps": [12.41],  # €/h (C4)
-            "depassement_puissance_h": [0.0],  # Pas de dépassement
+            "duree_depassement_h": [0.0],  # Pas de dépassement
         })
 
         df_result = df_test.with_columns(
@@ -361,12 +361,12 @@ class TestComposanteDepassement:
         assert resultat == 0.0, f"Pas de dépassement → pas de pénalités, obtenu {resultat}"
 
     def test_expr_calculer_composante_depassement_colonne_absente(self):
-        """Test robustesse si colonne depassement_puissance_h absente."""
+        """Test robustesse si colonne duree_depassement_h absente."""
         from electricore.core.pipelines.turpe import expr_calculer_composante_depassement
 
         df_test = pl.DataFrame({
             "cmdps": [12.41],  # €/h (C4)
-            "depassement_puissance_h": [None],  # Colonne NULL
+            "duree_depassement_h": [None],  # Colonne NULL
         })
 
         df_result = df_test.with_columns(
@@ -394,7 +394,7 @@ class TestComposanteDepassement:
             "energie_hpb_kwh": [30.0],   # 30 kWh en HPB
             "energie_hcb_kwh": [20.0],   # 20 kWh en HCB
             # Dépassement
-            "depassement_puissance_h": [5.0],  # 5 heures de dépassement
+            "duree_depassement_h": [5.0],  # 5 heures de dépassement
         }).with_columns(
             pl.col("debut").dt.replace_time_zone("Europe/Paris")
         )
@@ -436,7 +436,7 @@ class TestComposanteDepassement:
             "energie_hch_kwh": [50.0],
             "energie_hpb_kwh": [30.0],
             "energie_hcb_kwh": [20.0],
-            # PAS de colonne depassement_puissance_h (C5 n'en a pas besoin)
+            # PAS de colonne duree_depassement_h (C5 n'en a pas besoin)
         }).with_columns(
             pl.col("debut").dt.replace_time_zone("Europe/Paris")
         )
