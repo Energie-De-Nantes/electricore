@@ -46,14 +46,14 @@ class PeriodeMeta(pa.DataFrameModel):
     formule_tarifaire_acheminement: pl.Utf8 = pa.Field(nullable=False)
     nb_jours: pl.Int32 = pa.Field(nullable=False, ge=1)
 
-    # Énergies par cadran (optionnelles selon le type de compteur)
-    base_energie: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)
-    hp_energie: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)
-    hc_energie: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)
+    # Énergies consommées par cadran en kWh (optionnelles selon le type de compteur)
+    energie_base_kwh: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)
+    energie_hp_kwh: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)
+    energie_hc_kwh: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)
 
-    # Montants TURPE
-    turpe_fixe: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)
-    turpe_variable: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)
+    # Montants TURPE en euros
+    turpe_fixe_eur: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)
+    turpe_variable_eur: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)
 
     # Métadonnées de traçabilité des sous-périodes
     nb_sous_periodes_abo: pl.Int32 = pa.Field(nullable=False, ge=1)

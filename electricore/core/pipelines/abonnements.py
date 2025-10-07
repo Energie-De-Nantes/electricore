@@ -208,7 +208,7 @@ def calculer_periodes_abonnement(lf: pl.LazyFrame) -> pl.LazyFrame:
             "debut_lisible",
             "fin_lisible",
             "formule_tarifaire_acheminement",
-            "puissance_souscrite",
+            "puissance_souscrite_kva",
             "nb_jours",
             "debut",
             "fin"

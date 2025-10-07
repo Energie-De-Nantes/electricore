@@ -28,7 +28,7 @@ def expr_changement(col_name: str, over: str = "ref_situation_contractuelle") ->
         
     Example:
         >>> df.with_columns(
-        ...     expr_changement("puissance_souscrite").alias("puissance_change")
+        ...     expr_changement("puissance_souscrite_kva").alias("puissance_change")
         ... )
     """
     current = pl.col(col_name)
@@ -59,7 +59,7 @@ def expr_resume_changement(col_name: str, label: str, over: str = "ref_situation
         
     Example:
         >>> df.with_columns(
-        ...     expr_resume_changement("puissance_souscrite", "P").alias("resume_puissance")
+        ...     expr_resume_changement("puissance_souscrite_kva", "P").alias("resume_puissance")
         ... )
         # Produit des valeurs comme "P: 6.0 → 9.0" ou ""
     """
@@ -160,10 +160,10 @@ def expr_changement_index() -> pl.Expr:
         ... )
     """
     index_cols = ["base", "hp", "hc", "hph", "hch", "hpb", "hcb"]
-    
+
     # Créer une expression pour chaque colonne d'index
     changements = [
-        expr_changement_avant_apres(f"avant_{col}", f"apres_{col}")
+        expr_changement_avant_apres(f"avant_index_{col}_kwh", f"apres_index_{col}_kwh")
         for col in index_cols
     ]
     
@@ -195,7 +195,7 @@ def expr_impacte_abonnement(over: str = "ref_situation_contractuelle") -> pl.Exp
         ...     expr_impacte_abonnement().alias("impacte_abonnement")
         ... )
     """
-    changement_puissance = expr_changement("puissance_souscrite", over)
+    changement_puissance = expr_changement("puissance_souscrite_kva", over)
     changement_fta = expr_changement("formule_tarifaire_acheminement", over)
     est_structurant = expr_evenement_structurant()
     
@@ -259,7 +259,7 @@ def expr_resume_modification() -> pl.Expr:
         ... )
         # Produit: "P: 6.0 → 9.0, FTA: BTINFCU4 → BTINFMU4, Cal: CAL1 → CAL2"
     """
-    resume_puissance = expr_resume_changement("puissance_souscrite", "P")
+    resume_puissance = expr_resume_changement("puissance_souscrite_kva", "P")
     resume_fta_shift = expr_resume_changement("formule_tarifaire_acheminement", "FTA")
     
     # Résumé calendrier (entre colonnes Avant_/Après_)
@@ -324,7 +324,7 @@ def detecter_points_de_rupture(historique: pl.LazyFrame) -> pl.LazyFrame:
         .set_sorted("ref_situation_contractuelle")  # Indiquer explicitement que ref_situation_contractuelle est trié
         # Créer les colonnes Avant_ avec window functions
         .with_columns([
-            pl.col("puissance_souscrite").shift(1).over("ref_situation_contractuelle").alias("avant_puissance_souscrite"),
+            pl.col("puissance_souscrite_kva").shift(1).over("ref_situation_contractuelle").alias("avant_puissance_souscrite"),
             pl.col("formule_tarifaire_acheminement").shift(1).over("ref_situation_contractuelle").alias("avant_formule_tarifaire_acheminement")
         ])
         # Appliquer les détections d'impact avec nos expressions pures
@@ -571,7 +571,7 @@ def expr_colonnes_a_propager(columns: list[str] | None = None) -> list[pl.Expr]:
     colonnes_obligatoires = [
         "segment_clientele",
         "etat_contractuel",
-        "puissance_souscrite",
+        "puissance_souscrite_kva",
         "formule_tarifaire_acheminement",
         "type_compteur",
         "num_compteur"

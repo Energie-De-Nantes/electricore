@@ -230,7 +230,7 @@ def test_expr_impacte_abonnement_logique(
     df = pl.DataFrame({
         "ref_situation_contractuelle": ["A"] * len(evenements),
         "evenement_declencheur": evenements,
-        "puissance_souscrite": puissances,
+        "puissance_souscrite_kva": puissances,
         "formule_tarifaire_acheminement": ftas,
     })
 

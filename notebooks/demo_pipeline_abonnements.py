@@ -69,7 +69,7 @@ def load_data():
             'date_evenement': 'Date_Evenement',
             'evenement_declencheur': 'Evenement_Declencheur',
             'formule_tarifaire_acheminement': 'Formule_Tarifaire_Acheminement',
-            'puissance_souscrite': 'Puissance_Souscrite',
+            'puissance_souscrite_kva': 'Puissance_Souscrite',
             'segment_clientele': 'Segment_Clientele',
             'etat_contractuel': 'Etat_Contractuel',
             'type_evenement': 'Type_Evenement',
@@ -224,7 +224,7 @@ def comparaison_periodes(periodes_pandas, periodes_lf):
         stats = periodes.select([
             pl.col("nb_jours").sum().alias("total_jours"),
             pl.col("nb_jours").mean().alias("jours_moyen"),
-            pl.col("puissance_souscrite").mean().alias("puissance_moyenne"),
+            pl.col("puissance_souscrite_kva").mean().alias("puissance_moyenne"),
         ]).to_dicts()[0]
 
         print(f"\n📈 Statistiques des périodes (Polars) :")
@@ -268,15 +268,15 @@ def turpe_pandas(periodes_pandas):
     _regles_turpe = load_turpe_rules()
     periodes_avec_turpe_pandas = ajouter_turpe_fixe_pandas(_regles_turpe, periodes_pandas)
 
-    if "turpe_fixe" in periodes_avec_turpe_pandas.columns:
-        total_turpe_pandas = periodes_avec_turpe_pandas["turpe_fixe"].sum()
-        turpe_moyen_pandas = periodes_avec_turpe_pandas["turpe_fixe"].mean()
+    if "turpe_fixe_eur" in periodes_avec_turpe_pandas.columns:
+        total_turpe_pandas = periodes_avec_turpe_pandas["turpe_fixe_eur"].sum()
+        turpe_moyen_pandas = periodes_avec_turpe_pandas["turpe_fixe_eur"].mean()
 
         print(f"✅ TURPE calculé pour {len(periodes_avec_turpe_pandas)} périodes")
         print(f"💰 Total TURPE : {total_turpe_pandas :.2f}€")
         print(f"📊 TURPE moyen : {turpe_moyen_pandas :.2f}€")
     else:
-        print("⚠️ Colonne turpe_fixe non trouvée")
+        print("⚠️ Colonne turpe_fixe_eur non trouvée")
         total_turpe_pandas = turpe_moyen_pandas = 0
     return total_turpe_pandas, turpe_moyen_pandas
 
@@ -294,12 +294,12 @@ def turpe(periodes_lf):
         periodes_avec_turpe_lf = ajouter_turpe_fixe(periodes_lf)
         periodes_avec_turpe = periodes_avec_turpe_lf.collect()
 
-        if "turpe_fixe" in periodes_avec_turpe.columns:
+        if "turpe_fixe_eur" in periodes_avec_turpe.columns:
             stats_turpe = (
                 periodes_avec_turpe
                 .select([
-                    pl.col("turpe_fixe").sum().alias("total"),
-                    pl.col("turpe_fixe").mean().alias("moyen"),
+                    pl.col("turpe_fixe_eur").sum().alias("total"),
+                    pl.col("turpe_fixe_eur").mean().alias("moyen"),
                 ])
                 .to_dicts()[0]
             )
@@ -311,7 +311,7 @@ def turpe(periodes_lf):
             print(f"💰 Total TURPE : {total_turpe:.2f}€")
             print(f"📊 TURPE moyen : {turpe_moyen:.2f}€")
         else:
-            print("⚠️ Colonne turpe_fixe non trouvée")
+            print("⚠️ Colonne turpe_fixe_eur non trouvée")
             total_turpe = turpe_moyen = 0
 
     except Exception as e:

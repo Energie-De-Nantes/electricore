@@ -31,7 +31,7 @@ def sample_historique():
             datetime(2024, 3, 15, tzinfo=paris_tz),
         ],
         "formule_tarifaire_acheminement": ["BTINFCU4", "BTINFCU4", "BTINFMU4", "BTINFCU4", "BTINFCU4"],
-        "puissance_souscrite": [6.0, 6.0, 9.0, 3.0, 3.0],
+        "puissance_souscrite_kva": [6.0, 6.0, 9.0, 3.0, 3.0],
         "impacte_abonnement": [True, True, True, True, True],
     }).lazy()
 
@@ -156,7 +156,7 @@ def test_calculer_periodes_abonnement_pipeline(sample_historique):
     colonnes_attendues = [
         "ref_situation_contractuelle", "pdl", "mois_annee",
         "debut_lisible", "fin_lisible", "formule_tarifaire_acheminement",
-        "puissance_souscrite", "nb_jours", "debut", "fin"
+        "puissance_souscrite_kva", "nb_jours", "debut", "fin"
     ]
 
     for col in colonnes_attendues:
@@ -179,7 +179,7 @@ def test_generer_periodes_abonnement_filtre_correctement():
             datetime(2024, 3, 1),
         ],
         "formule_tarifaire_acheminement": ["BTINFCU4", "BTINFCU4", "BTINFMU4"],
-        "puissance_souscrite": [6.0, 6.0, 9.0],
+        "puissance_souscrite_kva": [6.0, 6.0, 9.0],
         "impacte_abonnement": [True, False, True],  # Le 2ème n'impacte pas
     }).lazy()
 

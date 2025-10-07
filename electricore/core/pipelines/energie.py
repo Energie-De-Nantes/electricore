@@ -70,7 +70,7 @@ def expr_arrondir_index_kwh(cadrans: List[str]) -> List[pl.Expr]:
     ]
 
 
-def expr_calculer_energie_cadran(cadran: str, over: str = "ref_situation_contractuelle") -> pl.Expr:
+def expr_calculer_energie_cadran(index_col: str, over: str = "ref_situation_contractuelle") -> pl.Expr:
     """
     Calcule l'énergie pour un cadran donné (différence avec relevé précédent).
 
@@ -78,7 +78,7 @@ def expr_calculer_energie_cadran(cadran: str, over: str = "ref_situation_contrac
     entre l'index actuel et l'index précédent (obtenu via shift).
 
     Args:
-        cadran: Nom du cadran à calculer (ex: "BASE", "HP", "HC")
+        index_col: Nom de la colonne d'index (ex: "index_base_kwh", "index_hp_kwh", "index_hc_kwh")
         over: Colonne(s) définissant les partitions pour la window function
 
     Returns:
@@ -86,10 +86,10 @@ def expr_calculer_energie_cadran(cadran: str, over: str = "ref_situation_contrac
 
     Example:
         >>> df.with_columns(
-        ...     expr_calculer_energie_cadran("BASE").alias("BASE_energie")
+        ...     expr_calculer_energie_cadran("index_base_kwh").alias("energie_base_kwh")
         ... )
     """
-    current = pl.col(cadran)
+    current = pl.col(index_col)
     previous = current.shift(1).over(over)
 
     return (
@@ -99,25 +99,27 @@ def expr_calculer_energie_cadran(cadran: str, over: str = "ref_situation_contrac
     )
 
 
-def expr_calculer_energies_tous_cadrans(cadrans: List[str]) -> List[pl.Expr]:
+def expr_calculer_energies_tous_cadrans(index_cols: List[str]) -> List[pl.Expr]:
     """
     Expressions pour calculer les énergies de tous les cadrans présents.
 
-    ⚠️ **Prérequis** : Les colonnes cadrans doivent être présentes dans le LazyFrame
+    ⚠️ **Prérequis** : Les colonnes d'index doivent être présentes dans le LazyFrame
 
     Args:
-        cadrans: Liste des cadrans à traiter
+        index_cols: Liste des colonnes d'index à traiter (ex: ["index_base_kwh", "index_hp_kwh"])
 
     Returns:
         Liste d'expressions pour le calcul des énergies
 
     Example:
-        >>> expressions = expr_calculer_energies_tous_cadrans(["BASE"])
+        >>> expressions = expr_calculer_energies_tous_cadrans(["index_base_kwh"])
         >>> lf = lf.with_columns(expressions)
     """
     return [
-        expr_calculer_energie_cadran(cadran, "ref_situation_contractuelle").alias(f"{cadran}_energie")
-        for cadran in cadrans
+        expr_calculer_energie_cadran(index_col, "ref_situation_contractuelle").alias(
+            index_col.replace("index_", "energie_")
+        )
+        for index_col in index_cols
     ]
 
 
@@ -129,9 +131,9 @@ def expr_enrichir_cadrans_principaux() -> List[pl.Expr]:
     ⚠️ **Assumption** : Toutes les colonnes d'énergie sont présentes (même si nulles)
 
     Effectue une synthèse en cascade pour créer une hiérarchie complète des cadrans :
-    1. HC_energie = somme(HC_energie, HCH_energie, HCB_energie) si au moins une non-null
-    2. HP_energie = somme(HP_energie, HPH_energie, HPB_energie) si au moins une non-null
-    3. BASE_energie = somme(BASE_energie, HP_energie, HC_energie) si au moins une non-null
+    1. energie_hc_kwh = somme(energie_hc_kwh, energie_hch_kwh, energie_hcb_kwh) si au moins une non-null
+    2. energie_hp_kwh = somme(energie_hp_kwh, energie_hph_kwh, energie_hpb_kwh) si au moins une non-null
+    3. energie_base_kwh = somme(energie_base_kwh, energie_hp_kwh, energie_hc_kwh) si au moins une non-null
 
     Cette fonction gère tous les types de compteurs via min_count=1.
 
@@ -143,20 +145,20 @@ def expr_enrichir_cadrans_principaux() -> List[pl.Expr]:
     """
     return [
         # Étape 1 : Synthèse hc depuis les sous-cadrans hch et hcb
-        pl.sum_horizontal([pl.col("hc_energie"), pl.col("hch_energie"), pl.col("hcb_energie")])
-        .alias("hc_energie"),
+        pl.sum_horizontal([pl.col("energie_hc_kwh"), pl.col("energie_hch_kwh"), pl.col("energie_hcb_kwh")])
+        .alias("energie_hc_kwh"),
 
         # Étape 2 : Synthèse hp depuis les sous-cadrans hph et hpb
-        pl.sum_horizontal([pl.col("hp_energie"), pl.col("hph_energie"), pl.col("hpb_energie")])
-        .alias("hp_energie"),
+        pl.sum_horizontal([pl.col("energie_hp_kwh"), pl.col("energie_hph_kwh"), pl.col("energie_hpb_kwh")])
+        .alias("energie_hp_kwh"),
 
         # Étape 3 : Synthèse base depuis TOUS les cadrans (évite le problème d'évaluation parallèle)
         pl.sum_horizontal([
-            pl.col("base_energie"),
-            pl.col("hp_energie"), pl.col("hc_energie"),
-            pl.col("hph_energie"), pl.col("hpb_energie"),
-            pl.col("hch_energie"), pl.col("hcb_energie")
-        ]).alias("base_energie")
+            pl.col("energie_base_kwh"),
+            pl.col("energie_hp_kwh"), pl.col("energie_hc_kwh"),
+            pl.col("energie_hph_kwh"), pl.col("energie_hpb_kwh"),
+            pl.col("energie_hch_kwh"), pl.col("energie_hcb_kwh")
+        ]).alias("energie_base_kwh")
     ]
 
 
@@ -334,7 +336,7 @@ def extraire_releves_evenements(historique: pl.LazyFrame) -> pl.LazyFrame:
         >>> releves = extraire_releves_evenements(evenements_lf)
     """
     # Colonnes d'index numériques et métadonnées (schéma fixe)
-    index_cols = ["base", "hp", "hc", "hch", "hph", "hpb", "hcb"]
+    index_cols = ["index_base_kwh", "index_hp_kwh", "index_hc_kwh", "index_hch_kwh", "index_hph_kwh", "index_hpb_kwh", "index_hcb_kwh"]
     metadata_cols = ["id_calendrier_distributeur"]
     identifiants = ["pdl", "ref_situation_contractuelle", "formule_tarifaire_acheminement"]
 
@@ -541,6 +543,8 @@ def calculer_periodes_energie(lf: pl.LazyFrame) -> pl.LazyFrame:
     """
     # Cadrans d'index électriques standard
     cadrans = ["base", "hp", "hc", "hph", "hpb", "hcb", "hch"]
+    # Construire les noms de colonnes complets (index_{cadran}_kwh)
+    colonnes_index = [f"index_{c}_kwh" for c in cadrans]
 
     return (
         lf
@@ -551,12 +555,12 @@ def calculer_periodes_energie(lf: pl.LazyFrame) -> pl.LazyFrame:
         # Étape 1 : Bornes temporelles + arrondi index (indépendants)
         .with_columns([
             *expr_bornes_depuis_shift(over="ref_situation_contractuelle"),
-            *expr_arrondir_index_kwh(cadrans)
+            *expr_arrondir_index_kwh(colonnes_index)
         ])
 
         # Étape 2 : Calcul énergies + nb_jours (énergies dépendent d'étape 1, nb_jours indépendant)
         .with_columns([
-            *expr_calculer_energies_tous_cadrans(cadrans),
+            *expr_calculer_energies_tous_cadrans(colonnes_index),
             expr_nb_jours()
         ])
 

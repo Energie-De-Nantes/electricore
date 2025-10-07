@@ -28,11 +28,11 @@ def test_expr_changement_detecte_changements():
     """Teste que expr_changement détecte correctement les changements."""
     df = pl.DataFrame({
         "ref_situation_contractuelle": ["A", "A", "A", "B", "B"],
-        "puissance_souscrite": [6.0, 6.0, 9.0, 3.0, 3.0],
+        "puissance_souscrite_kva": [6.0, 6.0, 9.0, 3.0, 3.0],
     })
     
     result = df.select(
-        expr_changement("puissance_souscrite").alias("changement")
+        expr_changement("puissance_souscrite_kva").alias("changement")
     )
     
     # Première ligne de chaque groupe : pas de précédent = False
@@ -84,11 +84,11 @@ def test_expr_resume_changement_avec_nombres():
     """Teste le formatage des nombres dans le résumé."""
     df = pl.DataFrame({
         "ref_situation_contractuelle": ["A", "A"],
-        "puissance_souscrite": [6.0, 9.0],
+        "puissance_souscrite_kva": [6.0, 9.0],
     })
     
     result = df.select(
-        expr_resume_changement("puissance_souscrite", "P").alias("resume")
+        expr_resume_changement("puissance_souscrite_kva", "P").alias("resume")
     )
     
     assert result["resume"].to_list() == ["", "P: 6.0 → 9.0"]
@@ -98,16 +98,16 @@ def test_composition_expressions():
     """Teste que les expressions se composent correctement."""
     df = pl.DataFrame({
         "ref_situation_contractuelle": ["A", "A", "A"],
-        "puissance_souscrite": [6.0, 6.0, 9.0],
+        "puissance_souscrite_kva": [6.0, 6.0, 9.0],
         "formule_tarifaire_acheminement": ["BTINFCU4", "BTINFMU4", "BTINFMU4"],
         "evenement_declencheur": ["FACTURATION", "MCT", "MCT"],  # Événements non structurants
     })
     
     # Utiliser les deux expressions ensemble
     result = df.select([
-        expr_changement("puissance_souscrite").alias("change_puissance"),
+        expr_changement("puissance_souscrite_kva").alias("change_puissance"),
         expr_changement("formule_tarifaire_acheminement").alias("change_fta"),
-        expr_resume_changement("puissance_souscrite", "P").alias("resume_puissance"),
+        expr_resume_changement("puissance_souscrite_kva", "P").alias("resume_puissance"),
         expr_resume_changement("formule_tarifaire_acheminement", "FTA").alias("resume_fta"),
     ])
     
@@ -121,7 +121,7 @@ def test_expr_impacte_abonnement():
     """Teste que expr_impacte_abonnement détecte les changements de puissance ou FTA."""
     df = pl.DataFrame({
         "ref_situation_contractuelle": ["A", "A", "A", "A"],
-        "puissance_souscrite": [6.0, 6.0, 9.0, 9.0],
+        "puissance_souscrite_kva": [6.0, 6.0, 9.0, 9.0],
         "formule_tarifaire_acheminement": ["BTINFCU4", "BTINFMU4", "BTINFMU4", "BTINFMU4"],
         "evenement_declencheur": ["FACTURATION", "MCT", "MCT", "FACTURATION"],  # Événements non structurants
     })
@@ -141,7 +141,7 @@ def test_expr_impacte_abonnement_avec_nulls():
     """Teste la gestion des nulls dans expr_impacte_abonnement."""
     df = pl.DataFrame({
         "ref_situation_contractuelle": ["A", "A", "A"],
-        "puissance_souscrite": [None, 6.0, 6.0],
+        "puissance_souscrite_kva": [None, 6.0, 6.0],
         "formule_tarifaire_acheminement": ["BTINFCU4", None, "BTINFCU4"],
         "evenement_declencheur": ["FACTURATION", "MCT", "FACTURATION"],  # Événements non structurants
     })
@@ -160,13 +160,13 @@ def test_expr_impacte_abonnement_composition():
     """Teste que expr_impacte_abonnement compose bien les expressions individuelles."""
     df = pl.DataFrame({
         "ref_situation_contractuelle": ["A", "A", "A", "A", "A"],
-        "puissance_souscrite": [6.0, 9.0, 9.0, 6.0, 6.0],
+        "puissance_souscrite_kva": [6.0, 9.0, 9.0, 6.0, 6.0],
         "formule_tarifaire_acheminement": ["BTINFCU4", "BTINFCU4", "BTINFMU4", "BTINFMU4", "BTINFCU4"],
         "evenement_declencheur": ["FACTURATION", "MCT", "MCT", "MCT", "MCT"],  # Événements non structurants
     })
     
     result = df.select([
-        expr_changement("puissance_souscrite").alias("change_puissance"),
+        expr_changement("puissance_souscrite_kva").alias("change_puissance"),
         expr_changement("formule_tarifaire_acheminement").alias("change_fta"),
         expr_impacte_abonnement().alias("impacte_abonnement"),
     ])
@@ -210,13 +210,13 @@ def test_expr_impacte_abonnement_avec_evenements_structurants():
     """Teste que expr_impacte_abonnement intègre bien les événements structurants."""
     df = pl.DataFrame({
         "ref_situation_contractuelle": ["A", "A", "A", "A", "A"],
-        "puissance_souscrite": [6.0, 6.0, 6.0, 9.0, 9.0],
+        "puissance_souscrite_kva": [6.0, 6.0, 6.0, 9.0, 9.0],
         "formule_tarifaire_acheminement": ["BTINFCU4", "BTINFCU4", "BTINFMU4", "BTINFMU4", "BTINFMU4"],
         "evenement_declencheur": ["MES", "FACTURATION", "MCT", "MCT", "RES"],
     })
     
     result = df.select([
-        expr_changement("puissance_souscrite").alias("change_puissance"),
+        expr_changement("puissance_souscrite_kva").alias("change_puissance"),
         expr_changement("formule_tarifaire_acheminement").alias("change_fta"),
         expr_evenement_structurant().alias("evenement_structurant"),
         expr_impacte_abonnement().alias("impacte_abonnement"),
@@ -301,21 +301,21 @@ def test_expr_changement_index_detecte_changements():
     """Teste que expr_changement_index détecte les changements d'index."""
     df = pl.DataFrame({
         # Colonnes d'index avec changements variés
-        "avant_base": [100.0, 200.0, 300.0, 400.0],
-        "apres_base": [100.0, 250.0, 300.0, 400.0],
-        "avant_hp": [50.0, 75.0, None, 120.0],
-        "apres_hp": [50.0, 75.0, 90.0, None],
-        "avant_hc": [30.0, 40.0, 50.0, 60.0],
-        "apres_hc": [35.0, 40.0, 50.0, 60.0],
+        "avant_index_base_kwh": [100.0, 200.0, 300.0, 400.0],
+        "apres_index_base_kwh": [100.0, 250.0, 300.0, 400.0],
+        "avant_index_hp_kwh": [50.0, 75.0, None, 120.0],
+        "apres_index_hp_kwh": [50.0, 75.0, 90.0, None],
+        "avant_index_hc_kwh": [30.0, 40.0, 50.0, 60.0],
+        "apres_index_hc_kwh": [35.0, 40.0, 50.0, 60.0],
         # Autres colonnes d'index (pas de changements pour simplifier)
-        "avant_hph": [None, None, None, None],
-        "apres_hph": [None, None, None, None],
-        "avant_hch": [None, None, None, None],
-        "apres_hch": [None, None, None, None],
-        "avant_hpb": [None, None, None, None],
-        "apres_hpb": [None, None, None, None],
-        "avant_hcb": [None, None, None, None],
-        "apres_hcb": [None, None, None, None],
+        "avant_index_hph_kwh": [None, None, None, None],
+        "apres_index_hph_kwh": [None, None, None, None],
+        "avant_index_hch_kwh": [None, None, None, None],
+        "apres_index_hch_kwh": [None, None, None, None],
+        "avant_index_hpb_kwh": [None, None, None, None],
+        "apres_index_hpb_kwh": [None, None, None, None],
+        "avant_index_hcb_kwh": [None, None, None, None],
+        "apres_index_hcb_kwh": [None, None, None, None],
     })
     
     result = df.select(
@@ -332,21 +332,21 @@ def test_expr_changement_index_detecte_changements():
 def test_expr_changement_index_aucun_changement():
     """Teste expr_changement_index quand aucun index ne change."""
     df = pl.DataFrame({
-        "avant_base": [100.0, 200.0],
-        "apres_base": [100.0, 200.0],
-        "avant_hp": [50.0, 75.0],
-        "apres_hp": [50.0, 75.0],
-        "avant_hc": [30.0, 40.0],
-        "apres_hc": [30.0, 40.0],
+        "avant_index_base_kwh": [100.0, 200.0],
+        "apres_index_base_kwh": [100.0, 200.0],
+        "avant_index_hp_kwh": [50.0, 75.0],
+        "apres_index_hp_kwh": [50.0, 75.0],
+        "avant_index_hc_kwh": [30.0, 40.0],
+        "apres_index_hc_kwh": [30.0, 40.0],
         # Autres colonnes identiques
-        "avant_hph": [None, None],
-        "apres_hph": [None, None],
-        "avant_hch": [None, None],
-        "apres_hch": [None, None],
-        "avant_hpb": [None, None],
-        "apres_hpb": [None, None],
-        "avant_hcb": [None, None],
-        "apres_hcb": [None, None],
+        "avant_index_hph_kwh": [None, None],
+        "apres_index_hph_kwh": [None, None],
+        "avant_index_hch_kwh": [None, None],
+        "apres_index_hch_kwh": [None, None],
+        "avant_index_hpb_kwh": [None, None],
+        "apres_index_hpb_kwh": [None, None],
+        "avant_index_hcb_kwh": [None, None],
+        "apres_index_hcb_kwh": [None, None],
     })
     
     result = df.select(
@@ -360,21 +360,21 @@ def test_expr_changement_index_aucun_changement():
 def test_expr_changement_index_avec_nulls():
     """Teste la gestion des nulls dans expr_changement_index."""
     df = pl.DataFrame({
-        "avant_base": [None, 100.0, 200.0],
-        "apres_base": [150.0, None, 200.0],
-        "avant_hp": [None, None, None],
-        "apres_hp": [None, None, None],
-        "avant_hc": [None, None, None],
-        "apres_hc": [None, None, None],
+        "avant_index_base_kwh": [None, 100.0, 200.0],
+        "apres_index_base_kwh": [150.0, None, 200.0],
+        "avant_index_hp_kwh": [None, None, None],
+        "apres_index_hp_kwh": [None, None, None],
+        "avant_index_hc_kwh": [None, None, None],
+        "apres_index_hc_kwh": [None, None, None],
         # Autres colonnes toutes nulles
-        "avant_hph": [None, None, None],
-        "apres_hph": [None, None, None],
-        "avant_hch": [None, None, None],
-        "apres_hch": [None, None, None],
-        "avant_hpb": [None, None, None],
-        "apres_hpb": [None, None, None],
-        "avant_hcb": [None, None, None],
-        "apres_hcb": [None, None, None],
+        "avant_index_hph_kwh": [None, None, None],
+        "apres_index_hph_kwh": [None, None, None],
+        "avant_index_hch_kwh": [None, None, None],
+        "apres_index_hch_kwh": [None, None, None],
+        "avant_index_hpb_kwh": [None, None, None],
+        "apres_index_hpb_kwh": [None, None, None],
+        "avant_index_hcb_kwh": [None, None, None],
+        "apres_index_hcb_kwh": [None, None, None],
     })
     
     result = df.select(
@@ -403,20 +403,20 @@ def test_expr_impacte_energie_composition_complete():
         "formule_tarifaire_acheminement": ["BTINFCU4", "BTINFCU4", "BTINFMU4", "BTINFMU4", "BTINFMU4", "BTINFMU4"],
         
         # Changement index (ligne 4)
-        "avant_base": [100.0, 200.0, 300.0, 400.0, 500.0, 600.0],
-        "apres_base": [100.0, 200.0, 300.0, 450.0, 500.0, 600.0],
-        "avant_hp": [None, None, None, None, None, None],
-        "apres_hp": [None, None, None, None, None, None],
-        "avant_hc": [None, None, None, None, None, None],
-        "apres_hc": [None, None, None, None, None, None],
-        "avant_hph": [None, None, None, None, None, None],
-        "apres_hph": [None, None, None, None, None, None],
-        "avant_hch": [None, None, None, None, None, None],
-        "apres_hch": [None, None, None, None, None, None],
-        "avant_hpb": [None, None, None, None, None, None],
-        "apres_hpb": [None, None, None, None, None, None],
-        "avant_hcb": [None, None, None, None, None, None],
-        "apres_hcb": [None, None, None, None, None, None],
+        "avant_index_base_kwh": [100.0, 200.0, 300.0, 400.0, 500.0, 600.0],
+        "apres_index_base_kwh": [100.0, 200.0, 300.0, 450.0, 500.0, 600.0],
+        "avant_index_hp_kwh": [None, None, None, None, None, None],
+        "apres_index_hp_kwh": [None, None, None, None, None, None],
+        "avant_index_hc_kwh": [None, None, None, None, None, None],
+        "apres_index_hc_kwh": [None, None, None, None, None, None],
+        "avant_index_hph_kwh": [None, None, None, None, None, None],
+        "apres_index_hph_kwh": [None, None, None, None, None, None],
+        "avant_index_hch_kwh": [None, None, None, None, None, None],
+        "apres_index_hch_kwh": [None, None, None, None, None, None],
+        "avant_index_hpb_kwh": [None, None, None, None, None, None],
+        "apres_index_hpb_kwh": [None, None, None, None, None, None],
+        "avant_index_hcb_kwh": [None, None, None, None, None, None],
+        "apres_index_hcb_kwh": [None, None, None, None, None, None],
     })
     
     result = df.select([
@@ -463,20 +463,20 @@ def test_expr_impacte_energie_avec_evenements_structurants():
         "formule_tarifaire_acheminement": ["BTINFCU4", "BTINFCU4", "BTINFCU4"],
         
         # Colonnes d'index sans changement
-        "avant_base": [100.0, 100.0, 100.0],
-        "apres_base": [100.0, 100.0, 100.0],
-        "avant_hp": [None, None, None],
-        "apres_hp": [None, None, None],
-        "avant_hc": [None, None, None],
-        "apres_hc": [None, None, None],
-        "avant_hph": [None, None, None],
-        "apres_hph": [None, None, None],
-        "avant_hch": [None, None, None],
-        "apres_hch": [None, None, None],
-        "avant_hpb": [None, None, None],
-        "apres_hpb": [None, None, None],
-        "avant_hcb": [None, None, None],
-        "apres_hcb": [None, None, None],
+        "avant_index_base_kwh": [100.0, 100.0, 100.0],
+        "apres_index_base_kwh": [100.0, 100.0, 100.0],
+        "avant_index_hp_kwh": [None, None, None],
+        "apres_index_hp_kwh": [None, None, None],
+        "avant_index_hc_kwh": [None, None, None],
+        "apres_index_hc_kwh": [None, None, None],
+        "avant_index_hph_kwh": [None, None, None],
+        "apres_index_hph_kwh": [None, None, None],
+        "avant_index_hch_kwh": [None, None, None],
+        "apres_index_hch_kwh": [None, None, None],
+        "avant_index_hpb_kwh": [None, None, None],
+        "apres_index_hpb_kwh": [None, None, None],
+        "avant_index_hcb_kwh": [None, None, None],
+        "apres_index_hcb_kwh": [None, None, None],
     })
     
     result = df.select([
@@ -503,20 +503,20 @@ def test_expr_impacte_energie_avec_nulls():
         "formule_tarifaire_acheminement": ["BTINFMU4", None, "BTINFCU4"],
         
         # Index avec nulls
-        "avant_base": [None, 200.0, 300.0],
-        "apres_base": [150.0, None, 300.0],
-        "avant_hp": [None, None, None],
-        "apres_hp": [None, None, None],
-        "avant_hc": [None, None, None],
-        "apres_hc": [None, None, None],
-        "avant_hph": [None, None, None],
-        "apres_hph": [None, None, None],
-        "avant_hch": [None, None, None],
-        "apres_hch": [None, None, None],
-        "avant_hpb": [None, None, None],
-        "apres_hpb": [None, None, None],
-        "avant_hcb": [None, None, None],
-        "apres_hcb": [None, None, None],
+        "avant_index_base_kwh": [None, 200.0, 300.0],
+        "apres_index_base_kwh": [150.0, None, 300.0],
+        "avant_index_hp_kwh": [None, None, None],
+        "apres_index_hp_kwh": [None, None, None],
+        "avant_index_hc_kwh": [None, None, None],
+        "apres_index_hc_kwh": [None, None, None],
+        "avant_index_hph_kwh": [None, None, None],
+        "apres_index_hph_kwh": [None, None, None],
+        "avant_index_hch_kwh": [None, None, None],
+        "apres_index_hch_kwh": [None, None, None],
+        "avant_index_hpb_kwh": [None, None, None],
+        "apres_index_hpb_kwh": [None, None, None],
+        "avant_index_hcb_kwh": [None, None, None],
+        "apres_index_hcb_kwh": [None, None, None],
     })
     
     result = df.select([
@@ -545,20 +545,20 @@ def test_expr_impacte_energie_donnees_realistes():
         "formule_tarifaire_acheminement": ["BTINFCU4", "BTINFCU4", "BTINFCU4", "BTINFCU4", "BTINFMU4", "BTINFMU4"],
         
         # Changements d'index (ligne 3: relevé spécial avec changement d'index)
-        "avant_base": [1000.0, 1200.0, 1500.0, 1800.0, 2100.0, 2400.0],
-        "apres_base": [1000.0, 1200.0, 1550.0, 1800.0, 2100.0, 2400.0],  # Ajustement ligne 3
-        "avant_hp": [500.0, 600.0, 750.0, 900.0, 1050.0, 1200.0],
-        "apres_hp": [500.0, 600.0, 750.0, 900.0, 1050.0, 1200.0],
-        "avant_hc": [300.0, 400.0, 500.0, 600.0, 700.0, 800.0],
-        "apres_hc": [300.0, 400.0, 500.0, 600.0, 700.0, 800.0],
-        "avant_hph": [None, None, None, None, None, None],
-        "apres_hph": [None, None, None, None, None, None],
-        "avant_hch": [None, None, None, None, None, None],
-        "apres_hch": [None, None, None, None, None, None],
-        "avant_hpb": [None, None, None, None, None, None],
-        "apres_hpb": [None, None, None, None, None, None],
-        "avant_hcb": [None, None, None, None, None, None],
-        "apres_hcb": [None, None, None, None, None, None],
+        "avant_index_base_kwh": [1000.0, 1200.0, 1500.0, 1800.0, 2100.0, 2400.0],
+        "apres_index_base_kwh": [1000.0, 1200.0, 1550.0, 1800.0, 2100.0, 2400.0],  # Ajustement ligne 3
+        "avant_index_hp_kwh": [500.0, 600.0, 750.0, 900.0, 1050.0, 1200.0],
+        "apres_index_hp_kwh": [500.0, 600.0, 750.0, 900.0, 1050.0, 1200.0],
+        "avant_index_hc_kwh": [300.0, 400.0, 500.0, 600.0, 700.0, 800.0],
+        "apres_index_hc_kwh": [300.0, 400.0, 500.0, 600.0, 700.0, 800.0],
+        "avant_index_hph_kwh": [None, None, None, None, None, None],
+        "apres_index_hph_kwh": [None, None, None, None, None, None],
+        "avant_index_hch_kwh": [None, None, None, None, None, None],
+        "apres_index_hch_kwh": [None, None, None, None, None, None],
+        "avant_index_hpb_kwh": [None, None, None, None, None, None],
+        "apres_index_hpb_kwh": [None, None, None, None, None, None],
+        "avant_index_hcb_kwh": [None, None, None, None, None, None],
+        "apres_index_hcb_kwh": [None, None, None, None, None, None],
     })
     
     result = df.select([
@@ -602,26 +602,26 @@ def test_detecter_points_de_rupture_pipeline_complet():
         "ref_situation_contractuelle": ["PDL1", "PDL1", "PDL1", "PDL1", "PDL1"],
         "date_evenement": ["2024-01-01", "2024-02-01", "2024-03-15", "2024-04-01", "2024-05-20"],
         "evenement_declencheur": ["MES", "FACTURATION", "MCT", "FACTURATION", "RES"],
-        "puissance_souscrite": [6.0, 6.0, 9.0, 9.0, 9.0],
+        "puissance_souscrite_kva": [6.0, 6.0, 9.0, 9.0, 9.0],
         "formule_tarifaire_acheminement": ["BTINFCU4", "BTINFCU4", "BTINFMU4", "BTINFMU4", "BTINFMU4"],
         
         # Colonnes Avant_/Après_ pour calendrier et index (déjà présentes dans les données)
         "avant_id_calendrier_distributeur": ["CAL1", "CAL1", "CAL1", "CAL2", "CAL2"],
         "apres_id_calendrier_distributeur": ["CAL1", "CAL1", "CAL2", "CAL2", "CAL2"],
-        "avant_base": [1000.0, 1200.0, 1500.0, 1800.0, 2100.0],
-        "apres_base": [1000.0, 1200.0, 1550.0, 1800.0, 2100.0],  # Changement ligne 3
-        "avant_hp": [None, None, None, None, None],
-        "apres_hp": [None, None, None, None, None],
-        "avant_hc": [None, None, None, None, None],
-        "apres_hc": [None, None, None, None, None],
-        "avant_hph": [None, None, None, None, None],
-        "apres_hph": [None, None, None, None, None],
-        "avant_hch": [None, None, None, None, None],
-        "apres_hch": [None, None, None, None, None],
-        "avant_hpb": [None, None, None, None, None],
-        "apres_hpb": [None, None, None, None, None],
-        "avant_hcb": [None, None, None, None, None],
-        "apres_hcb": [None, None, None, None, None],
+        "avant_index_base_kwh": [1000.0, 1200.0, 1500.0, 1800.0, 2100.0],
+        "apres_index_base_kwh": [1000.0, 1200.0, 1550.0, 1800.0, 2100.0],  # Changement ligne 3
+        "avant_index_hp_kwh": [None, None, None, None, None],
+        "apres_index_hp_kwh": [None, None, None, None, None],
+        "avant_index_hc_kwh": [None, None, None, None, None],
+        "apres_index_hc_kwh": [None, None, None, None, None],
+        "avant_index_hph_kwh": [None, None, None, None, None],
+        "apres_index_hph_kwh": [None, None, None, None, None],
+        "avant_index_hch_kwh": [None, None, None, None, None],
+        "apres_index_hch_kwh": [None, None, None, None, None],
+        "avant_index_hpb_kwh": [None, None, None, None, None],
+        "apres_index_hpb_kwh": [None, None, None, None, None],
+        "avant_index_hcb_kwh": [None, None, None, None, None],
+        "apres_index_hcb_kwh": [None, None, None, None, None],
     }
     
     # Créer LazyFrame et appliquer la fonction
@@ -798,7 +798,7 @@ def test_inserer_evenements_facturation_scenario_simple():
         "pdl": ["14500000123456", "14500000123456", "14500000123456"],
         "date_evenement": ["2024-01-15", "2024-02-10", "2024-04-20"],
         "evenement_declencheur": ["MES", "MCT", "RES"],
-        "puissance_souscrite": [6.0, 9.0, 9.0],
+        "puissance_souscrite_kva": [6.0, 9.0, 9.0],
         "formule_tarifaire_acheminement": ["BTINFCU4", "BTINFMU4", "BTINFMU4"],
         "type_compteur": ["Linky", "Linky", "Linky"],
         "num_compteur": ["123456789", "123456789", "123456789"],
@@ -827,7 +827,7 @@ def test_inserer_evenements_facturation_scenario_simple():
         (pl.col("evenement_declencheur") == "FACTURATION")
     )
     assert len(evenement_fevrier) == 1
-    assert evenement_fevrier["puissance_souscrite"][0] == 6.0, "Propagation incorrecte pour février"
+    assert evenement_fevrier["puissance_souscrite_kva"][0] == 6.0, "Propagation incorrecte pour février"
     assert evenement_fevrier["formule_tarifaire_acheminement"][0] == "BTINFCU4"
     
     # L'événement FACTURATION d'avril doit avoir les données de MCT (Puissance_Souscrite=9.0)
@@ -836,7 +836,7 @@ def test_inserer_evenements_facturation_scenario_simple():
         (pl.col("evenement_declencheur") == "FACTURATION")
     )
     assert len(evenement_avril) == 1
-    assert evenement_avril["puissance_souscrite"][0] == 9.0, "Propagation incorrecte pour avril"
+    assert evenement_avril["puissance_souscrite_kva"][0] == 9.0, "Propagation incorrecte pour avril"
     assert evenement_avril["formule_tarifaire_acheminement"][0] == "BTINFMU4"
 
 
@@ -847,7 +847,7 @@ def test_inserer_evenements_facturation_plusieurs_pdl():
         "pdl": ["145001", "145001", "145002", "145002", "145002"],
         "date_evenement": ["2024-01-01", "2024-03-15", "2024-02-10", "2024-02-20", "2024-05-01"],
         "evenement_declencheur": ["MES", "RES", "CFNE", "MCT", "CFNS"],
-        "puissance_souscrite": [6.0, 6.0, 9.0, 12.0, 12.0],
+        "puissance_souscrite_kva": [6.0, 6.0, 9.0, 12.0, 12.0],
         "formule_tarifaire_acheminement": ["BTINFCU4", "BTINFCU4", "BTINFMU4", "BTINFMU4", "BTINFMU4"],
         "type_compteur": ["Linky", "Linky", "Linky", "Linky", "Linky"],
         "num_compteur": ["111", "111", "222", "222", "222"],
@@ -964,7 +964,7 @@ def test_expr_colonnes_a_propager_forward_fill():
         "ref_situation_contractuelle": ["PDL1", "PDL1", "PDL1"],
         "date_evenement": ["2024-01-01", "2024-02-01", "2024-03-01"],
         # Toutes les colonnes obligatoires
-        "puissance_souscrite": [6.0, None, None],
+        "puissance_souscrite_kva": [6.0, None, None],
         "segment_clientele": ["PRO", None, None],
         "type_compteur": ["ELEC", None, None],
         "etat_contractuel": ["EN_SERVICE", None, None],
@@ -981,7 +981,7 @@ def test_expr_colonnes_a_propager_forward_fill():
     resultat = df.with_columns(expr_colonnes_a_propager()).collect()
     
     # Vérifier que les valeurs sont propagées pour les colonnes obligatoires
-    assert resultat["puissance_souscrite"].to_list() == [6.0, 6.0, 6.0]
+    assert resultat["puissance_souscrite_kva"].to_list() == [6.0, 6.0, 6.0]
     assert resultat["segment_clientele"].to_list() == ["PRO", "PRO", "PRO"] 
     assert resultat["type_compteur"].to_list() == ["ELEC", "ELEC", "ELEC"]
     assert resultat["etat_contractuel"].to_list() == ["EN_SERVICE", "EN_SERVICE", "EN_SERVICE"]
@@ -1008,7 +1008,7 @@ def test_inserer_evenements_facturation_integration():
             dt.datetime(2024, 4, 20, tzinfo=dt.timezone.utc).replace(tzinfo=None),
         ],
         "evenement_declencheur": ["MES", "MCT", "RES"],
-        "puissance_souscrite": [6.0, 9.0, 9.0],
+        "puissance_souscrite_kva": [6.0, 9.0, 9.0],
         "segment_clientele": ["PRO", "PRO", "PRO"],
         "type_compteur": ["ELEC", "ELEC", "ELEC"],
         "formule_tarifaire_acheminement": ["TURPE", "TURPE", "TURPE"],
@@ -1034,10 +1034,10 @@ def test_inserer_evenements_facturation_integration():
     # doivent hériter de la puissance de l'événement précédent
     factu_fevrier = resultat.filter(
         (pl.col("date_evenement").dt.strftime("%Y-%m-%d") == "2024-02-01")
-    ).item(0, "puissance_souscrite")  # Hérité de MES (6.0)
+    ).item(0, "puissance_souscrite_kva")  # Hérité de MES (6.0)
     assert factu_fevrier == 6.0
-    
+
     factu_mars = resultat.filter(
         (pl.col("date_evenement").dt.strftime("%Y-%m-%d") == "2024-03-01")
-    ).item(0, "puissance_souscrite")  # Hérité de MCT (9.0)
+    ).item(0, "puissance_souscrite_kva")  # Hérité de MCT (9.0)
     assert factu_mars == 9.0

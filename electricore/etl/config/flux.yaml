@@ -15,7 +15,7 @@ C15:
         etat_contractuel: Situation_Contractuelle/Etat_Contractuel
         ref_situation_contractuelle: Situation_Contractuelle/Ref_Situation_Contractuelle
 
-        puissance_souscrite: Situation_Contractuelle/Structure_Tarifaire/Puissance_Souscrite
+        puissance_souscrite_kva: Situation_Contractuelle/Structure_Tarifaire/Puissance_Souscrite
         formule_tarifaire_acheminement: Situation_Contractuelle/Structure_Tarifaire/Formule_Tarifaire_Acheminement
 
         type_compteur: Dispositif_De_Comptage/Compteur/Type
@@ -83,7 +83,7 @@ F12:
         type_prm: '../Type_PRM'
         code_segmentation_erdf: '../Code_Segmentation_ERDF'
         
-        puissance_ponderee: '../Puissance_Ponderee'
+        puissance_ponderee_kva: '../Puissance_Ponderee'
         autoproducteur: '../Autoproducteur'
         tarif_souscrit: '../Tarif_Souscrit'
         id_ev: 'Id_EV'

@@ -77,7 +77,7 @@ def load_data():
         'date_evenement': 'Date_Evenement',
         'evenement_declencheur': 'Evenement_Declencheur',
         'formule_tarifaire_acheminement': 'Formule_Tarifaire_Acheminement',
-        'puissance_souscrite': 'Puissance_Souscrite',
+        'puissance_souscrite_kva': 'Puissance_Souscrite',
         'segment_clientele': 'Segment_Clientele',
         'etat_contractuel': 'Etat_Contractuel',
         'type_evenement': 'Type_Evenement',
@@ -170,7 +170,7 @@ def _():
 def _():
     colonnes_interessantes = [
         "ref_situation_contractuelle", "debut_lisible", "fin_lisible",
-        "base_energie", "hp_energie", "hc_energie", "nb_jours"
+        "energie_base_kwh", "energie_hp_kwh", "energie_hc_kwh", "nb_jours"
     ]
     return (colonnes_interessantes,)
 
@@ -332,7 +332,7 @@ def comparaison_periodes(periodes_pandas, periodes_lf):
     print(f"\n🔋 COMPARAISON DES ÉNERGIES CALCULÉES :")
     print("-" * 50)
 
-    cadrans_energie = ["base_energie", "hp_energie", "hc_energie"]
+    cadrans_energie = ["energie_base_kwh", "energie_hp_kwh", "energie_hc_kwh"]
 
     for cadran in cadrans_energie:
         if cadran in periodes_pandas.columns and cadran in periodes.columns:
@@ -419,13 +419,13 @@ def calcul_turpe_pandas(periodes_pandas):
 
             # Colonnes énergie
             for old, new in [
-                ('base_energie', 'BASE_energie'),
-                ('hp_energie', 'HP_energie'),
-                ('hc_energie', 'HC_energie'),
-                ('hph_energie', 'HPH_energie'),
-                ('hpb_energie', 'HPB_energie'),
-                ('hch_energie', 'HCH_energie'),
-                ('hcb_energie', 'HCB_energie')
+                ('energie_base_kwh', 'BASE_energie'),
+                ('energie_hp_kwh', 'HP_energie'),
+                ('energie_hc_kwh', 'HC_energie'),
+                ('energie_hph_kwh', 'HPH_energie'),
+                ('energie_hpb_kwh', 'HPB_energie'),
+                ('energie_hch_kwh', 'HCH_energie'),
+                ('energie_hcb_kwh', 'HCB_energie')
             ]:
                 if old in _data.columns:
                     _data = _data.rename(columns={old: new})
@@ -454,12 +454,12 @@ def calcul_turpe(periodes_lf):
 
     periodes_avec_turpe = periodes_lf.collect()
 
-    if "turpe_variable" in periodes_avec_turpe.columns:
+    if "turpe_variable_eur" in periodes_avec_turpe.columns:
         _stats_turpe = (
             periodes_avec_turpe
             .select([
-                pl.col("turpe_variable").sum().alias("total"),
-                pl.col("turpe_variable").mean().alias("moyen"),
+                pl.col("turpe_variable_eur").sum().alias("total"),
+                pl.col("turpe_variable_eur").mean().alias("moyen"),
             ])
             .to_dicts()[0]
         )
@@ -471,15 +471,15 @@ def calcul_turpe(periodes_lf):
         print(f"💰 Total TURPE variable : {total_turpe:.2f}€")
         print(f"📊 TURPE variable moyen : {turpe_moyen:.2f}€")
 
-        turpe_variable = periodes_avec_turpe["turpe_variable"].to_pandas()
+        turpe_variable_eur = periodes_avec_turpe["turpe_variable_eur"].to_pandas()
     else:
-        print("⚠️ Colonne turpe_variable non trouvée")
-        turpe_variable = pd.Series(dtype=float)
-    return (turpe_variable,)
+        print("⚠️ Colonne turpe_variable_eur non trouvée")
+        turpe_variable_eur = pd.Series(dtype=float)
+    return (turpe_variable_eur,)
 
 
 @app.cell
-def comparaison_turpe_variable(turpe_variable_pandas, turpe_variable):
+def comparaison_turpe_variable(turpe_variable_pandas, turpe_variable_eur):
     """Comparer les calculs TURPE variable entre pandas et Polars"""
 
     print("\n💰 COMPARAISON TURPE VARIABLE :")
@@ -495,11 +495,11 @@ def comparaison_turpe_variable(turpe_variable_pandas, turpe_variable):
         total_pandas = moyen_pandas = median_pandas = count_pandas = 0
 
     # Statistiques Polars
-    if len(turpe_variable) > 0:
-        total = turpe_variable.sum()
-        moyen = turpe_variable.mean()
-        median = turpe_variable.median()
-        count = len(turpe_variable)
+    if len(turpe_variable_eur) > 0:
+        total = turpe_variable_eur.sum()
+        moyen = turpe_variable_eur.mean()
+        median = turpe_variable_eur.median()
+        count = len(turpe_variable_eur)
     else:
         total = moyen = median = count = 0
 

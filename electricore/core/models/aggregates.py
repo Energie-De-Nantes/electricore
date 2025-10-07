@@ -79,13 +79,13 @@ class EnergieMensuel(pa.DataFrameModel):
         dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"}
     )
 
-    # Énergies par cadran (sommes mensuelles)
-    base_energie: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)
-    hp_energie: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)
-    hc_energie: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)
+    # Énergies consommées par cadran en kWh (sommes mensuelles)
+    energie_base_kwh: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)
+    energie_hp_kwh: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)
+    energie_hc_kwh: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)
 
-    # Montants TURPE variable
-    turpe_variable: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)
+    # Montants TURPE variable en euros
+    turpe_variable_eur: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)
 
     # Métadonnées d'agrégation
     nb_sous_periodes_energie: pl.Int32 = pa.Field(nullable=False, ge=0)

@@ -16,8 +16,8 @@ from typing import List
 # CONSTANTES IMMUTABLES
 # =============================================================================
 
-# Colonnes d'index énergétiques (tuple = immutable)
-INDEX_COLS = ("base", "hp", "hc", "hph", "hpb", "hcb", "hch")
+# Colonnes d'index énergétiques (tuple = immutable) - Format: index_cadran_kwh
+INDEX_COLS = ("index_base_kwh", "index_hp_kwh", "index_hc_kwh", "index_hph_kwh", "index_hpb_kwh", "index_hcb_kwh", "index_hch_kwh")
 
 # Colonnes de dates pour chaque type de flux
 DATE_COLS_HISTORIQUE = ("date_evenement", "avant_date_releve", "apres_date_releve")
@@ -97,7 +97,7 @@ def expr_wh_to_kwh(index_col: str) -> pl.Expr:
         Expression Polars avec conversion conditionnelle
 
     Example:
-        >>> df.with_columns(expr_wh_to_kwh("hp"))
+        >>> df.with_columns(expr_wh_to_kwh("index_hp_kwh"))
     """
     return (
         pl.when(pl.col("unite") == "Wh")
@@ -124,7 +124,7 @@ def expr_wh_to_kwh_multi(*index_cols: str) -> List[pl.Expr]:
         Liste d'expressions Polars pour les conversions
 
     Example:
-        >>> exprs = expr_wh_to_kwh_multi("hp", "hc", "base")
+        >>> exprs = expr_wh_to_kwh_multi("index_hp_kwh", "index_hc_kwh", "index_base_kwh")
         >>> df.with_columns(exprs)
     """
     return [expr_wh_to_kwh(col) for col in index_cols]
@@ -197,7 +197,7 @@ def expr_cadrans_count(*index_cols: str) -> pl.Expr:
         Expression Polars avec comptage horizontal
 
     Example:
-        >>> df.with_columns(expr_cadrans_count("hp", "hc", "base"))
+        >>> df.with_columns(expr_cadrans_count("index_hp_kwh", "index_hc_kwh", "index_base_kwh"))
     """
     return pl.sum_horizontal([
         pl.col(col).is_not_null().cast(pl.Int32) for col in index_cols

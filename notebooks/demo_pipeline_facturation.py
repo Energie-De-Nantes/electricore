@@ -104,7 +104,7 @@ def load_data(
         'date_evenement': 'Date_Evenement',
         'evenement_declencheur': 'Evenement_Declencheur',
         'formule_tarifaire_acheminement': 'Formule_Tarifaire_Acheminement',
-        'puissance_souscrite': 'Puissance_Souscrite',
+        'puissance_souscrite_kva': 'Puissance_Souscrite',
         'segment_clientele': 'Segment_Clientele',
         'etat_contractuel': 'Etat_Contractuel',
         'type_evenement': 'Type_Evenement',
@@ -259,17 +259,17 @@ def compare_results(df_facturation_pandas, df_facturation, pd, pl):
 
     # Comparaison des sommes
     _pandas_totals = {
-        'turpe_fixe': df_facturation_pandas['turpe_fixe'].sum(),
-        'turpe_variable': df_facturation_pandas['turpe_variable'].sum(),
-        'base_energie': df_facturation_pandas.get('BASE_energie', pd.Series([0])).sum(),
+        'turpe_fixe_eur': df_facturation_pandas['turpe_fixe_eur'].sum(),
+        'turpe_variable_eur': df_facturation_pandas['turpe_variable_eur'].sum(),
+        'energie_base_kwh': df_facturation_pandas.get('BASE_energie', pd.Series([0])).sum(),
         'nb_jours': df_facturation_pandas['nb_jours'].sum(),
         'nb_meta_periodes': len(df_facturation_pandas)
     }
 
     _totals = {
-        'turpe_fixe': df_facturation['turpe_fixe'].sum(),
-        'turpe_variable': df_facturation['turpe_variable'].sum(),
-        'base_energie': df_facturation.get('base_energie', pl.Series([0])).sum(),
+        'turpe_fixe_eur': df_facturation['turpe_fixe_eur'].sum(),
+        'turpe_variable_eur': df_facturation['turpe_variable_eur'].sum(),
+        'energie_base_kwh': df_facturation.get('energie_base_kwh', pl.Series([0])).sum(),
         'nb_jours': df_facturation['nb_jours'].sum(),
         'nb_meta_periodes': len(df_facturation)
     }

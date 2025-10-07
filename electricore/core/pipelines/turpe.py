@@ -108,17 +108,17 @@ def expr_calculer_turpe_fixe_annuel() -> pl.Expr:
     """
     # Calcul C5 (par défaut) : (b × P) + cg + cc
     turpe_c5 = (
-        (pl.col("b") * pl.col("puissance_souscrite")) +
+        (pl.col("b") * pl.col("puissance_souscrite_kva")) +
         pl.col("cg") +
         pl.col("cc")
     )
 
     # Calcul C4 : b₁×P₁ + b₂×(P₂-P₁) + b₃×(P₃-P₂) + b₄×(P₄-P₃) + cg + cc
     turpe_c4 = (
-        (pl.col("b_hph") * pl.col("puissance_souscrite_hph")) +
-        (pl.col("b_hch") * (pl.col("puissance_souscrite_hch") - pl.col("puissance_souscrite_hph"))) +
-        (pl.col("b_hpb") * (pl.col("puissance_souscrite_hpb") - pl.col("puissance_souscrite_hch"))) +
-        (pl.col("b_hcb") * (pl.col("puissance_souscrite_hcb") - pl.col("puissance_souscrite_hpb"))) +
+        (pl.col("b_hph") * pl.col("puissance_souscrite_hph_kva")) +
+        (pl.col("b_hch") * (pl.col("puissance_souscrite_hch_kva") - pl.col("puissance_souscrite_hph_kva"))) +
+        (pl.col("b_hpb") * (pl.col("puissance_souscrite_hpb_kva") - pl.col("puissance_souscrite_hch_kva"))) +
+        (pl.col("b_hcb") * (pl.col("puissance_souscrite_hcb_kva") - pl.col("puissance_souscrite_hpb_kva"))) +
         pl.col("cg") +
         pl.col("cc")
     )
@@ -182,9 +182,9 @@ def expr_valider_puissances_croissantes_c4() -> pl.Expr:
         ... )
     """
     return (
-        (pl.col("puissance_souscrite_hph") <= pl.col("puissance_souscrite_hch")) &
-        (pl.col("puissance_souscrite_hch") <= pl.col("puissance_souscrite_hpb")) &
-        (pl.col("puissance_souscrite_hpb") <= pl.col("puissance_souscrite_hcb"))
+        (pl.col("puissance_souscrite_hph_kva") <= pl.col("puissance_souscrite_hch_kva")) &
+        (pl.col("puissance_souscrite_hch_kva") <= pl.col("puissance_souscrite_hpb_kva")) &
+        (pl.col("puissance_souscrite_hpb_kva") <= pl.col("puissance_souscrite_hcb_kva"))
     )
 
 
@@ -210,7 +210,7 @@ def expr_calculer_turpe_cadran(cadran: str) -> pl.Expr:
     Example:
         >>> df.with_columns(expr_calculer_turpe_cadran("base").alias("turpe_base"))
     """
-    energie_col = f"{cadran}_energie"
+    energie_col = f"energie_{cadran}_kwh"
     tarif_col = f"c_{cadran}"  # Nomenclature CRE officielle
 
     return (
@@ -392,8 +392,8 @@ def ajouter_turpe_fixe(
     colonnes_originales = periodes.collect_schema().names()
 
     # S'assurer que les colonnes C4 existent (avec NULL par défaut pour C5)
-    colonnes_c4 = ["puissance_souscrite_hph", "puissance_souscrite_hch",
-                   "puissance_souscrite_hpb", "puissance_souscrite_hcb"]
+    colonnes_c4 = ["puissance_souscrite_hph_kva", "puissance_souscrite_hch_kva",
+                   "puissance_souscrite_hpb_kva", "puissance_souscrite_hcb_kva"]
 
     for col in colonnes_c4:
         if col not in colonnes_originales:
@@ -417,14 +417,14 @@ def ajouter_turpe_fixe(
         .filter(expr_filtrer_regles_temporelles())
 
         # Calcul du TURPE fixe
-        .with_columns(expr_calculer_turpe_fixe_periode().alias("turpe_fixe"))
+        .with_columns(expr_calculer_turpe_fixe_periode().alias("turpe_fixe_eur"))
 
         # Sélection des colonnes finales (exclure les colonnes de règles intermédiaires)
         .select([
             # Colonnes originales des périodes
             *colonnes_originales,
             # Colonne TURPE calculée
-            "turpe_fixe"
+            "turpe_fixe_eur"
         ])
     )
 
@@ -484,7 +484,7 @@ def ajouter_turpe_variable(
         # Calcul du total TURPE variable (cadrans + dépassement)
         .with_columns(
             (expr_sommer_turpe_cadrans() + expr_calculer_composante_depassement())
-            .alias("turpe_variable")
+            .alias("turpe_variable_eur")
         )
 
         # Sélection des colonnes finales (exclure les colonnes de règles intermédiaires)
@@ -492,7 +492,7 @@ def ajouter_turpe_variable(
             # Colonnes originales des périodes
             *colonnes_originales,
             # Colonnes TURPE calculées
-            "turpe_variable"
+            "turpe_variable_eur"
         ])
     )
 
@@ -523,7 +523,7 @@ def debug_turpe_variable(lf: pl.LazyFrame) -> pl.LazyFrame:
 
     # Ajouter les détails par cadran
     for cadran in cadrans:
-        energie_col = f"{cadran}_energie"
+        energie_col = f"energie_{cadran}_kwh"
         tarif_col = f"c_{cadran}"  # Nomenclature CRE officielle
         debug_expressions.extend([
             pl.col(energie_col).alias(f"debug_energie_{cadran}"),

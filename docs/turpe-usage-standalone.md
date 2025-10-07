@@ -4,29 +4,29 @@ Ce guide explique comment utiliser les fonctions de calcul TURPE indépendamment
 
 ## Table des matières
 
-1. [Import et configuration](#import-et-configuration)
-2. [TURPE Fixe - Calculs de base](#turpe-fixe---calculs-de-base)
-3. [TURPE Fixe C4 - 4 puissances souscrites](#turpe-fixe-c4---4-puissances-souscrites)
-4. [TURPE Variable - Calculs par cadran](#turpe-variable---calculs-par-cadran)
-5. [CMDPS - Pénalités de dépassement](#cmdps---pénalités-de-dépassement)
-6. [Cas d'usage avancés](#cas-dusage-avancés)
+1. [Vue d'ensemble](#vue-densemble)
+2. [Fonctions Pipeline (Usage Recommandé)](#fonctions-pipeline-usage-recommandé)
+3. [Expressions individuelles (Usage Avancé)](#expressions-individuelles-usage-avancé)
+4. [Cas d'usage pratiques](#cas-dusage-pratiques)
+5. [Bonnes pratiques](#bonnes-pratiques)
 
 ---
 
-## Import et configuration
+## Vue d'ensemble
+
+Le module TURPE fournit **2 fonctions principales** pour un usage externe :
+
+- **`ajouter_turpe_fixe(periodes, regles=None)`** - Calcul du TURPE fixe
+- **`ajouter_turpe_variable(periodes, regles=None)`** - Calcul du TURPE variable
+
+Ces fonctions encapsulent toute la logique métier (jointure règles, filtrage temporel, détection C4/C5) et sont **prêtes à l'emploi**.
+
+### Import et configuration
 
 ```python
 import polars as pl
 from electricore.core.pipelines.turpe import (
-    # Expressions de calcul
-    expr_calculer_turpe_fixe_annuel,
-    expr_calculer_turpe_fixe_journalier,
-    expr_calculer_turpe_fixe_periode,
-    expr_calculer_turpe_cadran,
-    expr_calculer_cmdps,
-    expr_valider_puissances_croissantes_c4,
-
-    # Fonctions de pipeline
+    # Fonctions pipeline (usage recommandé)
     ajouter_turpe_fixe,
     ajouter_turpe_variable,
 
@@ -37,474 +37,537 @@ from electricore.core.pipelines.turpe import (
 
 ---
 
-## TURPE Fixe - Calculs de base
+## Fonctions Pipeline (Usage Recommandé)
 
-### Exemple 1 : Calcul TURPE fixe annuel C5 (BT ≤ 36 kVA)
+### `ajouter_turpe_fixe()` - TURPE Fixe
+
+**Signature** :
+```python
+def ajouter_turpe_fixe(
+    periodes: pl.LazyFrame,
+    regles: Optional[pl.LazyFrame] = None
+) -> pl.LazyFrame
+```
+
+**Fonctionnalités** :
+- ✅ Joint automatiquement les règles TURPE (chargées si `regles=None`)
+- ✅ Filtre les règles sur les dates d'application
+- ✅ Détecte C4 vs C5 automatiquement
+- ✅ Calcule le TURPE fixe pour la période
+- ✅ Conserve toutes les colonnes originales
+
+**Prérequis des données en entrée** :
+```python
+periodes = pl.LazyFrame({
+    "pdl": [...],                                # Identifiant point de livraison
+    "formule_tarifaire_acheminement": [...],     # FTA (ex: "BTINFCU4", "BTSUPCU")
+    "puissance_souscrite": [...],                # Puissance C5 (kVA)
+    "date_debut": [...],                         # Date début période
+    "date_fin": [...],                           # Date fin période
+
+    # Optionnel pour C4 (BT > 36 kVA) :
+    "puissance_souscrite_hph": [...],            # 4 puissances souscrites
+    "puissance_souscrite_hch": [...],
+    "puissance_souscrite_hpb": [...],
+    "puissance_souscrite_hcb": [...],
+})
+```
+
+**Colonnes ajoutées** :
+- `turpe_fixe` (€) - Montant TURPE fixe pour la période
+
+#### Exemple 1 : Calcul TURPE fixe C5 simple
 
 ```python
-# Créer un DataFrame avec les données nécessaires
-df = pl.DataFrame({
-    "pdl": ["PDL001", "PDL002", "PDL003"],
-    "formule_tarifaire_acheminement": ["BTINFCU4", "BTINFCUST", "BTINFMU4"],
-    "puissance_souscrite": [9.0, 6.0, 12.0],
-    "b": [9.36, 10.44, 8.40],      # Coefficient puissance (€/kVA/an)
-    "cg": [16.2, 16.2, 16.2],      # Composante gestion (€/an)
-    "cc": [20.88, 20.88, 20.88],   # Composante comptage (€/an)
-    # Colonnes C4 avec NULL pour C5
-    "b_hph": [None, None, None],
-    "b_hch": [None, None, None],
-    "b_hpb": [None, None, None],
-    "b_hcb": [None, None, None],
-    "puissance_souscrite_hph": [None, None, None],
-    "puissance_souscrite_hch": [None, None, None],
-    "puissance_souscrite_hpb": [None, None, None],
-    "puissance_souscrite_hcb": [None, None, None],
+# Périodes d'abonnement résidentiel (BT ≤ 36 kVA)
+periodes = pl.LazyFrame({
+    "pdl": ["PDL001", "PDL002"],
+    "formule_tarifaire_acheminement": ["BTINFCU4", "BTINFCUST"],
+    "puissance_souscrite": [9.0, 6.0],
+    "date_debut": ["2025-01-01", "2025-01-01"],
+    "date_fin": ["2025-03-31", "2025-03-31"],
 })
 
-# Calculer le TURPE fixe annuel
-result = df.with_columns(
-    expr_calculer_turpe_fixe_annuel().alias("turpe_fixe_annuel")
-)
+# Calcul automatique avec règles officielles
+result = ajouter_turpe_fixe(periodes).collect()
 
-print(result.select(["pdl", "puissance_souscrite", "turpe_fixe_annuel"]))
-```
-
-**Résultat attendu** :
-```
-┌────────┬──────────────────────┬────────────────────┐
-│ pdl    │ puissance_souscrite  │ turpe_fixe_annuel  │
-│ str    │ f64                  │ f64                │
-├────────┼──────────────────────┼────────────────────┤
-│ PDL001 │ 9.0                  │ 121.32             │
-│ PDL002 │ 6.0                  │ 99.72              │
-│ PDL003 │ 12.0                 │ 137.88             │
-└────────┴──────────────────────┴────────────────────┘
-
-Formule C5 : turpe_annuel = (b × P) + cg + cc
-Exemple PDL001 : (9.36 × 9) + 16.2 + 20.88 = 121.32 €
-```
-
-### Exemple 2 : Calcul TURPE fixe pour une période
-
-```python
-df = pl.DataFrame({
-    "pdl": ["PDL001"],
-    "nb_jours": [92],  # Trimestre (jan-mars)
-    "turpe_fixe_annuel": [121.32],
-})
-
-result = df.with_columns([
-    expr_calculer_turpe_fixe_journalier().alias("turpe_journalier"),
-    expr_calculer_turpe_fixe_periode().alias("turpe_periode"),
-])
-
-print(result)
+print(result.select(["pdl", "puissance_souscrite", "turpe_fixe"]))
 ```
 
 **Résultat** :
 ```
-┌────────┬──────────┬────────────────────┬──────────────────┬───────────────┐
-│ pdl    │ nb_jours │ turpe_fixe_annuel  │ turpe_journalier │ turpe_periode │
-│ str    │ i64      │ f64                │ f64              │ f64           │
-├────────┼──────────┼────────────────────┼──────────────────┼───────────────┤
-│ PDL001 │ 92       │ 121.32             │ 0.332            │ 30.55         │
-└────────┴──────────┴────────────────────┴──────────────────┴───────────────┘
-
-Formule : turpe_periode = turpe_annuel × (nb_jours / 365)
-Exemple : 121.32 × (92 / 365) = 30.55 €
+┌────────┬──────────────────────┬────────────┐
+│ pdl    │ puissance_souscrite  │ turpe_fixe │
+│ str    │ f64                  │ f64        │
+├────────┼──────────────────────┼────────────┤
+│ PDL001 │ 9.0                  │ 30.55      │
+│ PDL002 │ 6.0                  │ 25.13      │
+└────────┴──────────────────────┴────────────┘
 ```
 
----
-
-## TURPE Fixe C4 - 4 puissances souscrites
-
-### Exemple 3 : Calcul C4 avec modulation saisonnière (BT > 36 kVA)
+#### Exemple 2 : Calcul TURPE fixe C4 avec modulation saisonnière
 
 ```python
-# Point C4 avec 4 puissances différentes (économies via modulation)
-df = pl.DataFrame({
+# Point industriel avec 4 puissances souscrites (BT > 36 kVA)
+periodes_c4 = pl.LazyFrame({
     "pdl": ["PDL_INDUSTRIE"],
     "formule_tarifaire_acheminement": ["BTSUPCU"],
-    "puissance_souscrite": [60.0],  # Non utilisé en C4
+    "puissance_souscrite": [60.0],  # Utilisé pour info, pas pour calcul C4
 
-    # 4 puissances souscrites par cadran temporel (kVA)
-    "puissance_souscrite_hph": [36.0],  # P₁ - Hiver Pleines Heures (le plus cher)
-    "puissance_souscrite_hch": [36.0],  # P₂ - Hiver Creuses Heures
-    "puissance_souscrite_hpb": [60.0],  # P₃ - Été Pleines Heures
-    "puissance_souscrite_hcb": [60.0],  # P₄ - Été Creuses Heures (le moins cher)
+    # 4 puissances par cadran temporel (économies via modulation)
+    "puissance_souscrite_hph": [36.0],  # Hiver Pleines Heures (P₁)
+    "puissance_souscrite_hch": [36.0],  # Hiver Creuses Heures (P₂)
+    "puissance_souscrite_hpb": [60.0],  # Été Pleines Heures (P₃)
+    "puissance_souscrite_hcb": [60.0],  # Été Creuses Heures (P₄)
 
-    # Coefficients puissance CRE officiels (€/kVA/an)
-    "b_hph": [17.61],  # b₁ - Coefficient HPH (le plus élevé)
-    "b_hch": [15.96],  # b₂
-    "b_hpb": [14.56],  # b₃
-    "b_hcb": [11.98],  # b₄ - Coefficient HCB (le plus faible)
-
-    # Composantes fixes
-    "cg": [217.8],
-    "cc": [283.27],
+    "date_debut": ["2025-01-01"],
+    "date_fin": ["2025-12-31"],
 })
 
-# Valider la contrainte réglementaire P₁ ≤ P₂ ≤ P₃ ≤ P₄
-validation = df.with_columns(
-    expr_valider_puissances_croissantes_c4().alias("contrainte_ok")
-)
-print(f"Contrainte P₁≤P₂≤P₃≤P₄ respectée : {validation['contrainte_ok'][0]}")
+result = ajouter_turpe_fixe(periodes_c4).collect()
 
-# Calculer le TURPE fixe annuel C4
-result = df.with_columns(
-    expr_calculer_turpe_fixe_annuel().alias("turpe_fixe_annuel")
-)
-
-print(f"\nTURPE fixe annuel C4 : {result['turpe_fixe_annuel'][0]:.2f} €")
+print(f"TURPE fixe annuel C4 : {result['turpe_fixe'][0]:.2f} €")
 ```
 
 **Résultat** :
 ```
-Contrainte P₁≤P₂≤P₃≤P₄ respectée : True
-
 TURPE fixe annuel C4 : 1484.47 €
 
-Formule C4 progressive :
-turpe_annuel = b₁×P₁ + b₂×(P₂-P₁) + b₃×(P₃-P₂) + b₄×(P₄-P₃) + cg + cc
-             = 17.61×36 + 15.96×(36-36) + 14.56×(60-36) + 11.98×(60-60) + 217.8 + 283.27
-             = 633.96 + 0 + 349.44 + 0 + 501.07
-             = 1484.47 €
-
-💡 Économies : ~5% vs puissance constante 60 kVA (1557.67 €)
-```
-
-### Exemple 4 : Comparaison C4 vs C5
-
-```python
-# Comparaison entre un point C4 et un point C5 équivalent
-df_comparaison = pl.DataFrame({
-    "type": ["C5 (36 kVA)", "C4 (36/36/60/60)"],
-    "puissance_souscrite": [60.0, 60.0],
-
-    # C5 : b standard
-    "b": [10.44, None],
-
-    # C4 : 4 coefficients b
-    "b_hph": [None, 17.61],
-    "b_hch": [None, 15.96],
-    "b_hpb": [None, 14.56],
-    "b_hcb": [None, 11.98],
-
-    # C4 : 4 puissances
-    "puissance_souscrite_hph": [None, 36.0],
-    "puissance_souscrite_hch": [None, 36.0],
-    "puissance_souscrite_hpb": [None, 60.0],
-    "puissance_souscrite_hcb": [None, 60.0],
-
-    "cg": [16.2, 217.8],
-    "cc": [20.88, 283.27],
-})
-
-result = df_comparaison.with_columns(
-    expr_calculer_turpe_fixe_annuel().alias("turpe_annuel")
-).with_columns(
-    (pl.col("turpe_annuel") - pl.col("turpe_annuel").first()).alias("economie")
-)
-
-print(result.select(["type", "turpe_annuel", "economie"]))
+💡 Contrainte réglementaire C4 : P₁ ≤ P₂ ≤ P₃ ≤ P₄
+💡 Économies : ~5% vs puissance constante 60 kVA
 ```
 
 ---
 
-## TURPE Variable - Calculs par cadran
+### `ajouter_turpe_variable()` - TURPE Variable
 
-### Exemple 5 : Calcul TURPE variable pour chaque cadran horaire
+**Signature** :
+```python
+def ajouter_turpe_variable(
+    periodes: pl.LazyFrame,
+    regles: Optional[pl.LazyFrame] = None
+) -> pl.LazyFrame
+```
+
+**Fonctionnalités** :
+- ✅ Joint automatiquement les règles TURPE
+- ✅ Filtre les règles sur les dates d'application
+- ✅ Calcule le TURPE variable par cadran horaire
+- ✅ Ajoute la composante dépassement (C4 uniquement)
+- ✅ Conserve toutes les colonnes originales
+
+**Prérequis des données en entrée** :
+```python
+periodes = pl.LazyFrame({
+    "pdl": [...],
+    "formule_tarifaire_acheminement": [...],
+    "date_debut": [...],
+    "date_fin": [...],
+
+    # Énergies par cadran (kWh) - selon FTA :
+    # C4 (4 cadrans) :
+    "hph_energie": [...],  # Hiver Pleines Heures
+    "hch_energie": [...],  # Hiver Creuses Heures
+    "hpb_energie": [...],  # Été Pleines Heures
+    "hcb_energie": [...],  # Été Creuses Heures
+
+    # OU C5 HP/HC (2 cadrans) :
+    "hp_energie": [...],   # Heures Pleines
+    "hc_energie": [...],   # Heures Creuses
+
+    # OU C5 Base (1 cadran) :
+    "base_energie": [...],
+
+    # Optionnel pour C4 - Dépassements de puissance :
+    "depassement_puissance_h": [...],  # Durée totale dépassement (heures)
+})
+```
+
+**Colonnes ajoutées** :
+- `turpe_variable` (€) - Montant TURPE variable (cadrans + dépassement)
+
+#### Exemple 3 : Calcul TURPE variable C4 avec 4 cadrans
 
 ```python
-df = pl.DataFrame({
+# Période avec énergies par cadran horaire
+periodes = pl.LazyFrame({
     "pdl": ["PDL001"],
+    "formule_tarifaire_acheminement": ["BTSUPCU"],
+    "date_debut": ["2025-01-01"],
+    "date_fin": ["2025-01-31"],
 
-    # Énergies par cadran (kWh)
+    # Énergies C4 (kWh)
     "hph_energie": [1000.0],  # Hiver Pleines Heures
     "hch_energie": [800.0],   # Hiver Creuses Heures
     "hpb_energie": [600.0],   # Été Pleines Heures
     "hcb_energie": [400.0],   # Été Creuses Heures
 
-    # Tarifs CRE (c€/kWh) - Nomenclature officielle
-    "c_hph": [6.91],
-    "c_hch": [4.21],
-    "c_hpb": [2.13],
-    "c_hcb": [1.52],
+    # Dépassement (optionnel)
+    "depassement_puissance_h": [10.0],  # 10h de dépassement total
 })
 
-# Calculer le TURPE variable pour chaque cadran
-result = df.with_columns([
-    expr_calculer_turpe_cadran("hph").alias("turpe_hph"),
-    expr_calculer_turpe_cadran("hch").alias("turpe_hch"),
-    expr_calculer_turpe_cadran("hpb").alias("turpe_hpb"),
-    expr_calculer_turpe_cadran("hcb").alias("turpe_hcb"),
-]).with_columns(
-    # Total TURPE variable
-    (pl.col("turpe_hph") + pl.col("turpe_hch") +
-     pl.col("turpe_hpb") + pl.col("turpe_hcb")).alias("turpe_variable_total")
-)
+result = ajouter_turpe_variable(periodes).collect()
 
-print(result.select([
-    "pdl",
-    "turpe_hph", "turpe_hch", "turpe_hpb", "turpe_hcb",
-    "turpe_variable_total"
-]))
+print(f"TURPE variable : {result['turpe_variable'][0]:.2f} €")
 ```
 
 **Résultat** :
 ```
-┌────────┬───────────┬───────────┬───────────┬───────────┬──────────────────────┐
-│ pdl    │ turpe_hph │ turpe_hch │ turpe_hpb │ turpe_hcb │ turpe_variable_total │
-│ str    │ f64       │ f64       │ f64       │ f64       │ f64                  │
-├────────┼───────────┼───────────┼───────────┼───────────┼──────────────────────┤
-│ PDL001 │ 69.10     │ 33.68     │ 12.78     │ 6.08      │ 121.64               │
-└────────┴───────────┴───────────┴───────────┴───────────┴──────────────────────┘
+TURPE variable : 245.74 €
 
-Formule : turpe_cadran = (energie_cadran × c_cadran) / 100
-Exemple HPH : (1000 × 6.91) / 100 = 69.10 €
-         HCH : (800 × 4.21) / 100 = 33.68 €
+Détail : 121.64 € (cadrans) + 124.10 € (dépassement)
 ```
 
-### Exemple 6 : Calcul simplifié HP/HC (sans cadrans été/hiver)
+#### Exemple 4 : Calcul TURPE variable C5 HP/HC simple
 
 ```python
-df = pl.DataFrame({
+# Point résidentiel avec heures pleines/creuses
+periodes_hphc = pl.LazyFrame({
     "pdl": ["PDL002"],
+    "formule_tarifaire_acheminement": ["BTINFCU4"],
+    "date_debut": ["2025-01-01"],
+    "date_fin": ["2025-01-31"],
 
-    # Énergies HP/HC simples
+    # Énergies HP/HC (kWh)
     "hp_energie": [2000.0],
     "hc_energie": [1500.0],
-    "base_energie": [None],  # Pas utilisé en HP/HC
-
-    # Tarifs CRE
-    "c_hp": [5.75],
-    "c_hc": [4.12],
-    "c_base": [None],
 })
 
-result = df.with_columns([
-    expr_calculer_turpe_cadran("hp").alias("turpe_hp"),
-    expr_calculer_turpe_cadran("hc").alias("turpe_hc"),
-    expr_calculer_turpe_cadran("base").alias("turpe_base"),
-]).with_columns(
-    (pl.col("turpe_hp") + pl.col("turpe_hc") + pl.col("turpe_base"))
-    .alias("turpe_variable_total")
-)
+result = ajouter_turpe_variable(periodes_hphc).collect()
 
-print(result.select(["pdl", "turpe_hp", "turpe_hc", "turpe_variable_total"]))
-```
-
----
-
-## CMDPS - Pénalités de dépassement
-
-### Exemple 7 : Calcul des pénalités de dépassement de puissance
-
-```python
-df = pl.DataFrame({
-    "pdl": ["PDL001", "PDL002", "PDL003"],
-    "puissance_souscrite": [9.0, 12.0, 6.0],
-    "puissance_max_atteinte": [10.5, 11.0, 8.0],  # Puissance de pointe
-    "cmdps": [12.41, 12.41, 12.41],  # Tarif dépassement (€/kVA)
-    "nb_jours": [31, 31, 31],
-})
-
-result = df.with_columns([
-    # Dépassement constaté
-    (pl.col("puissance_max_atteinte") - pl.col("puissance_souscrite"))
-    .clip(lower_bound=0)
-    .alias("depassement_kva"),
-
-    # Pénalité CMDPS
-    expr_calculer_cmdps().alias("penalite_cmdps"),
-])
-
-print(result.select([
-    "pdl", "puissance_souscrite", "puissance_max_atteinte",
-    "depassement_kva", "penalite_cmdps"
-]))
+print(result.select(["pdl", "hp_energie", "hc_energie", "turpe_variable"]))
 ```
 
 **Résultat** :
 ```
-┌────────┬──────────────────────┬────────────────────────┬─────────────────┬─────────────────┐
-│ pdl    │ puissance_souscrite  │ puissance_max_atteinte │ depassement_kva │ penalite_cmdps  │
-│ str    │ f64                  │ f64                    │ f64             │ f64             │
-├────────┼──────────────────────┼────────────────────────┼─────────────────┼─────────────────┤
-│ PDL001 │ 9.0                  │ 10.5                   │ 1.5             │ 1.58            │
-│ PDL002 │ 12.0                 │ 11.0                   │ 0.0             │ 0.0             │
-│ PDL003 │ 6.0                  │ 8.0                    │ 2.0             │ 2.11            │
-└────────┴──────────────────────┴────────────────────────┴─────────────────┴─────────────────┘
-
-Formule CMDPS : pénalité = max(0, P_max - P_souscrite) × cmdps × (nb_jours / 365)
-Exemple PDL001 : (10.5 - 9.0) × 12.41 × (31 / 365) = 1.58 €
+┌────────┬────────────┬────────────┬────────────────┐
+│ pdl    │ hp_energie │ hc_energie │ turpe_variable │
+│ str    │ f64        │ f64        │ f64            │
+├────────┼────────────┼────────────┼────────────────┤
+│ PDL002 │ 2000.0     │ 1500.0     │ 176.80         │
+└────────┴────────────┴────────────┴────────────────┘
 ```
 
 ---
 
-## Cas d'usage avancés
+## Expressions individuelles (Usage Avancé)
 
-### Exemple 8 : Utilisation avec les règles TURPE du CSV
+> ⚠️ **Avertissement** : Ces expressions sont conçues pour un usage **interne au pipeline**.
+> Leur utilisation directe nécessite de gérer manuellement :
+> - Le chargement et la jointure avec les règles TURPE
+> - Le filtrage temporel des règles applicables
+> - La validation des colonnes requises
+> - La création/gestion de toutes les colonnes intermédiaires
+>
+> **Usage recommandé** : Utilisez `ajouter_turpe_fixe()` et `ajouter_turpe_variable()` sauf besoin très spécifique.
+
+### Expressions TURPE Fixe
 
 ```python
-# Charger les règles officielles depuis le CSV
-regles = load_turpe_rules()
-print("Règles TURPE disponibles :")
-print(regles.select(["Formule_Tarifaire_Acheminement", "start", "end"]))
-
-# Joindre avec vos données pour récupérer automatiquement les coefficients
-df = pl.DataFrame({
-    "pdl": ["PDL001", "PDL002"],
-    "formule_tarifaire_acheminement": ["BTINFCU4", "BTSUPCU"],
-    "puissance_souscrite": [9.0, 60.0],
-    "date_debut": ["2025-08-01", "2025-08-01"],
-})
-
-# Jointure avec les règles
-result = df.join(
-    regles,
-    left_on="formule_tarifaire_acheminement",
-    right_on="Formule_Tarifaire_Acheminement",
-    how="left"
-).filter(
-    # Filtrer sur la date d'application
-    pl.col("start") <= pl.col("date_debut")
+from electricore.core.pipelines.turpe import (
+    expr_calculer_turpe_fixe_annuel,      # Calcul annuel C4/C5
+    expr_calculer_turpe_fixe_journalier,  # Proratisation journalière
+    expr_calculer_turpe_fixe_periode,     # Montant période
+    expr_valider_puissances_croissantes_c4,  # Validation P₁≤P₂≤P₃≤P₄
 )
-
-print("\nDonnées enrichies avec les règles TURPE :")
-print(result.select([
-    "pdl", "formule_tarifaire_acheminement",
-    "b", "cg", "cc", "cmdps"
-]))
 ```
 
-### Exemple 9 : Pipeline complet avec LazyFrame
+#### Exemple minimaliste (non recommandé)
 
 ```python
-# Charger vos périodes d'abonnement
-periodes_lf = pl.LazyFrame({
-    "pdl": ["PDL001", "PDL002"],
-    "date_debut": ["2025-01-01", "2025-01-01"],
-    "date_fin": ["2025-03-31", "2025-03-31"],
-    "formule_tarifaire_acheminement": ["BTINFCU4", "BTINFCUST"],
-    "puissance_souscrite": [9.0, 6.0],
-})
-
-# Ajouter le TURPE fixe via la fonction pipeline
-periodes_avec_turpe = ajouter_turpe_fixe(periodes_lf)
-
-# Collecter et afficher
-result = periodes_avec_turpe.collect()
-print(result.select([
-    "pdl", "puissance_souscrite",
-    "turpe_fixe_annuel", "turpe_fixe_journalier", "turpe_fixe_periode"
-]))
-```
-
-### Exemple 10 : Analyse de sensibilité tarifaire
-
-```python
-# Simuler l'impact de différentes puissances souscrites
-puissances = [6.0, 9.0, 12.0, 15.0, 18.0, 24.0, 36.0]
+# ⚠️ Vous devez gérer manuellement les règles et colonnes
+regles = load_turpe_rules()
 
 df = pl.DataFrame({
-    "puissance_souscrite": puissances,
-    "b": [10.44] * len(puissances),
-    "cg": [16.2] * len(puissances),
-    "cc": [20.88] * len(puissances),
-    # Colonnes C4 NULL
-    "b_hph": [None] * len(puissances),
-    "b_hch": [None] * len(puissances),
-    "b_hpb": [None] * len(puissances),
-    "b_hcb": [None] * len(puissances),
-    "puissance_souscrite_hph": [None] * len(puissances),
-    "puissance_souscrite_hch": [None] * len(puissances),
-    "puissance_souscrite_hpb": [None] * len(puissances),
-    "puissance_souscrite_hcb": [None] * len(puissances),
-})
-
-result = df.with_columns([
-    expr_calculer_turpe_fixe_annuel().alias("turpe_annuel"),
-]).with_columns([
-    # Coût unitaire par kVA
-    (pl.col("turpe_annuel") / pl.col("puissance_souscrite")).alias("cout_par_kva"),
-])
-
-print("Analyse de sensibilité tarifaire :")
-print(result.select(["puissance_souscrite", "turpe_annuel", "cout_par_kva"]))
-```
-
----
-
-## Bonnes pratiques
-
-### 1. Toujours inclure les colonnes C4 pour la compatibilité
-
-```python
-# ✅ BON - Inclut les colonnes C4 avec NULL pour C5
-df = pl.DataFrame({
+    "formule_tarifaire_acheminement": ["BTINFCU4"],
     "puissance_souscrite": [9.0],
-    "b": [9.36],
-    "cg": [16.2],
-    "cc": [20.88],
-    "b_hph": [None],
-    "b_hch": [None],
-    "b_hpb": [None],
-    "b_hcb": [None],
+    "date_debut": ["2025-01-01"],
+    "nb_jours": [92],
+
+    # Colonnes C4 obligatoires même pour C5 !
+    "b_hph": [None], "b_hch": [None], "b_hpb": [None], "b_hcb": [None],
     "puissance_souscrite_hph": [None],
     "puissance_souscrite_hch": [None],
     "puissance_souscrite_hpb": [None],
     "puissance_souscrite_hcb": [None],
 })
 
-# ❌ MAUVAIS - Manque les colonnes C4
-df = pl.DataFrame({
-    "puissance_souscrite": [9.0],
-    "b": [9.36],
-    "cg": [16.2],
-    "cc": [20.88],
-})
-# → ColumnNotFoundError: unable to find column "b_hph"
+# Jointure et filtrage manuel
+result = (
+    df.join(regles, left_on="formule_tarifaire_acheminement",
+            right_on="Formule_Tarifaire_Acheminement", how="left")
+    .filter(pl.col("start") <= pl.col("date_debut"))
+    .with_columns([
+        expr_calculer_turpe_fixe_annuel().alias("turpe_annuel"),
+        expr_calculer_turpe_fixe_periode().alias("turpe_periode"),
+    ])
+)
 ```
 
-### 2. Validation des contraintes C4
+### Expressions TURPE Variable
 
 ```python
-# Toujours valider P₁ ≤ P₂ ≤ P₃ ≤ P₄ pour les points C4
-df_c4 = pl.DataFrame({
-    "puissance_souscrite_hph": [40.0],
-    "puissance_souscrite_hch": [35.0],  # ⚠️ Invalide : P₂ < P₁
-    "puissance_souscrite_hpb": [60.0],
-    "puissance_souscrite_hcb": [60.0],
+from electricore.core.pipelines.turpe import (
+    expr_calculer_turpe_cadran,              # Calcul par cadran individuel
+    expr_calculer_turpe_contributions_cadrans,  # Tous cadrans (dict)
+    expr_sommer_turpe_cadrans,               # Somme des cadrans
+    expr_calculer_composante_depassement,    # Pénalités dépassement (C4)
+)
+```
+
+#### Exemple calcul par cadran individuel
+
+```python
+# Calcul manuel pour un cadran spécifique
+df = pl.DataFrame({
+    "hph_energie": [1000.0],
+    "c_hph": [6.91],  # c€/kWh (doit être récupéré des règles)
 })
 
-validation = df_c4.with_columns(
-    expr_valider_puissances_croissantes_c4().alias("valide")
+result = df.with_columns(
+    expr_calculer_turpe_cadran("hph").alias("turpe_hph")
 )
 
-if not validation["valide"][0]:
-    print("⚠️ Contrainte réglementaire non respectée : P₁ ≤ P₂ ≤ P₃ ≤ P₄")
+print(result["turpe_hph"][0])  # → 69.10 €
 ```
 
-### 3. Utiliser load_turpe_rules() pour les tarifs officiels
+### Composante dépassement (C4 uniquement)
 
 ```python
-# ✅ BON - Utilise les tarifs officiels du CSV
-regles = load_turpe_rules()
-df = df.join(regles, on="Formule_Tarifaire_Acheminement", how="left")
+from electricore.core.pipelines.turpe import expr_calculer_composante_depassement
+```
 
-# ❌ MAUVAIS - Tarifs codés en dur (risque d'obsolescence)
-df = df.with_columns(pl.lit(10.44).alias("b"))
+**⚠️ Important** : Cette expression attend :
+- `depassement_puissance_h` (float) - Durée totale de dépassement en **heures** (tous cadrans confondus)
+- `cmdps` (float) - Tarif €/h issu des règles TURPE
+
+**Le calcul des dépassements est à la charge de l'appelant** (mesure Linky/analyseur).
+
+#### Exemple réaliste
+
+```python
+# Vous devez calculer vous-même les dépassements par cadran et les sommer
+df = pl.DataFrame({
+    "pdl": ["PDL_C4"],
+    "cmdps": [12.41],  # €/h (règles TURPE pour C4)
+
+    # Durée totale de dépassement calculée en amont
+    # Exemple : somme des heures où P_réelle > P_souscrite_cadran
+    "depassement_puissance_h": [10.0],  # 10 heures de dépassement
+})
+
+result = df.with_columns(
+    expr_calculer_composante_depassement().alias("penalite_depassement")
+)
+
+print(f"Pénalité : {result['penalite_depassement'][0]:.2f} €")
+```
+
+**Résultat** :
+```
+Pénalité : 124.10 €
+
+Formule : depassement_puissance_h × cmdps
+        = 10 h × 12.41 €/h = 124.10 €
+```
+
+---
+
+## Cas d'usage pratiques
+
+### Cas 1 : Pipeline complet TURPE fixe + variable
+
+```python
+from electricore.core.pipelines.turpe import ajouter_turpe_fixe, ajouter_turpe_variable
+
+# Données d'entrée combinées
+periodes = pl.LazyFrame({
+    "pdl": ["PDL001"],
+    "formule_tarifaire_acheminement": ["BTINFCU4"],
+    "puissance_souscrite": [9.0],
+    "date_debut": ["2025-01-01"],
+    "date_fin": ["2025-01-31"],
+
+    # Énergies HP/HC
+    "hp_energie": [500.0],
+    "hc_energie": [300.0],
+})
+
+# Chaînage des 2 fonctions
+result = (
+    periodes
+    .pipe(ajouter_turpe_fixe)
+    .pipe(ajouter_turpe_variable)
+    .collect()
+)
+
+print(result.select(["pdl", "turpe_fixe", "turpe_variable"]))
+```
+
+### Cas 2 : Comparaison tarifaire multi-FTA
+
+```python
+# Simuler plusieurs formules tarifaires pour un même profil
+profils = pl.LazyFrame({
+    "scenario": ["Base 6kVA", "HP/HC 9kVA", "Tempo 12kVA"],
+    "formule_tarifaire_acheminement": ["BTINFBASE", "BTINFCU4", "BTINFMU4"],
+    "puissance_souscrite": [6.0, 9.0, 12.0],
+    "date_debut": ["2025-01-01"] * 3,
+    "date_fin": ["2025-12-31"] * 3,
+
+    # Même consommation pour tous
+    "base_energie": [3500.0, None, None],
+    "hp_energie": [None, 2100.0, None],
+    "hc_energie": [None, 1400.0, None],
+})
+
+# Calculs
+result = (
+    profils
+    .pipe(ajouter_turpe_fixe)
+    .pipe(ajouter_turpe_variable)
+    .with_columns(
+        (pl.col("turpe_fixe") + pl.col("turpe_variable")).alias("turpe_total")
+    )
+    .collect()
+)
+
+print(result.select(["scenario", "turpe_fixe", "turpe_variable", "turpe_total"]))
+```
+
+### Cas 3 : Analyse de sensibilité puissance souscrite
+
+```python
+# Simuler l'impact de différentes puissances
+puissances = [6.0, 9.0, 12.0, 15.0, 18.0]
+
+scenarios = pl.LazyFrame({
+    "puissance_souscrite": puissances,
+    "formule_tarifaire_acheminement": ["BTINFCU4"] * len(puissances),
+    "date_debut": ["2025-01-01"] * len(puissances),
+    "date_fin": ["2025-12-31"] * len(puissances),
+})
+
+result = (
+    scenarios
+    .pipe(ajouter_turpe_fixe)
+    .with_columns(
+        (pl.col("turpe_fixe") / pl.col("puissance_souscrite")).alias("cout_par_kva")
+    )
+    .collect()
+)
+
+print(result.select(["puissance_souscrite", "turpe_fixe", "cout_par_kva"]))
+```
+
+### Cas 4 : Intégration avec données Odoo
+
+```python
+from electricore.core.loaders import OdooReader
+
+# Charger les abonnements depuis Odoo
+with OdooReader(config) as odoo:
+    abonnements = (
+        odoo.query('x_pdl', domain=[('x_actif', '=', True)])
+        .select(['x_name', 'x_fta', 'x_puissance_souscrite', 'x_date_debut'])
+        .collect()
+    )
+
+# Renommer pour compatibilité pipeline TURPE
+periodes = abonnements.rename({
+    "x_name": "pdl",
+    "x_fta": "formule_tarifaire_acheminement",
+    "x_puissance_souscrite": "puissance_souscrite",
+    "x_date_debut": "date_debut",
+}).with_columns(
+    pl.col("date_debut").dt.offset_by("1y").alias("date_fin")  # 1 an
+)
+
+# Calcul TURPE
+result = periodes.lazy().pipe(ajouter_turpe_fixe).collect()
+```
+
+---
+
+## Bonnes pratiques
+
+### 1. Toujours utiliser les fonctions pipeline
+
+```python
+# ✅ BON - Gestion automatique des règles et validations
+result = ajouter_turpe_fixe(periodes)
+
+# ❌ MAUVAIS - Réinvention de la roue, risque d'erreurs
+result = periodes.with_columns(expr_calculer_turpe_fixe_annuel())
+```
+
+### 2. Charger les règles TURPE une seule fois
+
+```python
+# ✅ BON - Réutilisation des règles
+regles = load_turpe_rules()
+result1 = ajouter_turpe_fixe(periodes1, regles=regles)
+result2 = ajouter_turpe_fixe(periodes2, regles=regles)
+
+# ❌ MAUVAIS - Rechargement inutile
+result1 = ajouter_turpe_fixe(periodes1)  # charge les règles
+result2 = ajouter_turpe_fixe(periodes2)  # recharge les règles
+```
+
+### 3. Validation des données C4
+
+```python
+from electricore.core.pipelines.turpe import expr_valider_puissances_croissantes_c4
+
+# Toujours valider la contrainte P₁ ≤ P₂ ≤ P₃ ≤ P₄
+periodes_c4 = periodes_c4.with_columns(
+    expr_valider_puissances_croissantes_c4().alias("contrainte_ok")
+)
+
+# Filtrer les lignes invalides
+invalides = periodes_c4.filter(~pl.col("contrainte_ok"))
+if invalides.height > 0:
+    print(f"⚠️ {invalides.height} points C4 ne respectent pas P₁≤P₂≤P₃≤P₄")
+```
+
+### 4. Gestion des colonnes optionnelles
+
+```python
+# Les fonctions pipeline gèrent automatiquement les colonnes manquantes
+# Inutile de créer manuellement les colonnes C4 pour un point C5
+
+periodes_c5 = pl.LazyFrame({
+    "pdl": ["PDL001"],
+    "formule_tarifaire_acheminement": ["BTINFCU4"],
+    "puissance_souscrite": [9.0],
+    "date_debut": ["2025-01-01"],
+    "date_fin": ["2025-03-31"],
+    # ✅ Pas besoin de créer puissance_souscrite_hph/hch/hpb/hcb
+})
+
+result = ajouter_turpe_fixe(periodes_c5)  # Fonctionne directement
+```
+
+### 5. Utiliser LazyFrame pour optimiser les performances
+
+```python
+# ✅ BON - LazyFrame optimisé
+periodes_lf = pl.scan_parquet("periodes.parquet")
+result = ajouter_turpe_fixe(periodes_lf).collect()
+
+# ⚠️ Moins optimal - DataFrame eager
+periodes_df = pl.read_parquet("periodes.parquet")
+result = ajouter_turpe_fixe(periodes_df.lazy()).collect()
 ```
 
 ---
 
 ## Ressources complémentaires
 
-- **Code source** : [electricore/core/pipelines/turpe.py](../electricore/core/pipelines/turpe.py)
+- **Code source** : [electricore/core/pipelines/turpe.py](../electricore/core/pipelines/turpe.py:366)
 - **Tests exhaustifs** : [tests/unit/test_turpe.py](../tests/unit/test_turpe.py)
 - **Documentation C4** : [turpe-fixe-c4-btsup36kva.md](./turpe-fixe-c4-btsup36kva.md)
-- **Tarifs CRE** : [electricore/config/turpe_rules.csv](../electricore/config/turpe_rules.csv)
+- **Tarifs CRE officiels** : [electricore/config/turpe_rules.csv](../electricore/config/turpe_rules.csv)
 - **Nomenclature CRE** : Délibération CRE 2025-40 du 30 janvier 2025
 
 ---
@@ -512,3 +575,5 @@ df = df.with_columns(pl.lit(10.44).alias("b"))
 ## Support
 
 Pour toute question ou cas d'usage spécifique, consultez les tests unitaires qui couvrent 38 scénarios différents avec des exemples concrets et validés.
+
+Les fonctions `ajouter_turpe_fixe()` et `ajouter_turpe_variable()` sont conçues pour être **directement réutilisables** sans modification. Si vous avez besoin d'une personnalisation, ouvrez une issue pour discussion.

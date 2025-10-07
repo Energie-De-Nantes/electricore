@@ -110,11 +110,11 @@ class TestExpressionsTurpeFixe:
         """DataFrame de test pour le TURPE fixe."""
         return pl.DataFrame({
             "formule_tarifaire_acheminement": ["BTINFCUST", "BTINFCU4"],
-            "puissance_souscrite": [6.0, 9.0],
-            "puissance_souscrite_hph": [None, None],  # C5 n'utilise pas ces colonnes
-            "puissance_souscrite_hch": [None, None],
-            "puissance_souscrite_hpb": [None, None],
-            "puissance_souscrite_hcb": [None, None],
+            "puissance_souscrite_kva": [6.0, 9.0],
+            "puissance_souscrite_hph_kva": [None, None],  # C5 n'utilise pas ces colonnes
+            "puissance_souscrite_hch_kva": [None, None],
+            "puissance_souscrite_hpb_kva": [None, None],
+            "puissance_souscrite_hcb_kva": [None, None],
             "nb_jours": [30, 31],
             "debut": [
                 datetime(2024, 1, 1),
@@ -194,13 +194,13 @@ class TestExpressionsTurpeVariable:
                 datetime(2024, 2, 1)
             ],
             # Énergies par cadran (kWh)
-            "base_energie": [100.0, 0.0],
-            "hp_energie": [0.0, 50.0],
-            "hc_energie": [0.0, 30.0],
-            "hph_energie": [0.0, 40.0],
-            "hch_energie": [0.0, 25.0],
-            "hpb_energie": [0.0, 0.0],
-            "hcb_energie": [0.0, 0.0],
+            "energie_base_kwh": [100.0, 0.0],
+            "energie_hp_kwh": [0.0, 50.0],
+            "energie_hc_kwh": [0.0, 30.0],
+            "energie_hph_kwh": [0.0, 40.0],
+            "energie_hch_kwh": [0.0, 25.0],
+            "energie_hpb_kwh": [0.0, 0.0],
+            "energie_hcb_kwh": [0.0, 0.0],
             # Tarifs TURPE (c€/kWh) - nomenclature CRE
             "c_base": [4.37, 0.0],
             "c_hp": [0.0, 4.68],
@@ -386,13 +386,13 @@ class TestComposanteDepassement:
             "debut": [datetime(2025, 9, 1)],  # Après 2025-08-01 (règles actuelles)
             "pdl": ["PDL_C4_001"],
             # Énergies (kWh)
-            "base_energie": [0.0],
-            "hp_energie": [0.0],
-            "hc_energie": [0.0],
-            "hph_energie": [100.0],  # 100 kWh en HPH
-            "hch_energie": [50.0],   # 50 kWh en HCH
-            "hpb_energie": [30.0],   # 30 kWh en HPB
-            "hcb_energie": [20.0],   # 20 kWh en HCB
+            "energie_base_kwh": [0.0],
+            "energie_hp_kwh": [0.0],
+            "energie_hc_kwh": [0.0],
+            "energie_hph_kwh": [100.0],  # 100 kWh en HPH
+            "energie_hch_kwh": [50.0],   # 50 kWh en HCH
+            "energie_hpb_kwh": [30.0],   # 30 kWh en HPB
+            "energie_hcb_kwh": [20.0],   # 20 kWh en HCB
             # Dépassement
             "depassement_puissance_h": [5.0],  # 5 heures de dépassement
         }).with_columns(
@@ -403,10 +403,10 @@ class TestComposanteDepassement:
         resultat = ajouter_turpe_variable(periodes_c4).collect()
 
         # Vérifications
-        assert "turpe_variable" in resultat.columns
+        assert "turpe_variable_eur" in resultat.columns
         assert resultat.shape[0] == 1
 
-        turpe_total = resultat["turpe_variable"][0]
+        turpe_total = resultat["turpe_variable_eur"][0]
 
         # Calcul attendu :
         # - Cadrans : (100×6.91 + 50×4.21 + 30×2.13 + 20×1.52) / 100
@@ -429,13 +429,13 @@ class TestComposanteDepassement:
             "debut": [datetime(2025, 9, 1)],
             "pdl": ["PDL_C5_001"],
             # Énergies (kWh)
-            "base_energie": [0.0],
-            "hp_energie": [0.0],
-            "hc_energie": [0.0],
-            "hph_energie": [100.0],
-            "hch_energie": [50.0],
-            "hpb_energie": [30.0],
-            "hcb_energie": [20.0],
+            "energie_base_kwh": [0.0],
+            "energie_hp_kwh": [0.0],
+            "energie_hc_kwh": [0.0],
+            "energie_hph_kwh": [100.0],
+            "energie_hch_kwh": [50.0],
+            "energie_hpb_kwh": [30.0],
+            "energie_hcb_kwh": [20.0],
             # PAS de colonne depassement_puissance_h (C5 n'en a pas besoin)
         }).with_columns(
             pl.col("debut").dt.replace_time_zone("Europe/Paris")
@@ -445,10 +445,10 @@ class TestComposanteDepassement:
         resultat = ajouter_turpe_variable(periodes_c5).collect()
 
         # Vérifications
-        assert "turpe_variable" in resultat.columns
+        assert "turpe_variable_eur" in resultat.columns
         assert resultat.shape[0] == 1
 
-        turpe_total = resultat["turpe_variable"][0]
+        turpe_total = resultat["turpe_variable_eur"][0]
 
         # Calcul attendu : seulement les cadrans (pas de CMDPS pour C5)
         # (100×7.49 + 50×3.97 + 30×1.66 + 20×1.16) / 100 = 1021.7 / 100 = 10.217 €
@@ -535,7 +535,7 @@ class TestPipelinesIntegration:
         """Périodes d'abonnement de test."""
         return pl.LazyFrame({
             "formule_tarifaire_acheminement": ["BTINFCUST", "BTINFMU4"],
-            "puissance_souscrite": [6.0, 9.0],
+            "puissance_souscrite_kva": [6.0, 9.0],
             "nb_jours": [30, 31],
             "debut": [datetime(2024, 1, 1), datetime(2024, 2, 1)],
             "pdl": ["PDL001", "PDL002"],
@@ -550,13 +550,13 @@ class TestPipelinesIntegration:
             "formule_tarifaire_acheminement": ["BTINFCUST", "BTINFMU4"],
             "debut": [datetime(2024, 1, 1), datetime(2024, 2, 1)],
             "pdl": ["PDL001", "PDL002"],
-            "base_energie": [100.0, 0.0],
-            "hp_energie": [0.0, 50.0],
-            "hc_energie": [0.0, 30.0],
-            "hph_energie": [0.0, 40.0],
-            "hch_energie": [0.0, 25.0],
-            "hpb_energie": [0.0, 0.0],
-            "hcb_energie": [0.0, 0.0],
+            "energie_base_kwh": [100.0, 0.0],
+            "energie_hp_kwh": [0.0, 50.0],
+            "energie_hc_kwh": [0.0, 30.0],
+            "energie_hph_kwh": [0.0, 40.0],
+            "energie_hch_kwh": [0.0, 25.0],
+            "energie_hpb_kwh": [0.0, 0.0],
+            "energie_hcb_kwh": [0.0, 0.0],
         }).with_columns(
             pl.col("debut").dt.replace_time_zone("Europe/Paris")
         )
@@ -566,15 +566,15 @@ class TestPipelinesIntegration:
         resultat = ajouter_turpe_fixe(periodes_abonnement_test).collect()
 
         # Vérifications de base
-        assert "turpe_fixe" in resultat.columns
+        assert "turpe_fixe_eur" in resultat.columns
         assert resultat.shape[0] == 2
-        assert resultat["turpe_fixe"].null_count() == 0
+        assert resultat["turpe_fixe_eur"].null_count() == 0
 
         # Toutes les valeurs doivent être positives
-        assert resultat["turpe_fixe"].min() > 0
+        assert resultat["turpe_fixe_eur"].min() > 0
 
         # Les colonnes originales doivent être préservées
-        colonnes_originales = ["formule_tarifaire_acheminement", "puissance_souscrite", "nb_jours", "debut", "pdl"]
+        colonnes_originales = ["formule_tarifaire_acheminement", "puissance_souscrite_kva", "nb_jours", "debut", "pdl"]
         for col in colonnes_originales:
             assert col in resultat.columns, f"Colonne originale manquante: {col}"
 
@@ -583,12 +583,12 @@ class TestPipelinesIntegration:
         resultat = ajouter_turpe_variable(periodes_energie_test).collect()
 
         # Vérifications de base
-        assert "turpe_variable" in resultat.columns
+        assert "turpe_variable_eur" in resultat.columns
         assert resultat.shape[0] == 2
-        assert resultat["turpe_variable"].null_count() == 0
+        assert resultat["turpe_variable_eur"].null_count() == 0
 
         # Toutes les valeurs doivent être positives ou nulles
-        assert resultat["turpe_variable"].min() >= 0
+        assert resultat["turpe_variable_eur"].min() >= 0
 
         # Les colonnes originales doivent être préservées
         colonnes_originales = ["formule_tarifaire_acheminement", "debut", "pdl"]
@@ -600,7 +600,7 @@ class TestPipelinesIntegration:
         # Test TURPE fixe avec une FTA connue
         periodes_fixe = pl.LazyFrame({
             "formule_tarifaire_acheminement": ["BTINFCUST"],
-            "puissance_souscrite": [6.0],
+            "puissance_souscrite_kva": [6.0],
             "nb_jours": [30],
             "debut": [datetime(2024, 11, 15)],  # Date dans les règles 2024-11-01 à 2025-02-01
         }).with_columns(
@@ -608,7 +608,7 @@ class TestPipelinesIntegration:
         )
 
         resultat_fixe = ajouter_turpe_fixe(periodes_fixe).collect()
-        turpe_fixe = resultat_fixe["turpe_fixe"][0]
+        turpe_fixe = resultat_fixe["turpe_fixe_eur"][0]
 
         # Vérification cohérence (calcul approximatif)
         # BTINFCUST 2024-11-01: b=10.44, cg=16.2, cc=20.88
@@ -620,16 +620,16 @@ class TestPipelinesIntegration:
         periodes_variable = pl.LazyFrame({
             "formule_tarifaire_acheminement": ["BTINFCUST"],
             "debut": [datetime(2024, 11, 15)],
-            "base_energie": [100.0],
-            "hp_energie": [0.0], "hc_energie": [0.0],
-            "hph_energie": [0.0], "hch_energie": [0.0],
-            "hpb_energie": [0.0], "hcb_energie": [0.0],
+            "energie_base_kwh": [100.0],
+            "energie_hp_kwh": [0.0], "energie_hc_kwh": [0.0],
+            "energie_hph_kwh": [0.0], "energie_hch_kwh": [0.0],
+            "energie_hpb_kwh": [0.0], "energie_hcb_kwh": [0.0],
         }).with_columns(
             pl.col("debut").dt.replace_time_zone("Europe/Paris")
         )
 
         resultat_variable = ajouter_turpe_variable(periodes_variable).collect()
-        turpe_variable = resultat_variable["turpe_variable"][0]
+        turpe_variable = resultat_variable["turpe_variable_eur"][0]
 
         # Vérification cohérence
         # BTINFCUST 2024-11-01: BASE=4.58
@@ -643,13 +643,13 @@ class TestFonctionsDebug:
     def test_debug_turpe_variable(self):
         """Test de la fonction debug_turpe_variable."""
         df_test = pl.LazyFrame({
-            "base_energie": [100.0],
-            "hp_energie": [50.0],
-            "hc_energie": [30.0],
-            "hph_energie": [40.0],
-            "hch_energie": [25.0],
-            "hpb_energie": [0.0],
-            "hcb_energie": [0.0],
+            "energie_base_kwh": [100.0],
+            "energie_hp_kwh": [50.0],
+            "energie_hc_kwh": [30.0],
+            "energie_hph_kwh": [40.0],
+            "energie_hch_kwh": [25.0],
+            "energie_hpb_kwh": [0.0],
+            "energie_hcb_kwh": [0.0],
             "base": [4.37],
             "hp": [4.68],
             "hc": [3.31],
@@ -686,16 +686,16 @@ class TestFonctionsDebug:
         """Test de la fonction de comparaison avec pandas."""
         # Créer des données de test
         lf = pl.LazyFrame({
-            "turpe_variable": [4.37, 2.34],
-            "turpe_fixe": [8.20, 10.30],
+            "turpe_variable_eur": [4.37, 2.34],
+            "turpe_fixe_eur": [8.20, 10.30],
             "energie": [100.0, 50.0]
         })
 
         # Simuler un DataFrame pandas équivalent
         import pandas as pd
         df_pandas = pd.DataFrame({
-            "turpe_variable": [4.37, 2.34],  # Identique
-            "turpe_fixe": [8.21, 10.29],     # Légèrement différent
+            "turpe_variable_eur": [4.37, 2.34],  # Identique
+            "turpe_fixe_eur": [8.21, 10.29],     # Légèrement différent
             "energie": [100.0, 50.0],        # Identique
             "autre_col": ["A", "B"]          # Colonne supplémentaire
         })
@@ -703,16 +703,16 @@ class TestFonctionsDebug:
         stats = comparer_avec_pandas(lf, df_pandas)
 
         # Vérifier la structure des statistiques
-        assert "turpe_variable_diff_max" in stats
-        assert "turpe_variable_diff_moyenne" in stats
-        assert "turpe_fixe_diff_max" in stats
-        assert "turpe_fixe_diff_moyenne" in stats
+        assert "turpe_variable_eur_diff_max" in stats
+        assert "turpe_variable_eur_diff_moyenne" in stats
+        assert "turpe_fixe_eur_diff_max" in stats
+        assert "turpe_fixe_eur_diff_moyenne" in stats
         assert "energie_diff_max" in stats
         assert "energie_diff_moyenne" in stats
 
         # Vérifier les valeurs (avec tolérance pour la précision flottante)
-        assert stats["turpe_variable_diff_max"] == 0.0  # Identique
-        assert abs(stats["turpe_fixe_diff_max"] - 0.01) < 1e-10  # Différence maximale
+        assert stats["turpe_variable_eur_diff_max"] == 0.0  # Identique
+        assert abs(stats["turpe_fixe_eur_diff_max"] - 0.01) < 1e-10  # Différence maximale
         assert stats["energie_diff_max"] == 0.0         # Identique
 
 
@@ -723,12 +723,12 @@ class TestCasLimites:
         """Test avec des DataFrames vides."""
         df_vide = pl.LazyFrame({
             "formule_tarifaire_acheminement": [],
-            "puissance_souscrite": [],
+            "puissance_souscrite_kva": [],
             "nb_jours": [],
             "debut": [],
         }, schema={
             "formule_tarifaire_acheminement": pl.String,
-            "puissance_souscrite": pl.Float64,
+            "puissance_souscrite_kva": pl.Float64,
             "nb_jours": pl.Int32,
             "debut": pl.Datetime(time_zone="Europe/Paris"),
         })
@@ -736,20 +736,20 @@ class TestCasLimites:
         # Ne doit pas lever d'erreur
         resultat_fixe = ajouter_turpe_fixe(df_vide).collect()
         assert resultat_fixe.shape[0] == 0
-        assert "turpe_fixe" in resultat_fixe.columns
+        assert "turpe_fixe_eur" in resultat_fixe.columns
 
     def test_valeurs_nulles_energie(self):
         """Test avec des valeurs nulles dans les énergies."""
         df_test = pl.LazyFrame({
             "formule_tarifaire_acheminement": ["BTINFCUST"],
             "debut": [datetime(2024, 1, 1)],
-            "base_energie": [None],  # Valeur nulle
-            "hp_energie": [0.0],
-            "hc_energie": [0.0],
-            "hph_energie": [0.0],
-            "hch_energie": [0.0],
-            "hpb_energie": [0.0],
-            "hcb_energie": [0.0],
+            "energie_base_kwh": [None],  # Valeur nulle
+            "energie_hp_kwh": [0.0],
+            "energie_hc_kwh": [0.0],
+            "energie_hph_kwh": [0.0],
+            "energie_hch_kwh": [0.0],
+            "energie_hpb_kwh": [0.0],
+            "energie_hcb_kwh": [0.0],
         }).with_columns(
             pl.col("debut").dt.replace_time_zone("Europe/Paris")
         )
@@ -757,13 +757,13 @@ class TestCasLimites:
         resultat = ajouter_turpe_variable(df_test).collect()
 
         # Doit retourner 0.0 pour la contribution du cadran BASE
-        assert resultat["turpe_variable"][0] == 0.0
+        assert resultat["turpe_variable_eur"][0] == 0.0
 
     def test_fta_inexistante(self):
         """Test avec une FTA qui n'existe pas dans les règles."""
         df_test = pl.LazyFrame({
             "formule_tarifaire_acheminement": ["FTA_INEXISTANTE"],
-            "puissance_souscrite": [6.0],
+            "puissance_souscrite_kva": [6.0],
             "nb_jours": [30],
             "debut": [datetime(2024, 1, 1)],
         }).with_columns(
@@ -823,10 +823,10 @@ class TestTurpeFixeC4:
     def test_expr_valider_puissances_croissantes_c4_valide(self):
         """Test validation P₁ ≤ P₂ ≤ P₃ ≤ P₄ - cas valide."""
         df = pl.DataFrame({
-            "puissance_souscrite_hph": [36.0, 50.0],
-            "puissance_souscrite_hch": [36.0, 60.0],
-            "puissance_souscrite_hpb": [60.0, 80.0],
-            "puissance_souscrite_hcb": [60.0, 100.0],
+            "puissance_souscrite_hph_kva": [36.0, 50.0],
+            "puissance_souscrite_hch_kva": [36.0, 60.0],
+            "puissance_souscrite_hpb_kva": [60.0, 80.0],
+            "puissance_souscrite_hcb_kva": [60.0, 100.0],
         })
 
         resultat = df.with_columns(
@@ -838,10 +838,10 @@ class TestTurpeFixeC4:
     def test_expr_valider_puissances_croissantes_c4_invalide(self):
         """Test validation P₁ ≤ P₂ ≤ P₃ ≤ P₄ - cas invalides."""
         df = pl.DataFrame({
-            "puissance_souscrite_hph": [60.0, 36.0, 36.0],  # P₁
-            "puissance_souscrite_hch": [36.0, 50.0, 36.0],  # P₂
-            "puissance_souscrite_hpb": [36.0, 40.0, 36.0],  # P₃
-            "puissance_souscrite_hcb": [36.0, 36.0, 30.0],  # P₄
+            "puissance_souscrite_hph_kva": [60.0, 36.0, 36.0],  # P₁
+            "puissance_souscrite_hch_kva": [36.0, 50.0, 36.0],  # P₂
+            "puissance_souscrite_hpb_kva": [36.0, 40.0, 36.0],  # P₃
+            "puissance_souscrite_hcb_kva": [36.0, 36.0, 30.0],  # P₄
         })
 
         resultat = df.with_columns(
@@ -855,11 +855,11 @@ class TestTurpeFixeC4:
         """Test calcul TURPE fixe C4 - Exemple 1 : puissance constante (60 kVA)."""
         df = pl.DataFrame({
             "formule_tarifaire_acheminement": ["BTSUPCU"],
-            "puissance_souscrite": [0.0],  # Non utilisé en C4
-            "puissance_souscrite_hph": [60.0],
-            "puissance_souscrite_hch": [60.0],
-            "puissance_souscrite_hpb": [60.0],
-            "puissance_souscrite_hcb": [60.0],
+            "puissance_souscrite_kva": [0.0],  # Non utilisé en C4
+            "puissance_souscrite_hph_kva": [60.0],
+            "puissance_souscrite_hch_kva": [60.0],
+            "puissance_souscrite_hpb_kva": [60.0],
+            "puissance_souscrite_hcb_kva": [60.0],
             "nb_jours": [365],
             "debut": [datetime(2025, 8, 1, tzinfo=ZoneInfo("Europe/Paris"))],
         })
@@ -887,11 +887,11 @@ class TestTurpeFixeC4:
         """Test calcul TURPE fixe C4 - Exemple 2 : modulation modérée (36/36/60/60 kVA)."""
         df = pl.DataFrame({
             "formule_tarifaire_acheminement": ["BTSUPCU"],
-            "puissance_souscrite": [0.0],
-            "puissance_souscrite_hph": [36.0],
-            "puissance_souscrite_hch": [36.0],
-            "puissance_souscrite_hpb": [60.0],
-            "puissance_souscrite_hcb": [60.0],
+            "puissance_souscrite_kva": [0.0],
+            "puissance_souscrite_hph_kva": [36.0],
+            "puissance_souscrite_hch_kva": [36.0],
+            "puissance_souscrite_hpb_kva": [60.0],
+            "puissance_souscrite_hcb_kva": [60.0],
             "nb_jours": [365],
             "debut": [datetime(2025, 8, 1, tzinfo=ZoneInfo("Europe/Paris"))],
         })
@@ -917,11 +917,11 @@ class TestTurpeFixeC4:
         """Test calcul TURPE fixe C4 - Exemple 3 : modulation extrême (36/36/36/100 kVA)."""
         df = pl.DataFrame({
             "formule_tarifaire_acheminement": ["BTSUPCU"],
-            "puissance_souscrite": [0.0],
-            "puissance_souscrite_hph": [36.0],
-            "puissance_souscrite_hch": [36.0],
-            "puissance_souscrite_hpb": [36.0],
-            "puissance_souscrite_hcb": [100.0],
+            "puissance_souscrite_kva": [0.0],
+            "puissance_souscrite_hph_kva": [36.0],
+            "puissance_souscrite_hch_kva": [36.0],
+            "puissance_souscrite_hpb_kva": [36.0],
+            "puissance_souscrite_hcb_kva": [100.0],
             "nb_jours": [365],
             "debut": [datetime(2025, 8, 1, tzinfo=ZoneInfo("Europe/Paris"))],
         })
@@ -947,11 +947,11 @@ class TestTurpeFixeC4:
         """Test que le calcul C5 reste inchangé (pas de régression)."""
         df = pl.DataFrame({
             "formule_tarifaire_acheminement": ["BTINFCU4"],
-            "puissance_souscrite": [36.0],
-            "puissance_souscrite_hph": [None],  # C5 n'utilise pas ces colonnes
-            "puissance_souscrite_hch": [None],
-            "puissance_souscrite_hpb": [None],
-            "puissance_souscrite_hcb": [None],
+            "puissance_souscrite_kva": [36.0],
+            "puissance_souscrite_hph_kva": [None],  # C5 n'utilise pas ces colonnes
+            "puissance_souscrite_hch_kva": [None],
+            "puissance_souscrite_hpb_kva": [None],
+            "puissance_souscrite_hcb_kva": [None],
             "nb_jours": [365],
             "debut": [datetime(2025, 8, 1, tzinfo=ZoneInfo("Europe/Paris"))],
         })
@@ -975,30 +975,30 @@ class TestTurpeFixeC4:
         """Test intégration complète du pipeline avec données C4."""
         periodes = pl.LazyFrame({
             "formule_tarifaire_acheminement": ["BTSUPCU"],
-            "puissance_souscrite": [0.0],
-            "puissance_souscrite_hph": [36.0],
-            "puissance_souscrite_hch": [50.0],
-            "puissance_souscrite_hpb": [70.0],
-            "puissance_souscrite_hcb": [90.0],
+            "puissance_souscrite_kva": [0.0],
+            "puissance_souscrite_hph_kva": [36.0],
+            "puissance_souscrite_hch_kva": [50.0],
+            "puissance_souscrite_hpb_kva": [70.0],
+            "puissance_souscrite_hcb_kva": [90.0],
             "nb_jours": [30],
             "debut": [datetime(2025, 9, 1, tzinfo=ZoneInfo("Europe/Paris"))],
         })
 
         resultat = ajouter_turpe_fixe(periodes).collect()
 
-        assert "turpe_fixe" in resultat.columns
+        assert "turpe_fixe_eur" in resultat.columns
         assert resultat.shape[0] == 1
-        assert resultat["turpe_fixe"][0] > 0
+        assert resultat["turpe_fixe_eur"][0] > 0
 
     def test_integration_pipeline_mixte_c4_et_c5(self):
         """Test intégration pipeline avec mélange C4 et C5."""
         periodes = pl.LazyFrame({
             "formule_tarifaire_acheminement": ["BTSUPCU", "BTINFCU4"],
-            "puissance_souscrite": [0.0, 36.0],
-            "puissance_souscrite_hph": [36.0, None],
-            "puissance_souscrite_hch": [40.0, None],
-            "puissance_souscrite_hpb": [50.0, None],
-            "puissance_souscrite_hcb": [60.0, None],
+            "puissance_souscrite_kva": [0.0, 36.0],
+            "puissance_souscrite_hph_kva": [36.0, None],
+            "puissance_souscrite_hch_kva": [40.0, None],
+            "puissance_souscrite_hpb_kva": [50.0, None],
+            "puissance_souscrite_hcb_kva": [60.0, None],
             "nb_jours": [30, 30],
             "debut": [
                 datetime(2025, 9, 1, tzinfo=ZoneInfo("Europe/Paris")),
@@ -1009,7 +1009,7 @@ class TestTurpeFixeC4:
         resultat = ajouter_turpe_fixe(periodes).collect()
 
         assert resultat.shape[0] == 2
-        assert all(resultat["turpe_fixe"] > 0)
+        assert all(resultat["turpe_fixe_eur"] > 0)
 
 
 if __name__ == "__main__":

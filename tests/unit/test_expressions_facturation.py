@@ -31,7 +31,7 @@ class TestExpressionsAtomiques:
             "ref_situation_contractuelle": ["REF1", "REF1"],
             "pdl": ["PDL1", "PDL1"],
             "mois_annee": ["mars 2025", "mars 2025"],
-            "puissance_souscrite": [6.0, 9.0],
+            "puissance_souscrite_kva": [6.0, 9.0],
             "nb_jours": [10, 20]  # 10j à 6kVA + 20j à 9kVA
         })
 
@@ -56,7 +56,7 @@ class TestExpressionsAtomiques:
         """Test de la construction du mémo simple."""
         data = pl.DataFrame({
             "nb_jours": [14, 17],
-            "puissance_souscrite": [6.0, 9.0]
+            "puissance_souscrite_kva": [6.0, 9.0]
         })
 
         result = data.with_columns(
@@ -106,9 +106,9 @@ class TestAgregatioAbonnements:
             "ref_situation_contractuelle": ["REF1"],
             "pdl": ["PDL1"],
             "mois_annee": ["mars 2025"],
-            "puissance_souscrite": [6.0],
+            "puissance_souscrite_kva": [6.0],
             "nb_jours": [31],
-            "turpe_fixe": [50.0],
+            "turpe_fixe_eur": [50.0],
             "formule_tarifaire_acheminement": ["BTINF"],
             "debut": [datetime(2025, 3, 1)],
             "fin": [datetime(2025, 3, 31)],
@@ -124,7 +124,7 @@ class TestAgregatioAbonnements:
         assert len(collected) == 1
         assert collected["puissance_moyenne"][0] == 6.0  # Une seule période
         assert collected["nb_jours"][0] == 31
-        assert collected["turpe_fixe"][0] == 50.0
+        assert collected["turpe_fixe_eur"][0] == 50.0
         assert collected["nb_sous_periodes_abo"][0] == 1
         assert collected["has_changement_abo"][0] is False
         assert collected["memo_puissance"][0] == ""  # Pas de changement
@@ -135,9 +135,9 @@ class TestAgregatioAbonnements:
             "ref_situation_contractuelle": ["REF1", "REF1"],
             "pdl": ["PDL1", "PDL1"],
             "mois_annee": ["mars 2025", "mars 2025"],
-            "puissance_souscrite": [6.0, 9.0],
+            "puissance_souscrite_kva": [6.0, 9.0],
             "nb_jours": [15, 16],
-            "turpe_fixe": [25.0, 30.0],
+            "turpe_fixe_eur": [25.0, 30.0],
             "formule_tarifaire_acheminement": ["BTINF", "BTINF"],
             "debut": [datetime(2025, 3, 1), datetime(2025, 3, 16)],
             "fin": [datetime(2025, 3, 15), datetime(2025, 3, 31)],
@@ -156,7 +156,7 @@ class TestAgregatioAbonnements:
         assert collected["puissance_moyenne"][0] == pytest.approx(expected_puissance)
 
         assert collected["nb_jours"][0] == 31  # Total
-        assert collected["turpe_fixe"][0] == 55.0  # Somme
+        assert collected["turpe_fixe_eur"][0] == 55.0  # Somme
         assert collected["nb_sous_periodes_abo"][0] == 2
         assert collected["has_changement_abo"][0] is True
         assert "15j à 6kVA, 16j à 9kVA" in collected["memo_puissance"][0]
@@ -171,10 +171,10 @@ class TestAgregatioEnergies:
             "ref_situation_contractuelle": ["REF1"],
             "pdl": ["PDL1"],
             "mois_annee": ["mars 2025"],
-            "base_energie": [1000.0],
-            "hp_energie": [500.0],
-            "hc_energie": [300.0],
-            "turpe_variable": [25.0],
+            "energie_base_kwh": [1000.0],
+            "energie_hp_kwh": [500.0],
+            "energie_hc_kwh": [300.0],
+            "turpe_variable_eur": [25.0],
             "data_complete": [True],
             "debut": [datetime(2025, 3, 1)],
             "fin": [datetime(2025, 3, 31)],
@@ -191,10 +191,10 @@ class TestAgregatioEnergies:
         # Vérifications
         collected = result.collect()
         assert len(collected) == 1
-        assert collected["base_energie"][0] == 1000.0
-        assert collected["hp_energie"][0] == 500.0
-        assert collected["hc_energie"][0] == 300.0
-        assert collected["turpe_variable"][0] == 25.0
+        assert collected["energie_base_kwh"][0] == 1000.0
+        assert collected["energie_hp_kwh"][0] == 500.0
+        assert collected["energie_hc_kwh"][0] == 300.0
+        assert collected["turpe_variable_eur"][0] == 25.0
         assert collected["data_complete"][0] is True
         assert collected["nb_sous_periodes_energie"][0] == 1
         assert collected["has_changement_energie"][0] is False
@@ -205,10 +205,10 @@ class TestAgregatioEnergies:
             "ref_situation_contractuelle": ["REF1", "REF1"],
             "pdl": ["PDL1", "PDL1"],
             "mois_annee": ["mars 2025", "mars 2025"],
-            "base_energie": [500.0, 800.0],
-            "hp_energie": [200.0, 300.0],
-            "hc_energie": [100.0, 200.0],
-            "turpe_variable": [12.0, 18.0],
+            "energie_base_kwh": [500.0, 800.0],
+            "energie_hp_kwh": [200.0, 300.0],
+            "energie_hc_kwh": [100.0, 200.0],
+            "turpe_variable_eur": [12.0, 18.0],
             "data_complete": [True, False],  # Une incomplète
             "debut": [datetime(2025, 3, 1), datetime(2025, 3, 15)],
             "fin": [datetime(2025, 3, 15), datetime(2025, 3, 31)],
@@ -225,10 +225,10 @@ class TestAgregatioEnergies:
         # Vérifications
         collected = result.collect()
         assert len(collected) == 1
-        assert collected["base_energie"][0] == 1300.0  # Somme
-        assert collected["hp_energie"][0] == 500.0    # Somme
-        assert collected["hc_energie"][0] == 300.0    # Somme
-        assert collected["turpe_variable"][0] == 30.0  # Somme
+        assert collected["energie_base_kwh"][0] == 1300.0  # Somme
+        assert collected["energie_hp_kwh"][0] == 500.0    # Somme
+        assert collected["energie_hc_kwh"][0] == 300.0    # Somme
+        assert collected["turpe_variable_eur"][0] == 30.0  # Somme
         assert collected["data_complete"][0] is False  # AND logique
         assert collected["nb_sous_periodes_energie"][0] == 2
         assert collected["has_changement_energie"][0] is True
@@ -245,7 +245,7 @@ class TestJointureMetaPeriodes:
             "mois_annee": ["mars 2025"],
             "puissance_moyenne": [6.0],
             "nb_jours": [31],
-            "turpe_fixe": [50.0],
+            "turpe_fixe_eur": [50.0],
             "formule_tarifaire_acheminement": ["BTINF"],
             "debut": [datetime(2025, 3, 1)],
             "fin": [datetime(2025, 3, 31)],
@@ -261,10 +261,10 @@ class TestJointureMetaPeriodes:
             "ref_situation_contractuelle": ["REF1"],
             "pdl": ["PDL1"],
             "mois_annee": ["mars 2025"],
-            "base_energie": [1000.0],
-            "hp_energie": [500.0],
-            "hc_energie": [300.0],
-            "turpe_variable": [25.0],
+            "energie_base_kwh": [1000.0],
+            "energie_hp_kwh": [500.0],
+            "energie_hc_kwh": [300.0],
+            "turpe_variable_eur": [25.0],
             "data_complete": [True],
             "debut": [datetime(2025, 3, 1)],
             "fin": [datetime(2025, 3, 31)],
@@ -279,7 +279,7 @@ class TestJointureMetaPeriodes:
         collected = result.collect()
         assert len(collected) == 1
         assert collected["puissance_moyenne"][0] == 6.0
-        assert collected["base_energie"][0] == 1000.0
+        assert collected["energie_base_kwh"][0] == 1000.0
         assert collected["has_changement"][0] is False
         assert collected["coverage_abo"][0] == 1.0  # Placeholder
         assert collected["coverage_energie"][0] == 1.0  # Placeholder
@@ -293,7 +293,7 @@ class TestJointureMetaPeriodes:
             "mois_annee": ["mars 2025"],
             "puissance_moyenne": [6.0],
             "nb_jours": [31],
-            "turpe_fixe": [50.0],
+            "turpe_fixe_eur": [50.0],
             "formule_tarifaire_acheminement": ["BTINF"],
             "debut": [datetime(2025, 3, 1)],
             "fin": [datetime(2025, 3, 31)],
@@ -309,10 +309,10 @@ class TestJointureMetaPeriodes:
             "ref_situation_contractuelle": ["REF1"],
             "pdl": ["PDL1"],
             "mois_annee": ["avril 2025"],  # Mois différent
-            "base_energie": [1000.0],
-            "hp_energie": [500.0],
-            "hc_energie": [300.0],
-            "turpe_variable": [25.0],
+            "energie_base_kwh": [1000.0],
+            "energie_hp_kwh": [500.0],
+            "energie_hc_kwh": [300.0],
+            "turpe_variable_eur": [25.0],
             "data_complete": [True],
             "debut": [datetime(2025, 4, 1)],
             "fin": [datetime(2025, 4, 30)],
@@ -331,13 +331,13 @@ class TestJointureMetaPeriodes:
         ligne_mars = collected.filter(pl.col("mois_annee") == "mars 2025")
         assert len(ligne_mars) == 1
         assert ligne_mars["puissance_moyenne"][0] == 6.0
-        assert ligne_mars["base_energie"][0] == 0.0  # Fill null
+        assert ligne_mars["energie_base_kwh"][0] == 0.0  # Fill null
 
         # Ligne avril : abo null, énergie présente
         ligne_avril = collected.filter(pl.col("mois_annee") == "avril 2025")
         assert len(ligne_avril) == 1
         assert ligne_avril["puissance_moyenne"][0] == 0.0  # Fill null
-        assert ligne_avril["base_energie"][0] == 1000.0
+        assert ligne_avril["energie_base_kwh"][0] == 1000.0
 
     def test_jointure_avec_donnees_partielles_meme_mois(self):
         """Test avec certains PDL ayant abonnement mais pas énergie dans le même mois."""
@@ -347,7 +347,7 @@ class TestJointureMetaPeriodes:
             "mois_annee": ["mars 2025", "mars 2025"],
             "puissance_moyenne": [6.0, 9.0],
             "nb_jours": [31, 31],
-            "turpe_fixe": [50.0, 75.0],
+            "turpe_fixe_eur": [50.0, 75.0],
             "formule_tarifaire_acheminement": ["BTINF", "BTINF"],
             "debut": [datetime(2025, 3, 1), datetime(2025, 3, 1)],
             "fin": [datetime(2025, 3, 31), datetime(2025, 3, 31)],
@@ -364,10 +364,10 @@ class TestJointureMetaPeriodes:
             "ref_situation_contractuelle": ["REF1"],
             "pdl": ["PDL1"],
             "mois_annee": ["mars 2025"],
-            "base_energie": [1000.0],
-            "hp_energie": [500.0],
-            "hc_energie": [300.0],
-            "turpe_variable": [25.0],
+            "energie_base_kwh": [1000.0],
+            "energie_hp_kwh": [500.0],
+            "energie_hc_kwh": [300.0],
+            "turpe_variable_eur": [25.0],
             "data_complete": [True],
             "debut": [datetime(2025, 3, 1)],
             "fin": [datetime(2025, 3, 31)],
@@ -386,10 +386,10 @@ class TestJointureMetaPeriodes:
         pdl1 = collected.filter(pl.col("pdl") == "PDL1")
         assert len(pdl1) == 1
         assert pdl1["puissance_moyenne"][0] == 6.0
-        assert pdl1["base_energie"][0] == 1000.0
+        assert pdl1["energie_base_kwh"][0] == 1000.0
 
         # PDL2 : seulement abonnement
         pdl2 = collected.filter(pl.col("pdl") == "PDL2")
         assert len(pdl2) == 1
         assert pdl2["puissance_moyenne"][0] == 9.0
-        assert pdl2["base_energie"][0] == 0.0  # Fill null
+        assert pdl2["energie_base_kwh"][0] == 0.0  # Fill null

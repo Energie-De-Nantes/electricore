@@ -33,15 +33,15 @@ class PeriodeAbonnement(pa.DataFrameModel):
     # Paramètres tarifaires
     formule_tarifaire_acheminement: pl.Utf8 = pa.Field(nullable=False)
 
-    # Puissance souscrite C5 (BT ≤ 36 kVA) - une seule puissance
-    puissance_souscrite: pl.Float64 = pa.Field(nullable=False)
+    # Puissance souscrite C5 (BT ≤ 36 kVA) - une seule puissance en kVA
+    puissance_souscrite_kva: pl.Float64 = pa.Field(nullable=False)
 
-    # Puissances souscrites C4 (BT > 36 kVA) - 4 puissances par cadran temporel
+    # Puissances souscrites C4 (BT > 36 kVA) - 4 puissances par cadran temporel en kVA
     # Contrainte réglementaire CRE : P₁ ≤ P₂ ≤ P₃ ≤ P₄
-    puissance_souscrite_hph: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)  # P₁ - HPH
-    puissance_souscrite_hch: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)  # P₂ - HCH
-    puissance_souscrite_hpb: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)  # P₃ - HPB
-    puissance_souscrite_hcb: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)  # P₄ - HCB
+    puissance_souscrite_hph_kva: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)  # P₁ - HPH
+    puissance_souscrite_hch_kva: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)  # P₂ - HCH
+    puissance_souscrite_hpb_kva: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)  # P₃ - HPB
+    puissance_souscrite_hcb_kva: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)  # P₄ - HCB
 
     # Durée de la période
     nb_jours: pl.Int32 = pa.Field(nullable=False)

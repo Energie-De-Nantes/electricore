@@ -27,7 +27,7 @@ class HistoriquePérimètre(pa.DataFrameModel):
     categorie: Optional[pl.Utf8] = pa.Field(nullable=True)
 
     # Informations pour calculs tarifs
-    puissance_souscrite: pl.Float64 = pa.Field(nullable=False)
+    puissance_souscrite_kva: pl.Float64 = pa.Field(nullable=False)
     formule_tarifaire_acheminement: pl.Utf8 = pa.Field(nullable=False)
 
     # Informations Compteur
@@ -46,31 +46,31 @@ class HistoriquePérimètre(pa.DataFrameModel):
     num_depannage: Optional[pl.Utf8] = pa.Field(nullable=True)
     date_derniere_modification_fta: Optional[pl.Utf8] = pa.Field(nullable=True)
     
-    # Colonnes de relevés "Avant"
+    # Colonnes de relevés "Avant" (index de compteurs)
     avant_date_releve: Optional[DateTime] = pa.Field(nullable=True, dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"})
     avant_nature_index: Optional[pl.Utf8] = pa.Field(nullable=True)
     avant_id_calendrier_fournisseur: Optional[pl.Utf8] = pa.Field(nullable=True)
     avant_id_calendrier_distributeur: Optional[pl.Utf8] = pa.Field(nullable=True)
-    avant_hp: Optional[pl.Float64] = pa.Field(nullable=True)
-    avant_hc: Optional[pl.Float64] = pa.Field(nullable=True)
-    avant_hch: Optional[pl.Float64] = pa.Field(nullable=True)
-    avant_hph: Optional[pl.Float64] = pa.Field(nullable=True)
-    avant_hpb: Optional[pl.Float64] = pa.Field(nullable=True)
-    avant_hcb: Optional[pl.Float64] = pa.Field(nullable=True)
-    avant_base: Optional[pl.Float64] = pa.Field(nullable=True)
+    avant_index_hp_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
+    avant_index_hc_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
+    avant_index_hch_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
+    avant_index_hph_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
+    avant_index_hpb_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
+    avant_index_hcb_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
+    avant_index_base_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
 
-    # Colonnes de relevés "Après"
+    # Colonnes de relevés "Après" (index de compteurs)
     apres_date_releve: Optional[DateTime] = pa.Field(nullable=True, dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"})
     apres_nature_index: Optional[pl.Utf8] = pa.Field(nullable=True)
     apres_id_calendrier_fournisseur: Optional[pl.Utf8] = pa.Field(nullable=True)
     apres_id_calendrier_distributeur: Optional[pl.Utf8] = pa.Field(nullable=True)
-    apres_hp: Optional[pl.Float64] = pa.Field(nullable=True)
-    apres_hc: Optional[pl.Float64] = pa.Field(nullable=True)
-    apres_hch: Optional[pl.Float64] = pa.Field(nullable=True)
-    apres_hph: Optional[pl.Float64] = pa.Field(nullable=True)
-    apres_hpb: Optional[pl.Float64] = pa.Field(nullable=True)
-    apres_hcb: Optional[pl.Float64] = pa.Field(nullable=True)
-    apres_base: Optional[pl.Float64] = pa.Field(nullable=True)
+    apres_index_hp_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
+    apres_index_hc_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
+    apres_index_hch_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
+    apres_index_hph_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
+    apres_index_hpb_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
+    apres_index_hcb_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
+    apres_index_base_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
 
     @pa.dataframe_check
     def verifier_coherence_dates(cls, data) -> pl.LazyFrame:
@@ -110,23 +110,23 @@ class HistoriquePérimètre(pa.DataFrameModel):
         # Pour les relevés "Avant"
         cond_avant_d1 = (
             pl.when(pl.col("avant_id_calendrier_distributeur") == "DI000001")
-            .then(pl.col("avant_base").is_not_null())
+            .then(pl.col("avant_index_base_kwh").is_not_null())
             .otherwise(pl.lit(True))
         )
 
         cond_avant_d2 = (
             pl.when(pl.col("avant_id_calendrier_distributeur") == "DI000002")
-            .then(pl.col("avant_hp").is_not_null() & pl.col("avant_hc").is_not_null())
+            .then(pl.col("avant_index_hp_kwh").is_not_null() & pl.col("avant_index_hc_kwh").is_not_null())
             .otherwise(pl.lit(True))
         )
 
         cond_avant_d3 = (
             pl.when(pl.col("avant_id_calendrier_distributeur") == "DI000003")
             .then(
-                pl.col("avant_hph").is_not_null() &
-                pl.col("avant_hch").is_not_null() &
-                pl.col("avant_hpb").is_not_null() &
-                pl.col("avant_hcb").is_not_null()
+                pl.col("avant_index_hph_kwh").is_not_null() &
+                pl.col("avant_index_hch_kwh").is_not_null() &
+                pl.col("avant_index_hpb_kwh").is_not_null() &
+                pl.col("avant_index_hcb_kwh").is_not_null()
             )
             .otherwise(pl.lit(True))
         )
@@ -134,23 +134,23 @@ class HistoriquePérimètre(pa.DataFrameModel):
         # Pour les relevés "Après" (même logique)
         cond_apres_d1 = (
             pl.when(pl.col("apres_id_calendrier_distributeur") == "DI000001")
-            .then(pl.col("apres_base").is_not_null())
+            .then(pl.col("apres_index_base_kwh").is_not_null())
             .otherwise(pl.lit(True))
         )
 
         cond_apres_d2 = (
             pl.when(pl.col("apres_id_calendrier_distributeur") == "DI000002")
-            .then(pl.col("apres_hp").is_not_null() & pl.col("apres_hc").is_not_null())
+            .then(pl.col("apres_index_hp_kwh").is_not_null() & pl.col("apres_index_hc_kwh").is_not_null())
             .otherwise(pl.lit(True))
         )
 
         cond_apres_d3 = (
             pl.when(pl.col("apres_id_calendrier_distributeur") == "DI000003")
             .then(
-                pl.col("apres_hph").is_not_null() &
-                pl.col("apres_hch").is_not_null() &
-                pl.col("apres_hpb").is_not_null() &
-                pl.col("apres_hcb").is_not_null()
+                pl.col("apres_index_hph_kwh").is_not_null() &
+                pl.col("apres_index_hch_kwh").is_not_null() &
+                pl.col("apres_index_hpb_kwh").is_not_null() &
+                pl.col("apres_index_hcb_kwh").is_not_null()
             )
             .otherwise(pl.lit(True))
         )

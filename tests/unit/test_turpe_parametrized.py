@@ -51,7 +51,7 @@ def test_turpe_fixe_annuel_par_fta(
     """Teste le calcul TURPE fixe annuel pour différentes FTA."""
     df = pl.DataFrame({
         "formule_tarifaire_acheminement": [fta],
-        "puissance_souscrite": [puissance],
+        "puissance_souscrite_kva": [puissance],
         "b": [b],
         "cg": [cg],
         "cc": [cc],
@@ -60,10 +60,10 @@ def test_turpe_fixe_annuel_par_fta(
         "b_hch": [None],
         "b_hpb": [None],
         "b_hcb": [None],
-        "puissance_souscrite_hph": [None],
-        "puissance_souscrite_hch": [None],
-        "puissance_souscrite_hpb": [None],
-        "puissance_souscrite_hcb": [None],
+        "puissance_souscrite_hph_kva": [None],
+        "puissance_souscrite_hch_kva": [None],
+        "puissance_souscrite_hpb_kva": [None],
+        "puissance_souscrite_hcb_kva": [None],
     })
 
     result = df.with_columns(
@@ -223,7 +223,7 @@ def test_turpe_fixe_puissances_limites(puissance, description):
     """Teste les cas limites de puissance."""
     df = pl.DataFrame({
         "formule_tarifaire_acheminement": ["BTINFCU4"],
-        "puissance_souscrite": [puissance],
+        "puissance_souscrite_kva": [puissance],
         "b": [9.36],
         "cg": [16.2],
         "cc": [20.88],
@@ -233,10 +233,10 @@ def test_turpe_fixe_puissances_limites(puissance, description):
         "b_hch": [None],
         "b_hpb": [None],
         "b_hcb": [None],
-        "puissance_souscrite_hph": [None],
-        "puissance_souscrite_hch": [None],
-        "puissance_souscrite_hpb": [None],
-        "puissance_souscrite_hcb": [None],
+        "puissance_souscrite_hph_kva": [None],
+        "puissance_souscrite_hch_kva": [None],
+        "puissance_souscrite_hpb_kva": [None],
+        "puissance_souscrite_hcb_kva": [None],
     })
 
     # Ne doit pas planter

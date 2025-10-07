@@ -205,7 +205,7 @@ def _(odoo_factures):
         .pivot(on='categorie', index=['pdl', 'periode'], values='quantite')
         .rename(mapping={'Base': 'base'})
         .with_columns([
-            pl.when(pl.col('base') > 0)
+            pl.when(pl.col('index_base_kwh') > 0)
               .then(pl.lit('BASE'))
               .when((pl.col('HP') > 0) | (pl.col('HC') > 0))
               .then(pl.lit('HPHC'))
@@ -266,21 +266,21 @@ def _(fact):
                 # Quantités physiques
                 'nb_jours',  # jours d'abonnement
                 'puissance_moyenne',  # kVA souscrite
-                'base_energie',  # kWh Base
-                'hp_energie',   # kWh HP
-                'hc_energie',   # kWh HC
+                'energie_base_kwh',  # kWh Base
+                'energie_hp_kwh',   # kWh HP
+                'energie_hc_kwh',   # kWh HC
                 # Montants TURPE (seuls montants à comparer)
-                'turpe_fixe',
-                'turpe_variable'
+                'turpe_fixe_eur',
+                'turpe_variable_eur'
             ])
             .rename({
                 'nb_jours': 'jours_abo',
                 'puissance_moyenne': 'puissance_kva',
-                'base_energie': 'base_kwh',
-                'hp_energie': 'hp_kwh',
-                'hc_energie': 'hc_kwh',
-                'turpe_fixe': 'turpe_fixe_eur',
-                'turpe_variable': 'turpe_variable_eur'
+                'energie_base_kwh': 'base_kwh',
+                'energie_hp_kwh': 'hp_kwh',
+                'energie_hc_kwh': 'hc_kwh',
+                'turpe_fixe_eur': 'turpe_fixe_eur',
+                'turpe_variable_eur': 'turpe_variable_eur'
             })
         )
 
@@ -353,7 +353,7 @@ def _(electricore_prepare, odoo_prepare):
 
             # Écarts énergétiques SEULEMENT selon le type de tarification
             pl.when(pl.col('type_tarification') == 'BASE')
-              .then(pl.col('base_kwh') - pl.col('base'))  # Comparer Base vs base
+              .then(pl.col('base_kwh') - pl.col('index_base_kwh'))  # Comparer Base vs base
               .otherwise(None)
               .alias('ecart_base_kwh'),
 
@@ -374,8 +374,8 @@ def _(electricore_prepare, odoo_prepare):
             pl.lit(None).alias('ecart_pct_jours_abo'),
 
             # Écarts relatifs énergétiques (seulement pour les quantités pertinentes)
-            pl.when((pl.col('type_tarification') == 'BASE') & (pl.col('base') > 0))
-              .then((pl.col('ecart_base_kwh') / pl.col('base') * 100))
+            pl.when((pl.col('type_tarification') == 'BASE') & (pl.col('index_base_kwh') > 0))
+              .then((pl.col('ecart_base_kwh') / pl.col('index_base_kwh') * 100))
               .otherwise(None)
               .alias('ecart_pct_base_kwh'),
 
@@ -470,7 +470,7 @@ def _(comparison):
             pl.col('hc_kwh').sum().alias('total_hc_kwh_electricore'),
 
             # Totaux quantités Odoo
-            pl.col('base').sum().alias('total_base_kwh_odoo'),
+            pl.col('index_base_kwh').sum().alias('total_base_kwh_odoo'),
             pl.col('HP').sum().alias('total_hp_kwh_odoo'),
             pl.col('HC').sum().alias('total_hc_kwh_odoo'),
 

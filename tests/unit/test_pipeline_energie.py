@@ -60,20 +60,20 @@ class TestExtraireRelevesEvenementsPolars:
             "ref_situation_contractuelle": ["REF001"],
             "formule_tarifaire_acheminement": ["TURPE 5"],
             "date_evenement": [datetime(2024, 1, 15, 10, 0)],
-            "avant_base": [1000.0],
-            "apres_base": [1500.0],
-            "avant_hp": [500.0],
-            "apres_hp": [750.0],
-            "avant_hc": [None],
-            "apres_hc": [None],
-            "avant_hch": [None],
-            "apres_hch": [None],
-            "avant_hph": [None],
-            "apres_hph": [None],
-            "avant_hcb": [None],
-            "apres_hcb": [None],
-            "avant_hpb": [None],
-            "apres_hpb": [None],
+            "avant_index_base_kwh": [1000.0],
+            "apres_index_base_kwh": [1500.0],
+            "avant_index_hp_kwh": [500.0],
+            "apres_index_hp_kwh": [750.0],
+            "avant_index_hc_kwh": [None],
+            "apres_index_hc_kwh": [None],
+            "avant_index_hch_kwh": [None],
+            "apres_index_hch_kwh": [None],
+            "avant_index_hph_kwh": [None],
+            "apres_index_hph_kwh": [None],
+            "avant_index_hcb_kwh": [None],
+            "apres_index_hcb_kwh": [None],
+            "avant_index_hpb_kwh": [None],
+            "apres_index_hpb_kwh": [None],
             "avant_id_calendrier_distributeur": [1],
             "apres_id_calendrier_distributeur": [1]
         })
@@ -86,8 +86,8 @@ class TestExtraireRelevesEvenementsPolars:
         avant = result.filter(pl.col("ordre_index") == 0)
         assert len(avant) == 1
         assert avant["pdl"][0] == "PDL001"
-        assert avant["base"][0] == 1000.0
-        assert avant["hp"][0] == 500.0
+        assert avant["index_base_kwh"][0] == 1000.0
+        assert avant["index_hp_kwh"][0] == 500.0
         assert avant["source"][0] == "flux_C15"
         assert avant["ordre_index"][0] == 0
 
@@ -107,7 +107,7 @@ class TestInterrogerRelevesPolars:
             "pdl": ["PDL001", "PDL002", "PDL003"],
             "date_releve": [datetime(2024, 1, 15), datetime(2024, 1, 16), datetime(2024, 1, 17)],
             "source": ["flux_R151", "flux_R151", "flux_R151"],
-            "base": [1000.0, 2000.0, 3000.0],
+            "index_base_kwh": [1000.0, 2000.0, 3000.0],
             "ordre_index": [0, 0, 0],
             "id_calendrier_distributeur": ["DI000001", "DI000001", "DI000001"],
         })
@@ -116,7 +116,7 @@ class TestInterrogerRelevesPolars:
 
         assert len(result) == 2  # Même taille que la requête
         assert not any(result["releve_manquant"])  # Aucun relevé manquant
-        assert result["base"].to_list() == [1000.0, 2000.0]
+        assert result["index_base_kwh"].to_list() == [1000.0, 2000.0]
 
     def test_interrogation_avec_releves_manquants(self):
         """Test cas mixte : certains relevés trouvés, d'autres non."""
@@ -130,7 +130,7 @@ class TestInterrogerRelevesPolars:
             "pdl": ["PDL001"],
             "date_releve": [datetime(2024, 1, 15)],
             "source": ["flux_R151"],
-            "base": [1000.0],
+            "index_base_kwh": [1000.0],
             "ordre_index": [0],
             "id_calendrier_distributeur": ["DI000001"],
         })
@@ -143,7 +143,7 @@ class TestInterrogerRelevesPolars:
         pdl002 = result.filter(pl.col("pdl") == "PDL002")
         assert len(pdl002) == 1
         assert pdl002["releve_manquant"][0] is True
-        assert pdl002["base"][0] is None
+        assert pdl002["index_base_kwh"][0] is None
 
         # PDL001 doit avoir releve_manquant=False
         pdl001 = result.filter(pl.col("pdl") == "PDL001")
@@ -166,14 +166,13 @@ class TestReconstituerChronologieRelevesPolars:
                 datetime(2024, 2, 1)
             ],
             # Données pour événement contractuel MES
-            "avant_base": [1000.0, None, None],
-            "apres_base": [1500.0, None, None],
-            "avant_hp": [500.0, None, None],
-            "apres_hp": [750.0, None, None],
+            "avant_index_base_kwh": [1000.0, None, None],
+            "apres_index_base_kwh": [1500.0, None, None],
+            "avant_index_hp_kwh": [500.0, None, None],
+            "apres_index_hp_kwh": [750.0, None, None],
             # Autres colonnes nulles
-            **{f"{pos}_{col}": [None] * 3 for pos in ["avant", "apres"]
-               for col in ["hc", "hch", "hph", "hcb", "hpb", "id_calendrier_distributeur"]
-               if not (pos == "avant" and col == "id_calendrier_distributeur" and [1, None, None] == [None] * 3)}
+            **{f"{pos}_index_{col}_kwh": [None] * 3 for pos in ["avant", "apres"]
+               for col in ["hc", "hch", "hph", "hcb", "hpb"]}
         })
 
         # Ajouter manuellement les colonnes ID calendrier
@@ -187,7 +186,7 @@ class TestReconstituerChronologieRelevesPolars:
             "pdl": ["PDL001"],
             "date_releve": [datetime(2024, 2, 1)],
             "source": ["flux_R151"],
-            "base": [2000.0],
+            "index_base_kwh": [2000.0],
             "ordre_index": [0],
             "id_calendrier_distributeur": ["DI000001"],
         })
@@ -217,10 +216,10 @@ class TestReconstituerChronologieRelevesPolars:
             "evenement_declencheur": ["MES", "FACTURATION"],
             "date_evenement": [datetime(2024, 1, 15), datetime(2024, 1, 15)],
             # Données MES minimales
-            "avant_base": [1000.0, None],
-            "apres_base": [1500.0, None],
-            **{f"{pos}_{col}": [None, None] for pos in ["avant", "apres"]
-               for col in ["hp", "hc", "hch", "hph", "hcb", "hpb", "id_calendrier_distributeur"]}
+            "avant_index_base_kwh": [1000.0, None],
+            "apres_index_base_kwh": [1500.0, None],
+            **{f"{pos}_index_{col}_kwh": [None, None] for pos in ["avant", "apres"]
+               for col in ["hp", "hc", "hch", "hph", "hcb", "hpb"]}
         })
 
         # Ajouter manuellement les colonnes ID calendrier
@@ -234,7 +233,7 @@ class TestReconstituerChronologieRelevesPolars:
             "pdl": ["PDL001"],
             "date_releve": [datetime(2024, 1, 15)],
             "source": ["flux_R151"],
-            "base": [9999.0],  # Valeur différente pour détecter le conflit
+            "index_base_kwh": [9999.0],  # Valeur différente pour détecter le conflit
             "ordre_index": [0],
             "id_calendrier_distributeur": ["DI000001"],
         })
@@ -249,9 +248,9 @@ class TestReconstituerChronologieRelevesPolars:
         assert sources == ["flux_C15"]
 
         # Les valeurs doivent être celles des événements, pas du R151
-        assert 1000.0 in releves_date["base"].to_list()  # Relevé avant
-        assert 1500.0 in releves_date["base"].to_list()  # Relevé après
-        assert 9999.0 not in releves_date["base"].to_list()  # Pas le R151
+        assert 1000.0 in releves_date["index_base_kwh"].to_list()  # Relevé avant
+        assert 1500.0 in releves_date["index_base_kwh"].to_list()  # Relevé après
+        assert 9999.0 not in releves_date["index_base_kwh"].to_list()  # Pas le R151
 
 
 def test_propagation_flags_releve_manquant():
@@ -261,13 +260,13 @@ def test_propagation_flags_releve_manquant():
         "ref_situation_contractuelle": ["REF001", "REF001", "REF001"],
         "date_releve": [datetime(2024, 1, 1), datetime(2024, 2, 1), datetime(2024, 3, 1)],
         "source": ["flux_C15", "flux_R151", "flux_R151"],
-        "base": [1000.0, 2000.0, 3000.0],
-        "hp": [500.0, 1000.0, 1500.0],
-        "hc": [200.0, 400.0, 600.0],
-        "hph": [100.0, 200.0, 300.0],
-        "hpb": [150.0, 300.0, 450.0],
-        "hch": [80.0, 160.0, 240.0],
-        "hcb": [120.0, 240.0, 360.0],
+        "index_base_kwh": [1000.0, 2000.0, 3000.0],
+        "index_hp_kwh": [500.0, 1000.0, 1500.0],
+        "index_hc_kwh": [200.0, 400.0, 600.0],
+        "index_hph_kwh": [100.0, 200.0, 300.0],
+        "index_hpb_kwh": [150.0, 300.0, 450.0],
+        "index_hch_kwh": [80.0, 160.0, 240.0],
+        "index_hcb_kwh": [120.0, 240.0, 360.0],
         "releve_manquant": [None, False, True],  # C15: null, R151 trouvé: False, R151 manquant: True
         "ordre_index": [0, 0, 0]
     })
@@ -294,26 +293,26 @@ def test_propagation_flags_releve_manquant():
 def test_expr_arrondir_index_kwh():
     """Teste l'arrondi des index à l'entier inférieur."""
     df = pl.DataFrame({
-        "base": [1000.8, 1001.2, None],
-        "hp": [500.9, None, 502.1],
-        "hc": [None, 400.7, 401.3],
+        "index_base_kwh": [1000.8, 1001.2, None],
+        "index_hp_kwh": [500.9, None, 502.1],
+        "index_hc_kwh": [None, 400.7, 401.3],
     }).lazy()
 
     from electricore.core.pipelines.energie import expr_arrondir_index_kwh
 
-    result = df.with_columns(expr_arrondir_index_kwh(["base", "hp", "hc"])).collect()
+    result = df.with_columns(expr_arrondir_index_kwh(["index_base_kwh", "index_hp_kwh", "index_hc_kwh"])).collect()
 
     # Vérifier l'arrondi à l'entier inférieur
-    assert result["base"].to_list() == [1000.0, 1001.0, None]
-    assert result["hp"].to_list() == [500.0, None, 502.0]
-    assert result["hc"].to_list() == [None, 400.0, 401.0]
+    assert result["index_base_kwh"].to_list() == [1000.0, 1001.0, None]
+    assert result["index_hp_kwh"].to_list() == [500.0, None, 502.0]
+    assert result["index_hc_kwh"].to_list() == [None, 400.0, 401.0]
 
 
 def test_expr_calculer_energie_cadran():
     """Teste le calcul d'énergie pour un cadran."""
     df = pl.DataFrame({
         "ref_situation_contractuelle": ["A", "A", "A", "B", "B"],
-        "base": [1000.0, 1050.0, 1100.0, 500.0, 530.0],
+        "index_base_kwh": [1000.0, 1050.0, 1100.0, 500.0, 530.0],
     }).lazy()
 
     from electricore.core.pipelines.energie import expr_calculer_energie_cadran
@@ -322,7 +321,7 @@ def test_expr_calculer_energie_cadran():
         df
         .sort(["ref_situation_contractuelle"])
         .with_columns(
-            expr_calculer_energie_cadran("base").alias("base_energie")
+            expr_calculer_energie_cadran("index_base_kwh").alias("energie_base_kwh")
         )
         .collect()
     )
@@ -336,7 +335,7 @@ def test_expr_calculer_energie_cadran():
         None,   # B: 1er relevé
         30.0,   # B: 530 - 500
     ]
-    assert result["base_energie"].to_list() == energies_attendues
+    assert result["energie_base_kwh"].to_list() == energies_attendues
 
 
 def test_expr_date_formatee_fr():

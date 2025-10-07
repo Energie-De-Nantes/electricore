@@ -356,7 +356,7 @@ def calculate_turpe_variable(df_historique, df_releves):
         df_periodes_energie
         .group_by("pdl")
         .agg([
-            pl.col("turpe_variable").sum().alias("turpe_variable_calcule"),
+            pl.col("turpe_variable_eur").sum().alias("turpe_variable_calcule"),
             pl.col("debut").min().alias("date_debut_calcule"),
             pl.col("fin").max().alias("date_fin_calcule"),
             pl.len().alias("nb_periodes_calcule")
@@ -771,7 +771,7 @@ def analyser_periodes_manquantes(df_f15_variable, df_periodes_energie):
             pl.col("fin").max().alias("derniere_periode_calculee"),
             pl.len().alias("nb_periodes_calculees"),
             pl.col("nb_jours").filter(pl.col("data_complete")).sum().alias("total_jours"),
-            pl.col("turpe_variable").sum().alias("turpe_variable_total")
+            pl.col("turpe_variable_eur").sum().alias("turpe_variable_total")
         ])
     )
 

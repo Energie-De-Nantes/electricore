@@ -120,6 +120,34 @@ All pipelines now use pure Polars (no pandas dependency) with LazyFrame optimiza
 - **Language**: Business domain in French (périmètre, relevés, énergies, abonnements, TURPE)
 - **Timezone**: All dates use `Europe/Paris` timezone
 - **Date convention**: R151 flux uses +1 day adjustment to harmonize with R64/R15/C15 (see [docs/conventions-dates-enedis.md](docs/conventions-dates-enedis.md))
+- **Column naming**: Follows `grandeur_cadran_unité` format (see [docs/conventions-nommage.md](docs/conventions-nommage.md))
+
+#### Column Naming Conventions
+
+All energy meter data columns follow the **`grandeur_cadran_unité`** format for clarity and consistency:
+
+**Index columns** (cumulative meter readings):
+- `index_base_kwh` - Base tariff index
+- `index_hp_kwh`, `index_hc_kwh` - Peak/Off-peak hours (HPHC tariff)
+- `index_hph_kwh`, `index_hpb_kwh`, `index_hch_kwh`, `index_hcb_kwh` - 4 time slots (Tempo/EJP tariffs)
+- `avant_index_*_kwh`, `apres_index_*_kwh` - Before/after readings for contract changes (C15 flux)
+
+**Energy columns** (calculated consumption):
+- `energie_base_kwh`, `energie_hp_kwh`, `energie_hc_kwh` - Main energy consumption by time slot
+- `energie_hph_kwh`, `energie_hpb_kwh`, `energie_hch_kwh`, `energie_hcb_kwh` - Detailed 4-slot consumption
+
+**Power columns** (subscribed power):
+- `puissance_souscrite_kva` - Single subscribed power (BT ≤ 36 kVA, C5 tariff)
+- `puissance_souscrite_hph_kva`, `puissance_souscrite_hch_kva`, `puissance_souscrite_hpb_kva`, `puissance_souscrite_hcb_kva` - Multi-slot subscribed power (BT > 36 kVA, C4 tariff)
+
+**TURPE columns** (network tariff costs):
+- `turpe_fixe_eur` - Fixed TURPE cost (€/day based on subscribed power)
+- `turpe_variable_eur` - Variable TURPE cost (€/kWh based on consumption)
+
+**Time slots (cadrans temporels)**:
+- `base` - Base tariff (single price)
+- `hp`/`hc` - Peak/Off-peak (Heures Pleines/Heures Creuses)
+- `hph`/`hpb`/`hch`/`hcb` - High/Low season Peak/Off-peak (Haute/Basse saison, Heures Pleines/Creuses)
 
 ### Import Paths
 ```python

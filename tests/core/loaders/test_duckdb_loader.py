@@ -123,17 +123,17 @@ class TestTransformationFunctions:
         """Test de transformation des données de relevés."""
         from datetime import datetime, timezone as tz
 
-        # Créer un LazyFrame de test avec noms de colonnes minuscules (convention Polars)
+        # Créer un LazyFrame de test avec noms de colonnes selon convention
         test_data = pl.DataFrame({
             "date_releve": [datetime(2024, 1, 1, 10, 0, 0, tzinfo=tz.utc)],
             "pdl": ["PDL123"],
-            "hp": [1000.0],
-            "base": [2000.0],
-            "hc": [500.0],
-            "hph": [None],
-            "hpb": [None],
-            "hcb": [None],
-            "hch": [None],
+            "index_hp_kwh": [1000.0],
+            "index_base_kwh": [2000.0],
+            "index_hc_kwh": [500.0],
+            "index_hph_kwh": [None],
+            "index_hpb_kwh": [None],
+            "index_hcb_kwh": [None],
+            "index_hch_kwh": [None],
             "unite": ["kWh"],
             "precision": ["kWh"]
         }).lazy()
@@ -147,10 +147,10 @@ class TestTransformationFunctions:
         # Collecter pour vérifier le contenu
         df = result.collect()
 
-        # Vérifier les colonnes de base (convention Polars = minuscules)
+        # Vérifier les colonnes de base
         assert "date_releve" in df.columns
         assert "pdl" in df.columns
-        assert "hp" in df.columns  # minuscules pour Polars
+        assert "index_hp_kwh" in df.columns
         assert "unite" in df.columns
         assert "precision" in df.columns
 

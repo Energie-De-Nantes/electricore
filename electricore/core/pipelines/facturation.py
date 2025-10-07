@@ -37,7 +37,7 @@ def expr_puissance_moyenne() -> pl.Expr:
         ...   .agg(expr_puissance_moyenne().alias("puissance_moyenne"))
     """
     return (
-        (pl.col("puissance_souscrite") * pl.col("nb_jours")).sum() /
+        (pl.col("puissance_souscrite_kva") * pl.col("nb_jours")).sum() /
         pl.col("nb_jours").sum()
     )
 
@@ -57,7 +57,7 @@ def expr_memo_puissance_simple() -> pl.Expr:
     return (
         pl.col("nb_jours").cast(pl.Utf8)
         + pl.lit("j à ")
-        + pl.col("puissance_souscrite").cast(pl.Int32).cast(pl.Utf8)
+        + pl.col("puissance_souscrite_kva").cast(pl.Int32).cast(pl.Utf8)
         + pl.lit("kVA")
     )
 
@@ -145,7 +145,7 @@ def agreger_abonnements_mensuel(
             # Agrégations numériques
             pl.col("nb_jours").sum(),
             expr_puissance_moyenne().alias("puissance_moyenne"),
-            pl.col("turpe_fixe").sum(),
+            pl.col("turpe_fixe_eur").sum(),
 
             # Métadonnées (première valeur car identique dans le groupe)
             pl.col("formule_tarifaire_acheminement").first(),
@@ -201,16 +201,16 @@ def agreger_energies_mensuel(
         .group_by(["ref_situation_contractuelle", "pdl", "mois_annee"])
         .agg([
             # Énergies par cadran (sommes simples)
-            pl.col("base_energie").sum(),
-            pl.col("hp_energie").sum(),
-            pl.col("hc_energie").sum(),
+            pl.col("energie_base_kwh").sum(),
+            pl.col("energie_hp_kwh").sum(),
+            pl.col("energie_hc_kwh").sum(),
 
             # Bornes temporelles
             pl.col("debut").min(),
             pl.col("fin").max(),
 
             # Montants TURPE
-            pl.col("turpe_variable").sum(),
+            pl.col("turpe_variable_eur").sum(),
 
             # Qualité des données (True seulement si TOUTES les périodes sont complètes)
             pl.col("data_complete").all(),
@@ -276,8 +276,8 @@ def joindre_meta_periodes(
             # Réconciliation des valeurs manquantes
             pl.col("puissance_moyenne").fill_null(0.0),
             pl.col("formule_tarifaire_acheminement").fill_null("INCONNU"),
-            pl.col("turpe_fixe").fill_null(0.0),
-            pl.col("turpe_variable").fill_null(0.0),
+            pl.col("turpe_fixe_eur").fill_null(0.0),
+            pl.col("turpe_variable_eur").fill_null(0.0),
 
             # Gestion des compteurs de sous-périodes
             pl.col("nb_sous_periodes_abo").fill_null(1),
@@ -288,9 +288,9 @@ def joindre_meta_periodes(
             pl.col("has_changement_energie").fill_null(False),
 
             # Gestion des énergies
-            pl.col("base_energie").fill_null(0.0),
-            pl.col("hp_energie").fill_null(0.0),
-            pl.col("hc_energie").fill_null(0.0),
+            pl.col("energie_base_kwh").fill_null(0.0),
+            pl.col("energie_hp_kwh").fill_null(0.0),
+            pl.col("energie_hc_kwh").fill_null(0.0),
 
             # Gestion de data_complete (False si pas d'énergie)
             pl.col("data_complete").fill_null(False),

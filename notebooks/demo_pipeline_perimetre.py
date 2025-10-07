@@ -102,7 +102,7 @@ def load_data(demo_data):
         column_mapping = {
             'date_evenement': 'Date_Evenement',
             'evenement_declencheur': 'Evenement_Declencheur',
-            'puissance_souscrite': 'Puissance_Souscrite',
+            'puissance_souscrite_kva': 'Puissance_Souscrite',
             'formule_tarifaire_acheminement': 'Formule_Tarifaire_Acheminement',
             'ref_situation_contractuelle': 'Ref_Situation_Contractuelle',
             'segment_clientele': 'Segment_Clientele',

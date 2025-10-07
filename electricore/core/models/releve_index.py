@@ -33,14 +33,14 @@ class RelevéIndex(pa.DataFrameModel):
     unite: pl.Utf8 = pa.Field(nullable=False, isin=["kWh", "Wh", "MWh"])
     precision: pl.Utf8 = pa.Field(nullable=False, isin=["kWh", "Wh", "MWh"])
 
-    # ⚡ Mesures
-    hp: Optional[pl.Float64] = pa.Field(nullable=True)
-    hc: Optional[pl.Float64] = pa.Field(nullable=True)
-    hch: Optional[pl.Float64] = pa.Field(nullable=True)
-    hph: Optional[pl.Float64] = pa.Field(nullable=True)
-    hpb: Optional[pl.Float64] = pa.Field(nullable=True)
-    hcb: Optional[pl.Float64] = pa.Field(nullable=True)
-    base: Optional[pl.Float64] = pa.Field(nullable=True)
+    # ⚡ Index de compteurs (valeurs cumulées en kWh)
+    index_hp_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
+    index_hc_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
+    index_hch_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
+    index_hph_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
+    index_hpb_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
+    index_hcb_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
+    index_base_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
 
     # 🔌 Métadonnées spécifiques R64 (optionnelles)
     type_releve: Optional[pl.Utf8] = pa.Field(nullable=True, isin=["AQ", "AM", "AC"])
@@ -60,30 +60,30 @@ class RelevéIndex(pa.DataFrameModel):
         # Créer des conditions pour chaque type de calendrier
         conditions = []
         
-        # DI000001: base doit être non-null
+        # DI000001: index_base_kwh doit être non-null
         cond_d1 = (
             pl.when(pl.col("id_calendrier_distributeur") == "DI000001")
-            .then(pl.col("base").is_not_null())
+            .then(pl.col("index_base_kwh").is_not_null())
             .otherwise(pl.lit(True))
         )
         conditions.append(cond_d1)
 
-        # DI000002: hp et hc doivent être non-null
+        # DI000002: index_hp_kwh et index_hc_kwh doivent être non-null
         cond_d2 = (
             pl.when(pl.col("id_calendrier_distributeur") == "DI000002")
-            .then(pl.col("hp").is_not_null() & pl.col("hc").is_not_null())
+            .then(pl.col("index_hp_kwh").is_not_null() & pl.col("index_hc_kwh").is_not_null())
             .otherwise(pl.lit(True))
         )
         conditions.append(cond_d2)
 
-        # DI000003: hph, hch, hpb, hcb doivent être non-null
+        # DI000003: index_hph_kwh, index_hch_kwh, index_hpb_kwh, index_hcb_kwh doivent être non-null
         cond_d3 = (
             pl.when(pl.col("id_calendrier_distributeur") == "DI000003")
             .then(
-                pl.col("hph").is_not_null() &
-                pl.col("hch").is_not_null() &
-                pl.col("hpb").is_not_null() &
-                pl.col("hcb").is_not_null()
+                pl.col("index_hph_kwh").is_not_null() &
+                pl.col("index_hch_kwh").is_not_null() &
+                pl.col("index_hpb_kwh").is_not_null() &
+                pl.col("index_hcb_kwh").is_not_null()
             )
             .otherwise(pl.lit(True))
         )

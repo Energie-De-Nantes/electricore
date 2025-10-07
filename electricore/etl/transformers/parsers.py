@@ -120,12 +120,14 @@ def xml_to_dict_from_bytes(
                     key_elements = nr.xpath(id_field)
                     value_elements = nr.xpath(value_field)
                     
-                    if (key_elements and value_elements and 
+                    if (key_elements and value_elements and
                         hasattr(key_elements[0], 'text') and hasattr(value_elements[0], 'text') and
                         key_elements[0].text and value_elements[0].text):
-                        
-                        # Ajouter la valeur principale avec préfixe
-                        field_key = f"{prefix}{key_elements[0].text}"
+
+                        # Ajouter la valeur principale avec préfixe et convention de nommage
+                        # Format: {prefix}index_{cadran}_kwh (ex: "avant_index_hp_kwh", "index_base_kwh")
+                        cadran = key_elements[0].text.lower()  # HP → hp, BASE → base
+                        field_key = f"{prefix}index_{cadran}_kwh"
                         row_data[field_key] = value_elements[0].text
                         
                         # Ajouter les champs additionnels
@@ -568,7 +570,9 @@ def collect_timeseries_data(mesure: dict, base_record: dict) -> dict:
                     if not id_classe:
                         continue
 
-                    col_name = id_classe.lower()
+                    # Convention de nommage: index_{cadran}_kwh
+                    cadran = id_classe.lower()
+                    col_name = f"index_{cadran}_kwh"
 
                     # Traiter chaque point de données
                     for point in classe.get('valeur', []):

@@ -34,20 +34,20 @@ class PeriodeEnergie(pa.DataFrameModel):
     # Flags de qualité des données
     data_complete: pl.Boolean = pa.Field(nullable=False)
 
-    # Énergies par cadran (optionnelles selon le type de compteur)
-    base_energie: Optional[pl.Float64] = pa.Field(nullable=True)
-    hp_energie: Optional[pl.Float64] = pa.Field(nullable=True)
-    hc_energie: Optional[pl.Float64] = pa.Field(nullable=True)
-    hph_energie: Optional[pl.Float64] = pa.Field(nullable=True)
-    hpb_energie: Optional[pl.Float64] = pa.Field(nullable=True)
-    hch_energie: Optional[pl.Float64] = pa.Field(nullable=True)
-    hcb_energie: Optional[pl.Float64] = pa.Field(nullable=True)
+    # Énergies consommées par cadran en kWh (optionnelles selon le type de compteur)
+    energie_base_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
+    energie_hp_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
+    energie_hc_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
+    energie_hph_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
+    energie_hpb_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
+    energie_hch_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
+    energie_hcb_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
 
     # Informations contractuelles pour calcul TURPE (colonnes optionnelles)
     formule_tarifaire_acheminement: Optional[pl.Utf8] = pa.Field(nullable=True)
 
-    # Calculs TURPE (colonnes optionnelles)
-    turpe_variable: Optional[pl.Float64] = pa.Field(nullable=True)
+    # Calculs TURPE en euros (colonnes optionnelles)
+    turpe_variable_eur: Optional[pl.Float64] = pa.Field(nullable=True)
 
     # Composante dépassement C4 (colonne optionnelle en entrée, fournie par l'appelant)
     # Durée totale de dépassement de puissance souscrite sur tous les cadrans (heures)
