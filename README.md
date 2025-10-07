@@ -34,13 +34,28 @@ electricore/
 ### Diagramme de flux
 
 ```mermaid
-graph LR
-    SFTP[SFTP Enedis] -->|ETL/DLT| DuckDB[(DuckDB)]
-    DuckDB -->|Query Builder| Core[Core Pipelines]
-    Core -->|LazyFrames| Results[Résultats]
-    DuckDB -->|API| FastAPI[FastAPI]
-    Core -->|Odoo Connector| Odoo[(Odoo ERP)]
-    FastAPI -->|JSON| Client[Clients API]
+graph TB
+    SFTP_Enedis[/SFTP Enedis\] --> ETL_Enedis[ETL<br/>#40;data load tool#41;]
+    SFTP_Axpo[/SFTP Axpo<br/>Courbes\] -.-> ETL_Axpo[ETL<br/>#40;data load tool#41;]
+    ETL_Enedis --> DuckDB[(DuckDB)]
+    ETL_Axpo -.-> DuckDB
+    Odoo[(Odoo ERP)] --> OdooReader[OdooReader]
+    OdooWriter[OdooWriter] --> Odoo
+
+    DuckDB --> API[API REST<br/>#40;FastAPI#41;]
+    DuckDB -->|Query Builder| Core[Core Pipelines<br/>#40;Polars#41;]
+    OdooReader -->|Query Builder| Core
+    OdooReader --> API
+    Core --> API
+    Core --> OdooWriter
+
+    API -->|JSON| Client[\Clients API/]
+
+    style API fill:#4CAF50,stroke:#2E7D32,stroke-width:3px,color:#fff
+    style DuckDB fill:#1976D2,stroke:#0D47A1,color:#fff
+    style Odoo fill:#FF9800,stroke:#E65100,color:#fff
+    style Core fill:#9C27B0,stroke:#4A148C,color:#fff
+    style ETL_Axpo stroke-dasharray: 5 5
 ```
 
 ---
