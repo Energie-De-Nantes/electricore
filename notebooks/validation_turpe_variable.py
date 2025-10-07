@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.16.0"
+__generated_with = "0.16.5"
 app = marimo.App(width="medium")
 
 with app.setup(hide_code=True):
@@ -42,7 +42,7 @@ with app.setup(hide_code=True):
     )
 
     # Import connecteur Odoo
-    from electricore.core.loaders import OdooReader
+    from electricore.core.loaders import OdooReader, query
 
 
 @app.cell(hide_code=True)
@@ -257,7 +257,7 @@ def load_odoo_perimeter(config):
         print("🔄 Connexion à Odoo...")
         with OdooReader(config=config) as odoo:
             df_pdl_odoo = (
-                odoo.query('sale.order',
+                query(odoo, 'sale.order',
                     domain=[('x_pdl', '!=', False)],
                     fields=['name', 'x_pdl', 'partner_id'])
                 .filter(pl.col('x_pdl').is_not_null())
@@ -811,12 +811,20 @@ def analyser_periodes_manquantes(df_f15_variable, df_periodes_energie):
             .alias("categorie_couverture"),
 
             (pl.col("turpe_f15_total") * pl.col("taux_couverture")).alias("f15_proratise_couverture")
-            # (pl.col("turpe_f15_total") - pl.col("turpe_variable_total") * pl.col("taux_couverture")).alias("erreur_sur_periode_calculee")
         ])
         .with_columns([
             (pl.col("turpe_variable_total") - pl.col("f15_proratise_couverture")).alias("erreur_prorata")
         ])
     )
+
+    # FILTRE TEMPORAIRE : Exclure PDL avec données aberrantes
+    # TODO: Implémenter détection automatique de qualité (voir docs/qualite-donnees-r151.md)
+    PDL_ABERRANTS = ["14290738060355"]  # Index aberrants sept 2025 (962 MWh/mois)
+    comparaison_periodes = comparaison_periodes.filter(
+        ~pl.col("pdl").is_in(PDL_ABERRANTS)
+    )
+
+    print(f"⚠️  PDL exclus de la validation : {len(PDL_ABERRANTS)} (données aberrantes)")
 
     # 4. Statistiques globales
     nb_pdl_total = len(comparaison_periodes)

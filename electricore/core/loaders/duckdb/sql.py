@@ -231,7 +231,7 @@ SCHEMA_R151 = FluxSchema(
         col_simple("unite"),
         Column(name="precision", sql_expr="unite", alias="precision"),
     ),
-    where_clause="date_releve IS NOT NULL",
+    where_clause="date_releve IS NOT NULL AND id_calendrier_distributeur IN ('DI000001', 'DI000002', 'DI000003')",
     comments="""-- HARMONISATION DES CONVENTIONS DE DATE
 -- Problème : R151 utilise convention "fin de journée" (date J = index fin jour J)
 --           alors que R64, R15, C15 utilisent "début de journée" (date J = index début jour J)
@@ -380,6 +380,7 @@ WITH releves_unifies AS (
         unite as precision
     FROM flux_enedis.flux_r151
     WHERE date_releve IS NOT NULL
+      AND id_calendrier_distributeur IN ('DI000001', 'DI000002', 'DI000003')
 
     UNION ALL
 
