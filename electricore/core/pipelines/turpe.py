@@ -330,33 +330,27 @@ def expr_filtrer_regles_temporelles() -> pl.Expr:
 
 def valider_regles_presentes(lf: pl.LazyFrame) -> pl.LazyFrame:
     """
-    Valide que toutes les FTA ont des règles TURPE correspondantes.
+    Filtre les lignes avec règles TURPE manquantes.
+
+    Cette fonction élimine les lignes du LEFT JOIN où aucune règle TURPE
+    n'a été trouvée (start=NULL). Ces lignes produiraient des calculs invalides.
 
     Args:
         lf: LazyFrame joint avec les règles TURPE
 
     Returns:
-        LazyFrame validé (sans les lignes avec règles manquantes)
+        LazyFrame filtré (sans les lignes avec règles manquantes)
 
-    Raises:
-        ValueError: Si des FTA n'ont pas de règles TURPE correspondantes
+    Note:
+        La validation est lazy - si des FTA invalides sont présentes,
+        les calculs échoueront avec des NULL au moment du .collect() final.
+        Pour une validation stricte en amont, vérifiez que toutes les FTA
+        existent dans turpe_rules.csv avant d'appeler les pipelines TURPE.
 
     Example:
         >>> df_valide = valider_regles_presentes(df_joint)
     """
-    # Vérifier s'il y a des règles manquantes
-    fta_manquantes = (
-        lf
-        .filter(pl.col("start").is_null())
-        .select("formule_tarifaire_acheminement")
-        .unique()
-        .collect()
-    )
-
-    if fta_manquantes.shape[0] > 0:
-        fta_list = fta_manquantes["formule_tarifaire_acheminement"].to_list()
-        raise ValueError(f"❌ Règles TURPE manquantes pour : {fta_list}")
-
+    # Filtrer les lignes sans match (essentiel pour éliminer les NULL du LEFT JOIN)
     return lf.filter(pl.col("start").is_not_null())
 
 

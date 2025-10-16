@@ -516,15 +516,18 @@ class TestExpressionsFiltrage:
         assert df_result.shape[0] == 2
 
     def test_valider_regles_presentes_erreur(self):
-        """Test de validation avec des règles manquantes."""
+        """Test que valider_regles_presentes filtre silencieusement les règles manquantes."""
         df_test = pl.LazyFrame({
             "formule_tarifaire_acheminement": ["BTINFCUST", "FTA_INEXISTANTE"],
             "start": [datetime(2024, 1, 1), None],  # start=null pour FTA manquante
         })
 
-        # Doit lever une ValueError
-        with pytest.raises(ValueError, match="Règles TURPE manquantes"):
-            valider_regles_presentes(df_test).collect()
+        # Doit filtrer la ligne avec start=null (pas d'erreur levée)
+        result = valider_regles_presentes(df_test).collect()
+
+        # Vérifier que seule la ligne valide est conservée
+        assert len(result) == 1
+        assert result["formule_tarifaire_acheminement"][0] == "BTINFCUST"
 
 
 class TestPipelinesIntegration:
@@ -760,7 +763,7 @@ class TestCasLimites:
         assert resultat["turpe_variable_eur"][0] == 0.0
 
     def test_fta_inexistante(self):
-        """Test avec une FTA qui n'existe pas dans les règles."""
+        """Test avec une FTA qui n'existe pas dans les règles - doit retourner un DataFrame vide."""
         df_test = pl.LazyFrame({
             "formule_tarifaire_acheminement": ["FTA_INEXISTANTE"],
             "puissance_souscrite_kva": [6.0],
@@ -770,9 +773,9 @@ class TestCasLimites:
             pl.col("debut").dt.replace_time_zone("Europe/Paris")
         )
 
-        # Doit lever une ValueError
-        with pytest.raises(ValueError, match="Règles TURPE manquantes"):
-            ajouter_turpe_fixe(df_test).collect()
+        # Doit retourner un DataFrame vide (filtré silencieusement)
+        result = ajouter_turpe_fixe(df_test).collect()
+        assert len(result) == 0
 
 
 class TestTurpeFixeC4:

@@ -1,13 +1,13 @@
 [project]
 name = "electricore"
-version = "1.0.0"
+version = "1.3.4"
 description = "Moteur de traitement données énergétiques françaises - Architecture Polars/DuckDB pour flux Enedis"
 authors = [
     {name = "Virgile"}
 ]
 license = {text = "GPLv3"}
 readme = "README.md"
-requires-python = ">=3.12,<3.15"
+requires-python = ">=3.12"
 keywords = [
     "energy",
     "electricity",
@@ -36,19 +36,39 @@ classifiers = [
     "Typing :: Typed"
 ]
 dependencies = [
+    # Aucune dépendance obligatoire pour compatibilité WASM/Pyodide
+    # Polars est pré-installé dans Pyodide, utilisez electricore[core] pour installation standard
+]
+
+[project.optional-dependencies]
+core = [
+    # Dépendance principale pour usage standard (hors WASM)
     "polars (>=1.0.0,<2.0.0)",
+]
+validation = [
     "pandera[polars] (>=0.24.0)",
-    "pyarrow (>=21.0.0,<22.0.0)",
-    "dlt[workspace] (>=1.16.0,<2.0.0)",
+]
+etl = [
+    "dlt[filesystem] (>=1.16.0,<2.0.0)",
     "pycryptodome (>=3.23.0,<4.0.0)",
+    "paramiko (>=4.0.0,<5.0.0)",
+    "lxml (>=6.0.2,<7.0.0)",
+    "duckdb (>=1.3.2,<2.0.0)",
+]
+api = [
     "fastapi (>=0.116.1,<0.117.0)",
     "uvicorn (>=0.35.0,<0.36.0)",
-    "duckdb (>=1.3.2,<2.0.0)",
-    "lxml (>=6.0.2,<7.0.0)",
-    "paramiko (>=4.0.0,<5.0.0)",
+]
+viz = [
+    "pyarrow (>=21.0.0,<22.0.0)",
     "altair (>=5.5.0,<6.0.0)",
     "vegafusion (>=2.0.3,<3.0.0)",
     "vl-convert-python (>=1.8.0,<2.0.0)",
+    "marimo (>=0.16.4)",
+    "plotly (>=6.2.0)",
+]
+all = [
+    "electricore[core,validation,etl,api,viz]",
 ]
 
 [project.urls]
