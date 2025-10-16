@@ -81,6 +81,30 @@ def expr_coverage_temporelle(duree_totale_col: str = "nb_jours_total") -> pl.Exp
     ).clip(0.0, 1.0)
 
 
+def expr_calculer_trimestre() -> pl.Expr:
+    """
+    Expression pour calculer le trimestre à partir de la colonne debut.
+
+    Utilise la colonne debut (datetime) qui représente le début de chaque
+    période de facturation. Cette colonne est toujours présente et ne nécessite
+    pas de parsing.
+
+    Returns:
+        Expression Polars retournant le trimestre au format "YYYY-QX"
+
+    Example:
+        >>> df.with_columns(expr_calculer_trimestre().alias("trimestre"))
+    """
+    # Utiliser directement la colonne debut (déjà en datetime)
+    date_col = pl.col('debut')
+
+    # Extraire année et calculer trimestre
+    annee = date_col.dt.year().cast(pl.Utf8)
+    quarter = ((date_col.dt.month() - 1) // 3 + 1).cast(pl.Utf8)
+
+    return annee + pl.lit('-T') + quarter
+
+
 def expr_has_changement() -> pl.Expr:
     """
     Détermine s'il y a eu des changements dans la période.
@@ -389,6 +413,7 @@ __all__ = [
     'expr_puissance_moyenne',
     'expr_memo_puissance_simple',
     'expr_coverage_temporelle',
+    'expr_calculer_trimestre',
     'expr_has_changement',
     'expr_data_complete'
 ]
