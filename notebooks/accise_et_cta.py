@@ -275,6 +275,12 @@ def _(config):
 
 @app.cell
 def _(df_lignes):
+    df_lignes
+    return
+
+
+@app.cell
+def _(df_lignes):
     # Pipeline complet : agrégation + calcul Accise
     df_accise = pipeline_accise(df_lignes.lazy())
     df_accise
@@ -291,8 +297,8 @@ def _(df_accise, trimestre_selectionne):
         df_accise_trimestre
         .group_by('taux_accise_eur_mwh')
         .agg([
-            pl.col('energie_mwh').sum(),
-            pl.col('accise_eur').sum(),
+            pl.col('energie_mwh').sum().round(3),
+            pl.col('accise_eur').sum().round(2),
             pl.col('pdl').n_unique().alias('nb_pdl')
         ])
         .sort('taux_accise_eur_mwh', descending=True)
