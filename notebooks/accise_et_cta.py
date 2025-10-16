@@ -282,11 +282,73 @@ def _(df_lignes):
                  'name_product_category', 'trimestre'])
     )
     df_conso
-    return
+    return (df_conso,)
 
 
 @app.cell
 def _():
+    mo.md(r"""## ⚡ Sélection du taux Accise""")
+    return
+
+
+@app.cell(hide_code=True)
+def _():
+    # Input pour le taux d'Accise (en €/MWh)
+    taux_accise = mo.ui.number(
+        start=0,
+        stop=100,
+        step=0.01,
+        value=32.00,  # Taux Accise 2025 par défaut (32 €/MWh)
+        label="Taux Accise (€/MWh)"
+    )
+
+    taux_accise
+    return (taux_accise,)
+
+
+@app.cell(hide_code=True)
+def _(df_conso, taux_accise, trimestre_selectionne):
+    # Filtrer sur le trimestre sélectionné
+    df_conso_trimestre = df_conso.filter(pl.col('trimestre') == trimestre_selectionne.value)
+
+    # Calculer l'énergie totale en MWh (quantity est en kWh)
+    energie_totale_mwh = df_conso_trimestre['quantity'].sum() / 1000
+
+    # Calculer l'Accise
+    accise_total = energie_totale_mwh * taux_accise.value
+
+    # Nombre de PDL concernés
+    nb_pdl_conso = df_conso_trimestre['x_pdl'].n_unique()
+
+    _result_accise = mo.md(f"""
+    ## ⚡ Résultat Accise - {trimestre_selectionne.value}
+
+    - **Nombre de PDL** : {nb_pdl_conso}
+    - **Énergie totale** : {energie_totale_mwh:,.2f} MWh ({energie_totale_mwh * 1000:,.0f} kWh)
+    - **Taux Accise** : {taux_accise.value} €/MWh
+    - **Accise à facturer** : **{accise_total:,.2f} €**
+
+    ---
+
+    ### 📋 Détail par PDL
+    """)
+
+    # Afficher le détail par PDL
+    df_detail_accise = (
+        df_conso_trimestre
+        .group_by('x_pdl')
+        .agg([
+            pl.col('quantity').sum().alias('energie_kwh'),
+            pl.col('name').first().alias('order_name')
+        ])
+        .with_columns([
+            (pl.col('energie_kwh') / 1000).alias('energie_mwh'),
+            ((pl.col('energie_kwh') / 1000) * taux_accise.value).alias('accise')
+        ])
+        .sort('accise', descending=True)
+    )
+
+    mo.vstack([_result_accise, df_detail_accise])
     return
 
 
