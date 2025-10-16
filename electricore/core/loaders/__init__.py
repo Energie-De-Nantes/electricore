@@ -36,6 +36,7 @@ from .odoo import (
     # API fonctionnelle - Helpers avec navigation
     commandes_factures,
     commandes_lignes,
+    consommations_mensuelles,
     # Expressions Polars utilitaires
     expr_calculer_trimestre_facturation,
 )
@@ -73,6 +74,7 @@ __all__ = [
     # API fonctionnelle Odoo - Helpers avec navigation
     "commandes_factures",
     "commandes_lignes",
+    "consommations_mensuelles",
     # Expressions Polars utilitaires Odoo
     "expr_calculer_trimestre_facturation",
 ]

@@ -32,11 +32,13 @@ with app.setup(hide_code=True):
 
     # Import connecteur Odoo
     from electricore.core.loaders import (
-        OdooReader, 
-        query, 
-        commandes_lignes,
-        expr_calculer_trimestre_facturation
+        OdooReader,
+        query,
+        commandes_lignes
     )
+
+    # Import pipeline Accise
+    from electricore.core.pipelines.accise import pipeline_accise
 
 
 @app.cell(hide_code=True)
@@ -241,7 +243,7 @@ def _(df_cta, taux_cta, trimestre_selectionne):
     """)
 
     # Afficher le détail par PDL
-    df_detail = (
+    df_detail_cta = (
         df_trimestre
         .group_by('pdl')
         .agg([
@@ -254,7 +256,7 @@ def _(df_cta, taux_cta, trimestre_selectionne):
         .sort('cta', descending=True)
     )
 
-    mo.vstack([_result, df_detail])
+    mo.vstack([_result, df_detail_cta])
     return
 
 
@@ -273,82 +275,54 @@ def _(config):
 
 @app.cell
 def _(df_lignes):
-    df_conso = (
-        df_lignes
-        .filter(pl.col('name_product_category').is_in(['Base', 'HP', 'HC']))
-        .with_columns(expr_calculer_trimestre_facturation().alias('trimestre'))
-        .select(['name', 'x_pdl', 'invoice_date',
-                 'quantity', 'price_unit', 'price_total',
-                 'name_product_category', 'trimestre'])
-    )
-    df_conso
-    return (df_conso,)
-
-
-@app.cell
-def _():
-    mo.md(r"""## ⚡ Sélection du taux Accise""")
-    return
+    # Pipeline complet : agrégation + calcul Accise
+    df_accise = pipeline_accise(df_lignes.lazy())
+    df_accise
+    return (df_accise,)
 
 
 @app.cell(hide_code=True)
-def _():
-    # Input pour le taux d'Accise (en €/MWh)
-    taux_accise = mo.ui.number(
-        start=0,
-        stop=100,
-        step=0.01,
-        value=32.00,  # Taux Accise 2025 par défaut (32 €/MWh)
-        label="Taux Accise (€/MWh)"
-    )
-
-    taux_accise
-    return (taux_accise,)
-
-
-@app.cell(hide_code=True)
-def _(df_conso, taux_accise, trimestre_selectionne):
+def _(df_accise, trimestre_selectionne):
     # Filtrer sur le trimestre sélectionné
-    df_conso_trimestre = df_conso.filter(pl.col('trimestre') == trimestre_selectionne.value)
+    df_accise_trimestre = df_accise.filter(pl.col('trimestre') == trimestre_selectionne.value)
 
-    # Calculer l'énergie totale en MWh (quantity est en kWh)
-    energie_totale_mwh = df_conso_trimestre['quantity'].sum() / 1000
+    # Grouper par taux pour voir la répartition
+    df_par_taux = (
+        df_accise_trimestre
+        .group_by('taux_accise_eur_mwh')
+        .agg([
+            pl.col('energie_mwh').sum(),
+            pl.col('accise_eur').sum(),
+            pl.col('pdl').n_unique().alias('nb_pdl')
+        ])
+        .sort('taux_accise_eur_mwh', descending=True)
+    )
 
-    # Calculer l'Accise
-    accise_total = energie_totale_mwh * taux_accise.value
+    # Totaux
+    accise_total = df_accise_trimestre['accise_eur'].sum()
+    energie_totale_mwh = df_accise_trimestre['energie_mwh'].sum()
+    nb_pdl_total = df_accise_trimestre['pdl'].n_unique()
 
-    # Nombre de PDL concernés
-    nb_pdl_conso = df_conso_trimestre['x_pdl'].n_unique()
-
-    _result_accise = mo.md(f"""
+    _result = mo.md(f"""
     ## ⚡ Résultat Accise - {trimestre_selectionne.value}
 
-    - **Nombre de PDL** : {nb_pdl_conso}
-    - **Énergie totale** : {energie_totale_mwh:,.2f} MWh ({energie_totale_mwh * 1000:,.0f} kWh)
-    - **Taux Accise** : {taux_accise.value} €/MWh
-    - **Accise à facturer** : **{accise_total:,.2f} €**
+    - **Nombre de PDL** : {nb_pdl_total}
+    - **Énergie totale** : {energie_totale_mwh:,.2f} MWh
+    - **Accise totale** : **{accise_total:,.2f} €**
 
-    ---
-
-    ### 📋 Détail par PDL
+    ### 📊 Répartition par taux (changements réglementaires)
     """)
 
-    # Afficher le détail par PDL
-    df_detail_accise = (
-        df_conso_trimestre
-        .group_by('x_pdl')
-        .agg([
-            pl.col('quantity').sum().alias('energie_kwh'),
-            pl.col('name').first().alias('order_name')
-        ])
-        .with_columns([
-            (pl.col('energie_kwh') / 1000).alias('energie_mwh'),
-            ((pl.col('energie_kwh') / 1000) * taux_accise.value).alias('accise')
-        ])
-        .sort('accise', descending=True)
-    )
+    # Détail par PDL et mois
+    df_detail_accise = df_accise_trimestre.sort(['pdl', 'mois_consommation'])
 
-    mo.vstack([_result_accise, df_detail_accise])
+    mo.vstack([
+        _result,
+        mo.md("#### Vue agrégée par taux"),
+        df_par_taux,
+        mo.md("#### Vue détaillée par PDL et mois"),
+        df_detail_accise
+    ])
     return
 
 

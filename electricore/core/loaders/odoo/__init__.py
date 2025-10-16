@@ -29,7 +29,8 @@ from .helpers import (
     partenaires,
     # Helpers avec navigation multi-niveaux
     commandes_factures,
-    commandes_lignes
+    commandes_lignes,
+    consommations_mensuelles
 )
 from .transforms import (
     normalize_many2one_fields,
@@ -62,6 +63,7 @@ __all__ = [
     # API fonctionnelle - Helpers avec navigation multi-niveaux
     'commandes_factures',
     'commandes_lignes',
+    'consommations_mensuelles',
     # Transformations
     'normalize_many2one_fields',
     'convert_odoo_dates',

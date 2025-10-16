@@ -218,3 +218,41 @@ def commandes_lignes(odoo: OdooReader, domain: List = None) -> OdooQuery:
         .follow('product_id', fields=['name', 'categ_id'])
         .enrich('categ_id', fields=['name'])
     )
+
+
+def consommations_mensuelles(odoo: OdooReader, domain: List = None) -> OdooQuery:
+    """
+    Query builder pour consommations mensuelles agrégées.
+
+    Récupère les lignes de factures avec les informations nécessaires au calcul
+    des consommations mensuelles. Les données doivent être agrégées post-collecte
+    avec les pipelines appropriés (voir pipeline_accise).
+
+    Navigation : sale.order → account.move → account.move.line → product.product → product.category
+
+    Args:
+        odoo: Instance OdooReader connectée
+        domain: Filtre Odoo initial sur sale.order
+
+    Returns:
+        OdooQuery chainable retournant les lignes de factures
+
+    Example:
+        >>> from electricore.core.loaders import consommations_mensuelles
+        >>> from electricore.core.pipelines.accise import pipeline_accise
+        >>>
+        >>> with OdooReader(config) as odoo:
+        ...     # Récupérer les données et appliquer le pipeline
+        ...     lignes = consommations_mensuelles(odoo).collect()
+        ...     df_accise = pipeline_accise(lignes.lazy())
+        ...
+        ...     # Ou directement avec commandes_lignes()
+        ...     lignes = commandes_lignes(odoo).collect()
+        ...     df_accise = pipeline_accise(lignes.lazy())
+
+    Note:
+        Ce helper est identique à commandes_lignes() et existe pour cohérence
+        sémantique. Pour le calcul d'Accise, utilisez pipeline_accise() qui gère
+        l'agrégation et les calculs.
+    """
+    return commandes_lignes(odoo, domain=domain)
