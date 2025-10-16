@@ -34,7 +34,8 @@ with app.setup(hide_code=True):
     from electricore.core.loaders import (
         OdooReader, 
         query, 
-        lignes_factures
+        commandes_lignes,
+        expr_calculer_trimestre_facturation
     )
 
 
@@ -266,16 +267,21 @@ def _():
 @app.cell
 def _(config):
     with OdooReader(config=config) as _odoo:
-        df_factures = lignes_factures(_odoo).collect()
-    df_factures
-    return (df_factures,)
+        df_lignes = commandes_lignes(_odoo).collect()
+    return (df_lignes,)
 
 
 @app.cell
-def _(df_factures):
+def _(df_lignes):
     df_conso = (
-        df_factures
+        df_lignes
+        .filter(pl.col('name_product_category').is_in(['Base', 'HP', 'HC']))
+        .with_columns(expr_calculer_trimestre_facturation().alias('trimestre'))
+        .select(['name', 'x_pdl', 'invoice_date',
+                 'quantity', 'price_unit', 'price_total',
+                 'name_product_category', 'trimestre'])
     )
+    df_conso
     return
 
 

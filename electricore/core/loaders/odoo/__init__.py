@@ -37,7 +37,8 @@ from .transforms import (
     add_computed_columns,
     filter_active_records,
     explode_one2many_field,
-    aggregate_by_period
+    aggregate_by_period,
+    expr_calculer_trimestre_facturation
 )
 
 
@@ -68,4 +69,5 @@ __all__ = [
     'filter_active_records',
     'explode_one2many_field',
     'aggregate_by_period',
+    'expr_calculer_trimestre_facturation',
 ]

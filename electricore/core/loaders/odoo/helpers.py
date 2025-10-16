@@ -172,6 +172,9 @@ def commandes_lignes(odoo: OdooReader, domain: List = None) -> OdooQuery:
 
     Navigation complète : sale.order → account.move → account.move.line → product.product → product.category
 
+    Pour ajouter le trimestre de consommation (avec décalage -1 mois), utiliser
+    expr_calculer_trimestre_facturation() après la collecte.
+
     Args:
         odoo: Instance OdooReader connectée
         domain: Filtre Odoo initial sur sale.order
@@ -180,22 +183,32 @@ def commandes_lignes(odoo: OdooReader, domain: List = None) -> OdooQuery:
         OdooQuery chainable avec navigation pré-configurée
 
     Example:
+        >>> from electricore.core.loaders import commandes_lignes, expr_calculer_trimestre_facturation
+        >>>
         >>> with OdooReader(config) as odoo:
         ...     # Utilisation simple
         ...     df = commandes_lignes(odoo, domain=[('state', '=', 'sale')]).collect()
         ...
+        ...     # Ajouter le trimestre après collecte et filtrer
+        ...     df = (commandes_lignes(odoo)
+        ...         .collect()
+        ...         .with_columns(expr_calculer_trimestre_facturation().alias('trimestre'))
+        ...         .filter(pl.col('trimestre') == '2025-Q1'))
+        ...
         ...     # Avec filtres et transformations supplémentaires
         ...     df = (commandes_lignes(odoo)
+        ...         .collect()
+        ...         .with_columns(expr_calculer_trimestre_facturation().alias('trimestre'))
         ...         .filter(pl.col('quantity') > 0)
         ...         .select([
         ...             pl.col('name').alias('order_name'),
         ...             pl.col('name_account_move').alias('invoice_name'),
         ...             pl.col('name_product_product').alias('product_name'),
         ...             pl.col('name_product_category').alias('categorie'),
+        ...             pl.col('trimestre'),
         ...             pl.col('quantity'),
         ...             pl.col('price_total')
-        ...         ])
-        ...         .collect())
+        ...         ]))
     """
     return (
         query(odoo, 'sale.order', domain=domain,

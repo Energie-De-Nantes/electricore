@@ -184,3 +184,61 @@ def aggregate_by_period(lf: pl.LazyFrame, date_column: str,
         agg_exprs = [pl.count().alias('count')]
 
     return lf.group_by_dynamic(date_column, every=f'1{period[0]}').agg(agg_exprs)
+
+
+# =============================================================================
+# EXPRESSIONS POLARS UTILITAIRES POUR FACTURATION
+# =============================================================================
+
+def expr_calculer_trimestre_facturation() -> pl.Expr:
+    """
+    Expression pour calculer le trimestre de consommation à partir de invoice_date.
+
+    Applique un décalage de -1 mois car la facture du mois M concerne
+    les consommations du mois M-1.
+
+    Gère automatiquement le parsing de invoice_date si c'est une string (format ISO).
+
+    Logique :
+    - invoice_date = "2025-10-09" → mois facturé = septembre 2025 → trimestre = 2025-Q3
+    - invoice_date = "2025-01-15" → mois facturé = décembre 2024 → trimestre = 2024-Q4
+
+    Returns:
+        Expression Polars retournant le trimestre au format "YYYY-QX"
+
+    Example:
+        >>> # Dans un helper ou query builder
+        >>> df = (commandes_lignes(odoo)
+        ...     .collect()
+        ...     .with_columns(expr_calculer_trimestre_facturation().alias('trimestre'))
+        ...     .filter(pl.col('trimestre') == '2025-Q1'))
+
+        >>> # Directement sur un DataFrame
+        >>> df = df.with_columns(expr_calculer_trimestre_facturation().alias('trimestre'))
+    """
+    # Parser invoice_date si c'est une string, sinon utiliser directement
+    date_parsed = pl.col('invoice_date').str.to_date('%Y-%m-%d')
+
+    # Décaler de -1 mois pour obtenir le mois de consommation réel
+    date_conso = date_parsed.dt.offset_by('-1mo')
+
+    # Extraire année et calculer trimestre du mois de consommation
+    annee = date_conso.dt.year().cast(pl.Utf8)
+    quarter = ((date_conso.dt.month() - 1) // 3 + 1).cast(pl.Utf8)
+
+    return annee + pl.lit('-T') + quarter
+
+
+# =============================================================================
+# EXPORTS
+# =============================================================================
+
+__all__ = [
+    'normalize_many2one_fields',
+    'convert_odoo_dates',
+    'add_computed_columns',
+    'filter_active_records',
+    'explode_one2many_field',
+    'aggregate_by_period',
+    'expr_calculer_trimestre_facturation',
+]
