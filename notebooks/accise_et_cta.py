@@ -88,7 +88,7 @@ def _():
 
 @app.cell
 def _():
-    mo.md(r"""# Préparation des données""")
+    mo.md(r"""# CTA""")
     return
 
 
@@ -179,6 +179,109 @@ def _(df_facturation, df_pdl_odoo):
     )
     df_cta
     return (df_cta,)
+
+
+@app.cell
+def _():
+    mo.md(r"""## 📊 Sélection du trimestre et taux CTA""")
+    return
+
+
+@app.cell(hide_code=True)
+def _(df_cta):
+    # Récupérer la liste des trimestres disponibles (triés)
+    trimestres_disponibles = sorted(df_cta['trimestre'].unique().to_list())
+
+    # Dropdown pour sélectionner le trimestre
+    trimestre_selectionne = mo.ui.dropdown(
+        options=trimestres_disponibles,
+        value=trimestres_disponibles[-1] if trimestres_disponibles else None,
+        label="Sélectionner le trimestre"
+    )
+
+    # Input pour le taux de CTA (en %)
+    taux_cta = mo.ui.number(
+        start=0,
+        stop=100,
+        step=0.01,
+        value=21.93,  # Taux CTA 2025 par défaut
+        label="Taux CTA (%)"
+    )
+
+    mo.vstack([trimestre_selectionne, taux_cta])
+    return taux_cta, trimestre_selectionne
+
+
+@app.cell(hide_code=True)
+def _(df_cta, taux_cta, trimestre_selectionne):
+    # Filtrer sur le trimestre sélectionné
+    df_trimestre = df_cta.filter(pl.col('trimestre') == trimestre_selectionne.value)
+
+    # Calculer la somme du TURPE fixe
+    turpe_fixe_total = df_trimestre['turpe_fixe_eur'].sum()
+
+    # Calculer la CTA
+    cta_total = turpe_fixe_total * (taux_cta.value / 100)
+
+    # Nombre de PDL concernés
+    nb_pdl = df_trimestre['pdl'].n_unique()
+
+    _result = mo.md(f"""
+    ## 💰 Résultat CTA - {trimestre_selectionne.value}
+
+    - **Nombre de PDL** : {nb_pdl}
+    - **TURPE fixe total** : {turpe_fixe_total:,.2f} €
+    - **Taux CTA** : {taux_cta.value} %
+    - **CTA à facturer** : **{cta_total:,.2f} €**
+
+    ---
+
+    ### 📋 Détail par PDL
+    """)
+
+    # Afficher le détail par PDL
+    df_detail = (
+        df_trimestre
+        .group_by('pdl')
+        .agg([
+            pl.col('turpe_fixe_eur').sum().alias('turpe_fixe_total'),
+            pl.col('order_name').first()
+        ])
+        .with_columns(
+            (pl.col('turpe_fixe_total') * (taux_cta.value / 100)).alias('cta')
+        )
+        .sort('cta', descending=True)
+    )
+
+    mo.vstack([_result, df_detail])
+    return
+
+
+@app.cell
+def _():
+    mo.md(r"""# Accise""")
+    return
+
+
+@app.cell
+def _(config):
+    with OdooReader(config=config) as _odoo:
+        df_factures = lignes_factures(_odoo).collect()
+    df_factures
+    return (df_factures,)
+
+
+@app.cell
+def _(df_factures):
+    df_conso = (
+        df_factures
+    )
+    return
+
+
+@app.cell
+def _():
+    return
 
 
 if __name__ == "__main__":
