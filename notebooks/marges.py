@@ -272,6 +272,76 @@ def _(df_accise, df_cta):
 
 @app.cell
 def _():
+    mo.md(r"""# Facturation détaillée par catégorie""")
+    return
+
+
+@app.cell
+def _(df_lignes):
+    """
+    Transformation des lignes de factures en format pivot pour analyse des marges.
+
+    Pivot sur les catégories (Abonnements, Base, HP, HC) avec quantity, price_unit, price_total
+    + calcul du total facturé par mois.
+    """
+    from electricore.core.pipelines.accise import expr_calculer_mois_consommation
+
+    # Étape 1 : Filtrer sur les catégories d'énergie et abonnements
+    df_facturation_filtree = (
+        df_lignes
+        .filter(pl.col('name_product_category').is_in(['Abonnements', 'Base', 'HP', 'HC']))
+        .with_columns(
+            expr_calculer_mois_consommation().alias('mois_consommation')
+        )
+    )
+
+    # Étape 2 : Agréger par order, mois et catégorie
+    df_facturation_agg = (
+        df_facturation_filtree
+        .group_by(['name', 'mois_consommation', 'name_product_category'])
+        .agg([
+            pl.col('quantity').sum().alias('quantity'),
+            pl.col('price_unit').mean().alias('price_unit'),
+            pl.col('price_total').sum().alias('price_total')
+        ])
+    )
+
+    # Étape 3 : Pivoter sur name_product_category
+    df_facturation_pivot = (
+        df_facturation_agg
+        .pivot(
+            index=['name', 'mois_consommation'],
+            on='name_product_category',
+            values=['quantity', 'price_unit', 'price_total']
+        )
+        # Renommer name → order_name pour cohérence
+        .rename({'name': 'order_name'})
+    )
+
+    # Étape 4 : Calculer le total facturé (somme horizontale des price_total)
+    # Trouver toutes les colonnes qui contiennent "price_total"
+    price_total_cols = [col for col in df_facturation_pivot.columns if 'price_total' in col]
+
+    # Calculer le total facturé (gérer le cas où certaines colonnes n'existent pas)
+    if price_total_cols:
+        # Sommer les colonnes existantes, fill_null(0) pour gérer les valeurs manquantes
+        total_expr = pl.sum_horizontal([pl.col(c).fill_null(0) for c in price_total_cols])
+        df_facturation_pivot = df_facturation_pivot.with_columns(
+            total_expr.alias('total_facture_eur')
+        )
+    else:
+        # Aucune colonne price_total trouvée, créer une colonne à 0
+        df_facturation_pivot = df_facturation_pivot.with_columns(
+            pl.lit(0.0).alias('total_facture_eur')
+        )
+
+    df_facturation_pivot
+    return (df_facturation_pivot,)
+
+
+@app.cell
+def _(df_facturation_pivot):
+    df_facturation_pivot
     return
 
 
