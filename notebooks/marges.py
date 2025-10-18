@@ -138,7 +138,7 @@ def load_odoo_perimeter(config):
     # Ajouter des PDL supplémentaires
     pdl_supplementaires = pl.DataFrame({
         'pdl': ['14295224261882', '50070117855585', '50000508594660'],
-        'order_name': ['PDL_MANUAL_1', 'PDL_MANUAL_2', 'PDL_MANUAL_3'],
+        'order_name': ['LOCAL', 'ERREUR_MM', 'ERREUR_MM'],
         # 'marque': ['EDN', 'EDN', 'EDN']
     })
     df_pdl_odoo = pl.concat([df_pdl_odoo, pdl_supplementaires]).unique('pdl')
@@ -382,12 +382,83 @@ def _(df_couts, df_facturation_pivot):
 
 @app.cell
 def _():
+    mo.md(r"""# Fonctions de calcul des marges""")
+    return
+
+
+@app.cell
+def _():
+    """Expressions Polars réutilisables pour calculer les métriques de marges."""
+
+    def expr_calculer_prod_eur(suffix: str = '') -> pl.Expr:
+        """
+        Expression pour calculer le coût de production (65€/MWh).
+
+        Args:
+            suffix: Suffixe des colonnes ('_total' ou '')
+        """
+        return (pl.col(f'energie_facturee_mwh{suffix}') * 65).round(2)
+
+    def expr_calculer_couts_eur(suffix: str = '') -> pl.Expr:
+        """
+        Expression pour calculer les coûts totaux.
+
+        Args:
+            suffix: Suffixe des colonnes ('_total' ou '')
+        """
+        return (
+            pl.col(f'accise_eur{suffix}')
+            + pl.col(f'turpe_fixe_eur{suffix}')
+            + pl.col(f'cta_eur{suffix}')
+            + pl.col(f'turpe_variable_eur{suffix}')
+            + pl.col('prod_eur')
+        ).round(2)
+
+    def expr_calculer_benef_total_eur(suffix: str = '') -> pl.Expr:
+        """
+        Expression pour calculer le bénéfice total.
+
+        Args:
+            suffix: Suffixe des colonnes ('_total' ou '')
+        """
+        return (pl.col(f'total_facture_eur{suffix}') - pl.col('couts_eur')).round(2)
+
+    def expr_calculer_benef_mensuel_eur(suffix: str = '') -> pl.Expr:
+        """
+        Expression pour calculer le bénéfice mensuel moyen (30.42 jours/mois).
+
+        Args:
+            suffix: Suffixe des colonnes ('_total' ou '')
+        """
+        return (pl.col('benef_total_eur') / pl.col(f'nb_jours{suffix}') * 30.42).round(2)
+    return (
+        expr_calculer_benef_mensuel_eur,
+        expr_calculer_benef_total_eur,
+        expr_calculer_couts_eur,
+        expr_calculer_prod_eur,
+    )
+
+
+@app.cell
+def _():
     mo.md(r"""# Agrégation par souscription (order_name)""")
     return
 
 
 @app.cell(hide_code=True)
-def _(df_marges):
+def _(
+    df_marges,
+    expr_calculer_benef_mensuel_eur,
+    expr_calculer_benef_total_eur,
+    expr_calculer_couts_eur,
+    expr_calculer_prod_eur,
+):
+    """
+    Agrégation par order_name pour vue synthétique des marges.
+
+    Somme des coûts et revenus sur toute la période.
+    Conserve puissance_moyenne_kva et formule_tarifaire_acheminement si uniques.
+    """
     df_marges_agregees = (
         df_marges
         .sort('order_name')
@@ -413,15 +484,11 @@ def _(df_marges):
               .otherwise(None)
               .alias('formule_tarifaire_acheminement')
         ])
-        .with_columns((pl.col('energie_facturee_mwh')*65).round(2).alias('prod_eur'))
-        .with_columns((pl.col('accise_eur')
-                + pl.col('turpe_fixe_eur')
-                + pl.col('cta_eur')
-                + pl.col('turpe_variable_eur')
-                + pl.col('prod_eur')
-                ).round(2).alias('couts_eur'))
-        .with_columns((pl.col('total_facture_eur') - pl.col('couts_eur')).round(2).alias('benef_total_eur'))
-        .with_columns((pl.col('benef_total_eur') / pl.col('nb_jours') * 30.42).round(2).alias('benef_mensuel_eur'))
+        # Calcul des marges avec les fonctions réutilisables (pas de suffix)
+        .with_columns(expr_calculer_prod_eur().alias('prod_eur'))
+        .with_columns(expr_calculer_couts_eur().alias('couts_eur'))
+        .with_columns(expr_calculer_benef_total_eur().alias('benef_total_eur'))
+        .with_columns(expr_calculer_benef_mensuel_eur().alias('benef_mensuel_eur'))
     )
 
     df_marges_agregees
@@ -430,6 +497,52 @@ def _(df_marges):
 
 @app.cell
 def _():
+    mo.md(r"""# Agrégation par puissance souscrite""")
+    return
+
+
+@app.cell(hide_code=True)
+def _(
+    df_marges,
+    expr_calculer_benef_mensuel_eur,
+    expr_calculer_benef_total_eur,
+    expr_calculer_couts_eur,
+    expr_calculer_prod_eur,
+):
+    """
+    Agrégation par puissance_moyenne_kva pour analyser les marges par niveau de puissance.
+
+    Somme des coûts et revenus regroupés par tranche de puissance.
+    """
+    df_marges_par_puissance = (
+        df_marges
+        .filter(pl.col('puissance_moyenne_kva').is_not_null())
+        # Filtrer uniquement les puissances entières
+        .filter(pl.col('puissance_moyenne_kva') == pl.col('puissance_moyenne_kva').round(0))
+        .group_by('puissance_moyenne_kva')
+        .agg([
+            # Comptage
+            pl.col('order_name').n_unique().alias('nb_souscriptions'),
+
+            # Sommes des métriques
+            pl.col('nb_jours').sum().alias('nb_jours_total'),
+            pl.col('energie_facturee_mwh').sum().round(3).alias('energie_facturee_mwh_total'),
+            pl.col('accise_eur').sum().round(2).alias('accise_eur_total'),
+            pl.col('turpe_fixe_eur').sum().round(2).alias('turpe_fixe_eur_total'),
+            pl.col('cta_eur').sum().round(2).alias('cta_eur_total'),
+            pl.col('turpe_variable_eur').sum().round(2).alias('turpe_variable_eur_total'),
+            pl.col('total_facture_eur').sum().round(2).alias('total_facture_eur_total'),
+        ])
+        # Calcul des marges avec les fonctions réutilisables (suffix='_total')
+        .with_columns(expr_calculer_prod_eur('_total').alias('prod_eur'))
+        .with_columns(expr_calculer_couts_eur('_total').alias('couts_eur'))
+        .with_columns(expr_calculer_benef_total_eur('_total').alias('benef_total_eur'))
+        .with_columns(expr_calculer_benef_mensuel_eur('_total').alias('benef_mensuel_eur'))
+        .sort('puissance_moyenne_kva')
+        .select(['puissance_moyenne_kva', 'nb_souscriptions', 'couts_eur', 'total_facture_eur_total', 'benef_total_eur', 'benef_mensuel_eur'])
+    )
+
+    df_marges_par_puissance
     return
 
 
