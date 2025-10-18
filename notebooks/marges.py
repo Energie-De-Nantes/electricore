@@ -251,7 +251,7 @@ def _(df_accise, df_cta):
     )
 
     # Fusion avec df_accise sur order_name et mois
-    df_marges = (
+    df_couts = (
         df_cta_avec_mois
         .join(
             df_accise.select([
@@ -266,8 +266,8 @@ def _(df_accise, df_cta):
         )
     )
 
-    df_marges
-    return
+    df_couts
+    return (df_couts,)
 
 
 @app.cell
@@ -343,6 +343,34 @@ def _(df_lignes):
 def _(df_facturation_pivot):
     df_facturation_pivot
     return
+
+
+@app.cell
+def _():
+    mo.md(r"""# Fusion des coûts et de la facturation""")
+    return
+
+
+@app.cell
+def _(df_couts, df_facturation_pivot):
+    """
+    Fusion finale : coûts (CTA + Accise) + facturation détaillée.
+
+    Jointure sur order_name et mois_consommation pour obtenir
+    une vue complète permettant le calcul des marges.
+    """
+    df_marges = (
+        df_couts
+        .join(
+            df_facturation_pivot,
+            left_on=['order_name', 'mois'],
+            right_on=['order_name', 'mois_consommation'],
+            how='left'
+        )
+    )
+
+    df_marges
+    return (df_marges,)
 
 
 if __name__ == "__main__":
