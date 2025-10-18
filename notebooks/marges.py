@@ -172,12 +172,13 @@ def _(lf_historique, lf_releves):
 
 
 @app.cell
-def _(df_facturation, df_pdl_odoo):
+def _(df_facturation, df_pdl_odoo, taux_cta):
     df_cta = (
         df_facturation
         .join(df_pdl_odoo, on='pdl', how='inner')
         .with_columns(
-            expr_calculer_trimestre().alias('trimestre')
+            expr_calculer_trimestre().alias('trimestre'),
+            (pl.col('turpe_fixe_eur')*taux_cta.value/100).alias('cta_eur')
         )
     )
     df_cta
@@ -201,7 +202,7 @@ def _():
         label="Taux CTA (%)"
     )
     taux_cta
-    return
+    return (taux_cta,)
 
 
 @app.cell
@@ -358,9 +359,15 @@ def _(df_couts, df_facturation_pivot):
 
     Jointure sur order_name et mois_consommation pour obtenir
     une vue complète permettant le calcul des marges.
+
+    Exclusion des lignes avec valeurs aberrantes.
     """
     df_marges = (
         df_couts
+        # Exclure ligne avec ref aberrante
+        .filter(pl.col('ref_situation_contractuelle') != '833397114')
+        # Exclure ligne avec PDL aberrant
+        .filter(pl.col('pdl') != '14290738060355')
         .join(
             df_facturation_pivot,
             left_on=['order_name', 'mois'],
@@ -371,6 +378,59 @@ def _(df_couts, df_facturation_pivot):
 
     df_marges
     return (df_marges,)
+
+
+@app.cell
+def _():
+    mo.md(r"""# Agrégation par souscription (order_name)""")
+    return
+
+
+@app.cell(hide_code=True)
+def _(df_marges):
+    df_marges_agregees = (
+        df_marges
+        .sort('order_name')
+        .group_by('order_name')
+        .agg([
+            # Sommes des métriques
+            pl.col('nb_jours').sum().alias('nb_jours'),
+            pl.col('energie_facturee_mwh').sum().round(3).alias('energie_facturee_mwh'),
+            pl.col('accise_eur').sum().round(2).alias('accise_eur'),
+            pl.col('turpe_fixe_eur').sum().round(2).alias('turpe_fixe_eur'),
+            pl.col('cta_eur').sum().round(2).alias('cta_eur'),
+            pl.col('turpe_variable_eur').sum().round(2).alias('turpe_variable_eur'),
+            pl.col('total_facture_eur').sum().round(2).alias('total_facture_eur'),
+
+            # Valeurs uniques (sinon null)
+            pl.when(pl.col('puissance_moyenne_kva').n_unique() == 1)
+              .then(pl.col('puissance_moyenne_kva').first())
+              .otherwise(None)
+              .alias('puissance_moyenne_kva'),
+
+            pl.when(pl.col('formule_tarifaire_acheminement').n_unique() == 1)
+              .then(pl.col('formule_tarifaire_acheminement').first())
+              .otherwise(None)
+              .alias('formule_tarifaire_acheminement')
+        ])
+        .with_columns((pl.col('energie_facturee_mwh')*65).round(2).alias('prod_eur'))
+        .with_columns((pl.col('accise_eur')
+                + pl.col('turpe_fixe_eur')
+                + pl.col('cta_eur')
+                + pl.col('turpe_variable_eur')
+                + pl.col('prod_eur')
+                ).round(2).alias('couts_eur'))
+        .with_columns((pl.col('total_facture_eur') - pl.col('couts_eur')).round(2).alias('benef_total_eur'))
+        .with_columns((pl.col('benef_total_eur') / pl.col('nb_jours') * 30.42).round(2).alias('benef_mensuel_eur'))
+    )
+
+    df_marges_agregees
+    return
+
+
+@app.cell
+def _():
+    return
 
 
 if __name__ == "__main__":
