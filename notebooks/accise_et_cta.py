@@ -275,12 +275,6 @@ def _(config):
 
 @app.cell
 def _(df_lignes):
-    df_lignes
-    return
-
-
-@app.cell
-def _(df_lignes):
     # Pipeline complet : agrégation + calcul Accise
     df_accise = pipeline_accise(df_lignes.lazy())
     df_accise
