@@ -166,9 +166,15 @@ def _():
 
 @app.cell
 def _(lf_historique, lf_releves):
-    _,_,_,df_facturation = facturation(historique=lf_historique, releves=lf_releves)
+    _,_,df_energies,df_facturation = facturation(historique=lf_historique, releves=lf_releves)
     df_facturation
-    return (df_facturation,)
+    return df_energies, df_facturation
+
+
+@app.cell
+def _(df_energies):
+    df_energies.collect()
+    return
 
 
 @app.cell

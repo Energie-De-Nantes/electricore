@@ -14,7 +14,7 @@ from electricore.core.pipelines.facturation import (
     expr_puissance_moyenne,
     expr_memo_puissance_simple,
     expr_coverage_temporelle,
-    expr_data_complete,
+    expr_data_complete_meta_periode,
     agreger_abonnements_mensuel,
     agreger_energies_mensuel,
     joindre_meta_periodes
@@ -85,15 +85,16 @@ class TestExpressionsAtomiques:
         """Test de la détection de données complètes."""
         data = pl.DataFrame({
             "coverage_abo": [1.0, 1.0, 0.8, 1.0],
-            "coverage_energie": [1.0, 0.9, 1.0, 1.0]
+            "coverage_energie": [1.0, 0.9, 1.0, 1.0],
+            "nb_sous_periodes_energie": [1, 1, 1, 0]
         })
 
         result = data.with_columns(
-            expr_data_complete().alias("data_complete")
+            expr_data_complete_meta_periode().alias("data_complete")
         )
 
-        # Seulement True si les deux coverages = 1.0
-        expected = [True, False, False, True]
+        # True si coverage_abo=1.0 ET coverage_energie=1.0 ET nb_sous_periodes_energie > 0
+        expected = [True, False, False, False]
         assert result["data_complete"].to_list() == expected
 
 
@@ -225,13 +226,15 @@ class TestAgregatioEnergies:
         # Vérifications
         collected = result.collect()
         assert len(collected) == 1
-        assert collected["energie_base_kwh"][0] == 1300.0  # Somme
+        assert collected["energie_base_kwh"][0] == 1300.0  # Somme de toutes les énergies
         assert collected["energie_hp_kwh"][0] == 500.0    # Somme
         assert collected["energie_hc_kwh"][0] == 300.0    # Somme
         assert collected["turpe_variable_eur"][0] == 30.0  # Somme
-        assert collected["data_complete"][0] is False  # AND logique
-        assert collected["nb_sous_periodes_energie"][0] == 2
-        assert collected["has_changement_energie"][0] is True
+        assert collected["data_complete"][0] is False  # AND logique (une période incomplète)
+        assert collected["nb_sous_periodes_energie"][0] == 1  # SEULEMENT les périodes complètes
+        assert collected["has_changement_energie"][0] is False  # 1 seule période complète
+        # Coverage = 14j (période complète) / 30j (total mars) ≈ 0.467
+        assert collected["coverage_energie"][0] == pytest.approx(14/30, abs=0.01)
 
 
 class TestJointureMetaPeriodes:
