@@ -396,14 +396,50 @@ def _():
 def _():
     """Expressions Polars réutilisables pour calculer les métriques de marges."""
 
-    def expr_calculer_prod_eur(suffix: str = '') -> pl.Expr:
+    def expr_calculer_prix_prod_mwh() -> pl.Expr:
         """
-        Expression pour calculer le coût de production (65€/MWh).
+        Expression pour calculer le prix de production en fonction de la date.
+
+        - Avant 2025-01-01 : 100 €/MWh
+        - À partir de 2025-01-01 : 70 €/MWh
+        """
+        return (
+            pl.when(pl.col('debut') < pl.datetime(2025, 1, 1, time_zone='Europe/Paris'))
+            .then(pl.lit(100))
+            .otherwise(pl.lit(70))
+        )
+
+    def expr_calculer_equilibrage_eur(suffix: str = '') -> pl.Expr:
+        """
+        Expression pour calculer le coût d'équilibrage (1.85 €/MWh).
 
         Args:
             suffix: Suffixe des colonnes ('_total' ou '')
         """
-        return (pl.col(f'energie_facturee_mwh{suffix}') * 65).round(2)
+        return (pl.col(f'energie_facturee_mwh{suffix}') * 1.85).round(2)
+
+    def expr_calculer_prod_eur(suffix: str = '') -> pl.Expr:
+        """
+        Expression pour calculer le coût de production seul (sans équilibrage).
+
+        Args:
+            suffix: Suffixe des colonnes ('_total' ou '')
+        """
+        return (pl.col(f'energie_facturee_mwh{suffix}') * pl.col('prix_prod_mwh')).round(2)
+
+    def expr_calculer_appro_eur(suffix: str = '') -> pl.Expr:
+        """
+        Expression pour calculer le coût d'approvisionnement total.
+
+        Coût d'approvisionnement = production + équilibrage
+
+        Args:
+            suffix: Suffixe des colonnes ('_total' ou '')
+        """
+        return (
+            pl.col(f'prod_eur{suffix}')
+            + pl.col(f'equilibrage_eur{suffix}')
+        ).round(2)
 
     def expr_calculer_couts_eur(suffix: str = '') -> pl.Expr:
         """
@@ -417,7 +453,7 @@ def _():
             + pl.col(f'turpe_fixe_eur{suffix}')
             + pl.col(f'cta_eur{suffix}')
             + pl.col(f'turpe_variable_eur{suffix}')
-            + pl.col('prod_eur')
+            + pl.col(f'appro_eur{suffix}')
         ).round(2)
 
     def expr_calculer_benef_total_eur(suffix: str = '') -> pl.Expr:
@@ -438,9 +474,12 @@ def _():
         """
         return (pl.col('benef_total_eur') / pl.col(f'nb_jours{suffix}') * 30.42).round(2)
     return (
+        expr_calculer_appro_eur,
         expr_calculer_benef_mensuel_eur,
         expr_calculer_benef_total_eur,
         expr_calculer_couts_eur,
+        expr_calculer_equilibrage_eur,
+        expr_calculer_prix_prod_mwh,
         expr_calculer_prod_eur,
     )
 
@@ -454,9 +493,12 @@ def _():
 @app.cell(hide_code=True)
 def _(
     df_marges,
+    expr_calculer_appro_eur,
     expr_calculer_benef_mensuel_eur,
     expr_calculer_benef_total_eur,
     expr_calculer_couts_eur,
+    expr_calculer_equilibrage_eur,
+    expr_calculer_prix_prod_mwh,
     expr_calculer_prod_eur,
 ):
     """
@@ -488,17 +530,25 @@ def _(
             pl.when(pl.col('formule_tarifaire_acheminement').n_unique() == 1)
               .then(pl.col('formule_tarifaire_acheminement').first())
               .otherwise(None)
-              .alias('formule_tarifaire_acheminement')
+              .alias('formule_tarifaire_acheminement'),
+
+            # Garder la première date de début pour le calcul du prix
+            pl.col('debut').first().alias('debut'),
         ])
         # Calcul des marges avec les fonctions réutilisables (pas de suffix)
+        .with_columns(expr_calculer_prix_prod_mwh().alias('prix_prod_mwh'))
+        .with_columns(expr_calculer_equilibrage_eur().alias('equilibrage_eur'))
         .with_columns(expr_calculer_prod_eur().alias('prod_eur'))
+        .with_columns(expr_calculer_appro_eur().alias('appro_eur'))
         .with_columns(expr_calculer_couts_eur().alias('couts_eur'))
         .with_columns(expr_calculer_benef_total_eur().alias('benef_total_eur'))
         .with_columns(expr_calculer_benef_mensuel_eur().alias('benef_mensuel_eur'))
+        # Filtrer uniquement les contrats avec au moins 365 jours
+        #.filter(pl.col('nb_jours') >= 365)
     )
 
     df_marges_agregees
-    return
+    return (df_marges_agregees,)
 
 
 @app.cell
@@ -509,10 +559,13 @@ def _():
 
 @app.cell(hide_code=True)
 def _(
-    df_marges,
+    df_marges_agregees,
+    expr_calculer_appro_eur,
     expr_calculer_benef_mensuel_eur,
     expr_calculer_benef_total_eur,
     expr_calculer_couts_eur,
+    expr_calculer_equilibrage_eur,
+    expr_calculer_prix_prod_mwh,
     expr_calculer_prod_eur,
 ):
     """
@@ -521,7 +574,8 @@ def _(
     Somme des coûts et revenus regroupés par tranche de puissance.
     """
     df_marges_par_puissance = (
-        df_marges
+        df_marges_agregees
+        .filter(pl.col('nb_jours') >= 365)
         .filter(pl.col('puissance_moyenne_kva').is_not_null())
         # Filtrer uniquement les puissances entières
         .filter(pl.col('puissance_moyenne_kva') == pl.col('puissance_moyenne_kva').round(0))
@@ -538,9 +592,15 @@ def _(
             pl.col('cta_eur').sum().round(2).alias('cta_eur_total'),
             pl.col('turpe_variable_eur').sum().round(2).alias('turpe_variable_eur_total'),
             pl.col('total_facture_eur').sum().round(2).alias('total_facture_eur_total'),
+
+            # Garder la première date de début pour le calcul du prix
+            pl.col('debut').first().alias('debut'),
         ])
         # Calcul des marges avec les fonctions réutilisables (suffix='_total')
-        .with_columns(expr_calculer_prod_eur('_total').alias('prod_eur'))
+        .with_columns(expr_calculer_prix_prod_mwh().alias('prix_prod_mwh'))
+        .with_columns(expr_calculer_equilibrage_eur('_total').alias('equilibrage_eur_total'))
+        .with_columns(expr_calculer_prod_eur('_total').alias('prod_eur_total'))
+        .with_columns(expr_calculer_appro_eur('_total').alias('appro_eur_total'))
         .with_columns(expr_calculer_couts_eur('_total').alias('couts_eur'))
         .with_columns(expr_calculer_benef_total_eur('_total').alias('benef_total_eur'))
         .with_columns(expr_calculer_benef_mensuel_eur('_total').alias('benef_mensuel_eur'))
