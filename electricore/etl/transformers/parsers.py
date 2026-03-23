@@ -238,8 +238,6 @@ def _csv_parser_transformer_base(
     csv_content = extracted_file['extracted_content']
     
     try:
-        print(f"📊 Parsing CSV: {csv_name}")
-        
         # Décoder le contenu CSV
         csv_text = csv_content.decode(encoding)
         
@@ -270,8 +268,6 @@ def _csv_parser_transformer_base(
         for row_dict in df_with_meta.to_dicts():
             yield row_dict
             records_count += 1
-        
-        print(f"✅ Parsé: {records_count} lignes depuis {csv_name}")
         
     except Exception as e:
         print(f"❌ Erreur parsing CSV {csv_name}: {e}")
@@ -376,8 +372,6 @@ def _json_parser_transformer_base(
         json_content = extracted_file['decrypted_content']
 
     try:
-        print(f"📄 Parsing JSON: {json_name}")
-
         records_count = 0
 
         # Parser le JSON et extraire les enregistrements
@@ -395,8 +389,6 @@ def _json_parser_transformer_base(
 
             yield enriched_record
             records_count += 1
-
-        print(f"✅ Parsé: {records_count} enregistrements depuis {json_name}")
 
     except Exception as e:
         print(f"❌ Erreur parsing JSON {json_name}: {e}")
@@ -607,7 +599,6 @@ def process_single_mesure(mesure: dict, header_meta: dict) -> Iterator[dict]:
         dict: Enregistrements wide par date
     """
     pdl = mesure.get('idPrm')
-    print(f"📊 Traitement PDL {pdl} - {len(mesure.get('contexte', []))} contexte(s)")
 
     # Pour trouver le premier contexte/grandeur valide pour les métadonnées
     base_record = None
@@ -662,8 +653,6 @@ def r64_timeseries_to_wide_format(
                 yield record
                 total_records += 1
 
-        print(f"✅ R64 transformé en format WIDE: {total_records} enregistrements")
-
     except json.JSONDecodeError as e:
         print(f"❌ Erreur parsing JSON R64: {e}")
         return
@@ -701,8 +690,6 @@ def _json_r64_transformer_base(
         json_content = extracted_file['decrypted_content']
 
     try:
-        print(f"📄 Parsing JSON R64: {json_name}")
-
         records_count = 0
 
         # Transformer les timeseries R64 en format WIDE
@@ -718,8 +705,6 @@ def _json_r64_transformer_base(
 
             yield enriched_record
             records_count += 1
-
-        print(f"✅ R64 parsé: {records_count} enregistrements WIDE depuis {json_name}")
 
     except Exception as e:
         print(f"❌ Erreur parsing JSON R64 {json_name}: {e}")

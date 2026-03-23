@@ -12,7 +12,8 @@ def run_production_pipeline(
     flux_selection=None,
     max_files=None,
     destination="duckdb",
-    dataset_name="flux_enedis"
+    dataset_name="flux_enedis",
+    refresh=None,
 ):
     """
     Lance le pipeline de production avec l'architecture modulaire refactorisée.
@@ -24,99 +25,58 @@ def run_production_pipeline(
         dataset_name: Nom du dataset de destination
     """
     
-    print("="*80)
-    print("🚀 PIPELINE PRODUCTION - ARCHITECTURE REFACTORISÉE")
-    print("="*80)
-    
     # Charger la configuration des flux
     config_path = Path("config/flux.yaml")
     if not config_path.exists():
         raise FileNotFoundError("Configuration flux.yaml non trouvée")
-    
+
     with open(config_path, 'r', encoding='utf-8') as f:
         all_flux_config = yaml.safe_load(f)
-    
+
     # Filtrer les flux si spécifié
     if flux_selection:
         flux_config = {k: v for k, v in all_flux_config.items() if k in flux_selection}
-        print(f"📋 Flux sélectionnés: {list(flux_config.keys())}")
     else:
         flux_config = all_flux_config
-        print(f"📋 Tous les flux configurés: {list(flux_config.keys())}")
-    
+
     if not flux_config:
         print("❌ Aucun flux à traiter!")
         return
-    
-    # Calculer le nombre total de tables
-    total_tables = 0
-    for flux_name, config in flux_config.items():
-        if 'xml_configs' in config:
-            total_tables += len(config['xml_configs'])
-        if 'csv_configs' in config:
-            total_tables += len(config['csv_configs'])
-    
-    print(f"📊 {len(flux_config)} flux → {total_tables} tables cibles")
-    if max_files:
-        print(f"⚡ Mode test: max {max_files} fichiers par resource")
-    
+
+    flux_list = ", ".join(flux_config.keys())
+    suffix = f" | {max_files} fichiers max" if max_files else ""
+    print(f"Pipeline {dataset_name} | flux: {flux_list}{suffix}")
+
     # Créer le pipeline
     pipeline = dlt.pipeline(
         pipeline_name="flux_enedis_pipeline",
         destination=destination,
         dataset_name=dataset_name
     )
-    
-    print(f"🎯 Destination: {destination} → dataset '{dataset_name}'")
-    print()
-    
-    # Créer la source avec l'architecture modulaire
-    print("🏗️ CRÉATION SOURCE MODULAIRE...")
+
     source = flux_enedis(flux_config, max_files=max_files)
-    print()
-    
-    # Exécution du pipeline
-    print("🚀 EXÉCUTION PIPELINE...")
-    print("-" * 50)
     
     try:
         # Pipeline complet: Extract + Normalize + Load
-        load_info = pipeline.run(source)
+        load_info = pipeline.run(source, refresh=refresh)
 
-        print()
-        print("="*80)
-        print("✅ PIPELINE RÉUSSI!")
-        print("="*80)
-
-        # Extraire les statistiques depuis le trace
         trace = pipeline.last_trace
         total_rows = 0
 
         if trace and trace.last_normalize_info:
             table_metrics = trace.last_normalize_info.row_counts
-
-            print("\n📊 STATISTIQUES DU CHARGEMENT:")
             for table_name, row_count in table_metrics.items():
-                if not table_name.startswith("_dlt"):  # Ignorer les tables système
-                    print(f"   - {table_name}: {row_count} nouveaux enregistrements")
+                if not table_name.startswith("_dlt"):
                     total_rows += row_count
 
-            if total_rows == 0:
-                print("   ⚠️ Aucune nouvelle donnée à traiter")
-            else:
-                print(f"   ✅ Total: {total_rows} enregistrements ajoutés")
+        if total_rows == 0:
+            print("⚠️  Aucune nouvelle donnée")
         else:
-            print("\n📊 Pas de métriques disponibles dans le trace")
-
-        # Afficher les informations de timing
-        print(f"\n📦 Load info: {load_info}")
-
-        # Résumé simple
-        packages_count = len(load_info.load_packages) if hasattr(load_info, 'load_packages') else 1
-        print(f"📋 {packages_count} package(s) traité(s) avec succès")
-
-        print()
-        print("🎉 ARCHITECTURE REFACTORISÉE OPÉRATIONNELLE!")
+            print(f"✅ {total_rows} enregistrements chargés")
+            if trace and trace.last_normalize_info:
+                for table_name, row_count in table_metrics.items():
+                    if not table_name.startswith("_dlt"):
+                        print(f"   {table_name}: {row_count}")
         
     except Exception as e:
         print(f"❌ Erreur pipeline: {e}")
@@ -153,10 +113,18 @@ def main():
             run_production_pipeline(
                 dataset_name="flux_enedis"
             )
-            
+
+        elif mode == "reset":
+            # Reset complet : supprime données + état, repart de zéro
+            print("🔄 MODE RESET COMPLET (données supprimées)")
+            run_production_pipeline(
+                dataset_name="flux_enedis",
+                refresh="drop_sources"
+            )
+
         else:
             print(f"❌ Mode inconnu: {mode}")
-            print("Usage: python pipeline_production.py [test|r151|all]")
+            print("Usage: python pipeline_production.py [test|r151|all|reset]")
             sys.exit(1)
     else:
         # Mode par défaut - test rapide  

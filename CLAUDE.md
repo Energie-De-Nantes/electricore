@@ -193,6 +193,30 @@ uv run python electricore/etl/pipeline_production.py all
 
 Result: DuckDB database at `electricore/etl/flux_enedis_pipeline.duckdb`
 
+#### Rotation des clés AES Enedis
+
+Enedis effectue des rotations de clés AES périodiquement. Le format `secrets.toml` supporte
+plusieurs clés simultanément pour couvrir la période de transition :
+
+```toml
+# Format recommandé (v2) — supporte la rotation
+[aes.current]
+key = "nouvelle_clé_hex"
+iv  = "nouvel_iv_hex"
+
+[aes.previous]           # optionnel, garder ~4 semaines après rotation
+key = "ancienne_clé_hex"
+iv  = "ancien_iv_hex"
+```
+
+Procédure de rotation :
+1. Obtenir la nouvelle clé Enedis
+2. Déplacer `[aes]` → `[aes.previous]`, créer `[aes.current]` avec la nouvelle clé
+3. Relancer le pipeline — les anciens fichiers déchiffrent avec `previous`, les nouveaux avec `current`
+4. Après ~4 semaines : supprimer `[aes.previous]`
+
+Le format `[aes]` plat (v1) reste supporté pour la compatibilité ascendante.
+
 ### 2. Core Pipelines
 
 ```python
