@@ -1,197 +1,96 @@
 # ETL ElectriCore
 
-Pipeline ETL pour les flux énergétiques Enedis avec architecture modulaire DLT.
+Pipeline ETL pour les flux énergétiques Enedis : SFTP → DuckDB via DLT.
 
-## 🏗️ Architecture Refactorisée
+## Structure
 
 ```
 electricore/etl/
-├── transformers/            # Transformers DLT modulaires
-│   ├── crypto.py           # Déchiffrement AES + transformer
-│   ├── archive.py          # Extraction ZIP + transformer  
-│   └── parsers.py          # Parsing XML/CSV + transformers
-│
-├── sources/                 # Sources DLT (@dlt.source)
-│   └── sftp_enedis.py      # Source SFTP multi-ressources refactorisée
-│
-├── config/                  # Configuration centralisée
-│   ├── settings.py         # Chargement YAML et constantes
-│   └── flux.yaml           # Configuration des flux (C15, F12, F15, R15, R151, R64)
-│
-├── pipeline_production.py   # Pipeline de production avec modes
-└── .dlt/                   # Configuration DLT
+├── transformers/
+│   ├── crypto.py           # Déchiffrement AES (chaîne de clés, rotation)
+│   ├── archive.py          # Extraction ZIP
+│   └── parsers.py          # Parsing XML/CSV/JSON
+├── sources/
+│   └── sftp_enedis.py      # Source DLT SFTP multi-flux
+├── tools/
+│   └── reset_incremental_state.py  # Reset curseurs DLT
+├── config/
+│   ├── flux.yaml           # Configuration des flux
+│   └── settings.py
+├── pipeline_production.py  # Point d'entrée
+└── .dlt/
     ├── config.toml
-    └── secrets.toml
+    └── secrets.toml        # Clés AES + URL SFTP (non commité)
 ```
 
-## 🚀 Utilisation
-
-### Pipeline de Production
+## Utilisation
 
 ```bash
-# Test rapide (2 fichiers) - quelques secondes
-poetry run python pipeline_production.py test
-
-# R151 complet - environ 6 secondes  
-poetry run python pipeline_production.py r151
-
-# Tous les flux - production complète
-poetry run python pipeline_production.py all
-
-# Mode par défaut - test rapide
-poetry run python pipeline_production.py
+# Depuis electricore/etl/
+uv run --extra etl python pipeline_production.py test    # 2 fichiers, ~3s
+uv run --extra etl python pipeline_production.py r151   # R151 complet
+uv run --extra etl python pipeline_production.py all    # Tous les flux
+uv run --extra etl python pipeline_production.py reset  # Reset complet (supprime données + état)
 ```
 
-### Développement et Tests
+## Configuration (`secrets.toml`)
 
-```bash
-# Test avec limitation personnalisée
-from sources.sftp_enedis import sftp_flux_enedis_multi
-source = sftp_flux_enedis_multi(flux_config, max_files=5)
-```
-
-### Commandes DLT Utiles
-
-```bash
-# Vérifier l'état du pipeline
-poetry run dlt pipeline enedis_data info
-
-# Reset complet si nécessaire  
-poetry run dlt pipeline enedis_data drop --drop-all
-
-# Logs détaillés
-poetry run dlt pipeline enedis_data trace
-```
-
-## 📊 Flux Supportés
-
-| Flux | Description | Tables générées |
-|------|-------------|-----------------|
-| **C15** | Changements contractuels | `flux_c15` |
-| **F12** | Facturation distributeur | `flux_f12` |
-| **F15** | Facturation détaillée | `flux_f15_detail` |
-| **R15** | Relevés index | `flux_r15`, `flux_r15_acc` |
-| **R151** | Relevés courbe de charge | `flux_r151` |
-| **R64** | Relevés CSV (Polars) | `flux_r64` |
-
-## 🔧 Configuration
-
-### Secrets DLT (`.dlt/secrets.toml`)
 ```toml
 [sftp]
 url = "sftp://user:pass@host/path/"
-file_pattern = "**/*.zip"
 
-[aes]
+# Format recommandé — supporte la rotation de clés
+[aes.current]
 key = "hex_encoded_key"
-iv = "hex_encoded_iv"
+iv  = "hex_encoded_iv"
+
+[aes.previous]           # optionnel, garder ~4 semaines après rotation
+key = "ancienne_clé_hex"
+iv  = "ancien_iv_hex"
+
+# Format hérité (toujours supporté)
+# [aes]
+# key = "..."
+# iv  = "..."
 ```
 
-### Configuration des Flux (`config/flux.yaml`)
-Chaque flux définit :
-- `zip_pattern` : Pattern des fichiers ZIP à traiter
-- `xml_configs` : Configurations XML avec row_level, data_fields, nested_fields
-- `csv_configs` : Configurations CSV avec délimiteurs et clés primaires
+## Flux supportés
 
-## 🎯 Avantages de l'Architecture Modulaire
+| Flux | Description | Tables |
+|------|-------------|--------|
+| **C15** | Événements contractuels | `flux_c15` |
+| **F12** | Facturation distributeur | `flux_f12_detail` |
+| **F15** | Facturation détaillée | `flux_f15_detail` |
+| **R15** | Relevés index | `flux_r15`, `flux_r15_acc` |
+| **R151** | Relevés périodiques Linky | `flux_r151` |
+| **R64** | Timeseries JSON | `flux_r64` |
 
-✅ **Transformers réutilisables** : crypto | archive | parsers  
-✅ **Tests ultra-rapides** : max_files pour éviter 15min d'attente  
-✅ **Pipeline flexible** : modes test/production/personnalisé  
-✅ **Consolidation DRY** : Suppression duplications lib/transformers  
-✅ **Performance optimisée** : R151 complet en 6.3 secondes  
+## Rotation des clés AES
 
-## ⚡ Performance
+Enedis effectue des rotations de clés périodiquement. Procédure :
 
-- **Test rapide** : 2 fichiers en ~3 secondes
-- **R151 complet** : 108k enregistrements en 6.3 secondes  
-- **Incrémental DLT** : Évite le retraitement automatiquement
+1. Obtenir la nouvelle clé Enedis
+2. Dans `secrets.toml` : déplacer `[aes]` → `[aes.previous]`, créer `[aes.current]`
+3. Relancer le pipeline — les fichiers anciens déchiffrent avec `previous`, les nouveaux avec `current`
+4. Après ~4 semaines : supprimer `[aes.previous]`
 
-## ⚠️ Attention : État Incrémental DLT et Nommage
+## Reset de l'état incrémental
 
-### Problème caché de l'état incrémental
-
-DLT maintient un état incrémental basé sur la **combinaison unique** de :
-- Nom du pipeline (`pipeline_name`)
-- Nom de la source (`@dlt.source(name="...")`)
-- Nom du dataset (`dataset_name`)
-
-**⚠️ IMPORTANT** : Si vous changez un de ces noms sans nettoyer l'état, DLT peut :
-- Utiliser l'ancien état incrémental avec le nouveau nom → données manquantes
-- Créer un nouvel état → rechargement complet non voulu
-- Mélanger les états → comportements imprévisibles
-
-### Où est stocké l'état ?
-
-1. **Local** : `~/.dlt/pipelines/{pipeline_name}/state.json`
-2. **DuckDB** : `{dataset_name}._dlt_pipeline_state`
-
-### Comment éviter les problèmes ?
-
-Lors d'un changement de nom :
+DLT stocke l'état dans deux endroits (fichier local + DuckDB). Pour réinitialiser :
 
 ```bash
-# 1. Nettoyer l'état local
-rm -rf ~/.dlt/pipelines/ancien_nom_pipeline/
+# Reset complet (supprime données et état, repart de zéro)
+uv run --extra etl python pipeline_production.py reset
 
-# 2. Nettoyer dans DuckDB (optionnel si nouveau dataset)
-poetry run python -c "
-import duckdb
-conn = duckdb.connect('flux_enedis.duckdb')
-conn.execute('DROP SCHEMA IF EXISTS ancien_dataset CASCADE')
-"
+# Reset des curseurs uniquement (conserve les données)
+uv run --extra etl python tools/reset_incremental_state.py --clear
 
-# 3. Relancer avec les nouveaux noms
-poetry run python pipeline_production.py all
+# Recul à une date précise (retraite les fichiers depuis cette date)
+uv run --extra etl python tools/reset_incremental_state.py 2026-03-17
 ```
 
-### Exemple de migration propre
+## Vérification de l'état
 
-Si vous renommez `enedis_production` → `flux_enedis` :
-
-```python
-# AVANT
-pipeline = dlt.pipeline(
-    pipeline_name="flux_enedis",  # ⚠️ Incohérent !
-    dataset_name="enedis_production"
-)
-source = sftp_flux_enedis_multi(...)  # Ancien nom
-
-# APRÈS (cohérent)
-pipeline = dlt.pipeline(
-    pipeline_name="flux_enedis_pipeline",  # Nouveau nom
-    dataset_name="flux_enedis"  # Nouveau schema
-)
-source = flux_enedis(...)  # Source renommée aussi !
+```bash
+uv run --extra etl dlt pipeline flux_enedis_pipeline info
 ```
-
-**Règle d'or** : En cas de doute sur l'état incrémental, utilisez `--replace` ou supprimez `~/.dlt/pipelines/`.
-
-## 🔄 Architecture Modulaire
-
-```python
-# Pipeline avec chaînage de transformers
-encrypted_files | decrypt_transformer | unzip_transformer | parse_transformer
-```
-
-Chaque transformer est :
-- **Isolé** : Testable indépendamment
-- **Réutilisable** : Partagé entre flux
-- **Composable** : Chaînable avec l'opérateur |
-
-## 🔮 Extensions Futures
-
-- `sources/api_enedis.py` : API REST Enedis
-- `sources/sftp_axpo.py` : SFTP Axpo
-- `transformers/validators.py` : Validation Pandera des données
-
-## 🔌 Intégrations
-
-### Connecteurs disponibles
-
-Les connecteurs Odoo ont été déplacés vers les modules Core pour une meilleure séparation des responsabilités :
-
-- **Lecture** : `electricore.core.loaders` (OdooReader, OdooQuery)
-- **Écriture** : `electricore.core.writers` (OdooWriter)
-
-Voir [docs/odoo-query-builder.md](../../docs/odoo-query-builder.md) pour plus de détails.
