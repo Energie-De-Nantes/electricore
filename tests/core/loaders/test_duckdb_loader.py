@@ -7,7 +7,6 @@ incluant le chargement des données, les transformations et la validation Pander
 
 import pytest
 import polars as pl
-import pandas as pd
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
 

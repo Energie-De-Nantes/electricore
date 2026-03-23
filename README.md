@@ -91,13 +91,13 @@ encrypted_files | decrypt_transformer | unzip_transformer | parse_transformer
 
 ```bash
 # Test rapide (2 fichiers)
-poetry run python electricore/etl/pipeline_production.py test
+uv run python electricore/etl/pipeline_production.py test
 
 # R151 complet (~6 secondes)
-poetry run python electricore/etl/pipeline_production.py r151
+uv run python electricore/etl/pipeline_production.py r151
 
 # Tous les flux (production)
-poetry run python electricore/etl/pipeline_production.py all
+uv run python electricore/etl/pipeline_production.py all
 ```
 
 **Résultat** : Base DuckDB `electricore/etl/flux_enedis_pipeline.duckdb` avec toutes les tables flux.
@@ -298,7 +298,7 @@ API REST sécurisée basée sur **FastAPI** pour accéder aux données flux depu
 
 ```bash
 # Démarrer l'API
-poetry run uvicorn electricore.api.main:app --reload
+uv run uvicorn electricore.api.main:app --reload
 
 # Requête avec authentification
 curl -H "X-API-Key: votre_cle" "http://localhost:8000/flux/r151?limit=10"
@@ -335,33 +335,36 @@ ENABLE_API_KEY_QUERY=false
 ### Prérequis
 
 - Python 3.12+
-- Poetry
+- [uv](https://docs.astral.sh/uv/getting-started/installation/)
 
 ### Installation
 
 ```bash
 # Cloner le projet
-git clone https://github.com/votre-org/electricore.git
+git clone https://github.com/Energie-De-Nantes/electricore.git
 cd electricore
 
-# Installer les dépendances
-poetry install
+# Installation standard (core + API + marimo + viz)
+uv sync
+
+# + pipeline ETL SFTP Enedis (pour serveur de collecte)
+uv sync --extra etl
 ```
 
 ### Commandes essentielles
 
 ```bash
 # Tests
-poetry run pytest -q
+uv run --group test pytest -q
 
-# Pipeline ETL complet
-poetry run python electricore/etl/pipeline_production.py all
+# Pipeline ETL complet (nécessite --extra etl)
+uv run python electricore/etl/pipeline_production.py all
 
 # API FastAPI
-poetry run uvicorn electricore.api.main:app --reload
+uv run uvicorn electricore.api.main:app --reload
 
 # Notebooks interactifs (Marimo)
-poetry run marimo edit notebooks/demo_pipeline_abonnements_polars.py
+uv run marimo edit notebooks/
 ```
 
 ---
@@ -389,19 +392,16 @@ Suite de tests moderne avec **186 tests** (tous passants ✅) :
 
 ```bash
 # Tous les tests
-pytest
+uv run --group test pytest -q
 
 # Tests rapides uniquement
-pytest -m unit
-
-# Tests critiques (CI)
-pytest -m smoke
+uv run --group test pytest -m unit
 
 # Exécution parallèle
-pytest -n auto
+uv run --group test pytest -n auto
 
 # Avec coverage
-pytest --cov=electricore --cov-report=html
+uv run --group test pytest --cov=electricore --cov-report=html
 ```
 
 **Couverture** : 49% (focus sur qualité plutôt que quantité)
@@ -471,7 +471,7 @@ ElectriCore utilise une architecture **100% Polars** pour des performances optim
 
 Les contributions sont les bienvenues ! Avant toute modification :
 
-1. Lancer les tests : `poetry run pytest -q`
+1. Lancer les tests : `uv run --group test pytest -q`
 2. Vérifier la cohérence avec les patterns Polars existants
 3. Documenter les nouvelles fonctionnalités
 4. Suivre les conventions de code du projet
@@ -480,7 +480,7 @@ Les contributions sont les bienvenues ! Avant toute modification :
 
 ## 📄 Licence
 
-GPLv3 - Voir [LICENSE](LICENSE)
+AGPL-3.0 - Voir [LICENSE](LICENSE)
 
 ---
 

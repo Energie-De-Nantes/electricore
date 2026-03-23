@@ -528,34 +528,3 @@ def debug_turpe_variable(lf: pl.LazyFrame) -> pl.LazyFrame:
     return lf.with_columns(debug_expressions)
 
 
-def comparer_avec_pandas(lf: pl.LazyFrame, df_pandas) -> dict:
-    """
-    Compare les résultats Polars avec pandas pour la validation de migration.
-
-    Cette fonction aide à valider que la migration Polars produit
-    les mêmes résultats que l'implémentation pandas existante.
-
-    Args:
-        lf: LazyFrame Polars avec résultats
-        df_pandas: DataFrame pandas avec résultats de référence
-
-    Returns:
-        Dictionnaire avec statistiques de comparaison
-
-    Example:
-        >>> stats = comparer_avec_pandas(lf, df_pandas)
-        >>> print(f"Différence moyenne TURPE: {stats['turpe_variable_diff_moyenne']}")
-    """
-    df = lf.collect().to_pandas()
-
-    # Comparer les colonnes communes
-    colonnes_communes = set(df.columns) & set(df_pandas.columns)
-
-    stats = {}
-    for col in colonnes_communes:
-        if df[col].dtype in ['float64', 'int64'] and df_pandas[col].dtype in ['float64', 'int64']:
-            diff = abs(df[col] - df_pandas[col])
-            stats[f"{col}_diff_max"] = diff.max()
-            stats[f"{col}_diff_moyenne"] = diff.mean()
-
-    return stats

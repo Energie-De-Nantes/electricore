@@ -36,7 +36,6 @@ from electricore.core.pipelines.turpe import (
 
     # Fonctions de debug
     debug_turpe_variable,
-    comparer_avec_pandas,
 )
 
 
@@ -685,38 +684,6 @@ class TestFonctionsDebug:
         assert df_debug["debug_tarif_base"][0] == 4.37
         assert abs(df_debug["debug_contribution_base"][0] - 4.37) < 0.01
 
-    def test_comparer_avec_pandas(self):
-        """Test de la fonction de comparaison avec pandas."""
-        # Créer des données de test
-        lf = pl.LazyFrame({
-            "turpe_variable_eur": [4.37, 2.34],
-            "turpe_fixe_eur": [8.20, 10.30],
-            "energie": [100.0, 50.0]
-        })
-
-        # Simuler un DataFrame pandas équivalent
-        import pandas as pd
-        df_pandas = pd.DataFrame({
-            "turpe_variable_eur": [4.37, 2.34],  # Identique
-            "turpe_fixe_eur": [8.21, 10.29],     # Légèrement différent
-            "energie": [100.0, 50.0],        # Identique
-            "autre_col": ["A", "B"]          # Colonne supplémentaire
-        })
-
-        stats = comparer_avec_pandas(lf, df_pandas)
-
-        # Vérifier la structure des statistiques
-        assert "turpe_variable_eur_diff_max" in stats
-        assert "turpe_variable_eur_diff_moyenne" in stats
-        assert "turpe_fixe_eur_diff_max" in stats
-        assert "turpe_fixe_eur_diff_moyenne" in stats
-        assert "energie_diff_max" in stats
-        assert "energie_diff_moyenne" in stats
-
-        # Vérifier les valeurs (avec tolérance pour la précision flottante)
-        assert stats["turpe_variable_eur_diff_max"] == 0.0  # Identique
-        assert abs(stats["turpe_fixe_eur_diff_max"] - 0.01) < 1e-10  # Différence maximale
-        assert stats["energie_diff_max"] == 0.0         # Identique
 
 
 class TestCasLimites:

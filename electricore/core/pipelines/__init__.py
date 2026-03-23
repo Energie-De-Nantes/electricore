@@ -5,10 +5,8 @@ Ce module contient les implémentations fonctionnelles des pipelines
 de traitement de données énergétiques utilisant les expressions Polars.
 """
 
-# TODO: Migrer tous les pipelines vers electricore.core._optional pour rendre
-# Pandera optionnel partout (requis pour usage WASM sans dépendances lourdes).
-# Pour l'instant, on utilise des lazy imports pour éviter de charger facturation.py
-# (qui nécessite Pandera) lors de l'import de modules indépendants comme turpe.py
+# Lazy imports pour éviter de charger facturation.py (qui nécessite Pandera)
+# lors de l'import de modules indépendants comme turpe.py.
 
 __all__ = [
     "ResultatFacturationPolars",

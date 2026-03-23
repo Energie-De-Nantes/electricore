@@ -7,7 +7,6 @@ sans duplication de code.
 
 import pytest
 import polars as pl
-from datetime import datetime
 
 from electricore.core.pipelines.turpe import (
     expr_calculer_turpe_fixe_annuel,
@@ -79,68 +78,61 @@ def test_turpe_fixe_annuel_par_fta(
 
 @pytest.mark.unit
 @pytest.mark.parametrize(
-    "nb_jours,turpe_annuel,expected_journalier_approx",
+    "b,cg,cc,puissance",
     [
-        (30, 120.0, 120.0 / 365),   # 30 jours
-        (31, 120.0, 120.0 / 365),   # 31 jours
-        (28, 120.0, 120.0 / 365),   # Février
-        (365, 120.0, 120.0 / 365),  # Année complète
-        (1, 120.0, 120.0 / 365),    # Un seul jour
+        (10.44, 16.2, 20.88, 6.0),   # BTINFCUST 6kVA
+        (10.44, 16.2, 20.88, 9.0),   # BTINFCUST 9kVA
+        (8.40,  16.2, 20.88, 12.0),  # BTINFMU4 12kVA
+        (9.36,  16.2, 20.88, 3.0),   # BTINFCU4 3kVA (puissance min)
+        (10.44, 16.2, 20.88, 36.0),  # BTINFCUST 36kVA (puissance max BT INF)
     ],
-    ids=["30j", "31j", "28j_fevrier", "365j_annee", "1j"]
+    ids=["BTINFCUST_6kVA", "BTINFCUST_9kVA", "BTINFMU4_12kVA", "BTINFCU4_3kVA", "BTINFCUST_36kVA"]
 )
-@pytest.mark.skip(reason="Needs implementation fixes")
-@pytest.mark.unit
-def test_turpe_fixe_journalier_durees(nb_jours, turpe_annuel, expected_journalier_approx):
-    """Teste le calcul du tarif journalier pour différentes durées."""
+def test_turpe_fixe_journalier_fta(b, cg, cc, puissance):
+    """Teste que le tarif journalier = annuel / 365 pour différentes FTA."""
     df = pl.DataFrame({
-        "nb_jours": [nb_jours],
-        "turpe_annuel": [turpe_annuel],
+        "puissance_souscrite_kva": [puissance],
+        "b": [b], "cg": [cg], "cc": [cc],
+        "b_hph": [None], "b_hch": [None], "b_hpb": [None], "b_hcb": [None],
+        "puissance_souscrite_hph_kva": [None], "puissance_souscrite_hch_kva": [None],
+        "puissance_souscrite_hpb_kva": [None], "puissance_souscrite_hcb_kva": [None],
     })
 
     result = df.with_columns(
         expr_calculer_turpe_fixe_journalier().alias("turpe_journalier")
     )
 
-    turpe_journalier = result["turpe_journalier"][0]
-
-    # Le tarif journalier doit être constant quelle que soit la durée
-    assert abs(turpe_journalier - expected_journalier_approx) < 0.001
+    expected = (b * puissance + cg + cc) / 365
+    assert abs(result["turpe_journalier"][0] - expected) < 0.001
 
 
 @pytest.mark.unit
 @pytest.mark.parametrize(
-    "nb_jours,turpe_annuel",
-    [
-        (30, 120.0),
-        (31, 120.0),
-        (90, 120.0),
-        (180, 120.0),
-        (365, 120.0),
-    ],
+    "nb_jours",
+    [30, 31, 90, 180, 365],
     ids=["1_mois", "31j", "1_trimestre", "6_mois", "1_an"]
 )
-@pytest.mark.skip(reason="Needs implementation fixes")
-@pytest.mark.unit
-def test_turpe_fixe_periode_prorata(nb_jours, turpe_annuel):
-    """Teste que le TURPE période respecte le prorata temporis."""
+def test_turpe_fixe_periode_prorata(nb_jours):
+    """Teste que le TURPE période respecte le prorata temporis (annuel * nb_jours / 365)."""
+    b, cg, cc, puissance = 10.44, 16.2, 20.88, 6.0  # BTINFCUST 6kVA
     df = pl.DataFrame({
         "nb_jours": [nb_jours],
-        "turpe_annuel": [turpe_annuel],
+        "puissance_souscrite_kva": [puissance],
+        "b": [b], "cg": [cg], "cc": [cc],
+        "b_hph": [None], "b_hch": [None], "b_hpb": [None], "b_hcb": [None],
+        "puissance_souscrite_hph_kva": [None], "puissance_souscrite_hch_kva": [None],
+        "puissance_souscrite_hpb_kva": [None], "puissance_souscrite_hcb_kva": [None],
     })
 
     result = df.with_columns(
-        expr_calculer_turpe_fixe_journalier().alias("turpe_journalier")
-    ).with_columns(
         expr_calculer_turpe_fixe_periode().alias("turpe_periode")
     )
 
-    turpe_periode = result["turpe_periode"][0]
-    expected_periode = turpe_annuel * nb_jours / 365
+    turpe_annuel = b * puissance + cg + cc
+    expected_periode = round(turpe_annuel * nb_jours / 365, 2)
 
-    # Vérification prorata avec tolérance
-    assert abs(turpe_periode - expected_periode) < 0.01, \
-        f"TURPE période incorrect: {turpe_periode} vs {expected_periode}"
+    assert abs(result["turpe_periode"][0] - expected_periode) < 0.01, \
+        f"TURPE période incorrect: {result['turpe_periode'][0]} vs {expected_periode}"
 
 
 # =========================================================================
@@ -150,46 +142,24 @@ def test_turpe_fixe_periode_prorata(nb_jours, turpe_annuel):
 
 @pytest.mark.unit
 @pytest.mark.parametrize(
-    "cadran,energie,tarif,expected_cout_min,expected_cout_max",
+    "cadran,energie,tarif,expected",
     [
-        # HP - consommation normale
-        ("HP", 1000.0, 1.5, 1480.0, 1520.0),
-        # HC - consommation normale
-        ("HC", 800.0, 1.2, 950.0, 970.0),
-        # BASE - consommation normale
-        ("BASE", 1500.0, 1.35, 2010.0, 2040.0),
-        # HPH - heures pleines hiver
-        ("HPH", 500.0, 1.6, 790.0, 810.0),
-        # HCH - heures creuses hiver
-        ("HCH", 400.0, 1.3, 510.0, 530.0),
-        # Consommation nulle
-        ("HP", 0.0, 1.5, 0.0, 0.0),
-        # Très grosse consommation
-        ("HP", 100000.0, 1.5, 149000.0, 151000.0),
+        # Formule : energie * tarif / 100  (tarif en c€/kWh → résultat en €)
+        ("hp",   1000.0, 1.5,  15.0),
+        ("hc",    800.0, 1.2,   9.6),
+        ("base", 1500.0, 1.35, 20.25),
+        ("hph",   500.0, 1.6,   8.0),
+        ("hch",   400.0, 1.3,   5.2),
+        ("hp",      0.0, 1.5,   0.0),   # consommation nulle
+        ("hp", 100000.0, 1.5, 1500.0),  # très grosse consommation
     ],
-    ids=[
-        "HP_normal",
-        "HC_normal",
-        "BASE_normal",
-        "HPH_hiver",
-        "HCH_hiver",
-        "zero",
-        "tres_grosse_conso"
-    ]
+    ids=["hp_normal", "hc_normal", "base_normal", "hph_hiver", "hch_hiver", "zero", "tres_grosse_conso"]
 )
-@pytest.mark.skip(reason="Needs implementation fixes")
-@pytest.mark.unit
-def test_turpe_variable_cadran(
-    cadran,
-    energie,
-    tarif,
-    expected_cout_min,
-    expected_cout_max
-):
-    """Teste le calcul TURPE variable par cadran."""
+def test_turpe_variable_cadran(cadran, energie, tarif, expected):
+    """Teste le calcul TURPE variable par cadran (tarif en c€/kWh, résultat en €)."""
     df = pl.DataFrame({
-        cadran: [energie],
-        f"tarif_{cadran.lower()}": [tarif],
+        f"energie_{cadran}_kwh": [energie],
+        f"c_{cadran}": [tarif],
     })
 
     result = df.with_columns(
@@ -197,10 +167,7 @@ def test_turpe_variable_cadran(
     )
 
     cout = result[f"cout_{cadran}"][0]
-
-    # Vérification par plage
-    assert expected_cout_min <= cout <= expected_cout_max, \
-        f"Coût TURPE {cadran} hors plage: {cout}"
+    assert abs(cout - expected) < 0.001, f"Coût TURPE {cadran} incorrect: {cout} vs {expected}"
 
 
 # =========================================================================

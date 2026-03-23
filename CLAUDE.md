@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **ElectriCore** is a French energy data processing engine - an open-source tool to reclaim control over electricity grid data. It transforms raw Enedis (French electricity distributor) flux into structured, exploitable data for LibreWatt, Odoo ERP, and other energy management tools.
 
-**Modern stack**: Polars + DuckDB architecture for high-performance data processing with 100% Polars migration complete.
+**Stack**: Polars + DuckDB for high-performance data processing. Pure Polars (no pandas dependency).
 
 **Three main modules**:
 - **ETL**: Automated extraction/transformation pipeline (DLT) - SFTP → DuckDB
@@ -16,20 +16,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Key Commands
 
 ```bash
-# Run tests (138 passing)
-poetry run pytest -q
+# Install (uv)
+uv sync              # core + API + marimo + viz
+uv sync --extra etl  # + SFTP ETL pipeline
 
-# Install dependencies
-poetry install
+# Run tests
+uv run --group test pytest -q
+
+# Run with coverage
+uv run --group test pytest --cov=electricore tests/
 
 # Build/package
-poetry build
+uv build
 
-# Run ETL pipeline
-poetry run python electricore/etl/pipeline_production.py all
+# Run ETL pipeline (requires [etl] extra)
+uv run python electricore/etl/pipeline_production.py all
 
 # Start API server
-poetry run uvicorn electricore.api.main:app --reload
+uv run uvicorn electricore.api.main:app --reload
 ```
 
 ## Architecture
@@ -41,38 +45,44 @@ electricore/
 ├── etl/                       # 📥 ETL - Data Extraction & Transformation
 │   ├── sources/               # DLT sources (SFTP Enedis)
 │   ├── transformers/          # Modular transformers (crypto, archive, parsers)
-│   ├── config/                # Flux configuration (flux.yaml)
+│   ├── config/                # Flux configuration
 │   └── pipeline_production.py # Production pipeline with modes
 │
 ├── core/                      # 🧮 CORE - Energy Calculations
-│   ├── pipelines/             # Polars pipelines (périmètre, abonnements, energie, turpe)
-│   ├── pipelines_polars/      # Migration-in-progress Polars implementations
+│   ├── pipelines/             # Polars pipelines
+│   │   ├── perimetre.py       # PDL perimeter (contract events)
+│   │   ├── abonnements.py     # Subscription periods
+│   │   ├── energie.py         # Energy consumption by time slot
+│   │   ├── turpe.py           # TURPE network tariff (fixed + variable)
+│   │   ├── accise.py          # Accise (TICFE) tax calculation
+│   │   ├── facturation.py     # Monthly billing aggregation (Pandera-validated)
+│   │   └── orchestration.py   # Full pipeline orchestration
 │   ├── models/                # Pandera validation schemas
 │   ├── loaders/               # Data loading & query builders
-│   │   ├── duckdb.py          # DuckDBQuery builder (c15, r151, releves, etc.)
-│   │   ├── polars.py          # Polars data loaders
-│   │   └── odoo.py            # OdooReader + OdooQuery
+│   │   ├── duckdb/            # DuckDBQuery builder (c15, r151, releves, etc.)
+│   │   ├── odoo/              # OdooReader + OdooQuery
+│   │   └── parquet.py         # Parquet loader
 │   └── writers/               # Data export
 │       └── odoo.py            # OdooWriter
 │
 ├── api/                       # 🌐 API - REST Access Layer
 │   ├── services/              # Query services (DuckDB)
-│   ├── auth.py                # API key authentication
+│   ├── security.py            # API key authentication
 │   └── main.py                # FastAPI application
 │
-└── inputs/flux/               # XML/CSV parsers (R15, R151, C15)
+└── config/                    # ⚙️ Tariff rules (TURPE, Accise CSV files)
 ```
 
 ### Supported Flux Types
 
-| Flux   | Description                | Tables                   |
-|--------|----------------------------|--------------------------|
-| **C15** | Contract changes          | `flux_c15`               |
-| **F12** | Distributor invoicing     | `flux_f12`               |
-| **F15** | Detailed invoices         | `flux_f15_detail`        |
+| Flux    | Description               | Tables                     |
+|---------|---------------------------|----------------------------|
+| **C15** | Contract changes          | `flux_c15`                 |
+| **F12** | Distributor invoicing     | `flux_f12`                 |
+| **F15** | Detailed invoices         | `flux_f15_detail`          |
 | **R15** | Meter readings + events   | `flux_r15`, `flux_r15_acc` |
-| **R151**| Periodic readings         | `flux_r151`              |
-| **R64** | JSON timeseries readings  | `flux_r64`               |
+| **R151**| Periodic readings         | `flux_r151`                |
+| **R64** | JSON timeseries readings  | `flux_r64`                 |
 
 ### Data Flow
 
@@ -83,17 +93,6 @@ SFTP Enedis → ETL (DLT) → DuckDB → Query Builders → Core Pipelines → R
                                   ↓
                               Odoo (XML-RPC)
 ```
-
-## Polars Migration Status
-
-✅ **100% COMPLETE** - Full Polars migration achieved!
-
-- ✅ **Pipeline périmètre**: 8 composable expressions + LazyFrame pipeline
-- ✅ **Pipeline abonnements**: Period calculation with temporal bounds
-- ✅ **Pipeline énergies**: Consumption by time slots (HP/HC/Base)
-- ✅ **Pipeline TURPE**: Fixed and variable regulatory taxes
-
-All pipelines now use pure Polars (no pandas dependency) with LazyFrame optimization.
 
 ## Established Patterns
 
@@ -111,8 +110,8 @@ All pipelines now use pure Polars (no pandas dependency) with LazyFrame optimiza
 - Each transformer is isolated, testable, and reusable
 
 ### Validation
-- **Pandera schemas**: `@pa.check_types` decorators on pipeline functions
-- **Tests**: Include pandas comparison for migration validation
+- **Pandera schemas**: `@pa.check_types(lazy=True)` decorators on facturation pipeline functions
+- Pandera is a hard dependency (not optional)
 
 ## Important Notes
 
@@ -161,15 +160,21 @@ from electricore.core.loaders import (
 # Writers (write operations)
 from electricore.core.writers import OdooWriter
 
-# Pipelines
+# Pipelines individuels
 from electricore.core.pipelines.perimetre import pipeline_perimetre
 from electricore.core.pipelines.abonnements import pipeline_abonnements
 from electricore.core.pipelines.energie import pipeline_energie
+from electricore.core.pipelines.turpe import ajouter_turpe_fixe, ajouter_turpe_variable
+from electricore.core.pipelines.accise import pipeline_accise
+from electricore.core.pipelines.facturation import pipeline_facturation
+
+# Pipeline complet (orchestration)
+from electricore.core.pipelines.orchestration import facturation, calculer_historique_enrichi
 ```
 
 ### Naming Conventions
 - Query builders: `DuckDBQuery` and `OdooQuery` (harmonized naming)
-- Files: `duckdb.py`, `polars.py`, `odoo.py` (no `_loader` suffix)
+- Files: `duckdb/`, `odoo/` (sub-packages, no `_loader` suffix)
 
 ## Key Modules & Quick Examples
 
@@ -177,13 +182,13 @@ from electricore.core.pipelines.energie import pipeline_energie
 
 ```bash
 # Test mode (2 files, ~3s)
-poetry run python electricore/etl/pipeline_production.py test
+uv run python electricore/etl/pipeline_production.py test
 
 # Single flux (R151 complete, ~6s)
-poetry run python electricore/etl/pipeline_production.py r151
+uv run python electricore/etl/pipeline_production.py r151
 
 # Full production (all flux)
-poetry run python electricore/etl/pipeline_production.py all
+uv run python electricore/etl/pipeline_production.py all
 ```
 
 Result: DuckDB database at `electricore/etl/flux_enedis_pipeline.duckdb`
@@ -211,7 +216,7 @@ from electricore.core.loaders import c15, r151, releves
 historique = c15().filter({"pdl": ["PDL123"]}).limit(100).collect()
 
 # Periodic readings (R151)
-relevés = r151().filter({"date_releve": ">= '2024-01-01'"}).lazy()
+releves_lf = r151().filter({"date_releve": ">= '2024-01-01'"}).lazy()
 
 # Unified readings (R151 + R15)
 tous_releves = releves().collect()
@@ -244,7 +249,7 @@ with OdooReader(config) as odoo:
 
 ```bash
 # Start server
-poetry run uvicorn electricore.api.main:app --reload
+uv run uvicorn electricore.api.main:app --reload
 
 # Test endpoints
 curl http://localhost:8000/health
@@ -258,22 +263,22 @@ open http://localhost:8000/docs
 
 ```bash
 # Run all tests
-poetry run pytest -q
+uv run --group test pytest -q
 
 # Run specific test file
-poetry run pytest tests/core/pipelines/test_perimetre.py -v
+uv run --group test pytest tests/unit/test_turpe.py -v
 
 # Run with coverage
-poetry run pytest --cov=electricore tests/
+uv run --group test pytest --cov=electricore tests/
 ```
 
-**Current status**: 138 tests passing ✅
+**Current status**: 183 tests passing, 12 skipped (légitimes) ✅
 
-**Test coverage**: All Polars pipelines have comprehensive tests including:
-- Pure function expressions
-- LazyFrame transformations
-- Pandera schema validation
-- Edge cases and data quality
+**Test coverage**:
+- ✅ Périmètre, abonnements, énergie, TURPE — tests unitaires complets
+- ✅ Facturation — expressions testées
+- ⚠️ Accise, orchestration — non couverts (à faire)
+- ⚠️ API, ETL — non couverts
 
 ## Documentation
 
