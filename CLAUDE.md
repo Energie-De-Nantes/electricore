@@ -282,6 +282,7 @@ uv run --group test pytest --cov=electricore tests/
 
 ## Documentation
 
+- **Transmission**: [docs/transmission.md](docs/transmission.md) - Guide pour nouvel arrivant (Rust/Java → Python)
 - **Main README**: [README.md](README.md) - Complete project overview
 - **ETL Module**: [electricore/etl/README.md](electricore/etl/README.md)
 - **API Module**: [electricore/api/README.md](electricore/api/README.md)
