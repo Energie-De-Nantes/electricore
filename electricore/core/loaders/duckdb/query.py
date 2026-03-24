@@ -228,10 +228,7 @@ class DuckDBQuery:
 
         # Connexion et exécution (impure - IO)
         with duckdb_connection(config.database_path) as conn:
-            lazy_frame = pl.read_database(
-                query=final_query,
-                connection=conn
-            ).lazy()
+            lazy_frame = conn.execute(final_query).pl().lazy()
 
         # Application des transformations (pure)
         lazy_frame = self.config.transform(lazy_frame)
