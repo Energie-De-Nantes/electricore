@@ -96,7 +96,8 @@ class OdooQuery:
 
         return unique_ids
 
-    def _fetch_related_data(self, target_model: str, ids: List[int], fields: Optional[List[str]]) -> pl.DataFrame:
+    def _fetch_related_data(self, target_model: str, ids: List[int],
+                            fields: Optional[List[str]], domain: Optional[List] = None) -> pl.DataFrame:
         """
         Récupère les données liées depuis Odoo.
         """
@@ -109,16 +110,14 @@ class OdooQuery:
                 schema = {f'{target_model.replace(".", "_")}_id': pl.Int64}
             return pl.DataFrame(schema=schema)
 
-        # Récupérer depuis Odoo
-        related_df = self.connector.search_read(target_model, [('id', 'in', ids)], fields)
+        # Récupérer depuis Odoo (avec domain additionnel optionnel)
+        effective_domain = [('id', 'in', ids)] + (domain or [])
+        related_df = self.connector.search_read(target_model, effective_domain, fields)
 
-        if related_df.is_empty():
-            return related_df
-
-        # Renommer 'id' vers nom avec alias pour éviter conflits
+        # Renommer 'id' → '{alias}_id' avant le is_empty() check
+        # pour garantir un schéma cohérent même sur DataFrame vide
         target_alias = target_model.replace('.', '_')
         id_column = f'{target_alias}_id'
-
         if 'id' in related_df.columns:
             related_df = related_df.rename({'id': id_column})
 
@@ -129,9 +128,6 @@ class OdooQuery:
         """
         Joint les DataFrames en gérant les conflits de noms et types.
         """
-        if right_df.is_empty():
-            return left_df
-
         # Générer alias et nom de colonne ID
         target_alias = target_model.replace('.', '_')
         id_column = f'{target_alias}_id'
@@ -161,7 +157,12 @@ class OdooQuery:
                 ])
                 join_key = field_name
         else:
-            # one2many, many2many : jointure directe
+            # one2many, many2many : s'assurer que la clé est Int64
+            # (peut être Utf8 si le DataFrame vient d'un schema vide de search_read)
+            if left_df[field_name].dtype != pl.Int64:
+                left_df = left_df.with_columns([
+                    pl.col(field_name).cast(pl.Int64, strict=False)
+                ])
             join_key = field_name
 
         # Effectuer la jointure
@@ -182,7 +183,8 @@ class OdooQuery:
     # === Méthode centrale ===
 
     def _enrich_data(self, field_name: str, target_model: Optional[str] = None,
-                     fields: Optional[List[str]] = None) -> tuple[pl.LazyFrame, str]:
+                     fields: Optional[List[str]] = None,
+                     domain: Optional[List] = None) -> tuple[pl.LazyFrame, str]:
         """
         Méthode centrale pour enrichir avec des données liées.
 
@@ -190,6 +192,7 @@ class OdooQuery:
             field_name: Champ de relation
             target_model: Modèle cible (auto-détecté si None)
             fields: Champs à récupérer
+            domain: Filtres Odoo additionnels appliqués côté serveur (ex: [('state', '=', 'draft')])
 
         Returns:
             (LazyFrame enrichi, modèle cible utilisé)
@@ -219,11 +222,14 @@ class OdooQuery:
         unique_ids = self._extract_ids(prepared_df, field_name, relation_type)
 
         if not unique_ids:
-            # Pas d'IDs, retourner le DataFrame préparé sans modification
-            return prepared_df.lazy(), target_model
+            # Pas d'IDs : faire le join avec un DataFrame vide pour maintenir le schéma cohérent
+            # (garantit que les colonnes cibles existent même quand il n'y a aucun enregistrement lié)
+            related_df = self._fetch_related_data(target_model, [], fields, domain=domain)
+            result_df = self._join_dataframes(prepared_df, related_df, field_name, relation_type, target_model)
+            return result_df.lazy(), target_model
 
         # Récupérer les données liées
-        related_df = self._fetch_related_data(target_model, unique_ids, fields)
+        related_df = self._fetch_related_data(target_model, unique_ids, fields, domain=domain)
 
         # Joindre les DataFrames
         result_df = self._join_dataframes(prepared_df, related_df, field_name, relation_type, target_model)
@@ -232,7 +238,9 @@ class OdooQuery:
 
     # === API publique ===
 
-    def follow(self, relation_field: str, target_model: Optional[str] = None, fields: Optional[List[str]] = None) -> OdooQuery:
+    def follow(self, relation_field: str, target_model: Optional[str] = None,
+               fields: Optional[List[str]] = None,
+               domain: Optional[List] = None) -> OdooQuery:
         """
         Navigue vers une relation (change le modèle courant).
 
@@ -243,15 +251,16 @@ class OdooQuery:
             relation_field: Champ de relation (ex: 'invoice_ids', 'partner_id')
             target_model: Modèle cible - détecté automatiquement si non fourni
             fields: Champs à récupérer du modèle cible
+            domain: Filtres Odoo additionnels côté serveur (ex: [('state', '=', 'draft')])
 
         Returns:
             Nouvelle OdooQuery avec le modèle courant changé vers target_model
 
         Example:
             >>> query.follow('invoice_ids', fields=['name', 'invoice_date'])
-            >>> query.follow('partner_id', fields=['name', 'email'])
+            >>> query.follow('invoice_ids', domain=[('state', '=', 'draft')], fields=['name'])
         """
-        lazy_frame, target_model = self._enrich_data(relation_field, target_model, fields)
+        lazy_frame, target_model = self._enrich_data(relation_field, target_model, fields, domain=domain)
 
         return OdooQuery(
             connector=self.connector,
@@ -260,7 +269,9 @@ class OdooQuery:
             _current_model=target_model  # Navigation : change le modèle courant
         )
 
-    def enrich(self, relation_field: str, target_model: Optional[str] = None, fields: Optional[List[str]] = None) -> OdooQuery:
+    def enrich(self, relation_field: str, target_model: Optional[str] = None,
+               fields: Optional[List[str]] = None,
+               domain: Optional[List] = None) -> OdooQuery:
         """
         Enrichit avec des données liées (garde le modèle courant).
 
@@ -271,15 +282,16 @@ class OdooQuery:
             relation_field: Champ de relation (ex: 'invoice_ids', 'partner_id')
             target_model: Modèle cible - détecté automatiquement si non fourni
             fields: Champs à récupérer du modèle cible
+            domain: Filtres Odoo additionnels côté serveur
 
         Returns:
             Nouvelle OdooQuery avec le modèle courant inchangé
 
         Example:
-            >>> query.enrich('partner_id', fields=['name', 'email'])  # Ajoute détails partenaire
-            >>> query.enrich('invoice_ids', fields=['name', 'amount'])  # Ajoute détails factures (explode)
+            >>> query.enrich('partner_id', fields=['name', 'email'])
+            >>> query.enrich('invoice_ids', fields=['name', 'amount'])
         """
-        lazy_frame, _ = self._enrich_data(relation_field, target_model, fields)
+        lazy_frame, _ = self._enrich_data(relation_field, target_model, fields, domain=domain)
 
         return OdooQuery(
             connector=self.connector,

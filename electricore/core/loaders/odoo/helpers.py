@@ -256,3 +256,48 @@ def consommations_mensuelles(odoo: OdooReader, domain: List = None) -> OdooQuery
         l'agrégation et les calculs.
     """
     return commandes_lignes(odoo, domain=domain)
+
+
+def lignes_a_facturer(odoo: OdooReader, domain: List = None) -> OdooQuery:
+    """
+    Query builder pour les lignes de factures brouillon à facturer.
+
+    Navigation : sale.order (state=sale) → account.move (state=draft)
+                 → account.move.line (qty > 0) → product.product → product.category
+
+    Filtre côté Odoo (XML-RPC) :
+    - sale.order : state = 'sale' ET au moins une facture draft
+    - account.move : state = 'draft' uniquement
+    - account.move.line : quantity > 0 (exclut lignes vides/notes)
+
+    Les sale.order sans facture draft sont exclus dès la requête initiale.
+
+    Args:
+        odoo: Instance OdooReader connectée
+        domain: Filtres additionnels sur sale.order (ex: [('x_pdl', '!=', False)])
+
+    Returns:
+        OdooQuery chainable retournant les lignes à facturer
+
+    Example:
+        >>> with OdooReader(config) as odoo:
+        ...     df = (lignes_a_facturer(odoo)
+        ...         .filter(pl.col('name_product_category').is_in(['Abonnements', 'HP', 'HC', 'Base']))
+        ...         .select(['name', 'x_pdl', 'invoice_date', 'quantity', 'price_total',
+        ...                  'name_product_product', 'name_product_category'])
+        ...         .collect())
+    """
+    base_domain = [('state', '=', 'sale'), ('invoice_ids.state', '=', 'draft')] + (domain or [])
+    return (
+        query(odoo, 'sale.order', domain=base_domain,
+              fields=['name', 'date_order', 'state', 'x_pdl', 'partner_id', 'invoice_ids'])
+        .follow('invoice_ids',
+                domain=[('state', '=', 'draft')],
+                fields=['name', 'invoice_date', 'invoice_line_ids'])
+        .filter(pl.col('name_account_move').is_not_null())
+        .follow('invoice_line_ids',
+                domain=[('quantity', '>', 0)],
+                fields=['name', 'product_id', 'quantity', 'price_unit', 'price_total'])
+        .follow('product_id', fields=['name', 'categ_id'])
+        .enrich('categ_id', fields=['name'])
+    )
