@@ -124,9 +124,14 @@ class OdooQuery:
         return related_df
 
     def _join_dataframes(self, left_df: pl.DataFrame, right_df: pl.DataFrame,
-                        field_name: str, relation_type: str, target_model: str) -> pl.DataFrame:
+                        field_name: str, relation_type: str, target_model: str,
+                        how: str = 'left') -> pl.DataFrame:
         """
         Joint les DataFrames en gérant les conflits de noms et types.
+
+        Args:
+            how: Type de jointure - 'left' (enrich, garde toutes les lignes)
+                 ou 'inner' (follow, ne garde que les lignes avec données liées)
         """
         # Générer alias et nom de colonne ID
         target_alias = target_model.replace('.', '_')
@@ -170,7 +175,7 @@ class OdooQuery:
             right_df,
             left_on=join_key,
             right_on=id_column,
-            how='left'
+            how=how
         )
 
         # Nettoyer les colonnes temporaires de jointure (*_id_join)
@@ -184,7 +189,8 @@ class OdooQuery:
 
     def _enrich_data(self, field_name: str, target_model: Optional[str] = None,
                      fields: Optional[List[str]] = None,
-                     domain: Optional[List] = None) -> tuple[pl.LazyFrame, str]:
+                     domain: Optional[List] = None,
+                     how: str = 'left') -> tuple[pl.LazyFrame, str]:
         """
         Méthode centrale pour enrichir avec des données liées.
 
@@ -193,6 +199,7 @@ class OdooQuery:
             target_model: Modèle cible (auto-détecté si None)
             fields: Champs à récupérer
             domain: Filtres Odoo additionnels appliqués côté serveur (ex: [('state', '=', 'draft')])
+            how: Type de jointure - 'left' (enrich) ou 'inner' (follow)
 
         Returns:
             (LazyFrame enrichi, modèle cible utilisé)
@@ -225,14 +232,14 @@ class OdooQuery:
             # Pas d'IDs : faire le join avec un DataFrame vide pour maintenir le schéma cohérent
             # (garantit que les colonnes cibles existent même quand il n'y a aucun enregistrement lié)
             related_df = self._fetch_related_data(target_model, [], fields, domain=domain)
-            result_df = self._join_dataframes(prepared_df, related_df, field_name, relation_type, target_model)
+            result_df = self._join_dataframes(prepared_df, related_df, field_name, relation_type, target_model, how=how)
             return result_df.lazy(), target_model
 
         # Récupérer les données liées
         related_df = self._fetch_related_data(target_model, unique_ids, fields, domain=domain)
 
         # Joindre les DataFrames
-        result_df = self._join_dataframes(prepared_df, related_df, field_name, relation_type, target_model)
+        result_df = self._join_dataframes(prepared_df, related_df, field_name, relation_type, target_model, how=how)
 
         return result_df.lazy(), target_model
 
@@ -260,7 +267,7 @@ class OdooQuery:
             >>> query.follow('invoice_ids', fields=['name', 'invoice_date'])
             >>> query.follow('invoice_ids', domain=[('state', '=', 'draft')], fields=['name'])
         """
-        lazy_frame, target_model = self._enrich_data(relation_field, target_model, fields, domain=domain)
+        lazy_frame, target_model = self._enrich_data(relation_field, target_model, fields, domain=domain, how='inner')
 
         return OdooQuery(
             connector=self.connector,
