@@ -301,3 +301,47 @@ def lignes_a_facturer(odoo: OdooReader, domain: List = None) -> OdooQuery:
         .follow('product_id', fields=['name', 'categ_id'])
         .enrich('categ_id', fields=['name'])
     )
+
+
+def lignes_quantite_zero(odoo: OdooReader, domain: List = None) -> OdooQuery:
+    """
+    Query builder pour les lignes de factures brouillon avec quantité nulle.
+
+    Identifie les account.move.line avec quantity = 0 dans les factures draft,
+    candidates à la suppression avant validation (via OdooWriter.unlink).
+
+    Navigation : sale.order (state=sale) → account.move (state=draft)
+                 → account.move.line (quantity = 0) → product.product
+
+    Filtre côté Odoo (XML-RPC) :
+    - sale.order : state = 'sale' ET au moins une facture draft
+    - account.move : state = 'draft' uniquement
+    - account.move.line : quantity = 0
+
+    Args:
+        odoo: Instance OdooReader connectée
+        domain: Filtres additionnels sur sale.order (ex: [('x_pdl', '!=', False)])
+
+    Returns:
+        OdooQuery chainable — colonne `invoice_line_ids` contient les IDs
+        des account.move.line à supprimer
+
+    Example:
+        >>> with OdooReader(config) as odoo:
+        ...     df = lignes_quantite_zero(odoo).collect()
+        ...     ids_a_supprimer = df['invoice_line_ids'].drop_nulls().to_list()
+    """
+    base_domain = [('state', '=', 'sale'), ('invoice_ids.state', '=', 'draft')] + (domain or [])
+    return (
+        query(odoo, 'sale.order', domain=base_domain,
+              fields=['name', 'state', 'x_pdl', 'partner_id', 'invoice_ids'])
+        .follow('invoice_ids',
+                domain=[('state', '=', 'draft')],
+                fields=['name', 'invoice_date', 'invoice_line_ids'])
+        .filter(pl.col('name_account_move').is_not_null())
+        .follow('invoice_line_ids',
+                domain=[('quantity', '=', 0)],
+                fields=['name', 'product_id', 'quantity', 'price_unit'])
+        .filter(pl.col('invoice_line_ids').is_not_null())
+        .follow('product_id', fields=['name'])
+    )

@@ -32,6 +32,7 @@ from .helpers import (
     commandes_lignes,
     consommations_mensuelles,
     lignes_a_facturer,
+    lignes_quantite_zero,
 )
 from .transforms import (
     normalize_many2one_fields,
@@ -66,6 +67,7 @@ __all__ = [
     'commandes_lignes',
     'consommations_mensuelles',
     'lignes_a_facturer',
+    'lignes_quantite_zero',
     # Transformations
     'normalize_many2one_fields',
     'convert_odoo_dates',
