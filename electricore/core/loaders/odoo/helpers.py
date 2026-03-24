@@ -298,6 +298,7 @@ def lignes_a_facturer(odoo: OdooReader, domain: List = None) -> OdooQuery:
         .follow('invoice_line_ids',
                 domain=[('quantity', '>', 0)],
                 fields=['name', 'product_id', 'quantity', 'price_unit', 'price_total'])
+        .filter(pl.col('quantity').is_not_null())  # exclut les lignes non-matchées du LEFT JOIN
         .follow('product_id', fields=['name', 'categ_id'])
         .enrich('categ_id', fields=['name'])
     )
@@ -342,6 +343,6 @@ def lignes_quantite_zero(odoo: OdooReader, domain: List = None) -> OdooQuery:
         .follow('invoice_line_ids',
                 domain=[('quantity', '=', 0)],
                 fields=['name', 'product_id', 'quantity', 'price_unit'])
-        .filter(pl.col('invoice_line_ids').is_not_null())
+        .filter(pl.col('quantity').is_not_null())  # exclut les lignes non-matchées du LEFT JOIN
         .follow('product_id', fields=['name'])
     )
