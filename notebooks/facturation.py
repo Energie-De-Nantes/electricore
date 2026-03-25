@@ -90,7 +90,7 @@ def _():
             .collect()
         )
     lignes_a_facturer_df
-    return
+    return (lignes_a_facturer_df,)
 
 
 @app.cell
@@ -136,6 +136,72 @@ def _(fact):
 def _(fact, mois_en_cours):
     fact_mois = fact.filter(pl.col("mois_annee") == mois_en_cours)
     fact_mois
+    return (fact_mois,)
+
+
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
+    # Réconciliation Enedis → Odoo
+    """)
+    return
+
+
+@app.cell
+def _(fact_mois):
+    _pdl_counts = fact_mois.group_by("pdl").agg(pl.len().alias("n"))
+    pdls_doublons = _pdl_counts.filter(pl.col("n") > 1)["pdl"].to_list()
+
+    fact_simple   = fact_mois.filter(~pl.col("pdl").is_in(pdls_doublons))
+    fact_doublons = fact_mois.filter(pl.col("pdl").is_in(pdls_doublons))
+    fact_doublons
+    return fact_doublons, fact_simple, pdls_doublons
+
+
+@app.cell
+def _():
+    MAPPING_CATEGORIE = {
+        "HP":          "energie_hp_kwh",
+        "HC":          "energie_hc_kwh",
+        "Base":        "energie_base_kwh",
+        "Abonnements": "nb_jours",
+    }
+    return (MAPPING_CATEGORIE,)
+
+
+@app.cell
+def _(MAPPING_CATEGORIE, fact_simple, lignes_a_facturer_df, pdls_doublons):
+    _cats = list(MAPPING_CATEGORIE.items())
+    _expr = pl.when(pl.col("name_product_category") == _cats[0][0]).then(pl.col(_cats[0][1]).cast(pl.Float64))
+    for _cat, _col in _cats[1:]:
+        _expr = _expr.when(pl.col("name_product_category") == _cat).then(pl.col(_col).cast(pl.Float64))
+    _quantite_enedis = _expr.otherwise(pl.lit(None, dtype=pl.Float64)).alias("quantite_enedis")
+
+    updates = (
+        lignes_a_facturer_df
+        .filter(~pl.col("x_pdl").is_in(pdls_doublons))
+        .join(fact_simple, left_on="x_pdl", right_on="pdl", how="left")
+        .with_columns(_quantite_enedis)
+        .select([
+            "invoice_line_ids", "x_pdl", "name_account_move",
+            "name_product_category", "name_product_product",
+            "quantity", "quantite_enedis",
+        ])
+    )
+    mo.ui.table(updates)
+    return (updates,)
+
+
+@app.cell
+def _(fact_doublons, pdls_doublons, updates):
+    _sans_match = updates.filter(pl.col("quantite_enedis").is_null())
+    mo.vstack([
+        mo.md(f"⚠️ **{len(pdls_doublons)} PDL(s) multi-contrats exclus** — révision manuelle requise")
+          if pdls_doublons else mo.md(""),
+        mo.md(f"❌ **{_sans_match['x_pdl'].n_unique()} PDL(s) sans correspondance Enedis**")
+          if not _sans_match.is_empty() else mo.md("✅ Tous les PDLs ont une correspondance Enedis"),
+        mo.ui.table(fact_doublons) if pdls_doublons else mo.md(""),
+    ])
     return
 
 
