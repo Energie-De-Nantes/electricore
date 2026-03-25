@@ -68,6 +68,11 @@ with app.setup:
     _msg
 
 
+@app.cell
+def _():
+    return
+
+
 @app.cell(hide_code=True)
 def _():
     mo.md(r"""
@@ -117,8 +122,14 @@ def _(lf_historique, lf_releves):
         historique=lf_historique,
         releves=lf_releves,
     )
-    fact
-    return
+    return fact,
+
+
+@app.cell
+def _(fact):
+    mois_en_cours = fact["mois_annee"][fact["debut"].arg_max()]
+    mo.md(f"**Mois en cours** : {mois_en_cours}")
+    return mois_en_cours,
 
 
 if __name__ == "__main__":
