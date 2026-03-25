@@ -122,14 +122,22 @@ def _(lf_historique, lf_releves):
         historique=lf_historique,
         releves=lf_releves,
     )
-    return fact,
+    fact
+    return (fact,)
 
 
 @app.cell
 def _(fact):
     mois_en_cours = fact["mois_annee"][fact["debut"].arg_max()]
     mo.md(f"**Mois en cours** : {mois_en_cours}")
-    return mois_en_cours,
+    return (mois_en_cours,)
+
+
+@app.cell
+def _(fact, mois_en_cours):
+    fact_mois = fact.filter(pl.col("mois_annee") == mois_en_cours)
+    fact_mois
+    return (fact_mois,)
 
 
 if __name__ == "__main__":
