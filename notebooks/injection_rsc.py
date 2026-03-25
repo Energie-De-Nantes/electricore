@@ -57,7 +57,9 @@ def _():
 
 @app.cell
 def _():
-    mo.md("## 1. Contrats C15 (une ligne par RSC)")
+    mo.md("""
+    ## 1. Contrats C15 (une ligne par RSC)
+    """)
     return
 
 
@@ -81,7 +83,9 @@ def _():
 
 @app.cell
 def _():
-    mo.md("## 2. Sale orders Odoo avec PDL")
+    mo.md("""
+    ## 2. Sale orders Odoo avec PDL
+    """)
     return
 
 
@@ -107,22 +111,28 @@ def _():
 
 @app.cell
 def _():
-    mo.md("## 3. Asof join : PDL + date_order → RSC")
+    mo.md("""
+    ## 3. Asof join : PDL + date_order → RSC
+    """)
     return
 
 
 @app.cell
 def _(contrats_par_pdl, orders_df):
-    # Stratégie backward : RSC dont la date d'entrée est la plus récente AVANT date_order
+    # Renommer pdl → x_pdl pour aligner les noms de colonnes des deux côtés
+    # (évite que join_asof ajoute une colonne 'pdl' en doublon dans le résultat)
+    _contrats = (
+        contrats_par_pdl
+        .rename({"pdl": "x_pdl"})
+        .sort("date_debut_contrat")
+    )
     _orders_sorted = orders_df.sort("date_order")
-    _contrats_sorted = contrats_par_pdl.sort("date_debut_contrat")
 
     _backward = _orders_sorted.join_asof(
-        _contrats_sorted,
+        _contrats,
         left_on="date_order",
         right_on="date_debut_contrat",
-        by_left="x_pdl",
-        by_right="pdl",
+        by="x_pdl",
         strategy="backward",
     ).with_columns(
         pl.when(pl.col("ref_situation_contractuelle").is_not_null())
@@ -130,16 +140,18 @@ def _(contrats_par_pdl, orders_df):
           .alias("match_strategy")
     )
 
+    _out_cols = ["sale_order_id", "name", "x_pdl", "date_order",
+                 "ref_situation_contractuelle", "match_strategy"]
+
     # Fallback nearest : pour les orders créés avant le premier C15 du PDL
     _sans_rsc = _backward.filter(pl.col("ref_situation_contractuelle").is_null())
     _nearest = (
-        _sans_rsc.drop(["ref_situation_contractuelle", "match_strategy"])
+        _sans_rsc.select(["sale_order_id", "name", "x_pdl", "date_order"])
         .join_asof(
-            _contrats_sorted,
+            _contrats,
             left_on="date_order",
             right_on="date_debut_contrat",
-            by_left="x_pdl",
-            by_right="pdl",
+            by="x_pdl",
             strategy="nearest",
         )
         .with_columns(
@@ -147,16 +159,16 @@ def _(contrats_par_pdl, orders_df):
               .then(pl.lit("nearest"))
               .alias("match_strategy")
         )
+        .select(_out_cols)
     )
 
     orders_avec_rsc = (
         pl.concat([
-            _backward.filter(pl.col("ref_situation_contractuelle").is_not_null()),
+            _backward.filter(pl.col("ref_situation_contractuelle").is_not_null())
+                     .select(_out_cols),
             _nearest,
         ])
         .sort("date_order")
-        .select(["sale_order_id", "name", "x_pdl", "date_order",
-                 "ref_situation_contractuelle", "match_strategy"])
     )
     return (orders_avec_rsc,)
 
@@ -180,6 +192,27 @@ def _(orders_avec_rsc):
         mo.ui.table(orders_avec_rsc),
         mo.md("### Orders sans correspondance C15") if not _sans_rsc.is_empty() else mo.md(""),
         mo.ui.table(_sans_rsc) if not _sans_rsc.is_empty() else mo.md(""),
+    ])
+    return
+
+
+@app.cell
+def _(orders_avec_rsc):
+    _rsc_counts = (
+        orders_avec_rsc
+        .filter(pl.col("ref_situation_contractuelle").is_not_null())
+        .group_by("ref_situation_contractuelle")
+        .agg(pl.len().alias("n"), pl.col("sale_order_id").alias("orders"))
+        .filter(pl.col("n") > 1)
+        .sort("n", descending=True)
+    )
+    mo.vstack([
+        mo.md(f"### RSC en doublon : {len(_rsc_counts)} RSC partagées par plusieurs orders"),
+        mo.ui.table(
+            orders_avec_rsc.filter(
+                pl.col("ref_situation_contractuelle").is_in(_rsc_counts["ref_situation_contractuelle"])
+            ).sort("ref_situation_contractuelle")
+        ),
     ])
     return
 
