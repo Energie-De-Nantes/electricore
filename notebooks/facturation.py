@@ -122,7 +122,6 @@ def _(lf_historique, lf_releves):
         historique=lf_historique,
         releves=lf_releves,
     )
-    fact
     return (fact,)
 
 
@@ -137,7 +136,7 @@ def _(fact):
 def _(fact, mois_en_cours):
     fact_mois = fact.filter(pl.col("mois_annee") == mois_en_cours)
     fact_mois
-    return (fact_mois,)
+    return
 
 
 if __name__ == "__main__":
