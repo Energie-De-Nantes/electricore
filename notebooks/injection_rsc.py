@@ -128,25 +128,8 @@ def _(contrats_par_pdl, orders_df):
     )
     _orders_sorted = orders_df.sort("date_order")
 
-    _backward = _orders_sorted.join_asof(
-        _contrats,
-        left_on="date_order",
-        right_on="date_debut_contrat",
-        by="x_pdl",
-        strategy="backward",
-    ).with_columns(
-        pl.when(pl.col("ref_situation_contractuelle").is_not_null())
-          .then(pl.lit("backward"))
-          .alias("match_strategy")
-    )
-
-    _out_cols = ["sale_order_id", "name", "x_pdl", "date_order",
-                 "ref_situation_contractuelle", "match_strategy"]
-
-    # Fallback nearest : pour les orders créés avant le premier C15 du PDL
-    _sans_rsc = _backward.filter(pl.col("ref_situation_contractuelle").is_null())
-    _nearest = (
-        _sans_rsc.select(["sale_order_id", "name", "x_pdl", "date_order"])
+    orders_avec_rsc = (
+        _orders_sorted
         .join_asof(
             _contrats,
             left_on="date_order",
@@ -154,21 +137,8 @@ def _(contrats_par_pdl, orders_df):
             by="x_pdl",
             strategy="nearest",
         )
-        .with_columns(
-            pl.when(pl.col("ref_situation_contractuelle").is_not_null())
-              .then(pl.lit("nearest"))
-              .alias("match_strategy")
-        )
-        .select(_out_cols)
-    )
-
-    orders_avec_rsc = (
-        pl.concat([
-            _backward.filter(pl.col("ref_situation_contractuelle").is_not_null())
-                     .select(_out_cols),
-            _nearest,
-        ])
-        .sort("date_order")
+        .select(["sale_order_id", "name", "x_pdl", "date_order",
+                 "ref_situation_contractuelle"])
     )
     return (orders_avec_rsc,)
 
@@ -176,7 +146,6 @@ def _(contrats_par_pdl, orders_df):
 @app.cell
 def _(orders_avec_rsc):
     _ok       = orders_avec_rsc.filter(pl.col("ref_situation_contractuelle").is_not_null())
-    _nearest  = orders_avec_rsc.filter(pl.col("match_strategy") == "nearest")
     _sans_rsc = orders_avec_rsc.filter(pl.col("ref_situation_contractuelle").is_null())
 
     mo.vstack([
@@ -185,8 +154,7 @@ def _(orders_avec_rsc):
 
         | | |
         |---|---|
-        | ✅ Matchés (backward) | **{len(_ok) - len(_nearest)}** orders |
-        | ⚠️ Matchés (nearest — order avant C15) | **{len(_nearest)}** orders |
+        | ✅ Matchés | **{len(_ok)}** orders |
         | ❌ Sans correspondance C15 | **{len(_sans_rsc)}** orders |
         """),
         mo.ui.table(orders_avec_rsc),

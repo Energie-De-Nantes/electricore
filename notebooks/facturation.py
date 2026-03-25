@@ -153,9 +153,8 @@ def _(fact_mois):
     pdls_doublons = _pdl_counts.filter(pl.col("n") > 1)["pdl"].to_list()
 
     fact_simple   = fact_mois.filter(~pl.col("pdl").is_in(pdls_doublons))
-    fact_doublons = fact_mois.filter(pl.col("pdl").is_in(pdls_doublons))
-    fact_doublons
-    return fact_doublons, fact_simple, pdls_doublons
+    fact_déménagements = fact_mois.filter(pl.col("pdl").is_in(pdls_doublons))
+    return fact_déménagements, fact_simple, pdls_doublons
 
 
 @app.cell
@@ -171,11 +170,10 @@ def _():
 
 @app.cell
 def _(MAPPING_CATEGORIE, fact_simple, lignes_a_facturer_df, pdls_doublons):
-    _cats = list(MAPPING_CATEGORIE.items())
-    _expr = pl.when(pl.col("name_product_category") == _cats[0][0]).then(pl.col(_cats[0][1]).cast(pl.Float64))
-    for _cat, _col in _cats[1:]:
-        _expr = _expr.when(pl.col("name_product_category") == _cat).then(pl.col(_col).cast(pl.Float64))
-    _quantite_enedis = _expr.otherwise(pl.lit(None, dtype=pl.Float64)).alias("quantite_enedis")
+    _quantite_enedis = pl.coalesce([
+        pl.when(pl.col("name_product_category") == cat).then(pl.col(col).cast(pl.Float64))
+        for cat, col in MAPPING_CATEGORIE.items()
+    ]).alias("quantite_enedis")
 
     updates = (
         lignes_a_facturer_df
@@ -193,14 +191,14 @@ def _(MAPPING_CATEGORIE, fact_simple, lignes_a_facturer_df, pdls_doublons):
 
 
 @app.cell
-def _(fact_doublons, pdls_doublons, updates):
+def _(fact_déménagements, pdls_doublons, updates):
     _sans_match = updates.filter(pl.col("quantite_enedis").is_null())
     mo.vstack([
         mo.md(f"⚠️ **{len(pdls_doublons)} PDL(s) multi-contrats exclus** — révision manuelle requise")
           if pdls_doublons else mo.md(""),
         mo.md(f"❌ **{_sans_match['x_pdl'].n_unique()} PDL(s) sans correspondance Enedis**")
           if not _sans_match.is_empty() else mo.md("✅ Tous les PDLs ont une correspondance Enedis"),
-        mo.ui.table(fact_doublons) if pdls_doublons else mo.md(""),
+        mo.ui.table(fact_déménagements) if pdls_doublons else mo.md(""),
     ])
     return
 
