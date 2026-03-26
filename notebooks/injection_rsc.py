@@ -31,7 +31,7 @@ with app.setup:
     for secrets_path in secrets_paths:
         if secrets_path.exists():
             with open(secrets_path, 'rb') as f:
-                config = tomllib.load(f).get('odoo', {})
+                config = tomllib.load(f).get('odoo_test', {})
                 secrets_file_found = secrets_path
             break
 
@@ -63,7 +63,7 @@ def _():
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _():
     contrats_par_pdl = (
         c15().lazy()
@@ -182,6 +182,55 @@ def _(orders_avec_rsc):
             ).sort("ref_situation_contractuelle")
         ),
     ])
+    return
+
+
+@app.cell
+def _():
+    mo.md("""
+    ## 4. Injection RSC → Odoo
+    """)
+    return
+
+
+@app.cell
+def _(orders_avec_rsc):
+    from electricore.core.writers import OdooWriter
+
+    _a_injecter = orders_avec_rsc.filter(pl.col("ref_situation_contractuelle").is_not_null())
+    _sans_rsc   = orders_avec_rsc.filter(pl.col("ref_situation_contractuelle").is_null())
+
+    sim_mode   = mo.ui.checkbox(label="Mode simulation (aucune écriture réelle)", value=True)
+    run_button = mo.ui.run_button(label="Injecter dans Odoo")
+
+    mo.vstack([
+        mo.md(f"**{len(_a_injecter)}** orders à mettre à jour "
+              f"· **{len(_sans_rsc)}** sans RSC (ignorés)"),
+        mo.ui.table(_a_injecter.select(["name", "x_pdl", "date_order", "ref_situation_contractuelle"])),
+        sim_mode,
+        run_button,
+    ])
+    return OdooWriter, run_button, sim_mode
+
+
+@app.cell
+def _(OdooWriter, orders_avec_rsc, run_button, sim_mode):
+    mo.stop(not run_button.value, mo.md("Vérifiez les données ci-dessus puis cliquez sur **Injecter**."))
+
+    _records = (
+        orders_avec_rsc
+        .filter(pl.col("ref_situation_contractuelle").is_not_null())
+        .rename({"sale_order_id": "id", "ref_situation_contractuelle": "x_ref_situation_contractuelle"})
+        .select(["id", "x_ref_situation_contractuelle"])
+        .to_dicts()
+    )
+
+    with OdooWriter(config=config, sim=sim_mode.value) as _writer:
+        _writer.update("sale.order", _records)
+
+    _label = "simulés" if sim_mode.value else "écrits"
+    mo.callout(mo.md(f"✅ **{len(_records)} sale.orders** {_label} (`x_ref_situation_contractuelle`)."),
+               kind="success")
     return
 
 
