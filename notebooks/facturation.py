@@ -183,11 +183,17 @@ def _(MAPPING_CATEGORIE, fact_simple, lignes_a_facturer_df, pdls_doublons):
         .select([
             "invoice_line_ids", "x_pdl", "name_account_move",
             "name_product_category", "name_product_product",
-            "quantity", "quantite_enedis",
+            "quantity", "quantite_enedis", "memo_puissance",
         ])
     )
     mo.ui.table(updates)
     return (updates,)
+
+
+@app.cell
+def _(updates):
+    mo.ui.table(updates.filter(pl.col("memo_puissance") != ""))
+    return
 
 
 @app.cell
