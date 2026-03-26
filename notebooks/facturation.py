@@ -168,6 +168,14 @@ def _():
     return (MAPPING_CATEGORIE,)
 
 
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
+    ## Version PDL (erreurs attendues pendant déménagements)
+    """)
+    return
+
+
 @app.cell
 def _(MAPPING_CATEGORIE, fact_simple, lignes_a_facturer_df, pdls_doublons):
     _quantite_enedis = pl.coalesce([
@@ -191,12 +199,6 @@ def _(MAPPING_CATEGORIE, fact_simple, lignes_a_facturer_df, pdls_doublons):
 
 
 @app.cell
-def _(updates):
-    mo.ui.table(updates.filter(pl.col("memo_puissance") != ""))
-    return
-
-
-@app.cell
 def _(fact_déménagements, pdls_doublons, updates):
     _sans_match = updates.filter(pl.col("quantite_enedis").is_null())
     mo.vstack([
@@ -206,6 +208,73 @@ def _(fact_déménagements, pdls_doublons, updates):
           if not _sans_match.is_empty() else mo.md("✅ Tous les PDLs ont une correspondance Enedis"),
         mo.ui.table(fact_déménagements) if pdls_doublons else mo.md(""),
     ])
+    return
+
+
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
+    ### Changements de puissance en cours de mois
+
+    Lignes de facturation dont le PDL a changé de puissance souscrite pendant le mois.
+    La quantité Enedis est une puissance moyenne pondérée par le nombre de jours — à vérifier
+    avant validation de la facture.
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(updates):
+    mo.ui.table(updates.filter(pl.col("memo_puissance") != ""))
+    return
+
+
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
+    ## Version RSC (cible — une fois `x_ref_situation_contractuelle` peuplé dans Odoo)
+
+    Join direct sur `ref_situation_contractuelle` : gère nativement les déménagements
+    (deux contrats sur le même PDL en cours de mois) sans exclusion manuelle.
+
+    **Prérequis** : champ `x_ref_situation_contractuelle` créé et peuplé sur `sale.order`
+    via le notebook `injection_rsc.py`.
+    """)
+    return
+
+
+@app.cell
+def _(MAPPING_CATEGORIE, fact_mois, lignes_a_facturer_df):
+    _quantite_enedis_rsc = pl.coalesce([
+        pl.when(pl.col("name_product_category") == cat).then(pl.col(col).cast(pl.Float64))
+        for cat, col in MAPPING_CATEGORIE.items()
+    ]).alias("quantite_enedis")
+
+    updates_rsc = (
+        lignes_a_facturer_df
+        .join(
+            fact_mois,
+            left_on="x_ref_situation_contractuelle",
+            right_on="ref_situation_contractuelle",
+            how="left",
+        )
+        .with_columns(_quantite_enedis_rsc)
+        .select([
+            "invoice_line_ids", "x_pdl", "name_account_move",
+            "name_product_category", "name_product_product",
+            "quantity", "quantite_enedis", "memo_puissance",
+        ])
+    )
+    mo.ui.table(updates_rsc)
+    return (updates_rsc,)
+
+
+@app.cell
+def _(updates_rsc):
+    _sans_match_rsc = updates_rsc.filter(pl.col("quantite_enedis").is_null())
+    mo.md(f"❌ **{_sans_match_rsc['x_pdl'].n_unique()} PDL(s) sans correspondance Enedis**") \
+        if not _sans_match_rsc.is_empty() \
+        else mo.md("✅ Tous les PDLs ont une correspondance Enedis")
     return
 
 
