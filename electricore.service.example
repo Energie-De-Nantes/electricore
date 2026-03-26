@@ -1,0 +1,31 @@
+# Service systemd pour ElectriCore (API + Bot Telegram)
+#
+# Installation :
+#   1. Copiez ce fichier : cp electricore.service.example electricore.service
+#   2. Remplacez les placeholders :
+#        __USER__    → votre nom d'utilisateur système (ex: electricore, virgile)
+#        __WORKDIR__ → chemin absolu du dépôt (ex: /opt/electricore, /home/virgile/workspace/electricore)
+#   3. Installez le service :
+#        sudo cp electricore.service /etc/systemd/system/
+#        sudo systemctl daemon-reload
+#        sudo systemctl enable --now electricore
+#   4. Vérifiez les logs :
+#        journalctl -u electricore -f
+
+[Unit]
+Description=ElectriCore API + Bot Telegram
+After=network.target
+
+[Service]
+Type=simple
+User=__USER__
+WorkingDirectory=__WORKDIR__
+EnvironmentFile=__WORKDIR__/.env
+ExecStart=/usr/bin/uv run uvicorn electricore.api.main:app --port 8001 --workers 1
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

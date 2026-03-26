@@ -177,3 +177,8 @@ cython_debug/
 
 # DLT secrets (credentials, API keys)
 electricore/etl/.dlt/secrets.toml
+
+# Données locales générées
+*.duckdb
+perimetre_manquants/
+surveillance_perimetre_manquants.csv
