@@ -3,6 +3,9 @@ API REST sécurisée pour ElectriCore.
 Expose les données Enedis via endpoints génériques avec authentification par clé API.
 """
 
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Query, HTTPException, Depends
 from fastapi.responses import Response
 from typing import Optional
@@ -12,8 +15,32 @@ from electricore.api.config import settings
 from electricore.api.models import ETLRunRequest, ETLJobResponse
 from electricore.api.security import get_current_api_key, get_api_key_info, APIKeyInfo
 
+logger = logging.getLogger(__name__)
+
+_tg_app = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global _tg_app
+    if settings.telegram_bot_token:
+        from electricore.bot.bot import build_application
+        _tg_app = build_application(settings.telegram_bot_token)
+        await _tg_app.initialize()
+        await _tg_app.start()
+        await _tg_app.updater.start_polling()
+        logger.info("Bot Telegram démarré.")
+    yield
+    if _tg_app is not None:
+        await _tg_app.updater.stop()
+        await _tg_app.stop()
+        await _tg_app.shutdown()
+        logger.info("Bot Telegram arrêté.")
+
+
 # Configuration de l'application avec métadonnées de sécurité
 app = FastAPI(
+    lifespan=lifespan,
     title=settings.api_title,
     version=settings.api_version,
     description=f"{settings.api_description}\n\n"

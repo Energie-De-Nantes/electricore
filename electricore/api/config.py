@@ -46,6 +46,11 @@ class APISettings(BaseModel):
     # Plus utilisé, gardé pour compatibilité
     enable_api_key_header: bool = Field(default=True)
 
+    # Configuration Telegram
+    telegram_bot_token: str = Field(default="")
+    api_base_url: str = Field(default="http://localhost:8001")
+    telegram_allowed_users: str = Field(default="")  # IDs séparés par virgule
+
     # Endpoints publics (sans authentification)
     public_endpoints: List[str] = Field(
         default=["/", "/health", "/docs", "/redoc", "/openapi.json"]
@@ -60,6 +65,9 @@ class APISettings(BaseModel):
             "api_key": os.getenv("API_KEY", ""),
             "api_keys": os.getenv("API_KEYS", ""),
             "enable_api_key_header": os.getenv("ENABLE_API_KEY_HEADER", "true").lower() == "true",
+            "telegram_bot_token": os.getenv("TELEGRAM_BOT_TOKEN", ""),
+            "api_base_url": os.getenv("API_BASE_URL", "http://localhost:8001"),
+            "telegram_allowed_users": os.getenv("TELEGRAM_ALLOWED_USERS", ""),
         }
 
         # Combiner avec les kwargs fournis
@@ -112,6 +120,12 @@ class APISettings(BaseModel):
 
         # Utilisation de secrets.compare_digest pour éviter les attaques de timing
         return any(secrets.compare_digest(key, valid_key) for valid_key in valid_keys)
+
+    def get_telegram_allowed_users(self) -> set[int]:
+        """Retourne l'ensemble des user IDs Telegram autorisés."""
+        if not self.telegram_allowed_users:
+            return set()
+        return {int(uid.strip()) for uid in self.telegram_allowed_users.split(",") if uid.strip().isdigit()}
 
     def generate_api_key(self) -> str:
         """
