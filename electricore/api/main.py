@@ -3,6 +3,7 @@ API REST sécurisée pour ElectriCore.
 Expose les données Enedis via endpoints génériques avec authentification par clé API.
 """
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -32,6 +33,11 @@ async def lifespan(app: FastAPI):
         logger.info("Bot Telegram démarré.")
     yield
     if _tg_app is not None:
+        from electricore.bot.bot import _background_tasks
+        for task in list(_background_tasks):
+            task.cancel()
+        if _background_tasks:
+            await asyncio.gather(*_background_tasks, return_exceptions=True)
         await _tg_app.updater.stop()
         await _tg_app.stop()
         await _tg_app.shutdown()

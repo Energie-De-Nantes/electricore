@@ -15,6 +15,17 @@ from electricore.bot.client import ElectriCoreClient
 
 logger = logging.getLogger(__name__)
 
+_background_tasks: set[asyncio.Task] = set()
+
+
+def _create_task(coro) -> asyncio.Task:
+    """Crée une tâche en la gardant en référence pour pouvoir l'annuler au shutdown."""
+    task = asyncio.create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+    return task
+
+
 _HELP = r"""
 *ElectriCore Bot* — Commandes disponibles :
 
@@ -73,25 +84,28 @@ async def cmd_etl(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         return
 
     job_id = job["id"]
+    chat_id = update.effective_message.chat_id
     await update.effective_message.reply_text(f"⏳ Pipeline `{mode}` lancé (job `{job_id[:8]}…`). Je te notifie à la fin.")
 
-    # Poll jusqu'à completion
-    for _ in range(360):  # max 30 minutes (360 × 5s)
-        await asyncio.sleep(5)
-        try:
-            job = await client.get_job(job_id)
-        except Exception:
-            continue
-        if job["status"] != "running":
-            break
+    async def _notify():
+        for _ in range(360):  # max 30 minutes
+            await asyncio.sleep(5)
+            try:
+                j = await client.get_job(job_id)
+            except Exception:
+                continue
+            if j["status"] != "running":
+                break
 
-    emoji = _STATUS_EMOJI.get(job["status"], "❓")
-    msg = f"{emoji} Pipeline `{mode}` terminé — statut : *{job['status']}*"
-    if job.get("error"):
-        msg += f"\n\n`{job['error'][:500]}`"
-    elif job.get("output"):
-        msg += f"\n\n```\n{job['output'][:800]}\n```"
-    await update.effective_message.reply_markdown(msg)
+        emoji = _STATUS_EMOJI.get(j["status"], "❓")
+        msg = f"{emoji} Pipeline `{mode}` terminé — statut : *{j['status']}*"
+        if j.get("error"):
+            msg += f"\n\n`{j['error'][:500]}`"
+        elif j.get("output"):
+            msg += f"\n\n```\n{j['output'][:800]}\n```"
+        await context.bot.send_message(chat_id=chat_id, text=msg, parse_mode="Markdown")
+
+    _create_task(_notify())
 
 
 async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
