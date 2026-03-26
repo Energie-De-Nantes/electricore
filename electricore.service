@@ -1,0 +1,17 @@
+[Unit]
+Description=ElectriCore API + Bot Telegram
+After=network.target
+
+[Service]
+Type=simple
+User=virgile
+WorkingDirectory=/home/virgile/workspace/electricore
+EnvironmentFile=/home/virgile/workspace/electricore/.env
+ExecStart=/usr/bin/uv run uvicorn electricore.api.main:app --port 8001 --workers 1
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
