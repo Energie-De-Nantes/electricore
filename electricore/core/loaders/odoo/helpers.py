@@ -287,16 +287,16 @@ def lignes_a_facturer(odoo: OdooReader, domain: List = None) -> OdooQuery:
         ...                  'name_product_product', 'name_product_category'])
         ...         .collect())
     """
-    base_domain = [('state', '=', 'sale'), ('invoice_ids.state', '=', 'draft')] + (domain or [])
+    base_domain = [('state', '=', 'sale'), ('x_invoicing_state', '=', 'draft')] + (domain or [])
     return (
         query(odoo, 'sale.order', domain=base_domain,
-              fields=['name', 'date_order', 'state', 'x_pdl', 'partner_id', 'invoice_ids'])
+              fields=['name', 'x_pdl', 'x_ref_situation_contractuelle', 'x_lisse', 'invoice_ids'])
         .follow('invoice_ids',
                 domain=[('state', '=', 'draft')],
                 fields=['name', 'invoice_date', 'invoice_line_ids'])
         .follow('invoice_line_ids',
                 domain=[('quantity', '>', 0)],
-                fields=['name', 'product_id', 'quantity', 'price_unit', 'price_total'])
+                fields=['name', 'product_id', 'quantity'])
         .follow('product_id', fields=['name', 'categ_id'])
         .enrich('categ_id', fields=['name'])
     )
@@ -330,10 +330,10 @@ def lignes_quantite_zero(odoo: OdooReader, domain: List = None) -> OdooQuery:
         ...     df = lignes_quantite_zero(odoo).collect()
         ...     ids_a_supprimer = df['invoice_line_ids'].drop_nulls().to_list()
     """
-    base_domain = [('state', '=', 'sale'), ('invoice_ids.state', '=', 'draft')] + (domain or [])
+    base_domain = [('state', '=', 'sale'), ('x_invoicing_state', '=', 'draft')] + (domain or [])
     return (
         query(odoo, 'sale.order', domain=base_domain,
-              fields=['name', 'state', 'x_pdl', 'partner_id', 'invoice_ids'])
+              fields=['name', 'state', 'x_pdl', 'x_lisse', 'invoice_ids'])
         .follow('invoice_ids',
                 domain=[('state', '=', 'draft')],
                 fields=['name', 'invoice_date', 'invoice_line_ids'])
