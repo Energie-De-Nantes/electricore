@@ -259,7 +259,7 @@ def _(updates_rsc):
 @app.cell(hide_code=True)
 def _():
     mo.md(r"""
-    # Injection des quantités → Odoo
+    ## Préparation des quantités → Odoo
     """)
     return
 
@@ -290,20 +290,6 @@ def _(updates_rsc):
 
 @app.cell
 def _(updates_rsc):
-    (
-        updates_rsc
-        .filter((pl.col("quantite_enedis").is_not_null()) & ~pl.col('x_lisse'))
-        .select([
-            pl.col("invoice_line_ids").cast(pl.Int64).alias("id"),
-            pl.col("quantite_enedis").alias("quantity"),
-        ])
-        .to_dicts()
-    )
-    return
-
-
-@app.cell
-def _(updates_rsc):
     lines_records = (
         updates_rsc
         .filter(pl.col("quantite_enedis").is_not_null())
@@ -314,6 +300,14 @@ def _(updates_rsc):
         .to_dicts()
     )
     return (lines_records,)
+
+
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
+    ## Préparation statut abonnement
+    """)
+    return
 
 
 @app.cell
@@ -368,16 +362,83 @@ def _(fact_mois, lignes_a_facturer_df, taux_verification):
               f"**{_preview.filter(pl.col('x_invoicing_state') == 'checked')['id'].len()}** checked"),
         mo.ui.table(_preview),
     ])
+    return (orders_records,)
+
+
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
+    ## Préparation données factures
+    """)
     return
 
 
 @app.cell
-def _(OdooWriter, lines_records, run_button, sim_mode):
+def _(fact_mois, lf_historique, lignes_a_facturer_df):
+    _histo_df = (
+        lf_historique
+        .collect()
+        .select(['ref_situation_contractuelle', 'num_compteur', "type_compteur"])
+    )
+
+    _odoo_df = (
+        lignes_a_facturer_df
+        .select(['invoice_ids', 'x_ref_situation_contractuelle'])
+        .unique()
+    )
+
+    _enedis_df = fact_mois.select(
+        ['ref_situation_contractuelle', 
+         'debut', 'fin', 
+         'turpe_fixe_eur', 'turpe_variable_eur'])
+
+    _to_rename = {
+        'invoice_ids':'id',
+        'turpe':'x_turpe',
+        'debut':'x_start_invoice_period',
+        'fin':'x_end_invoice_period',
+        'type_compteur':'x_type_compteur',
+        'num_compteur':'x_num_serie_compteur',
+    }
+
+    _df = (
+        _odoo_df
+        .join(_enedis_df, 
+              left_on="x_ref_situation_contractuelle",
+              right_on="ref_situation_contractuelle", 
+              how="left")
+        .join(_histo_df, 
+              left_on="x_ref_situation_contractuelle",
+              right_on="ref_situation_contractuelle",
+              how="left")
+        .with_columns([
+            (pl.col('turpe_fixe_eur') + pl.col('turpe_variable_eur')).alias('turpe'),
+            pl.col('debut').dt.strftime("%Y-%m-%d"),
+            pl.col('fin').dt.strftime("%Y-%m-%d"),
+        ])
+        .drop(['turpe_fixe_eur', 'turpe_variable_eur', 'x_ref_situation_contractuelle'])
+        .rename(mapping=_to_rename)
+    )
+    invoices_records = _df.to_dicts()
+    _df
+    return (invoices_records,)
+
+
+@app.cell
+def _(
+    OdooWriter,
+    invoices_records,
+    lines_records,
+    orders_records,
+    run_button,
+    sim_mode,
+):
     mo.stop(not run_button.value, mo.md("Vérifiez les données ci-dessus puis cliquez sur **Injecter**."))
 
     with OdooWriter(config=config, sim=sim_mode.value) as _writer:
         _writer.update("account.move.line", lines_records)
-        #_writer.update("sale.order", _records)
+        _writer.update("account.move", invoices_records)
+        _writer.update("sale.order", orders_records)
 
     _label = "simulées" if sim_mode.value else "mises à jour"
     mo.callout(
