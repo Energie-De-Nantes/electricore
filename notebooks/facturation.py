@@ -39,12 +39,12 @@ with app.setup:
         if secrets_path.exists():
             with open(secrets_path, 'rb') as f:
                 config_data = tomllib.load(f)
-                config = config_data.get('odoo', {})
+                config = config_data.get('odoo_test', {})
                 secrets_file_found = secrets_path
             break
 
     if not config:
-        _msg = mo.md("""
+        config_msg = mo.md("""
         ⚠️ **Configuration Odoo non trouvée**
 
         Créez le fichier `.dlt/secrets.toml` ou `electricore/etl/.dlt/secrets.toml` avec :
@@ -57,7 +57,7 @@ with app.setup:
         ```
         """)
     else:
-        _msg = mo.md(f"""
+        config_msg = mo.md(f"""
         **Configuration chargée depuis**: `{secrets_file_found}`
 
         - URL: `{config.get('url', 'NON CONFIGURÉ')}`
@@ -65,11 +65,11 @@ with app.setup:
         - Utilisateur: `{config.get('username', 'NON CONFIGURÉ')}`
         - Mot de passe: `{'***' if config.get('password') else 'NON CONFIGURÉ'}`
         """)
-    _msg
 
 
 @app.cell
 def _():
+    config_msg
     return
 
 
@@ -88,6 +88,12 @@ def _():
             lignes_a_facturer(_odoo)
             .filter(pl.col('name_product_category').is_in(['Abonnements', 'HP', 'HC', 'Base']))
             .collect()
+            .select(['sale_order_id', 'name', 'x_pdl', 
+                     'x_ref_situation_contractuelle', 
+                     'invoice_ids', 'invoice_line_ids', 
+                     'quantity', 'name_product_product',
+                     'name_account_move',
+                     'name_product_category'])
         )
     lignes_a_facturer_df
     return (lignes_a_facturer_df,)
@@ -112,7 +118,7 @@ def _():
 @app.cell
 def _():
     lf_historique = c15().lazy()
-    lf_releves = releves_harmonises().lazy()
+    lf_releves = releves_harmonises().lazy() # releves_harmonises = R151 et R64 fusionnés
     return lf_historique, lf_releves
 
 

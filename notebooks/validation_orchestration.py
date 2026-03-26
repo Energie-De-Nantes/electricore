@@ -95,7 +95,7 @@ def _():
         if secrets_path.exists():
             with open(secrets_path, 'rb') as f:
                 config_data = tomllib.load(f)
-                config = config_data.get('odoo', {})
+                config = config_data.get('odoo_prod', config_data.get('odoo', {}))
                 secrets_file_found = secrets_path
             break
 

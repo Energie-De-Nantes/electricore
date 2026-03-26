@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.16.0"
+__generated_with = "0.21.1"
 app = marimo.App(width="medium")
 
 with app.setup:
@@ -25,27 +25,23 @@ with app.setup:
 
 @app.cell
 def _():
-    mo.md(
-        r"""
+    mo.md(r"""
     # Exploration des données Odoo
 
     Ce notebook explore la connexion à Odoo et la structure des données
     pour extraire les factures par PDL.
-    """
-    )
+    """)
     return
 
 
 @app.cell
 def _():
-    mo.md(
-        r"""
+    mo.md(r"""
     ## 1. Configuration de connexion à Odoo
 
     ⚠️ **Important**: Modifiez les paramètres ci-dessous selon votre environnement Odoo.
     En production, utilisez plutôt les secrets dlt dans `.dlt/secrets.toml`.
-    """
-    )
+    """)
     return
 
 
@@ -67,7 +63,7 @@ def config_odoo():
         if secrets_path.exists():
             with open(secrets_path, 'rb') as f:
                 config_data = tomllib.load(f)
-                config = config_data.get('odoo', {})
+                config = config_data.get('odoo_prod', config_data.get('odoo', {}))
                 secrets_file_found = secrets_path
             break
 
@@ -375,6 +371,23 @@ def _(config, lignes_factures_df):
             .collect()
         )
     lignes_factures_df
+    return
+
+
+@app.cell
+def _(config):
+    with OdooReader(config=config) as _odoo:
+        commandes_lignes_df =(
+            commandes_lignes(_odoo)
+            .collect()
+        )
+    commandes_lignes_df
+    return (commandes_lignes_df,)
+
+
+@app.cell
+def _(commandes_lignes_df):
+    commandes_lignes_df.drop_nulls(["invoice_line_ids"]).filter(pl.col('quantity') > 0)
     return
 
 

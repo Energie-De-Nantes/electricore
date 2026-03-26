@@ -38,7 +38,6 @@ class OdooWriter(OdooReader):
         super().__init__(config, **kwargs)
         self._sim = sim
 
-    @OdooReader._ensure_connection
     def create(self, model: str, records: List[Dict[Hashable, Any]]) -> List[int]:
         """
         Crée des enregistrements dans Odoo.
@@ -59,7 +58,7 @@ class OdooWriter(OdooReader):
         for record in records:
             clean_record = {}
             for k, v in record.items():
-                if v is not None and not (hasattr(v, '__iter__') and len(str(v)) == 0):
+                if v is not None and not (hasattr(v, '__len__') and len(v) == 0):
                     clean_record[k] = v
             clean_records.append(clean_record)
 
@@ -69,7 +68,6 @@ class OdooWriter(OdooReader):
         logger.info(f'{model} #{created_ids} created in Odoo db.')
         return created_ids
 
-    @OdooReader._ensure_connection
     def update(self, model: str, records: List[Dict[Hashable, Any]]) -> None:
         """
         Met à jour des enregistrements dans Odoo.
@@ -77,6 +75,12 @@ class OdooWriter(OdooReader):
         Args:
             model: Modèle Odoo
             records: Liste des enregistrements à mettre à jour (doivent contenir 'id')
+
+        Note:
+            Les valeurs None sont filtrées : un champ à None ne sera pas modifié dans Odoo.
+            Pour effacer explicitement un champ, passer False.
+            Attention : OdooReader._normalize_for() convertit les False Odoo en None,
+            donc un round-trip read→update ne modifiera jamais les champs vides.
         """
         updated_ids = []
         records_copy = copy.deepcopy(records)
@@ -91,7 +95,7 @@ class OdooWriter(OdooReader):
 
             # Nettoyer les données
             clean_data = {k: v for k, v in record.items()
-                         if v is not None and not (hasattr(v, '__iter__') and len(str(v)) == 0)}
+                         if v is not None and not (hasattr(v, '__len__') and len(v) == 0)}
 
             if not self._sim:
                 self.execute(model, 'write', [[record_id], clean_data])

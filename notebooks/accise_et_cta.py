@@ -1,12 +1,11 @@
 import marimo
 
-__generated_with = "0.16.5"
+__generated_with = "0.21.1"
 app = marimo.App(width="medium")
 
 with app.setup(hide_code=True):
     import marimo as mo
     import polars as pl
-    import pandas as pd
     import sys
     from pathlib import Path
     from datetime import datetime, timezone, date
@@ -59,7 +58,7 @@ def _():
         if secrets_path.exists():
             with open(secrets_path, 'rb') as f:
                 config_data = tomllib.load(f)
-                config = config_data.get('odoo', {})
+                config = config_data.get('odoo_prod', config_data.get('odoo', {}))
                 secrets_file_found = secrets_path
             break
 
@@ -91,13 +90,17 @@ def _():
 
 @app.cell
 def _():
-    mo.md(r"""# CTA""")
+    mo.md(r"""
+    # CTA
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _():
-    mo.md(r"""## Récupération du périmètre PDL depuis Odoo""")
+    mo.md(r"""
+    ## Récupération du périmètre PDL depuis Odoo
+    """)
     return
 
 
@@ -147,7 +150,9 @@ def load_odoo_perimeter(config):
 
 @app.cell(hide_code=True)
 def _():
-    mo.md(r"""## Chargement des données pour le pipeline de calcul""")
+    mo.md(r"""
+    ## Chargement des données pour le pipeline de calcul
+    """)
     return
 
 
@@ -160,7 +165,9 @@ def _():
 
 @app.cell
 def _():
-    mo.md(r"""## Pipeline facturation""")
+    mo.md(r"""
+    ## Pipeline facturation
+    """)
     return
 
 
@@ -186,7 +193,9 @@ def _(df_facturation, df_pdl_odoo):
 
 @app.cell
 def _():
-    mo.md(r"""## 📊 Sélection du trimestre et taux CTA""")
+    mo.md(r"""
+    ## 📊 Sélection du trimestre et taux CTA
+    """)
     return
 
 
@@ -262,7 +271,9 @@ def _(df_cta, taux_cta, trimestre_selectionne):
 
 @app.cell
 def _():
-    mo.md(r"""# Accise""")
+    mo.md(r"""
+    # Accise
+    """)
     return
 
 
