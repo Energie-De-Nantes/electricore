@@ -303,10 +303,8 @@ def _(updates_rsc):
 
 
 @app.cell
-def _(OdooWriter, run_button, sim_mode, updates_rsc):
-    mo.stop(not run_button.value, mo.md("Vérifiez les données ci-dessus puis cliquez sur **Injecter**."))
-
-    _records = (
+def _(updates_rsc):
+    lines_records = (
         updates_rsc
         .filter(pl.col("quantite_enedis").is_not_null())
         .select([
@@ -315,13 +313,75 @@ def _(OdooWriter, run_button, sim_mode, updates_rsc):
         ])
         .to_dicts()
     )
+    return (lines_records,)
+
+
+@app.cell
+def _():
+    taux_verification = mo.ui.slider(
+        0, 20, value=5, step=1,
+        label="% d'orders à vérifier (→ populated)",
+        show_value=True,
+    )
+    taux_verification
+    return (taux_verification,)
+
+
+@app.cell
+def _(fact_mois, lignes_a_facturer_df, taux_verification):
+    import numpy as np
+
+    _odoo_df = (
+        lignes_a_facturer_df
+        .select(['sale_order_id', 'x_lisse', 'x_ref_situation_contractuelle'])
+        .unique()
+    )
+    _enedis_df = fact_mois.select(['data_complete', 'ref_situation_contractuelle'])
+
+    _df = (
+        _odoo_df
+        .join(_enedis_df, left_on="x_ref_situation_contractuelle",
+              right_on="ref_situation_contractuelle", how="left")
+        .with_columns((pl.col("data_complete") | pl.col("x_lisse")).alias("a_jour"))
+        .with_columns(pl.Series("rand", np.random.rand(len(_odoo_df))))
+    )
+
+    orders_records = (
+        _df
+        .with_columns(
+            pl.when(~pl.col("a_jour"))
+              .then(pl.lit("draft"))
+              .when(pl.col("rand") < taux_verification.value / 100)
+              .then(pl.lit("populated"))
+              .otherwise(pl.lit("checked"))
+              .alias("x_invoicing_state")
+        )
+        .select(['sale_order_id', 'x_invoicing_state'])
+        .rename({"sale_order_id": "id"})
+        .to_dicts()
+    )
+
+    _preview = pl.DataFrame(orders_records)
+    mo.vstack([
+        mo.md(f"**{_preview.filter(pl.col('x_invoicing_state') == 'draft')['id'].len()}** draft · "
+              f"**{_preview.filter(pl.col('x_invoicing_state') == 'populated')['id'].len()}** populated · "
+              f"**{_preview.filter(pl.col('x_invoicing_state') == 'checked')['id'].len()}** checked"),
+        mo.ui.table(_preview),
+    ])
+    return
+
+
+@app.cell
+def _(OdooWriter, lines_records, run_button, sim_mode):
+    mo.stop(not run_button.value, mo.md("Vérifiez les données ci-dessus puis cliquez sur **Injecter**."))
 
     with OdooWriter(config=config, sim=sim_mode.value) as _writer:
-        _writer.update("account.move.line", _records)
+        _writer.update("account.move.line", lines_records)
+        #_writer.update("sale.order", _records)
 
     _label = "simulées" if sim_mode.value else "mises à jour"
     mo.callout(
-        mo.md(f"✅ **{len(_records)} lignes** account.move.line {_label} (`quantity`)."),
+        mo.md(f"✅ **{len(lines_records)} lignes** account.move.line {_label} (`quantity`)."),
         kind="success",
     )
     return
