@@ -3,7 +3,10 @@ Service DuckDB pour accès générique aux données flux.
 Fonctions pures pour lire les tables de flux Enedis.
 """
 
+import io
+
 import duckdb
+import polars as pl
 from pathlib import Path
 from typing import Optional
 
@@ -75,6 +78,40 @@ def get_table_info(table_name: str) -> dict:
             "count": count,
             "columns": columns
         }
+
+
+def query_table_xlsx(
+    table_name: str,
+    filters: Optional[dict] = None,
+    limit: int = 10000,
+) -> bytes:
+    """
+    Retourne les données d'une table flux au format XLSX (bytes).
+
+    Args:
+        table_name: Nom de la table (r151, c15, r64, etc.)
+        filters: Dict de filtres {colonne: valeur}
+        limit: Nombre max de lignes (défaut 10 000)
+
+    Returns:
+        Contenu XLSX en bytes
+    """
+    sql = f"SELECT * FROM {SCHEMA}.flux_{table_name}"
+    if filters:
+        conditions = [f"{col} = '{val}'" for col, val in filters.items()]
+        sql += f" WHERE {' AND '.join(conditions)}"
+    sql += f" LIMIT {limit}"
+
+    with duckdb.connect(str(DB_PATH), read_only=True) as conn:
+        df = conn.execute(sql).pl()
+
+    import xlsxwriter
+
+    buf = io.BytesIO()
+    wb = xlsxwriter.Workbook(buf, {"remove_timezone": True})
+    df.write_excel(workbook=wb, worksheet=table_name)
+    wb.close()
+    return buf.getvalue()
 
 
 def list_tables() -> list[str]:

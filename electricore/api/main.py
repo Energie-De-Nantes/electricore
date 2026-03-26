@@ -4,6 +4,7 @@ Expose les données Enedis via endpoints génériques avec authentification par 
 """
 
 from fastapi import FastAPI, Query, HTTPException, Depends
+from fastapi.responses import Response
 from typing import Optional
 
 from electricore.api.services import duckdb_service, etl_service
@@ -134,6 +135,47 @@ async def get_flux(
         }
     except Exception as e:
         raise HTTPException(500, f"Erreur lors de la lecture des données: {e}")
+
+
+@app.get("/flux/{table_name}/xlsx", tags=["flux"])
+async def get_flux_xlsx(
+    table_name: str,
+    prm: Optional[str] = Query(None, description="Filtrer par pdl (Point de Livraison)"),
+    limit: int = Query(10000, le=100000, description="Nombre maximum de lignes"),
+    api_key: str = Depends(get_current_api_key),
+):
+    """
+    Exporte les données d'un flux Enedis au format XLSX (Excel).
+
+    **Authentification requise.**
+
+    Retourne un fichier téléchargeable directement ouvrables dans Excel/LibreOffice.
+    Limite par défaut : 10 000 lignes (max 100 000).
+    """
+    try:
+        available_tables = duckdb_service.list_tables()
+    except Exception as e:
+        raise HTTPException(500, f"Impossible d'accéder à la base de données: {e}")
+
+    if table_name not in available_tables:
+        raise HTTPException(
+            404,
+            f"Table '{table_name}' non trouvée. Tables disponibles: {available_tables}"
+        )
+
+    filters = {"pdl": prm} if prm else {}
+
+    try:
+        content = duckdb_service.query_table_xlsx(table_name, filters, limit)
+    except Exception as e:
+        raise HTTPException(500, f"Erreur lors de la génération du fichier XLSX: {e}")
+
+    filename = f"flux_{table_name}.xlsx"
+    return Response(
+        content=content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
 
 
 @app.get("/flux/{table_name}/info", tags=["flux"])
