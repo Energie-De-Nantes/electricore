@@ -44,7 +44,8 @@ dependencies = [
     "vegafusion>=2.0.3,<3.0.0",
     "vl-convert-python>=1.8.0,<2.0.0",
     "marimo>=0.16.4",
-    "plotly>=6.2.0",
+    "plotly[express]>=6.2.0",
+    "numpy>=2.4.3",
 ]
 
 [project.optional-dependencies]
