@@ -5,6 +5,7 @@ Ce module fournit les primitives de configuration et de connexion
 pour l'accès aux bases DuckDB dans un style fonctionnel.
 """
 
+import os
 from pathlib import Path
 from typing import Union
 from contextlib import contextmanager
@@ -23,8 +24,9 @@ class DuckDBConfig:
             database_path: Chemin vers la base DuckDB. Si None, utilise la config par défaut.
         """
         if database_path is None:
-            # Utiliser la base par défaut du projet
-            self.database_path = Path("electricore/etl/flux_enedis_pipeline.duckdb")
+            self.database_path = Path(
+                os.getenv("DUCKDB_PATH", "electricore/etl/flux_enedis_pipeline.duckdb")
+            )
         else:
             self.database_path = Path(database_path)
 

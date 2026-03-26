@@ -5,12 +5,14 @@ Fonctions pures pour lire les tables de flux Enedis.
 
 import io
 
+import os
+
 import duckdb
 import polars as pl
 from pathlib import Path
 from typing import Optional
 
-DB_PATH = Path("electricore/etl/flux_enedis_pipeline.duckdb")
+DB_PATH = Path(os.getenv("DUCKDB_PATH", "electricore/etl/flux_enedis_pipeline.duckdb"))
 SCHEMA = "flux_enedis"
 
 

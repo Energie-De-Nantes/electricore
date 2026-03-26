@@ -1,0 +1,19 @@
+# Service systemd pour le pipeline ETL ElectriCore
+# Utilisé conjointement avec electricore-etl.timer
+#
+# Remplacez les placeholders avant d'installer :
+#   __USER__    → votre nom d'utilisateur système
+#   __WORKDIR__ → chemin absolu du dépôt (ex: /opt/electricore)
+
+[Unit]
+Description=ElectriCore ETL Pipeline
+After=network.target
+
+[Service]
+Type=oneshot
+User=__USER__
+WorkingDirectory=__WORKDIR__
+EnvironmentFile=__WORKDIR__/.env
+ExecStart=/usr/bin/uv run python electricore/etl/pipeline_production.py all
+StandardOutput=journal
+StandardError=journal

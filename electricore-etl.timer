@@ -1,0 +1,27 @@
+# Timer systemd pour le pipeline ETL Enedis
+#
+# Lance le pipeline ETL quotidiennement à 2h du matin.
+# Persistent=true : rattrape le tir si la machine était éteinte à l'heure prévue.
+#
+# Installation :
+#   1. Copiez ce fichier et electricore-etl.service.example :
+#        sudo cp electricore-etl.timer /etc/systemd/system/
+#        cp electricore-etl.service.example electricore-etl.service
+#        # Éditez electricore-etl.service (remplacez __USER__ et __WORKDIR__)
+#        sudo cp electricore-etl.service /etc/systemd/system/
+#   2. Activez le timer :
+#        sudo systemctl daemon-reload
+#        sudo systemctl enable --now electricore-etl.timer
+#   3. Vérifiez :
+#        systemctl list-timers electricore-etl.timer
+#        journalctl -u electricore-etl.service -f
+
+[Unit]
+Description=ElectriCore ETL Pipeline (timer quotidien)
+
+[Timer]
+OnCalendar=*-*-* 02:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
