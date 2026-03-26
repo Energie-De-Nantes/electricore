@@ -114,6 +114,39 @@ def query_table_xlsx(
     return buf.getvalue()
 
 
+_ENTREES = ("PMES", "MES", "CFNE")
+_SORTIES = ("RES", "CFNS")
+
+
+def _query_c15_xlsx(codes: tuple[str, ...], worksheet: str, limit: int) -> bytes:
+    placeholders = ", ".join(f"'{c}'" for c in codes)
+    sql = (
+        f"SELECT * FROM {SCHEMA}.flux_c15"
+        f" WHERE evenement_declencheur IN ({placeholders})"
+        f" LIMIT {limit}"
+    )
+    with duckdb.connect(str(DB_PATH), read_only=True) as conn:
+        df = conn.execute(sql).pl()
+
+    import xlsxwriter
+
+    buf = io.BytesIO()
+    wb = xlsxwriter.Workbook(buf, {"remove_timezone": True})
+    df.write_excel(workbook=wb, worksheet=worksheet)
+    wb.close()
+    return buf.getvalue()
+
+
+def query_entrees_xlsx(limit: int = 10000) -> bytes:
+    """Export XLSX des entrées C15 (PMES, MES, CFNE)."""
+    return _query_c15_xlsx(_ENTREES, "entrees", limit)
+
+
+def query_sorties_xlsx(limit: int = 10000) -> bytes:
+    """Export XLSX des sorties C15 (RES, CFNS)."""
+    return _query_c15_xlsx(_SORTIES, "sorties", limit)
+
+
 def list_tables() -> list[str]:
     """
     Liste toutes les tables flux disponibles.

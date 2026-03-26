@@ -49,6 +49,18 @@ class ElectriCoreClient:
             r.raise_for_status()
             return r.json()
 
+    async def get_entrees_xlsx(self) -> bytes:
+        async with httpx.AsyncClient() as c:
+            r = await c.get(f"{self._base}/flux/c15/entrees/xlsx", headers=self._headers, timeout=120)
+            r.raise_for_status()
+            return r.content
+
+    async def get_sorties_xlsx(self) -> bytes:
+        async with httpx.AsyncClient() as c:
+            r = await c.get(f"{self._base}/flux/c15/sorties/xlsx", headers=self._headers, timeout=120)
+            r.raise_for_status()
+            return r.content
+
     async def get_xlsx(self, table: str) -> bytes:
         async with httpx.AsyncClient() as c:
             r = await c.get(f"{self._base}/flux/{table}/xlsx", headers=self._headers, timeout=120)

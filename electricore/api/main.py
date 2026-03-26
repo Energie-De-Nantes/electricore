@@ -99,6 +99,48 @@ async def root():
         raise HTTPException(500, f"Erreur lors de l'accès à la base de données: {e}")
 
 
+@app.get("/flux/c15/entrees/xlsx", tags=["flux"])
+async def get_entrees_xlsx(
+    limit: int = Query(10000, le=100000, description="Nombre maximum de lignes"),
+    api_key: str = Depends(get_current_api_key),
+):
+    """
+    Exporte les **entrées** C15 au format XLSX (PMES, MES, CFNE).
+
+    **Authentification requise.**
+    """
+    try:
+        content = duckdb_service.query_entrees_xlsx(limit)
+    except Exception as e:
+        raise HTTPException(500, f"Erreur lors de la génération du fichier XLSX: {e}")
+    return Response(
+        content=content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=entrees_c15.xlsx"},
+    )
+
+
+@app.get("/flux/c15/sorties/xlsx", tags=["flux"])
+async def get_sorties_xlsx(
+    limit: int = Query(10000, le=100000, description="Nombre maximum de lignes"),
+    api_key: str = Depends(get_current_api_key),
+):
+    """
+    Exporte les **sorties** C15 au format XLSX (RES, CFNS).
+
+    **Authentification requise.**
+    """
+    try:
+        content = duckdb_service.query_sorties_xlsx(limit)
+    except Exception as e:
+        raise HTTPException(500, f"Erreur lors de la génération du fichier XLSX: {e}")
+    return Response(
+        content=content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=sorties_c15.xlsx"},
+    )
+
+
 @app.get("/flux/{table_name}", tags=["flux"])
 async def get_flux(
     table_name: str,

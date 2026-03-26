@@ -24,6 +24,9 @@ _HELP = r"""
 /status — Statut des 5 derniers jobs ETL
 /stats \[table\] — Stats d'une table flux
 /export \[table\] — Exporter une table en fichier Excel
+/entrees — Exporter les entrées C15 \(PMES, MES, CFNE\)
+/sorties — Exporter les sorties C15 \(RES, CFNS\)
+/flux — Lister les tables disponibles à l'export
 """
 
 _STATUS_EMOJI = {
@@ -177,6 +180,59 @@ async def cmd_export(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     )
 
 
+async def cmd_flux(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not _is_allowed(update):
+        await _deny(update)
+        return
+    client = ElectriCoreClient()
+    try:
+        tables = await client.list_tables()
+    except Exception as e:
+        await update.effective_message.reply_text(f"❌ Erreur : {e}")
+        return
+    lines = ["📋 Tables disponibles à l'export :\n"]
+    for t in tables:
+        lines.append(f"  • /export {t}")
+    lines += ["\nExports métier :", "  • /entrees — Entrées C15", "  • /sorties — Sorties C15"]
+    await update.effective_message.reply_text("\n".join(lines))
+
+
+async def cmd_entrees(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not _is_allowed(update):
+        await _deny(update)
+        return
+    await update.effective_message.reply_text("⏳ Génération de l'export entrées C15…")
+    client = ElectriCoreClient()
+    try:
+        xlsx_bytes = await client.get_entrees_xlsx()
+    except Exception as e:
+        await update.effective_message.reply_text(f"❌ Erreur : {e}")
+        return
+    await update.effective_message.reply_document(
+        document=io.BytesIO(xlsx_bytes),
+        filename="entrees_c15.xlsx",
+        caption="Entrées C15 (PMES, MES, CFNE)",
+    )
+
+
+async def cmd_sorties(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not _is_allowed(update):
+        await _deny(update)
+        return
+    await update.effective_message.reply_text("⏳ Génération de l'export sorties C15…")
+    client = ElectriCoreClient()
+    try:
+        xlsx_bytes = await client.get_sorties_xlsx()
+    except Exception as e:
+        await update.effective_message.reply_text(f"❌ Erreur : {e}")
+        return
+    await update.effective_message.reply_document(
+        document=io.BytesIO(xlsx_bytes),
+        filename="sorties_c15.xlsx",
+        caption="Sorties C15 (RES, CFNS)",
+    )
+
+
 def build_application(token: str) -> Application:
     app = Application.builder().token(token).build()
     app.add_handler(CommandHandler("start", cmd_start))
@@ -184,4 +240,7 @@ def build_application(token: str) -> Application:
     app.add_handler(CommandHandler("status", cmd_status))
     app.add_handler(CommandHandler("stats", cmd_stats))
     app.add_handler(CommandHandler("export", cmd_export))
+    app.add_handler(CommandHandler("flux", cmd_flux))
+    app.add_handler(CommandHandler("entrees", cmd_entrees))
+    app.add_handler(CommandHandler("sorties", cmd_sorties))
     return app
