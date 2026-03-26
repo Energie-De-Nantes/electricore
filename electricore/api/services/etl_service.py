@@ -106,7 +106,7 @@ def _run_pipeline(job: ETLJob) -> None:
         if result.returncode != 0:
             raise RuntimeError(result.stderr.strip() or f"exit code {result.returncode}")
         job.status = ETLStatus.completed
-        job.output = (result.stdout + result.stderr).strip() or None
+        job.output = result.stdout.strip() or None
     except Exception as exc:
         job.status = ETLStatus.failed
         job.error = str(exc)
