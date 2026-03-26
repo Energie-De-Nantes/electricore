@@ -88,10 +88,15 @@ def _():
             lignes_a_facturer(_odoo)
             .filter(pl.col('name_product_category').is_in(['Abonnements', 'HP', 'HC', 'Base']))
             .collect()
-            .select(['sale_order_id', 'name', 'x_pdl', 
+            .select(['sale_order_id',
+                     'name',
+                     'x_pdl',
+                     'x_lisse',
                      'x_ref_situation_contractuelle', 
-                     'invoice_ids', 'invoice_line_ids', 
-                     'quantity', 'name_product_product',
+                     'invoice_ids',
+                     'invoice_line_ids', 
+                     'quantity',
+                     'name_product_product',
                      'name_account_move',
                      'name_product_category'])
         )
@@ -148,7 +153,9 @@ def _(fact, mois_en_cours):
 @app.cell(hide_code=True)
 def _():
     mo.md(r"""
-    # Réconciliation Enedis → Odoo
+    ## Déménagements
+
+    On détecte ici les déménagements du mois, en regardant les pdls qui ont deux ref_contractuelles. Les factures associées sont normalement correctement peuplées, mais il faut potentiellement vérifier.
     """)
     return
 
@@ -158,9 +165,17 @@ def _(fact_mois):
     _pdl_counts = fact_mois.group_by("pdl").agg(pl.len().alias("n"))
     pdls_doublons = _pdl_counts.filter(pl.col("n") > 1)["pdl"].to_list()
 
-    fact_simple   = fact_mois.filter(~pl.col("pdl").is_in(pdls_doublons))
     fact_déménagements = fact_mois.filter(pl.col("pdl").is_in(pdls_doublons))
-    return fact_déménagements, fact_simple, pdls_doublons
+    mo.ui.table(fact_déménagements) if pdls_doublons else mo.md("")
+    return
+
+
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
+    # Réconciliation Enedis → Odoo
+    """)
+    return
 
 
 @app.cell
@@ -177,49 +192,6 @@ def _():
 @app.cell(hide_code=True)
 def _():
     mo.md(r"""
-    ## Version PDL (erreurs attendues pendant déménagements)
-    """)
-    return
-
-
-@app.cell
-def _(MAPPING_CATEGORIE, fact_simple, lignes_a_facturer_df, pdls_doublons):
-    _quantite_enedis = pl.coalesce([
-        pl.when(pl.col("name_product_category") == cat).then(pl.col(col).cast(pl.Float64))
-        for cat, col in MAPPING_CATEGORIE.items()
-    ]).alias("quantite_enedis")
-
-    updates = (
-        lignes_a_facturer_df
-        .filter(~pl.col("x_pdl").is_in(pdls_doublons))
-        .join(fact_simple, left_on="x_pdl", right_on="pdl", how="left")
-        .with_columns(_quantite_enedis)
-        .select([
-            "invoice_line_ids", "x_pdl", "name_account_move",
-            "name_product_category", "name_product_product",
-            "quantity", "quantite_enedis", "memo_puissance",
-        ])
-    )
-    mo.ui.table(updates)
-    return (updates,)
-
-
-@app.cell
-def _(fact_déménagements, pdls_doublons, updates):
-    _sans_match = updates.filter(pl.col("quantite_enedis").is_null())
-    mo.vstack([
-        mo.md(f"⚠️ **{len(pdls_doublons)} PDL(s) multi-contrats exclus** — révision manuelle requise")
-          if pdls_doublons else mo.md(""),
-        mo.md(f"❌ **{_sans_match['x_pdl'].n_unique()} PDL(s) sans correspondance Enedis**")
-          if not _sans_match.is_empty() else mo.md("✅ Tous les PDLs ont une correspondance Enedis"),
-        mo.ui.table(fact_déménagements) if pdls_doublons else mo.md(""),
-    ])
-    return
-
-
-@app.cell(hide_code=True)
-def _():
-    mo.md(r"""
     ### Changements de puissance en cours de mois
 
     Lignes de facturation dont le PDL a changé de puissance souscrite pendant le mois.
@@ -229,9 +201,9 @@ def _():
     return
 
 
-@app.cell(hide_code=True)
-def _(updates):
-    mo.ui.table(updates.filter(pl.col("memo_puissance") != ""))
+@app.cell
+def _(updates_rsc):
+    updates_rsc.filter(pl.col('memo_puissance') != '')
     return
 
 
@@ -266,7 +238,7 @@ def _(MAPPING_CATEGORIE, fact_mois, lignes_a_facturer_df):
         )
         .with_columns(_quantite_enedis_rsc)
         .select([
-            "invoice_line_ids", "x_pdl", "name_account_move",
+            "invoice_line_ids", "x_pdl", "x_lisse", "name_account_move",
             "name_product_category", "name_product_product",
             "quantity", "quantite_enedis", "memo_puissance",
         ])
@@ -281,6 +253,77 @@ def _(updates_rsc):
     mo.md(f"❌ **{_sans_match_rsc['x_pdl'].n_unique()} PDL(s) sans correspondance Enedis**") \
         if not _sans_match_rsc.is_empty() \
         else mo.md("✅ Tous les PDLs ont une correspondance Enedis")
+    return
+
+
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
+    # Injection des quantités → Odoo
+    """)
+    return
+
+
+@app.cell
+def _(updates_rsc):
+    from electricore.core.writers import OdooWriter
+
+    # TODO filtrer les lissés
+    _a_injecter = updates_rsc.filter(pl.col("quantite_enedis").is_not_null())
+    _sans_match  = updates_rsc.filter(pl.col("quantite_enedis").is_null())
+
+    sim_mode   = mo.ui.checkbox(label="Mode simulation (aucune écriture réelle)", value=True)
+    run_button = mo.ui.run_button(label="Injecter dans Odoo")
+
+    mo.vstack([
+        mo.md(f"**{len(_a_injecter)}** lignes à mettre à jour "
+              f"· **{len(_sans_match)}** sans correspondance Enedis (ignorées)"),
+        mo.ui.table(_a_injecter.select([
+            "name_account_move", "x_pdl", "name_product_category",
+            "name_product_product", "quantity", "quantite_enedis", "memo_puissance",
+        ])),
+        sim_mode,
+        run_button,
+    ])
+    return OdooWriter, run_button, sim_mode
+
+
+@app.cell
+def _(updates_rsc):
+    (
+        updates_rsc
+        .filter((pl.col("quantite_enedis").is_not_null()) & ~pl.col('x_lisse'))
+        .select([
+            pl.col("invoice_line_ids").cast(pl.Int64).alias("id"),
+            pl.col("quantite_enedis").alias("quantity"),
+        ])
+        .to_dicts()
+    )
+    return
+
+
+@app.cell
+def _(OdooWriter, run_button, sim_mode, updates_rsc):
+    mo.stop(not run_button.value, mo.md("Vérifiez les données ci-dessus puis cliquez sur **Injecter**."))
+
+    _records = (
+        updates_rsc
+        .filter(pl.col("quantite_enedis").is_not_null())
+        .select([
+            pl.col("invoice_line_ids").cast(pl.Int64).alias("id"),
+            pl.col("quantite_enedis").alias("quantity"),
+        ])
+        .to_dicts()
+    )
+
+    with OdooWriter(config=config, sim=sim_mode.value) as _writer:
+        _writer.update("account.move.line", _records)
+
+    _label = "simulées" if sim_mode.value else "mises à jour"
+    mo.callout(
+        mo.md(f"✅ **{len(_records)} lignes** account.move.line {_label} (`quantity`)."),
+        kind="success",
+    )
     return
 
 
