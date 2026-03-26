@@ -4,9 +4,12 @@ Utilise le chaînage de transformers DLT pour une architecture propre.
 """
 
 import dlt
+import logging
 import re
 from typing import Iterator
 from dlt.sources.filesystem import filesystem
+
+logger = logging.getLogger(__name__)
 
 def mask_password_in_url(url: str) -> str:
     """
@@ -106,7 +109,7 @@ def flux_enedis(flux_config: dict, max_files: int = None):
     sftp_config = dlt.secrets['sftp']
     sftp_url = sftp_config['url']
     
-    print(f"SFTP: {mask_password_in_url(sftp_url)}")
+    logger.info("SFTP: %s", mask_password_in_url(sftp_url))
 
     # Créer les transformers communs une seule fois (optimisation)
     decrypt_transformer = create_decrypt_transformer()

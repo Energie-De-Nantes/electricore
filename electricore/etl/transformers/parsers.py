@@ -5,12 +5,15 @@ Inclut les fonctions pures de parsing et les transformers DLT.
 
 import dlt
 import io
+import logging
 import re
 import json
 import fnmatch
 from typing import Iterator, Dict, Any, Optional, List
 import polars as pl
 from lxml import etree
+
+logger = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -43,7 +46,7 @@ def match_xml_pattern(xml_name: str, pattern: str | None) -> bool:
         try:
             return fnmatch.fnmatch(xml_name, pattern)
         except Exception:
-            print(f"⚠️ Pattern invalide '{pattern}' pour {xml_name}")
+            logger.warning("Pattern invalide '%s' pour %s", pattern, xml_name)
             return False
 
 
@@ -207,7 +210,7 @@ def _xml_parser_transformer_base(
         # print(f"✅ Parsé: {records_count} enregistrements depuis {xml_name}")
         
     except Exception as e:
-        print(f"❌ Erreur parsing XML {xml_name}: {e}")
+        logger.error("Erreur parsing XML %s: %s", xml_name, e)
         return
 
 
@@ -270,7 +273,7 @@ def _csv_parser_transformer_base(
             records_count += 1
         
     except Exception as e:
-        print(f"❌ Erreur parsing CSV {csv_name}: {e}")
+        logger.error("Erreur parsing CSV %s: %s", csv_name, e)
         return
 
 
@@ -391,7 +394,7 @@ def _json_parser_transformer_base(
             records_count += 1
 
     except Exception as e:
-        print(f"❌ Erreur parsing JSON {json_name}: {e}")
+        logger.error("Erreur parsing JSON %s: %s", json_name, e)
         return
 
 
@@ -612,7 +615,7 @@ def process_single_mesure(mesure: dict, header_meta: dict) -> Iterator[dict]:
             break
 
     if not base_record:
-        print(f"⚠️ Aucune grandeur CONS/EA trouvée pour PDL {pdl}")
+        logger.warning("Aucune grandeur CONS/EA trouvée pour PDL %s", pdl)
         return
 
     # Collecter toutes les données timeseries
@@ -654,10 +657,10 @@ def r64_timeseries_to_wide_format(
                 total_records += 1
 
     except json.JSONDecodeError as e:
-        print(f"❌ Erreur parsing JSON R64: {e}")
+        logger.error("Erreur parsing JSON R64: %s", e)
         return
     except Exception as e:
-        print(f"❌ Erreur transformation R64: {e}")
+        logger.error("Erreur transformation R64: %s", e)
         return
 
 
@@ -707,7 +710,7 @@ def _json_r64_transformer_base(
             records_count += 1
 
     except Exception as e:
-        print(f"❌ Erreur parsing JSON R64 {json_name}: {e}")
+        logger.error("Erreur parsing JSON R64 %s: %s", json_name, e)
         return
 
 

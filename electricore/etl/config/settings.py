@@ -3,8 +3,11 @@ Configuration centralisée pour les pipelines ETL.
 Charge la configuration des flux et expose les constantes principales.
 """
 
+import logging
 import yaml
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 # Constantes de chemin
 ETL_DIR = Path(__file__).parent.parent
@@ -25,7 +28,7 @@ def load_flux_config() -> dict:
     try:
         with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f)
-        print(f"📋 Configuration chargée pour {len(config)} types de flux: {list(config.keys())}")
+        logger.debug("Configuration chargée pour %d types de flux: %s", len(config), list(config.keys()))
         return config
     except FileNotFoundError:
         raise FileNotFoundError(f"Fichier de configuration introuvable: {CONFIG_FILE}")

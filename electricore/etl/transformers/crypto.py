@@ -26,9 +26,12 @@ Gestion de la rotation de clés :
 """
 
 import dlt
+import logging
 from typing import Iterator
 from dlt.common.storages.fsspec_filesystem import FileItemDict
 from Crypto.Cipher import AES
+
+logger = logging.getLogger(__name__)
 
 
 # Magic bytes d'un fichier ZIP (PK local file header)
@@ -236,7 +239,7 @@ def _decrypt_aes_transformer_base(
         decrypted_size = len(decrypted_data)
 
         if len(key_chain) > 1:
-            print(f"✅ Déchiffré avec clé '{key_used}' : {encrypted_file['file_name']}")
+            logger.debug("Déchiffré avec clé '%s' : %s", key_used, encrypted_file['file_name'])
 
         yield {
             'file_name': encrypted_file['file_name'],
@@ -248,7 +251,7 @@ def _decrypt_aes_transformer_base(
         }
 
     except Exception as e:
-        print(f"❌ Erreur déchiffrement {encrypted_file['file_name']}: {e}")
+        logger.error("Erreur déchiffrement %s: %s", encrypted_file['file_name'], e)
         return
 
 
@@ -273,7 +276,7 @@ def create_decrypt_transformer(aes_key: bytes = None, aes_iv: bytes = None):
         key_chain = load_aes_key_chain()
         nb = len(key_chain)
         names = [name for name, _, _ in key_chain]
-        print(f"🔐 {nb} clé(s) AES chargée(s) : {names}")
+        logger.info("%d clé(s) AES chargée(s) : %s", nb, names)
 
     @dlt.transformer
     def configured_decrypt_transformer(encrypted_file: FileItemDict) -> Iterator[dict]:

@@ -4,10 +4,13 @@ Inclut les fonctions pures d'extraction et le transformer DLT.
 """
 
 import dlt
+import logging
 import zipfile
 import io
 from typing import Iterator, Optional
 import fnmatch
+
+logger = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -37,7 +40,7 @@ def extract_files_from_zip(zip_data: bytes, file_extension: str = '.xml') -> lis
                     content = zip_ref.read(file_info.filename)
                     files.append((file_info.filename, content))
                 except Exception as e:
-                    print(f"⚠️ Erreur lecture {file_info.filename}: {e}")
+                    logger.warning("Erreur lecture %s: %s", file_info.filename, e)
                     continue
     
     return files
@@ -102,10 +105,10 @@ def _unzip_transformer_base(
             # print(f"✅ Extrait: {file_name} ({len(file_content)} bytes)")
         
         if not extracted_files:
-            print(f"⚠️  Aucun fichier {file_extension} trouvé dans {zip_name}")
-            
+            logger.warning("Aucun fichier %s trouvé dans %s", file_extension, zip_name)
+
     except Exception as e:
-        print(f"❌ Erreur extraction {zip_name}: {e}")
+        logger.error("Erreur extraction %s: %s", zip_name, e)
         return
 
 
