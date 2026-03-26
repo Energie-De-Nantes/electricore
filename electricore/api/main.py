@@ -6,8 +6,9 @@ Expose les données Enedis via endpoints génériques avec authentification par 
 from fastapi import FastAPI, Query, HTTPException, Depends
 from typing import Optional
 
-from electricore.api.services import duckdb_service
+from electricore.api.services import duckdb_service, etl_service
 from electricore.api.config import settings
+from electricore.api.models import ETLRunRequest, ETLJobResponse
 from electricore.api.security import get_current_api_key, get_api_key_info, APIKeyInfo
 
 # Configuration de l'application avec métadonnées de sécurité
@@ -26,6 +27,10 @@ app = FastAPI(
         {
             "name": "flux",
             "description": "Accès aux données flux Enedis (authentification requise)"
+        },
+        {
+            "name": "etl",
+            "description": "Lancement et suivi du pipeline d'ingestion (authentification requise)"
         },
         {
             "name": "admin",
@@ -186,6 +191,109 @@ async def health():
         }
     except Exception as e:
         raise HTTPException(500, f"Base de données inaccessible: {e}")
+
+
+@app.post("/etl/run", tags=["etl"], response_model=ETLJobResponse, status_code=202)
+async def run_etl(
+    body: ETLRunRequest,
+    api_key: str = Depends(get_current_api_key),
+):
+    """
+    Lance le pipeline d'ingestion ETL en arrière-plan.
+
+    **Authentification requise.**
+
+    Modes disponibles :
+    - `test` — 2 fichiers par flux (~3s), dataset `flux_enedis_test`
+    - `r151` — R151 complet, dataset `flux_enedis_r151`
+    - `all` — Tous les flux en production, dataset `flux_enedis`
+    - `reset` — Reset complet (supprime l'état incrémental), dataset `flux_enedis`
+
+    Retourne immédiatement un `job_id` pour suivre l'avancement via `GET /etl/jobs/{job_id}`.
+
+    Codes :
+    - 202 : job lancé
+    - 409 : un job est déjà en cours
+    - 501 : extra [etl] non installé
+    """
+    if not etl_service.is_etl_available():
+        raise HTTPException(
+            501,
+            "Le pipeline ETL n'est pas disponible. Installez l'extra [etl] : uv sync --extra etl"
+        )
+
+    try:
+        mode = etl_service.ETLMode(body.mode)
+    except ValueError:
+        raise HTTPException(
+            422,
+            f"Mode invalide : '{body.mode}'. Valeurs acceptées : test, r151, all, reset"
+        )
+
+    if etl_service.is_running():
+        raise HTTPException(409, "Un job ETL est déjà en cours d'exécution.")
+
+    job = await etl_service.start_job(mode)
+    return ETLJobResponse(
+        id=job.id,
+        mode=job.mode,
+        status=job.status,
+        started_at=job.started_at,
+        finished_at=job.finished_at,
+        error=job.error,
+        output=job.output,
+    )
+
+
+@app.get("/etl/jobs", tags=["etl"], response_model=list[ETLJobResponse])
+async def list_etl_jobs(
+    limit: int = Query(20, ge=1, le=50, description="Nombre de jobs à retourner"),
+    api_key: str = Depends(get_current_api_key),
+):
+    """
+    Liste les jobs ETL récents (ordre anti-chronologique).
+
+    **Authentification requise.**
+    """
+    jobs = etl_service.list_jobs(limit)
+    return [
+        ETLJobResponse(
+            id=j.id,
+            mode=j.mode,
+            status=j.status,
+            started_at=j.started_at,
+            finished_at=j.finished_at,
+            error=j.error,
+            output=j.output,
+        )
+        for j in jobs
+    ]
+
+
+@app.get("/etl/jobs/{job_id}", tags=["etl"], response_model=ETLJobResponse)
+async def get_etl_job(
+    job_id: str,
+    api_key: str = Depends(get_current_api_key),
+):
+    """
+    Retourne le statut d'un job ETL par son identifiant.
+
+    **Authentification requise.**
+
+    Statuts possibles : `running` | `completed` | `failed`
+    """
+    job = etl_service.get_job(job_id)
+    if job is None:
+        raise HTTPException(404, f"Job '{job_id}' introuvable.")
+    return ETLJobResponse(
+        id=job.id,
+        mode=job.mode,
+        status=job.status,
+        started_at=job.started_at,
+        finished_at=job.finished_at,
+        error=job.error,
+        output=job.output,
+    )
 
 
 @app.get("/admin/api-keys", tags=["admin"])

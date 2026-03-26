@@ -78,6 +78,26 @@ class WelcomeMessage(BaseModel):
     docs: str = Field(..., description="URL de la documentation")
 
 
+# Modèles ETL
+
+class ETLRunRequest(BaseModel):
+    """Corps de la requête pour lancer le pipeline ETL."""
+
+    mode: str = Field("test", description="Mode d'exécution : test | r151 | all | reset")
+
+
+class ETLJobResponse(BaseModel):
+    """Statut d'un job ETL."""
+
+    id: str = Field(..., description="Identifiant unique du job")
+    mode: str = Field(..., description="Mode d'exécution utilisé")
+    status: str = Field(..., description="Statut : running | completed | failed")
+    started_at: datetime = Field(..., description="Horodatage de démarrage")
+    finished_at: Optional[datetime] = Field(None, description="Horodatage de fin")
+    error: Optional[str] = Field(None, description="Message d'erreur si failed")
+    output: Optional[str] = Field(None, description="Sortie stdout/stderr du pipeline")
+
+
 # Modèles pour les requêtes (si nécessaire pour des POST/PUT futurs)
 
 class FluxQuery(BaseModel):
