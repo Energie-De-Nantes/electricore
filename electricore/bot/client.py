@@ -66,3 +66,21 @@ class ElectriCoreClient:
             r = await c.get(f"{self._base}/flux/{table}/xlsx", headers=self._headers, timeout=120)
             r.raise_for_status()
             return r.content
+
+    async def get_accise_xlsx(self, trimestre: str | None = None) -> bytes:
+        params = {}
+        if trimestre:
+            params["trimestre"] = trimestre
+        async with httpx.AsyncClient() as c:
+            r = await c.get(f"{self._base}/taxes/accise/xlsx", headers=self._headers, params=params, timeout=300)
+            r.raise_for_status()
+            return r.content
+
+    async def get_cta_xlsx(self, trimestre: str | None = None, taux_cta: float = 21.93) -> bytes:
+        params: dict = {"taux_cta": taux_cta}
+        if trimestre:
+            params["trimestre"] = trimestre
+        async with httpx.AsyncClient() as c:
+            r = await c.get(f"{self._base}/taxes/cta/xlsx", headers=self._headers, params=params, timeout=300)
+            r.raise_for_status()
+            return r.content

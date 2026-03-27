@@ -12,6 +12,7 @@ from fastapi.responses import Response
 from typing import Optional
 
 from electricore.api.services import duckdb_service, etl_service
+from electricore.api.services.taxes_service import generer_accise_xlsx, generer_cta_xlsx
 from electricore.api.config import settings
 from electricore.api.models import ETLRunRequest, ETLJobResponse
 from electricore.api.security import get_current_api_key, get_api_key_info, APIKeyInfo
@@ -69,6 +70,10 @@ app = FastAPI(
         {
             "name": "admin",
             "description": "Endpoints d'administration (authentification requise)"
+        },
+        {
+            "name": "taxes",
+            "description": "Calcul des taxes énergétiques CTA et Accise TICFE (authentification requise)"
         }
     ]
 )
@@ -438,3 +443,75 @@ async def list_api_keys(
             "public_endpoints": settings.public_endpoints
         }
     }
+
+
+_XLSX_MEDIA = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+@app.get("/taxes/accise/xlsx", tags=["taxes"])
+async def export_accise_xlsx(
+    trimestre: Optional[str] = Query(
+        default=None,
+        examples=["2025-T1"],
+        description="Filtre par trimestre au format YYYY-TX. Sans filtre : toutes les données.",
+    ),
+    api_key: str = Depends(get_current_api_key),
+):
+    """
+    Calcule l'Accise TICFE et retourne un fichier XLSX.
+
+    **Authentification requise. Nécessite la configuration Odoo (ODOO_* dans .env).**
+
+    Le fichier contient 3 onglets :
+    - **Résumé** : totaux (PDL, énergie MWh, accise €)
+    - **Par taux** : répartition par taux réglementaire
+    - **Détail** : détail ligne par ligne (PDL, mois, énergie, accise)
+    """
+    if not settings.is_odoo_configured:
+        raise HTTPException(501, f"Odoo [{settings.odoo_env}] non configuré. Définissez ODOO_{settings.odoo_env.upper()}_URL/DB/USERNAME/PASSWORD dans .env")
+    try:
+        xlsx = generer_accise_xlsx(trimestre)
+    except Exception as e:
+        raise HTTPException(503, f"Erreur lors du calcul de l'accise : {e}")
+    suffix = f"_{trimestre}" if trimestre else ""
+    return Response(
+        content=xlsx,
+        media_type=_XLSX_MEDIA,
+        headers={"Content-Disposition": f"attachment; filename=accise{suffix}.xlsx"},
+    )
+
+
+@app.get("/taxes/cta/xlsx", tags=["taxes"])
+async def export_cta_xlsx(
+    trimestre: Optional[str] = Query(
+        default=None,
+        examples=["2025-T1"],
+        description="Filtre par trimestre au format YYYY-TX. Sans filtre : toutes les données.",
+    ),
+    taux_cta: float = Query(
+        default=21.93,
+        description="Taux CTA en pourcentage (défaut 2025 : 21.93%)",
+    ),
+    api_key: str = Depends(get_current_api_key),
+):
+    """
+    Calcule la CTA (Contribution au Tarif d'Acheminement) et retourne un fichier XLSX.
+
+    **Authentification requise. Nécessite Odoo (ODOO_*) et DuckDB configurés.**
+
+    Le fichier contient 2 onglets :
+    - **Résumé** : totaux (PDL, TURPE fixe €, taux CTA %, CTA €)
+    - **Détail** : détail par PDL (pdl, order_name, turpe_fixe_total, cta)
+    """
+    if not settings.is_odoo_configured:
+        raise HTTPException(501, f"Odoo [{settings.odoo_env}] non configuré. Définissez ODOO_{settings.odoo_env.upper()}_URL/DB/USERNAME/PASSWORD dans .env")
+    try:
+        xlsx = generer_cta_xlsx(trimestre, taux_cta)
+    except Exception as e:
+        raise HTTPException(503, f"Erreur lors du calcul de la CTA : {e}")
+    suffix = f"_{trimestre}" if trimestre else ""
+    return Response(
+        content=xlsx,
+        media_type=_XLSX_MEDIA,
+        headers={"Content-Disposition": f"attachment; filename=cta{suffix}.xlsx"},
+    )

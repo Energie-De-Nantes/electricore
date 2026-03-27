@@ -3,6 +3,22 @@ Pipeline de production avec l'architecture refactorisée.
 Traite tous les flux configurés avec des options flexibles.
 """
 
+# Charger .env avant que DLT lise ses secrets depuis os.environ.
+# DLT résout nativement les env vars avec la convention SECTION__CLÉ :
+#   SFTP__URL  →  dlt.secrets['sftp']['url']
+#   AES__KEY   →  dlt.secrets['aes']['key']  etc.
+import os as _os
+from pathlib import Path as _Path
+for _c in [_Path(".env"), _Path(__file__).parents[3] / ".env"]:
+    if _c.exists():
+        with open(_c) as _f:
+            for _l in _f:
+                _l = _l.strip()
+                if _l and not _l.startswith("#") and "=" in _l:
+                    _k, _, _v = _l.partition("=")
+                    _os.environ.setdefault(_k.strip(), _v.strip())
+        break
+
 import logging
 import sys
 

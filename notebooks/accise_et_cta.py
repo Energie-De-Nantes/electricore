@@ -36,53 +36,41 @@ with app.setup(hide_code=True):
         commandes_lignes
     )
 
-    # Import pipeline Accise
+    # Import pipeline Accise et CTA
     from electricore.core.pipelines.accise import pipeline_accise
+    from electricore.core.pipelines.cta import pipeline_cta
+
+    # Config Odoo centralisée depuis .env
+    from electricore.config import charger_config_odoo
 
 
 @app.cell(hide_code=True)
 def _():
-    """Configuration Odoo depuis secrets.toml"""
-    import tomllib
-
-    # Chercher le fichier secrets.toml
-    secrets_paths = [
-        Path.cwd() / '.dlt' / 'secrets.toml',
-        Path.cwd() / 'electricore' / 'etl' / '.dlt' / 'secrets.toml'
-    ]
-
-    config = {}
-    secrets_file_found = None
-
-    for secrets_path in secrets_paths:
-        if secrets_path.exists():
-            with open(secrets_path, 'rb') as f:
-                config_data = tomllib.load(f)
-                config = config_data.get('odoo_prod', config_data.get('odoo', {}))
-                secrets_file_found = secrets_path
-            break
-
-    if not config:
-        _msg = mo.md("""
-        ⚠️ **Configuration Odoo non trouvée**
-
-        Créez le fichier `.dlt/secrets.toml` ou `electricore/etl/.dlt/secrets.toml` avec :
-        ```toml
-        [odoo]
-        url = "https://votre-instance.odoo.com"
-        db = "votre_database"
-        username = "votre_username"
-        password = "votre_password"
-        ```
-        """)
-    else:
+    """Configuration Odoo depuis .env"""
+    try:
+        config = charger_config_odoo()
         _msg = mo.md(f"""
-        **Configuration chargée depuis**: `{secrets_file_found}`
+        **Configuration Odoo chargée depuis `.env`**
 
         - URL: `{config.get('url', 'NON CONFIGURÉ')}`
         - Base: `{config.get('db', 'NON CONFIGURÉ')}`
         - Utilisateur: `{config.get('username', 'NON CONFIGURÉ')}`
         - Mot de passe: `{'***' if config.get('password') else 'NON CONFIGURÉ'}`
+        """)
+    except ValueError as e:
+        config = {}
+        _msg = mo.md(f"""
+        ⚠️ **Configuration Odoo non trouvée**
+
+        {e}
+
+        Créez le fichier `.env` à la racine du projet avec :
+        ```
+        ODOO_URL=https://votre-instance.odoo.com
+        ODOO_DB=votre_database
+        ODOO_USERNAME=votre_username
+        ODOO_PASSWORD=votre_password
+        ```
         """)
     _msg
     return (config,)
@@ -225,18 +213,17 @@ def _(df_cta):
 
 
 @app.cell(hide_code=True)
-def _(df_cta, taux_cta, trimestre_selectionne):
-    # Filtrer sur le trimestre sélectionné
-    df_trimestre = df_cta.filter(pl.col('trimestre') == trimestre_selectionne.value)
+def _(df_facturation, df_pdl_odoo, taux_cta, trimestre_selectionne):
+    df_detail_cta = pipeline_cta(
+        df_facturation=df_facturation,
+        df_pdl=df_pdl_odoo,
+        taux_cta=taux_cta.value,
+        trimestre=trimestre_selectionne.value,
+    )
 
-    # Calculer la somme du TURPE fixe
-    turpe_fixe_total = df_trimestre['turpe_fixe_eur'].sum()
-
-    # Calculer la CTA
-    cta_total = turpe_fixe_total * (taux_cta.value / 100)
-
-    # Nombre de PDL concernés
-    nb_pdl = df_trimestre['pdl'].n_unique()
+    turpe_fixe_total = df_detail_cta['turpe_fixe_total'].sum()
+    cta_total = df_detail_cta['cta'].sum()
+    nb_pdl = df_detail_cta['pdl'].n_unique()
 
     _result = mo.md(f"""
     ## 💰 Résultat CTA - {trimestre_selectionne.value}
@@ -250,20 +237,6 @@ def _(df_cta, taux_cta, trimestre_selectionne):
 
     ### 📋 Détail par PDL
     """)
-
-    # Afficher le détail par PDL
-    df_detail_cta = (
-        df_trimestre
-        .group_by('pdl')
-        .agg([
-            pl.col('turpe_fixe_eur').sum().alias('turpe_fixe_total'),
-            pl.col('order_name').first()
-        ])
-        .with_columns(
-            (pl.col('turpe_fixe_total') * (taux_cta.value / 100)).alias('cta')
-        )
-        .sort('cta', descending=True)
-    )
 
     mo.vstack([_result, df_detail_cta])
     return

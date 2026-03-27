@@ -38,6 +38,8 @@ _HELP = r"""
 /entrees — Exporter les entrées C15 \(PMES, MES, CFNE\)
 /sorties — Exporter les sorties C15 \(RES, CFNS\)
 /flux — Lister les tables disponibles à l'export
+/taxes accise \[trimestre\] — Exporter le calcul Accise TICFE en Excel
+/taxes cta \[trimestre\] \[taux\] — Exporter le calcul CTA en Excel
 """
 
 _STATUS_EMOJI = {
@@ -247,6 +249,66 @@ async def cmd_sorties(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     )
 
 
+async def cmd_taxes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not _is_allowed(update):
+        await _deny(update)
+        return
+
+    usage = (
+        "Usage :\n"
+        "  /taxes accise [trimestre]       — Accise TICFE (ex: /taxes accise 2025-T1)\n"
+        "  /taxes cta [trimestre] [taux]   — CTA (ex: /taxes cta 2025-T1 21.93)"
+    )
+
+    if not context.args:
+        await update.effective_message.reply_text(usage)
+        return
+
+    sous_commande = context.args[0].lower()
+
+    if sous_commande == "accise":
+        trimestre = context.args[1] if len(context.args) > 1 else None
+        periode = f" — {trimestre}" if trimestre else " — toutes périodes"
+        await update.effective_message.reply_text(f"⏳ Calcul Accise TICFE{periode}…")
+        client = ElectriCoreClient()
+        try:
+            xlsx_bytes = await client.get_accise_xlsx(trimestre)
+        except Exception as e:
+            await update.effective_message.reply_text(f"❌ Erreur Accise : {e}")
+            return
+        suffix = f"_{trimestre}" if trimestre else ""
+        await update.effective_message.reply_document(
+            document=io.BytesIO(xlsx_bytes),
+            filename=f"accise{suffix}.xlsx",
+            caption=f"Accise TICFE{periode}",
+        )
+
+    elif sous_commande == "cta":
+        trimestre = context.args[1] if len(context.args) > 1 else None
+        try:
+            taux_cta = float(context.args[2]) if len(context.args) > 2 else 21.93
+        except ValueError:
+            await update.effective_message.reply_text("❌ Taux CTA invalide. Exemple : /taxes cta 2025-T1 21.93")
+            return
+        periode = f" — {trimestre}" if trimestre else " — toutes périodes"
+        await update.effective_message.reply_text(f"⏳ Calcul CTA{periode} (taux {taux_cta}%)…")
+        client = ElectriCoreClient()
+        try:
+            xlsx_bytes = await client.get_cta_xlsx(trimestre, taux_cta)
+        except Exception as e:
+            await update.effective_message.reply_text(f"❌ Erreur CTA : {e}")
+            return
+        suffix = f"_{trimestre}" if trimestre else ""
+        await update.effective_message.reply_document(
+            document=io.BytesIO(xlsx_bytes),
+            filename=f"cta{suffix}.xlsx",
+            caption=f"CTA{periode} — taux {taux_cta}%",
+        )
+
+    else:
+        await update.effective_message.reply_text(f"❌ Sous-commande inconnue : `{sous_commande}`\n\n{usage}")
+
+
 def build_application(token: str) -> Application:
     app = Application.builder().token(token).build()
     app.add_handler(CommandHandler("start", cmd_start))
@@ -257,4 +319,5 @@ def build_application(token: str) -> Application:
     app.add_handler(CommandHandler("flux", cmd_flux))
     app.add_handler(CommandHandler("entrees", cmd_entrees))
     app.add_handler(CommandHandler("sorties", cmd_sorties))
+    app.add_handler(CommandHandler("taxes", cmd_taxes))
     return app

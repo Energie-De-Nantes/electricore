@@ -5,24 +5,13 @@ Utilise Pydantic Settings pour une configuration basée sur les variables d'envi
 
 import secrets
 import os
-from pathlib import Path
 from typing import Dict, List
 from pydantic import BaseModel, Field, validator
 
-# Charger le fichier .env s'il existe
-def load_env_file():
-    """Charge le fichier .env dans les variables d'environnement."""
-    env_file = Path(".env")
-    if env_file.exists():
-        with open(env_file, 'r') as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith('#') and '=' in line:
-                    key, value = line.split('=', 1)
-                    os.environ[key.strip()] = value.strip()
+from electricore.config.env import charger_env
 
 # Charger le .env au démarrage du module
-load_env_file()
+charger_env()
 
 
 class APISettings(BaseModel):
@@ -56,6 +45,23 @@ class APISettings(BaseModel):
         default=["/", "/health", "/docs", "/redoc", "/openapi.json"]
     )
 
+    # Environnement Odoo actif ("test" ou "prod")
+    odoo_env: str = Field(default="test")
+
+    @property
+    def is_odoo_configured(self) -> bool:
+        """Vérifie que la config Odoo de l'environnement actif est complète."""
+        try:
+            self.get_odoo_config()
+            return True
+        except (ValueError, Exception):
+            return False
+
+    def get_odoo_config(self) -> Dict[str, str]:
+        """Retourne la config Odoo sous forme de dict compatible avec OdooReader."""
+        from electricore.config.odoo import charger_config_odoo
+        return charger_config_odoo(env=self.odoo_env)
+
     def __init__(self, **kwargs):
         # Charger depuis les variables d'environnement
         env_values = {
@@ -68,6 +74,7 @@ class APISettings(BaseModel):
             "telegram_bot_token": os.getenv("TELEGRAM_BOT_TOKEN", ""),
             "api_base_url": os.getenv("API_BASE_URL", "http://localhost:8001"),
             "telegram_allowed_users": os.getenv("TELEGRAM_ALLOWED_USERS", ""),
+            "odoo_env": os.getenv("ODOO_ENV", "test"),
         }
 
         # Combiner avec les kwargs fournis
