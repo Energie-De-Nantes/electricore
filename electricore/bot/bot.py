@@ -40,6 +40,7 @@ _HELP = r"""
 /flux — Lister les tables disponibles à l'export
 /taxes accise \[trimestre\] — Exporter le calcul Accise TICFE en Excel
 /taxes cta \[trimestre\] \[taux\] — Exporter le calcul CTA en Excel
+/facturation \[YYYY\-MM\-DD\] — Exporter la réconciliation facturation Odoo ↔ Enedis
 """
 
 _STATUS_EMOJI = {
@@ -309,6 +310,30 @@ async def cmd_taxes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.effective_message.reply_text(f"❌ Sous-commande inconnue : `{sous_commande}`\n\n{usage}")
 
 
+async def cmd_facturation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not _is_allowed(update):
+        await _deny(update)
+        return
+
+    mois = context.args[0] if context.args else None
+    periode = f" — {mois}" if mois else " — dernier mois disponible"
+    await update.effective_message.reply_text(f"⏳ Génération de la réconciliation facturation{periode}…")
+
+    client = ElectriCoreClient()
+    try:
+        xlsx_bytes = await client.get_facturation_xlsx(mois)
+    except Exception as e:
+        await update.effective_message.reply_text(f"❌ Erreur : {e}")
+        return
+
+    suffix = f"_{mois}" if mois else ""
+    await update.effective_message.reply_document(
+        document=io.BytesIO(xlsx_bytes),
+        filename=f"facturation{suffix}.xlsx",
+        caption=f"Réconciliation facturation Odoo ↔ Enedis{periode}",
+    )
+
+
 def build_application(token: str) -> Application:
     app = Application.builder().token(token).build()
     app.add_handler(CommandHandler("start", cmd_start))
@@ -320,4 +345,5 @@ def build_application(token: str) -> Application:
     app.add_handler(CommandHandler("entrees", cmd_entrees))
     app.add_handler(CommandHandler("sorties", cmd_sorties))
     app.add_handler(CommandHandler("taxes", cmd_taxes))
+    app.add_handler(CommandHandler("facturation", cmd_facturation))
     return app

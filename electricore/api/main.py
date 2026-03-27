@@ -13,6 +13,7 @@ from typing import Optional
 
 from electricore.api.services import duckdb_service, etl_service
 from electricore.api.services.taxes_service import generer_accise_xlsx, generer_cta_xlsx
+from electricore.api.services.facturation_service import generer_facturation_xlsx
 from electricore.api.config import settings
 from electricore.api.models import ETLRunRequest, ETLJobResponse
 from electricore.api.security import get_current_api_key, get_api_key_info, APIKeyInfo
@@ -74,6 +75,10 @@ app = FastAPI(
         {
             "name": "taxes",
             "description": "Calcul des taxes énergétiques CTA et Accise TICFE (authentification requise)"
+        },
+        {
+            "name": "facturation",
+            "description": "Réconciliation facturation Odoo ↔ Enedis (authentification requise)"
         }
     ]
 )
@@ -514,4 +519,39 @@ async def export_cta_xlsx(
         content=xlsx,
         media_type=_XLSX_MEDIA,
         headers={"Content-Disposition": f"attachment; filename=cta{suffix}.xlsx"},
+    )
+
+
+@app.get("/facturation/xlsx", tags=["facturation"])
+async def export_facturation_xlsx(
+    mois: Optional[str] = Query(
+        default=None,
+        examples=["2025-01-01"],
+        description="Mois au format YYYY-MM-DD (défaut : dernier mois disponible dans les données)",
+    ),
+    api_key: str = Depends(get_current_api_key),
+):
+    """
+    Réconciliation des lignes Odoo à facturer avec les données Enedis.
+
+    **Authentification requise. Nécessite Odoo (ODOO_*) et DuckDB configurés.**
+
+    Le fichier contient 2 onglets :
+    - **Lignes fusionnées** : toutes les lignes (`updates_rsc`) avec `quantite_enedis` calculée
+    - **Changements puissance** : lignes où `memo_puissance` est renseigné
+    """
+    if not settings.is_odoo_configured:
+        raise HTTPException(501, f"Odoo [{settings.odoo_env}] non configuré. Définissez ODOO_{settings.odoo_env.upper()}_URL/DB/USERNAME/PASSWORD dans .env")
+    try:
+        xlsx = await asyncio.get_event_loop().run_in_executor(
+            None, generer_facturation_xlsx, mois
+        )
+    except Exception as e:
+        logger.exception("Erreur facturation/xlsx")
+        raise HTTPException(503, f"Erreur lors de la réconciliation facturation : {e}")
+    suffix = f"_{mois}" if mois else ""
+    return Response(
+        content=xlsx,
+        media_type=_XLSX_MEDIA,
+        headers={"Content-Disposition": f"attachment; filename=facturation{suffix}.xlsx"},
     )
