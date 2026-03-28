@@ -182,3 +182,4 @@ electricore/etl/.dlt/secrets.toml
 *.duckdb
 perimetre_manquants/
 surveillance_perimetre_manquants.csv
+.serena/
