@@ -54,7 +54,7 @@ def run_production_pipeline(
     """
 
     # Charger la configuration des flux
-    config_path = Path("config/flux.yaml")
+    config_path = Path(__file__).parent / "config/flux.yaml"
     if not config_path.exists():
         raise FileNotFoundError("Configuration flux.yaml non trouvée")
 

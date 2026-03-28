@@ -5,6 +5,7 @@ Utilise le chaînage de transformers DLT pour une architecture propre.
 
 import dlt
 import logging
+import os
 import re
 from typing import Iterator
 from dlt.sources.filesystem import filesystem
@@ -105,9 +106,8 @@ def flux_enedis(flux_config: dict, max_files: int = None):
     Args:
         flux_config: Configuration des flux depuis config/settings.py
     """
-    # Configuration SFTP depuis secrets
-    sftp_config = dlt.secrets['sftp']
-    sftp_url = sftp_config['url']
+    # Configuration SFTP : env var SFTP__URL (chargée depuis .env) ou secrets.toml [sftp] url
+    sftp_url = os.environ.get('SFTP__URL') or dlt.secrets['sftp']['url']
     
     logger.info("SFTP: %s", mask_password_in_url(sftp_url))
 

@@ -27,6 +27,7 @@ Gestion de la rotation de clés :
 
 import dlt
 import logging
+import os
 from typing import Iterator
 from dlt.common.storages.fsspec_filesystem import FileItemDict
 from Crypto.Cipher import AES
@@ -99,12 +100,38 @@ def load_aes_key_chain() -> list[tuple[str, bytes, bytes]]:
     Raises:
         ValueError: Si aucune clé valide ne peut être chargée
     """
+    chain: list[tuple[str, bytes, bytes]] = []
+
+    # Env vars (chargées depuis .env avant DLT) — priorité maximale
+    # Format v2 : AES__CURRENT__KEY / AES__CURRENT__IV
+    if os.environ.get('AES__CURRENT__KEY') and os.environ.get('AES__CURRENT__IV'):
+        try:
+            chain.append(('current', bytes.fromhex(os.environ['AES__CURRENT__KEY']),
+                                     bytes.fromhex(os.environ['AES__CURRENT__IV'])))
+        except Exception as e:
+            raise ValueError(f"Erreur env vars AES__CURRENT__KEY/IV : {e}")
+        if os.environ.get('AES__PREVIOUS__KEY') and os.environ.get('AES__PREVIOUS__IV'):
+            try:
+                chain.append(('previous', bytes.fromhex(os.environ['AES__PREVIOUS__KEY']),
+                                          bytes.fromhex(os.environ['AES__PREVIOUS__IV'])))
+            except Exception as e:
+                raise ValueError(f"Erreur env vars AES__PREVIOUS__KEY/IV : {e}")
+        return chain
+
+    # Format v1 env vars : AES__KEY / AES__IV
+    if os.environ.get('AES__KEY') and os.environ.get('AES__IV'):
+        try:
+            chain.append(('legacy', bytes.fromhex(os.environ['AES__KEY']),
+                                    bytes.fromhex(os.environ['AES__IV'])))
+        except Exception as e:
+            raise ValueError(f"Erreur env vars AES__KEY/IV : {e}")
+        return chain
+
+    # Fallback : secrets.toml DLT
     try:
         aes_config = dlt.secrets['aes']
     except Exception as e:
-        raise ValueError(f"Section [aes] absente des secrets DLT : {e}")
-
-    chain: list[tuple[str, bytes, bytes]] = []
+        raise ValueError(f"Section [aes] absente des secrets DLT et des variables d'environnement : {e}")
 
     # Format v2 : sous-sections current / previous
     if 'current' in aes_config:
