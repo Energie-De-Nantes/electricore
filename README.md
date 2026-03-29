@@ -312,18 +312,42 @@ curl -H "X-API-Key: votre_cle" "http://localhost:8000/flux/r151/info"
 
 ### Configuration
 
-Créer un fichier `.env` :
+Créer un fichier `.env` à la racine du projet :
 
 ```bash
-# Clé API (générer avec: python -c "import secrets; print(secrets.token_urlsafe(32))")
-API_KEY=votre_cle_secrete_generee
+# === API ===
+# Générer : python -c "import secrets; print(secrets.token_urlsafe(32))"
+API_KEY=votre_cle_api_secrete
 
-# Ou plusieurs clés
-API_KEYS=cle1,cle2,cle3
+# Ou plusieurs clés séparées par des virgules
+# API_KEYS=cle1,cle2,cle3
 
-# Options d'authentification
-ENABLE_API_KEY_HEADER=true
-ENABLE_API_KEY_QUERY=false
+# === BASE DE DONNÉES ===
+# Par défaut : electricore/etl/flux_enedis_pipeline.duckdb (relatif au cwd)
+# En production, utiliser un chemin absolu :
+# DUCKDB_PATH=/opt/electricore/data/flux_enedis_pipeline.duckdb
+
+# === BOT TELEGRAM (optionnel) ===
+TELEGRAM_BOT_TOKEN=token_obtenu_via_botfather
+TELEGRAM_ALLOWED_USERS=123456789  # IDs séparés par virgule
+
+# === ODOO ===
+ODOO_ENV=test  # ou prod
+ODOO_TEST_URL=https://votre-instance.odoo.com
+ODOO_TEST_DB=nom_de_la_base
+ODOO_TEST_USERNAME=utilisateur@example.com
+ODOO_TEST_PASSWORD=mot_de_passe
+
+# === ETL ENEDIS ===
+SFTP__URL=sftp://utilisateur:mot_de_passe@hote:22/chemin
+AES__KEY=clé_hex_32_caractères
+AES__IV=iv_hex_32_caractères
+
+# Rotation de clés AES (format v2, recommandé après rotation) :
+# AES__CURRENT__KEY=nouvelle_cle_hex
+# AES__CURRENT__IV=nouvel_iv_hex
+# AES__PREVIOUS__KEY=ancienne_cle_hex  # garder ~4 semaines
+# AES__PREVIOUS__IV=ancien_iv_hex
 ```
 
 📖 **Documentation complète** : [electricore/api/README.md](electricore/api/README.md)
@@ -349,6 +373,10 @@ uv sync
 
 # + pipeline ETL SFTP Enedis (pour serveur de collecte)
 uv sync --extra etl
+
+# Configurer les secrets
+cp .env.example .env  # si disponible, sinon créer .env manuellement
+# Éditer .env avec vos valeurs
 ```
 
 ### Commandes essentielles
