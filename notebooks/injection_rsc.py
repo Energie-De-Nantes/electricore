@@ -9,7 +9,6 @@ with app.setup:
     import logging
     from pathlib import Path
     import sys
-    import tomllib
 
     project_root = Path.cwd()
     if str(project_root) not in sys.path:
@@ -20,22 +19,14 @@ with app.setup:
 
     logging.basicConfig(level=logging.INFO)
 
-    secrets_paths = [
-        Path.cwd() / '.dlt' / 'secrets.toml',
-        Path.cwd() / 'electricore' / 'etl' / '.dlt' / 'secrets.toml'
-    ]
+    from electricore.config import charger_config_odoo
 
-    config = {}
-    secrets_file_found = None
-
-    for secrets_path in secrets_paths:
-        if secrets_path.exists():
-            with open(secrets_path, 'rb') as f:
-                config = tomllib.load(f).get('odoo_test', {})
-                secrets_file_found = secrets_path
-            break
-
-    _msg = mo.md(f"**Config** : `{secrets_file_found}`") if config else mo.md("⚠️ **Configuration Odoo non trouvée**")
+    try:
+        config = charger_config_odoo("test")
+        _msg = mo.md(f"**Configuration Odoo TEST chargée** — `{config['url']}`")
+    except ValueError as e:
+        config = {}
+        _msg = mo.md(f"⚠️ **Configuration Odoo manquante**\n\n{e}\n\nDéfinissez `ODOO_TEST_*` dans `.env`.")
     _msg
 
 

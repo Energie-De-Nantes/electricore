@@ -24,7 +24,6 @@ with app.setup(hide_code=True):
 
     from electricore.core.pipelines import facturation
     from electricore.core.loaders import OdooReader
-    import tomllib
 
 
 @app.cell(hide_code=True)
@@ -81,30 +80,17 @@ def _():
 
 @app.cell(hide_code=True)
 def _():
-    """Configuration Odoo depuis secrets.toml"""
-    # Chercher le fichier secrets.toml
-    secrets_paths = [
-        Path.cwd() / '.dlt' / 'secrets.toml',
-        Path.cwd() / 'electricore' / 'etl' / '.dlt' / 'secrets.toml'
-    ]
+    """Configuration Odoo depuis .env"""
+    import os
+    from electricore.config import charger_config_odoo
 
-    config = {}
-    secrets_file_found = None
-
-    for secrets_path in secrets_paths:
-        if secrets_path.exists():
-            with open(secrets_path, 'rb') as f:
-                config_data = tomllib.load(f)
-                config = config_data.get('odoo_prod', config_data.get('odoo', {}))
-                secrets_file_found = secrets_path
-            break
-
-    if not config:
-        print("⚠️ Configuration Odoo non trouvée")
-        print("Créez le fichier .dlt/secrets.toml avec la section [odoo]")
+    try:
+        config = charger_config_odoo()
+        _env = os.getenv("ODOO_ENV", "test")
+        print(f"✅ Configuration Odoo chargée (env: {_env}) — {config['url']}")
+    except ValueError as e:
         config = None
-    else:
-        print(f"✅ Configuration Odoo chargée depuis {secrets_file_found}")
+        print(f"⚠️ {e}")
     return (config,)
 
 

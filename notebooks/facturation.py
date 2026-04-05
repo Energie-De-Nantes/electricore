@@ -23,48 +23,17 @@ with app.setup:
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
 
-    """Configuration Odoo depuis secrets.toml"""
-    import tomllib
+    """Configuration Odoo depuis .env"""
+    import os
+    from electricore.config import charger_config_odoo
 
-    # Chercher le fichier secrets.toml
-    secrets_paths = [
-        Path.cwd() / '.dlt' / 'secrets.toml',
-        Path.cwd() / 'electricore' / 'etl' / '.dlt' / 'secrets.toml'
-    ]
-
-    config = {}
-    secrets_file_found = None
-
-    for secrets_path in secrets_paths:
-        if secrets_path.exists():
-            with open(secrets_path, 'rb') as f:
-                config_data = tomllib.load(f)
-                config = config_data.get('odoo_test', {})
-                secrets_file_found = secrets_path
-            break
-
-    if not config:
-        config_msg = mo.md("""
-        ⚠️ **Configuration Odoo non trouvée**
-
-        Créez le fichier `.dlt/secrets.toml` ou `electricore/etl/.dlt/secrets.toml` avec :
-        ```toml
-        [odoo]
-        url = "https://votre-instance.odoo.com"
-        db = "votre_database"
-        username = "votre_username"
-        password = "votre_password"
-        ```
-        """)
-    else:
-        config_msg = mo.md(f"""
-        **Configuration chargée depuis**: `{secrets_file_found}`
-
-        - URL: `{config.get('url', 'NON CONFIGURÉ')}`
-        - Base: `{config.get('db', 'NON CONFIGURÉ')}`
-        - Utilisateur: `{config.get('username', 'NON CONFIGURÉ')}`
-        - Mot de passe: `{'***' if config.get('password') else 'NON CONFIGURÉ'}`
-        """)
+    try:
+        config = charger_config_odoo()
+        _env = os.getenv("ODOO_ENV", "test")
+        config_msg = mo.md(f"**Configuration Odoo chargée** (env: `{_env}`)\n\n- URL: `{config['url']}`\n- Base: `{config['db']}`\n- Utilisateur: `{config['username']}`\n- Mot de passe: `***`")
+    except ValueError as e:
+        config = {}
+        config_msg = mo.md(f"⚠️ **Configuration Odoo manquante**\n\n{e}\n\nDéfinissez les variables `ODOO_*` dans `.env`.")
 
 
 @app.cell

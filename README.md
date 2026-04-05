@@ -310,46 +310,6 @@ curl -H "X-API-Key: votre_cle" "http://localhost:8000/flux/c15?prm=1234567890123
 curl -H "X-API-Key: votre_cle" "http://localhost:8000/flux/r151/info"
 ```
 
-### Configuration
-
-Créer un fichier `.env` à la racine du projet :
-
-```bash
-# === API ===
-# Générer : python -c "import secrets; print(secrets.token_urlsafe(32))"
-API_KEY=votre_cle_api_secrete
-
-# Ou plusieurs clés séparées par des virgules
-# API_KEYS=cle1,cle2,cle3
-
-# === BASE DE DONNÉES ===
-# Par défaut : electricore/etl/flux_enedis_pipeline.duckdb (relatif au cwd)
-# En production, utiliser un chemin absolu :
-# DUCKDB_PATH=/opt/electricore/data/flux_enedis_pipeline.duckdb
-
-# === BOT TELEGRAM (optionnel) ===
-TELEGRAM_BOT_TOKEN=token_obtenu_via_botfather
-TELEGRAM_ALLOWED_USERS=123456789  # IDs séparés par virgule
-
-# === ODOO ===
-ODOO_ENV=test  # ou prod
-ODOO_TEST_URL=https://votre-instance.odoo.com
-ODOO_TEST_DB=nom_de_la_base
-ODOO_TEST_USERNAME=utilisateur@example.com
-ODOO_TEST_PASSWORD=mot_de_passe
-
-# === ETL ENEDIS ===
-SFTP__URL=sftp://utilisateur:mot_de_passe@hote:22/chemin
-AES__KEY=clé_hex_32_caractères
-AES__IV=iv_hex_32_caractères
-
-# Rotation de clés AES (format v2, recommandé après rotation) :
-# AES__CURRENT__KEY=nouvelle_cle_hex
-# AES__CURRENT__IV=nouvel_iv_hex
-# AES__PREVIOUS__KEY=ancienne_cle_hex  # garder ~4 semaines
-# AES__PREVIOUS__IV=ancien_iv_hex
-```
-
 📖 **Documentation complète** : [electricore/api/README.md](electricore/api/README.md)
 
 ---
@@ -373,10 +333,46 @@ uv sync
 
 # + pipeline ETL SFTP Enedis (pour serveur de collecte)
 uv sync --extra etl
+```
 
-# Configurer les secrets
-cp .env.example .env  # si disponible, sinon créer .env manuellement
-# Éditer .env avec vos valeurs
+### Configuration initiale
+
+Créer un fichier `.env` à la racine du projet et renseigner les variables selon les modules utilisés :
+
+```bash
+# === API — obligatoire pour démarrer l'API ===
+# Générer : python -c "import secrets; print(secrets.token_urlsafe(32))"
+API_KEY=votre_cle_api_secrete
+# Ou plusieurs clés : API_KEYS=cle1,cle2,cle3
+
+# === BASE DE DONNÉES ===
+# Chemin vers le fichier DuckDB produit par l'ETL
+# Par défaut : electricore/etl/flux_enedis_pipeline.duckdb (relatif au cwd)
+# En production, utiliser un chemin absolu :
+# DUCKDB_PATH=/opt/electricore/data/flux_enedis_pipeline.duckdb
+
+# === ETL ENEDIS — obligatoire pour le pipeline ETL ===
+SFTP__URL=sftp://utilisateur:mot_de_passe@hote:22/chemin
+AES__KEY=cle_hex_fournie_par_enedis
+AES__IV=iv_hex_fourni_par_enedis
+
+# Rotation de clés AES (format v2, après changement de clé Enedis) :
+# AES__CURRENT__KEY=nouvelle_cle_hex
+# AES__CURRENT__IV=nouvel_iv_hex
+# AES__PREVIOUS__KEY=ancienne_cle_hex  # garder ~4 semaines après rotation
+# AES__PREVIOUS__IV=ancien_iv_hex
+
+# === ODOO — pour les calculs CTA/Accise et la réconciliation ===
+ODOO_ENV=test  # ou prod
+ODOO_TEST_URL=https://votre-instance.odoo.com
+ODOO_TEST_DB=nom_de_la_base
+ODOO_TEST_USERNAME=utilisateur@example.com
+ODOO_TEST_PASSWORD=mot_de_passe
+# ODOO_PROD_URL / ODOO_PROD_DB / ODOO_PROD_USERNAME / ODOO_PROD_PASSWORD
+
+# === BOT TELEGRAM — optionnel ===
+TELEGRAM_BOT_TOKEN=token_obtenu_via_botfather
+TELEGRAM_ALLOWED_USERS=123456789  # IDs séparés par virgule
 ```
 
 ### Commandes essentielles
@@ -435,28 +431,6 @@ uv run --group test pytest --cov=electricore --cov-report=html
 **Couverture** : 49% (focus sur qualité plutôt que quantité)
 
 📖 Documentation complète : [tests/README.md](tests/README.md)
-
----
-
-## 📊 Migration Polars - Complète ✅
-
-ElectriCore utilise une architecture **100% Polars** pour des performances optimales.
-
-### Avantages de l'architecture Polars
-
-- ⚡ **Performance** : Zero-copy, vectorisation SIMD, multi-threading
-- 🔧 **Lazy evaluation** : Optimisations automatiques des requêtes
-- 🧩 **Expressions pures** : Code fonctionnel composable et testable
-- 🌐 **Écosystème moderne** : Compatible Arrow, DuckDB, Cloud
-- 🚀 **Pérenne** : Abandon dépendances pandas historiques
-
-### Pipelines migrés
-
-- ✅ **Pipeline périmètre** : 8 expressions composables + validation
-- ✅ **Pipeline abonnements** : Calcul périodes avec bornes temporelles
-- ✅ **Pipeline énergies** : Calcul consommations tous cadrans
-- ✅ **Pipeline TURPE** : Taxes fixes + variables avec validation réglementaire
-- ✅ **Pipeline facturation** : Orchestration complète avec agrégations
 
 ---
 

@@ -36,8 +36,11 @@ def _():
 @app.cell
 def _():
     import duckdb
+    import os
+    from electricore.config.env import charger_env
 
-    DATABASE_URL = "/home/virgile/workspace/electricore/electricore/etl/flux_enedis_pipeline.duckdb"
+    charger_env()
+    DATABASE_URL = os.getenv("DUCKDB_PATH", "electricore/etl/flux_enedis_pipeline.duckdb")
     engine = duckdb.connect(DATABASE_URL, read_only=True)
     return (engine,)
 

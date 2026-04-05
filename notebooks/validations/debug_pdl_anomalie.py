@@ -15,12 +15,13 @@ app = marimo.App(width="medium")
 @app.cell
 def _():
     import polars as pl
+    import os
     from electricore.core.loaders import releves_harmonises, c15
-    from pathlib import Path
+    from electricore.config.env import charger_env
 
-    # Configuration
+    charger_env()
     PDL_CIBLE = "14290738060355"
-    DB_PATH = "/home/virgile/workspace/electricore/electricore/etl/flux_enedis_pipeline.duckdb"
+    DB_PATH = os.getenv("DUCKDB_PATH", "electricore/etl/flux_enedis_pipeline.duckdb")
     return DB_PATH, PDL_CIBLE, c15, pl, releves_harmonises
 
 
