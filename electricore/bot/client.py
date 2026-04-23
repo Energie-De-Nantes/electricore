@@ -76,10 +76,8 @@ class ElectriCoreClient:
             r.raise_for_status()
             return r.content
 
-    async def get_cta_xlsx(self, trimestre: str | None = None, taux_cta: float = 21.93) -> bytes:
-        params: dict = {"taux_cta": taux_cta}
-        if trimestre:
-            params["trimestre"] = trimestre
+    async def get_cta_xlsx(self, trimestre: str | None = None) -> bytes:
+        params: dict = {"trimestre": trimestre} if trimestre else {}
         async with httpx.AsyncClient() as c:
             r = await c.get(f"{self._base}/taxes/cta/xlsx", headers=self._headers, params=params, timeout=300)
             r.raise_for_status()
@@ -89,5 +87,12 @@ class ElectriCoreClient:
         params = {"mois": mois} if mois else {}
         async with httpx.AsyncClient() as c:
             r = await c.get(f"{self._base}/facturation/xlsx", headers=self._headers, params=params, timeout=300)
+            r.raise_for_status()
+            return r.content
+
+    async def get_facturation_documents(self, mois: str | None = None) -> bytes:
+        params = {"mois": mois} if mois else {}
+        async with httpx.AsyncClient() as c:
+            r = await c.get(f"{self._base}/facturation/documents", headers=self._headers, params=params, timeout=300)
             r.raise_for_status()
             return r.content

@@ -166,7 +166,7 @@ def _(lf_historique, lf_releves):
     return (df_facturation,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(df_facturation, df_pdl_odoo):
     df_cta = (
         df_facturation
@@ -182,7 +182,11 @@ def _(df_facturation, df_pdl_odoo):
 @app.cell
 def _():
     mo.md(r"""
-    ## 📊 Sélection du trimestre et taux CTA
+    ## 📊 Sélection du trimestre
+
+    Les taux CTA sont chargés automatiquement depuis `electricore/config/cta_rules.csv`
+    et appliqués au niveau mensuel. Un changement de taux en cours de trimestre
+    (décret CRE) est donc géré automatiquement.
     """)
     return
 
@@ -199,25 +203,15 @@ def _(df_cta):
         label="Sélectionner le trimestre"
     )
 
-    # Input pour le taux de CTA (en %)
-    taux_cta = mo.ui.number(
-        start=0,
-        stop=100,
-        step=0.01,
-        value=21.93,  # Taux CTA 2025 par défaut
-        label="Taux CTA (%)"
-    )
-
-    mo.vstack([trimestre_selectionne, taux_cta])
-    return taux_cta, trimestre_selectionne
+    trimestre_selectionne
+    return (trimestre_selectionne,)
 
 
 @app.cell(hide_code=True)
-def _(df_facturation, df_pdl_odoo, taux_cta, trimestre_selectionne):
+def _(df_facturation, df_pdl_odoo, trimestre_selectionne):
     df_detail_cta = pipeline_cta(
         df_facturation=df_facturation,
         df_pdl=df_pdl_odoo,
-        taux_cta=taux_cta.value,
         trimestre=trimestre_selectionne.value,
     )
 
@@ -225,12 +219,16 @@ def _(df_facturation, df_pdl_odoo, taux_cta, trimestre_selectionne):
     cta_total = df_detail_cta['cta'].sum()
     nb_pdl = df_detail_cta['pdl'].n_unique()
 
+    # Agrège les taux rencontrés dans la période pour affichage
+    taux_distincts = sorted({t for lst in df_detail_cta['taux_cta_appliques'].to_list() for t in lst})
+    taux_str = ' + '.join(f'{t:.2f} %' for t in taux_distincts) if taux_distincts else '—'
+
     _result = mo.md(f"""
     ## 💰 Résultat CTA - {trimestre_selectionne.value}
 
     - **Nombre de PDL** : {nb_pdl}
     - **TURPE fixe total** : {turpe_fixe_total:,.2f} €
-    - **Taux CTA** : {taux_cta.value} %
+    - **Taux CTA appliqués** : {taux_str}
     - **CTA à facturer** : **{cta_total:,.2f} €**
 
     ---

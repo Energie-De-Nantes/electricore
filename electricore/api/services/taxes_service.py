@@ -20,7 +20,7 @@ from electricore.core.loaders import (
     releves_harmonises,
 )
 from electricore.core.pipelines.accise import pipeline_accise
-from electricore.core.pipelines.cta import pipeline_cta
+from electricore.core.pipelines.cta import ajouter_cta
 from electricore.core.pipelines.facturation import expr_calculer_trimestre
 from electricore.core.pipelines.orchestration import facturation
 
@@ -73,17 +73,20 @@ def generer_accise_xlsx(trimestre: Optional[str] = None) -> bytes:
     })
 
 
-def generer_cta_xlsx(trimestre: Optional[str] = None, taux_cta: float = 21.93) -> bytes:
+def generer_cta_xlsx(trimestre: Optional[str] = None) -> bytes:
     """
     Calcule la CTA et retourne un fichier XLSX multi-onglets.
+
+    Les taux sont chargés automatiquement depuis electricore/config/cta_rules.csv
+    et appliqués au niveau mensuel. Un changement de taux en cours de trimestre
+    (décret CRE) est donc géré automatiquement dans l'agrégation trimestrielle.
 
     Args:
         trimestre: Filtre optionnel au format "YYYY-TX" (ex: "2025-T1").
             Si None, retourne toutes les données disponibles.
-        taux_cta: Taux de la CTA en pourcentage (défaut 2025 : 21.93%).
 
     Returns:
-        Contenu XLSX en bytes avec 2 onglets : Résumé, Détail.
+        Contenu XLSX en bytes avec 3 onglets : Résumé, Par taux, Détail.
     """
     odoo_config = settings.get_odoo_config()
 
@@ -105,33 +108,64 @@ def generer_cta_xlsx(trimestre: Optional[str] = None, taux_cta: float = 21.93) -
     lf_releves = releves_harmonises().lazy()
     _, _, _, df_facturation = facturation(historique=lf_historique, releves=lf_releves)
 
-    df_detail_cta = pipeline_cta(
-        df_facturation=df_facturation,
-        df_pdl=df_pdl,
-        taux_cta=taux_cta,
-        trimestre=trimestre,
+    df_mensuel = (
+        ajouter_cta(
+            df_facturation
+            .join(df_pdl.select(["pdl", "order_name"]), on="pdl", how="inner")
+            .lazy()
+        )
+        .with_columns(expr_calculer_trimestre().alias("trimestre"))
+        .collect()
+    )
+
+    if trimestre is not None:
+        df_mensuel = df_mensuel.filter(pl.col("trimestre") == trimestre)
+
+    df_detail_cta = (
+        df_mensuel.lazy()
+        .group_by("pdl")
+        .agg([
+            pl.col("order_name").first(),
+            pl.col("turpe_fixe_eur").sum().round(2).alias("turpe_fixe_total"),
+            pl.col("cta_eur").sum().round(2).alias("cta"),
+            pl.col("taux_cta_pct").unique().sort().alias("taux_cta_appliques"),
+        ])
+        .sort("cta", descending=True)
+        .collect()
+        # Sérialiser la liste des taux en string pour un rendu XLSX lisible
+        .with_columns(
+            pl.col("taux_cta_appliques")
+            .list.eval(pl.element().cast(pl.Utf8))
+            .list.join(" ; ")
+        )
+    )
+
+    df_par_taux = (
+        df_mensuel
+        .group_by(["trimestre", "taux_cta_pct"])
+        .agg([
+            pl.col("pdl").n_unique().alias("Nombre de PDL"),
+            pl.col("turpe_fixe_eur").sum().round(2).alias("TURPE fixe (€)"),
+            pl.col("cta_eur").sum().round(2).alias("CTA (€)"),
+        ])
+        .sort(["trimestre", "taux_cta_pct"])
+        .rename({"taux_cta_pct": "Taux CTA (%)"})
     )
 
     df_resume = (
-        df_facturation
-        .join(df_pdl.select(["pdl"]), on="pdl", how="inner")
-        .with_columns(expr_calculer_trimestre().alias("trimestre"))
-        .pipe(lambda df: df.filter(pl.col("trimestre") == trimestre) if trimestre is not None else df)
+        df_mensuel
         .group_by("trimestre")
         .agg([
             pl.col("pdl").n_unique().alias("Nombre de PDL"),
             pl.col("turpe_fixe_eur").sum().round(2).alias("TURPE fixe total (€)"),
+            pl.col("cta_eur").sum().round(2).alias("CTA totale (€)"),
         ])
-        .with_columns(
-            (pl.col("TURPE fixe total (€)") * taux_cta / 100).round(2).alias("CTA totale (€)"),
-            pl.lit(taux_cta).alias("Taux CTA (%)"),
-        )
         .sort("trimestre")
-        .select(["trimestre", "Nombre de PDL", "TURPE fixe total (€)", "Taux CTA (%)", "CTA totale (€)"])
     )
 
     return _construire_xlsx({
         "Résumé": df_resume,
+        "Par taux": df_par_taux,
         "Détail": df_detail_cta,
     })
 

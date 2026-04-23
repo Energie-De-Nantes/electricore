@@ -39,7 +39,7 @@ _HELP = r"""
 /sorties — Exporter les sorties C15 \(RES, CFNS\)
 /flux — Lister les tables disponibles à l'export
 /taxes accise \[trimestre\] — Exporter le calcul Accise TICFE en Excel
-/taxes cta \[trimestre\] \[taux\] — Exporter le calcul CTA en Excel
+/taxes cta \[trimestre\] — Exporter le calcul CTA en Excel
 /facturation \[YYYY\-MM\-DD\] — Exporter la réconciliation facturation Odoo ↔ Enedis
 """
 
@@ -257,8 +257,8 @@ async def cmd_taxes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     usage = (
         "Usage :\n"
-        "  /taxes accise [trimestre]       — Accise TICFE (ex: /taxes accise 2025-T1)\n"
-        "  /taxes cta [trimestre] [taux]   — CTA (ex: /taxes cta 2025-T1 21.93)"
+        "  /taxes accise [trimestre]  — Accise TICFE (ex: /taxes accise 2025-T1)\n"
+        "  /taxes cta [trimestre]     — CTA (ex: /taxes cta 2025-T1)"
     )
 
     if not context.args:
@@ -286,16 +286,11 @@ async def cmd_taxes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     elif sous_commande == "cta":
         trimestre = context.args[1] if len(context.args) > 1 else None
-        try:
-            taux_cta = float(context.args[2]) if len(context.args) > 2 else 21.93
-        except ValueError:
-            await update.effective_message.reply_text("❌ Taux CTA invalide. Exemple : /taxes cta 2025-T1 21.93")
-            return
         periode = f" — {trimestre}" if trimestre else " — toutes périodes"
-        await update.effective_message.reply_text(f"⏳ Calcul CTA{periode} (taux {taux_cta}%)…")
+        await update.effective_message.reply_text(f"⏳ Calcul CTA{periode}…")
         client = ElectriCoreClient()
         try:
-            xlsx_bytes = await client.get_cta_xlsx(trimestre, taux_cta)
+            xlsx_bytes = await client.get_cta_xlsx(trimestre)
         except Exception as e:
             await update.effective_message.reply_text(f"❌ Erreur CTA : {e}")
             return
@@ -303,7 +298,7 @@ async def cmd_taxes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.effective_message.reply_document(
             document=io.BytesIO(xlsx_bytes),
             filename=f"cta{suffix}.xlsx",
-            caption=f"CTA{periode} — taux {taux_cta}%",
+            caption=f"CTA{periode}",
         )
 
     else:
@@ -317,20 +312,20 @@ async def cmd_facturation(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     mois = context.args[0] if context.args else None
     periode = f" — {mois}" if mois else " — dernier mois disponible"
-    await update.effective_message.reply_text(f"⏳ Génération de la réconciliation facturation{periode}…")
+    await update.effective_message.reply_text(f"⏳ Génération des documents facturation{periode}…")
 
     client = ElectriCoreClient()
     try:
-        xlsx_bytes = await client.get_facturation_xlsx(mois)
+        zip_bytes = await client.get_facturation_documents(mois)
     except Exception as e:
         await update.effective_message.reply_text(f"❌ Erreur : {e}")
         return
 
-    suffix = f"_{mois}" if mois else ""
+    suffix = f"_{mois[:7]}" if mois else ""
     await update.effective_message.reply_document(
-        document=io.BytesIO(xlsx_bytes),
-        filename=f"facturation{suffix}.xlsx",
-        caption=f"Réconciliation facturation Odoo ↔ Enedis{periode}",
+        document=io.BytesIO(zip_bytes),
+        filename=f"facturation{suffix}.zip",
+        caption=f"Documents facturation Odoo ↔ Enedis{periode} (6 CSV)",
     )
 
 

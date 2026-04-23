@@ -13,7 +13,7 @@ from typing import Optional
 
 from electricore.api.services import duckdb_service, etl_service
 from electricore.api.services.taxes_service import generer_accise_xlsx, generer_cta_xlsx
-from electricore.api.services.facturation_service import generer_facturation_xlsx
+from electricore.api.services.facturation_service import generer_facturation_xlsx, generer_documents_facturation
 from electricore.api.config import settings
 from electricore.api.models import ETLRunRequest, ETLJobResponse
 from electricore.api.security import get_current_api_key, get_api_key_info, APIKeyInfo
@@ -493,25 +493,26 @@ async def export_cta_xlsx(
         examples=["2025-T1"],
         description="Filtre par trimestre au format YYYY-TX. Sans filtre : toutes les données.",
     ),
-    taux_cta: float = Query(
-        default=21.93,
-        description="Taux CTA en pourcentage (défaut 2025 : 21.93%)",
-    ),
     api_key: str = Depends(get_current_api_key),
 ):
     """
-    Calcule la CTA (Contribution au Tarif d'Acheminement) et retourne un fichier XLSX.
+    Calcule la CTA (Contribution Tarifaire d'Acheminement) et retourne un fichier XLSX.
 
     **Authentification requise. Nécessite Odoo (ODOO_*) et DuckDB configurés.**
 
-    Le fichier contient 2 onglets :
-    - **Résumé** : totaux (PDL, TURPE fixe €, taux CTA %, CTA €)
-    - **Détail** : détail par PDL (pdl, order_name, turpe_fixe_total, cta)
+    Les taux CTA sont chargés depuis electricore/config/cta_rules.csv et
+    appliqués au niveau mensuel. Un changement de taux en cours de trimestre
+    est géré automatiquement.
+
+    Le fichier contient 3 onglets :
+    - **Résumé** : totaux par trimestre (PDL, TURPE fixe €, CTA €)
+    - **Par taux** : détail par (trimestre, taux CTA)
+    - **Détail** : détail par PDL (pdl, order_name, turpe_fixe_total, cta, taux_cta_appliques)
     """
     if not settings.is_odoo_configured:
         raise HTTPException(501, f"Odoo [{settings.odoo_env}] non configuré. Définissez ODOO_{settings.odoo_env.upper()}_URL/DB/USERNAME/PASSWORD dans .env")
     try:
-        xlsx = generer_cta_xlsx(trimestre, taux_cta)
+        xlsx = generer_cta_xlsx(trimestre)
     except Exception as e:
         raise HTTPException(503, f"Erreur lors du calcul de la CTA : {e}")
     suffix = f"_{trimestre}" if trimestre else ""
@@ -554,4 +555,42 @@ async def export_facturation_xlsx(
         content=xlsx,
         media_type=_XLSX_MEDIA,
         headers={"Content-Disposition": f"attachment; filename=facturation{suffix}.xlsx"},
+    )
+
+
+@app.get("/facturation/documents", tags=["facturation"])
+async def export_facturation_documents(
+    mois: Optional[str] = Query(
+        default=None,
+        examples=["2025-01-01"],
+        description="Mois au format YYYY-MM-DD (défaut : dernier mois disponible dans les données)",
+    ),
+    api_key: str = Depends(get_current_api_key),
+):
+    """
+    Export ZIP de tous les documents utiles pour la facturation.
+
+    **Authentification requise. Nécessite Odoo (ODOO_*) et DuckDB configurés.**
+
+    Le ZIP contient :
+    - **f15_complet.csv** : flux F15 du mois
+    - **f15_prestas.csv** : F15 filtré sur les prestations (unite = 'UNITE')
+    - **c15_complet.csv** : flux C15 du mois
+    - **c15_sorties.csv** : C15 filtré sur les sorties (RES + CFNS)
+    - **reconciliation.csv** : réconciliation Odoo ↔ Enedis
+    - **changements_puissance.csv** : lignes avec changement de puissance
+    """
+    if not settings.is_odoo_configured:
+        raise HTTPException(501, f"Odoo [{settings.odoo_env}] non configuré. Définissez ODOO_{settings.odoo_env.upper()}_URL/DB/USERNAME/PASSWORD dans .env")
+    try:
+        zip_bytes, suffix = await asyncio.get_event_loop().run_in_executor(
+            None, generer_documents_facturation, mois
+        )
+    except Exception as e:
+        logger.exception("Erreur facturation/documents")
+        raise HTTPException(503, f"Erreur lors de la génération des documents facturation : {e}")
+    return Response(
+        content=zip_bytes,
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename=facturation_{suffix}.zip"},
     )
