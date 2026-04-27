@@ -234,11 +234,19 @@ def _():
 
 
 @app.cell
-def _(updates_rsc):
+def _():
+    filtre_a_injecter = (
+        pl.col("quantite_enedis").is_not_null()
+        & ~pl.col("x_lisse").fill_null(False)
+    )
+    return (filtre_a_injecter,)
+
+
+@app.cell
+def _(filtre_a_injecter, updates_rsc):
     from electricore.core.writers import OdooWriter
 
-    # TODO filtrer les lissés
-    _a_injecter = updates_rsc.filter(pl.col("quantite_enedis").is_not_null())
+    _a_injecter = updates_rsc.filter(filtre_a_injecter)
     _sans_match  = updates_rsc.filter(pl.col("quantite_enedis").is_null())
 
     sim_mode   = mo.ui.checkbox(label="Mode simulation (aucune écriture réelle)", value=True)
@@ -258,10 +266,10 @@ def _(updates_rsc):
 
 
 @app.cell
-def _(updates_rsc):
+def _(filtre_a_injecter, updates_rsc):
     lines_records = (
         updates_rsc
-        .filter(pl.col("quantite_enedis").is_not_null())
+        .filter(filtre_a_injecter)
         .select([
             pl.col("invoice_line_ids").cast(pl.Int64).alias("id"),
             pl.col("quantite_enedis").alias("quantity"),
