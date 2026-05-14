@@ -109,15 +109,20 @@ def verifier_odoo() -> dict:
 
     lisses_qty1_records = []
     if not lisses_qty1_df.is_empty():
+        grouped = (
+            lisses_qty1_df
+            .group_by(["sale_order_id", "name"])
+            .agg(pl.col("name_product_category").unique().sort().alias("categ_names"))
+            .sort("name")
+        )
         lisses_qty1_records = [
             {
                 "sale_order_id": row["sale_order_id"],
                 "sale_order_name": row["name"],
-                "product_name": row["name_product_product"],
-                "categ_name": row["name_product_category"],
+                "categ_names": row["categ_names"],
                 "url": _odoo_link("sale.order", row["sale_order_id"]),
             }
-            for row in lisses_qty1_df.to_dicts()
+            for row in grouped.to_dicts()
         ]
 
     return {
@@ -141,7 +146,10 @@ def generer_check_odoo_xlsx(result: dict) -> bytes:
     if result["factures_draft"]:
         pl.DataFrame(result["factures_draft"]).write_excel(workbook=wb, worksheet="Factures draft")
     if result.get("lisses_quantite_1"):
-        pl.DataFrame(result["lisses_quantite_1"]).write_excel(workbook=wb, worksheet="Lissés qty=1")
+        df = pl.DataFrame(result["lisses_quantite_1"])
+        if "categ_names" in df.columns and df["categ_names"].dtype == pl.List(pl.Utf8):
+            df = df.with_columns(pl.col("categ_names").list.join(", "))
+        df.write_excel(workbook=wb, worksheet="Lissés qty=1")
 
     counts_rows = [{"x_invoicing_state": k, "n": v} for k, v in result["invoicing_state_counts"].items()]
     if counts_rows:

@@ -383,7 +383,7 @@ def _format_check_odoo(result: dict) -> tuple[str, bool]:
 
     _bloc("contrats lissés avec ligne énergie à qty=1",
           result.get("lisses_quantite_1", []),
-          lambda r: f"{r['sale_order_name']} ({r['categ_name']})",
+          lambda r: f"{r['sale_order_name']} ({', '.join(r['categ_names'])})",
           "Aucun contrat lissé avec qty=1 sur Base/HP/HC")
 
     return "\n".join(lines), xlsx_needed
