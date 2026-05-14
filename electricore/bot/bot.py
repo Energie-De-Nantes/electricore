@@ -386,6 +386,16 @@ def _format_check_odoo(result: dict) -> tuple[str, bool]:
           lambda r: f"{r['sale_order_name']} ({', '.join(r['categ_names'])})",
           "Aucun contrat lissé avec qty=1 sur Base/HP/HC")
 
+    all_ok = not any([
+        result["rsc_manquante"],
+        result["cfne_manquante"],
+        result["factures_draft"],
+        result.get("lisses_quantite_1", []),
+    ])
+    if all_ok:
+        lines.append("")
+        lines.append("🟢 *OK pour lancer le cycle de facturation*")
+
     return "\n".join(lines), xlsx_needed
 
 
