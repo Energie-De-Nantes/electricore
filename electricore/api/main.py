@@ -14,6 +14,7 @@ from typing import Optional
 from electricore.api.services import duckdb_service, etl_service
 from electricore.api.services.taxes_service import generer_accise_xlsx, generer_cta_xlsx
 from electricore.api.services.facturation_service import generer_facturation_xlsx, generer_documents_facturation
+from electricore.api.services.check_facturation_service import verifier_odoo
 from electricore.api.config import settings
 from electricore.api.models import ETLRunRequest, ETLJobResponse
 from electricore.api.security import get_current_api_key, get_api_key_info, APIKeyInfo
@@ -556,6 +557,31 @@ async def export_facturation_xlsx(
         media_type=_XLSX_MEDIA,
         headers={"Content-Disposition": f"attachment; filename=facturation{suffix}.xlsx"},
     )
+
+
+@app.get("/facturation/check/odoo", tags=["facturation"])
+async def check_facturation_odoo(api_key: str = Depends(get_current_api_key)):
+    """
+    Vérifications pré-facturation côté Odoo.
+
+    **Authentification requise. Nécessite Odoo configuré.**
+
+    Pour tous les sale.order avec state='sale', retourne :
+    - `rsc_manquante` : liste des sale.order sans `x_ref_situation_contractuelle`
+    - `cfne_manquante` : liste des sale.order sans `x_date_cfne`
+    - `invoicing_state_counts` : répartition des `x_invoicing_state`
+    - `factures_draft` : factures encore en draft (anomalie après campagne)
+
+    Chaque entrée contient un lien direct vers l'enregistrement Odoo (champ `url`).
+    """
+    if not settings.is_odoo_configured:
+        raise HTTPException(501, f"Odoo [{settings.odoo_env}] non configuré. Définissez ODOO_{settings.odoo_env.upper()}_URL/DB/USERNAME/PASSWORD dans .env")
+    try:
+        result = await asyncio.get_event_loop().run_in_executor(None, verifier_odoo)
+    except Exception as e:
+        logger.exception("Erreur facturation/check/odoo")
+        raise HTTPException(503, f"Erreur lors de la vérification Odoo : {e}")
+    return result
 
 
 @app.get("/facturation/documents", tags=["facturation"])

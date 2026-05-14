@@ -96,3 +96,9 @@ class ElectriCoreClient:
             r = await c.get(f"{self._base}/facturation/documents", headers=self._headers, params=params, timeout=300)
             r.raise_for_status()
             return r.content
+
+    async def check_facturation_odoo(self) -> dict:
+        async with httpx.AsyncClient() as c:
+            r = await c.get(f"{self._base}/facturation/check/odoo", headers=self._headers, timeout=300)
+            r.raise_for_status()
+            return r.json()

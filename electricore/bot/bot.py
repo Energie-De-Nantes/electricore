@@ -41,6 +41,7 @@ _HELP = r"""
 /taxes accise \[trimestre\] — Exporter le calcul Accise TICFE en Excel
 /taxes cta \[trimestre\] — Exporter le calcul CTA en Excel
 /facturation \[YYYY\-MM\-DD\] — Exporter la réconciliation facturation Odoo ↔ Enedis
+/check odoo — Vérifications pré\-facturation côté Odoo \(RSC, CFNE, draft, états\)
 """
 
 _STATUS_EMOJI = {
@@ -329,6 +330,108 @@ async def cmd_facturation(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     )
 
 
+_CHECK_LIMIT = 20  # Au-delà : renvoi en XLSX joint
+
+
+def _md_escape(text: str) -> str:
+    """Échappe les caractères Markdown V1 (mode 'Markdown', pas V2)."""
+    return text.replace("_", r"\_").replace("*", r"\*").replace("`", r"\`").replace("[", r"\[")
+
+
+def _format_check_odoo(result: dict) -> tuple[str, bool]:
+    """Formatte le résultat en Markdown Telegram. Retourne (msg, xlsx_needed)."""
+    lines = ["🔍 *Vérification Odoo*", ""]
+    xlsx_needed = False
+
+    def _bloc(titre: str, items: list[dict], label_fn, ok_msg: str) -> None:
+        nonlocal xlsx_needed
+        n = len(items)
+        if n == 0:
+            lines.append(f"✅ {ok_msg}")
+            return
+        lines.append(f"❌ *{n}* {titre}")
+        for r in items[:_CHECK_LIMIT]:
+            label = _md_escape(label_fn(r))
+            lines.append(f"  • [{label}]({r['url']})")
+        if n > _CHECK_LIMIT:
+            lines.append(f"  _… et {n - _CHECK_LIMIT} autres → voir XLSX joint_")
+            xlsx_needed = True
+
+    _bloc("sale.order sans `x_ref_situation_contractuelle`",
+          result["rsc_manquante"], lambda r: r["name"],
+          "Tous les sale.order ont une RSC")
+    lines.append("")
+    _bloc("sale.order sans `x_date_cfne`",
+          result["cfne_manquante"], lambda r: r["name"],
+          "Tous les sale.order ont une date CFNE")
+    lines.append("")
+
+    counts = result["invoicing_state_counts"]
+    lines.append("📊 *Répartition x_invoicing_state*")
+    if counts:
+        for state, n in counts.items():
+            lines.append(f"  • `{state}` : {n}")
+    else:
+        lines.append("  _(aucune commande)_")
+    lines.append("")
+
+    _bloc("factures encore en draft",
+          result["factures_draft"],
+          lambda r: f"{r['sale_order_name']}{r['invoice_name']}",
+          "Aucune facture en draft")
+    lines.append("")
+
+    _bloc("contrats lissés avec ligne énergie à qty=1",
+          result.get("lisses_quantite_1", []),
+          lambda r: f"{r['sale_order_name']} ({r['categ_name']})",
+          "Aucun contrat lissé avec qty=1 sur Base/HP/HC")
+
+    return "\n".join(lines), xlsx_needed
+
+
+async def cmd_check(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not _is_allowed(update):
+        await _deny(update)
+        return
+
+    usage = (
+        "Usage :\n"
+        "  /check odoo  — Vérifications pré-facturation côté Odoo\n"
+        "  (sources `enedis` et `croise` à venir)"
+    )
+
+    if not context.args:
+        await update.effective_message.reply_text(usage)
+        return
+
+    source = context.args[0].lower()
+
+    if source == "odoo":
+        await update.effective_message.reply_text("⏳ Vérifications côté Odoo…")
+        client = ElectriCoreClient()
+        try:
+            result = await client.check_facturation_odoo()
+        except Exception as e:
+            await update.effective_message.reply_text(f"❌ Erreur : {e}")
+            return
+
+        msg, xlsx_needed = _format_check_odoo(result)
+        await update.effective_message.reply_markdown(msg, disable_web_page_preview=True)
+
+        if xlsx_needed:
+            from electricore.api.services.check_facturation_service import generer_check_odoo_xlsx
+            xlsx_bytes = await asyncio.get_event_loop().run_in_executor(
+                None, generer_check_odoo_xlsx, result
+            )
+            await update.effective_message.reply_document(
+                document=io.BytesIO(xlsx_bytes),
+                filename="check_odoo.xlsx",
+                caption="Détail complet des cas problématiques",
+            )
+    else:
+        await update.effective_message.reply_text(f"❌ Source inconnue : `{source}`\n\n{usage}")
+
+
 def build_application(token: str) -> Application:
     app = Application.builder().token(token).build()
     app.add_handler(CommandHandler("start", cmd_start))
@@ -341,4 +444,5 @@ def build_application(token: str) -> Application:
     app.add_handler(CommandHandler("sorties", cmd_sorties))
     app.add_handler(CommandHandler("taxes", cmd_taxes))
     app.add_handler(CommandHandler("facturation", cmd_facturation))
+    app.add_handler(CommandHandler("check", cmd_check))
     return app
