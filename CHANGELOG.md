@@ -7,7 +7,7 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
-## [1.4.0] - non publiée
+## [1.4.0] - 2026-06-02
 
 ### 🚀 Déployabilité — fondations VPS
 
