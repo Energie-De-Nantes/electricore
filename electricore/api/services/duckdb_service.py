@@ -24,6 +24,22 @@ _LOCK_RETRY_ATTEMPTS = 3
 _LOCK_RETRY_BACKOFF_S = 1.0
 
 
+def _is_lock_error(exc: duckdb.IOException) -> bool:
+    """
+    Discrimine un verrou (récupérable par retry) d'une condition non récupérable
+    comme un fichier inexistant.
+
+    DuckDB ne propose pas de hiérarchie d'exceptions plus fine que `IOException`,
+    on inspecte donc le message. Les marqueurs typiques :
+      - verrou exclusif : "Could not set lock", "Conflicting lock"
+      - fichier absent  : "does not exist"
+    """
+    msg = str(exc).lower()
+    if "does not exist" in msg or "no such file" in msg:
+        return False
+    return True
+
+
 @contextmanager
 def _connect_readonly():
     """
@@ -32,6 +48,8 @@ def _connect_readonly():
     Le writer ETL (autre conteneur) peut prendre un lock exclusif pendant un
     checkpoint ou pendant `EXPORT DATABASE`. On retente brièvement avant de
     propager l'erreur, pour absorber les pics courts sans casser les requêtes API.
+    On ne réessaie PAS si l'erreur est "fichier introuvable" — c'est non
+    récupérable et un retry ne ferait que masquer l'erreur jusqu'au timeout.
     """
     last_exc: Exception | None = None
     for attempt in range(_LOCK_RETRY_ATTEMPTS):
@@ -39,6 +57,8 @@ def _connect_readonly():
             conn = duckdb.connect(str(DB_PATH), read_only=True)
         except duckdb.IOException as exc:
             last_exc = exc
+            if not _is_lock_error(exc):
+                raise
             if attempt < _LOCK_RETRY_ATTEMPTS - 1:
                 logger.warning(
                     "DuckDB verrouillé (tentative %d/%d), nouvelle tentative dans %.1fs",

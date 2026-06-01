@@ -78,27 +78,31 @@ async def root():
 
     Endpoint public - aucune authentification requise.
     Liste les tables disponibles et montre des exemples d'utilisation.
+
+    Reste accessible même si la base DuckDB n'existe pas encore (premier
+    déploiement avant le premier ETL) : `available_tables` est alors vide.
     """
     try:
         tables = duckdb_service.list_tables()
-        return {
-            "message": "ElectriCore API - Données flux Enedis sécurisées",
-            "version": settings.api_version,
-            "authentication": {
-                "required": "Clé API requise pour accéder aux données",
-                "method": "X-API-Key: votre_cle_api (header uniquement)",
-            },
-            "available_tables": tables,
-            "examples": {
-                "get_flux_data": "curl -H 'X-API-Key: VOTRE_CLE' '/flux/r151?limit=10'",
-                "filter_by_prm": "curl -H 'X-API-Key: VOTRE_CLE' '/flux/c15?prm=12345678901234'",
-                "table_info": "curl -H 'X-API-Key: VOTRE_CLE' '/flux/r64/info'",
-                "pagination": "curl -H 'X-API-Key: VOTRE_CLE' '/flux/r151?limit=50&offset=100'",
-            },
-            "docs": "/docs",
-        }
-    except Exception as e:
-        raise HTTPException(500, f"Erreur lors de l'accès à la base de données: {e}")
+    except Exception as exc:
+        logger.warning("Liste des tables indisponible (%s) — affichage dégradé", exc)
+        tables = []
+    return {
+        "message": "ElectriCore API - Données flux Enedis sécurisées",
+        "version": settings.api_version,
+        "authentication": {
+            "required": "Clé API requise pour accéder aux données",
+            "method": "X-API-Key: votre_cle_api (header uniquement)",
+        },
+        "available_tables": tables,
+        "examples": {
+            "get_flux_data": "curl -H 'X-API-Key: VOTRE_CLE' '/flux/r151?limit=10'",
+            "filter_by_prm": "curl -H 'X-API-Key: VOTRE_CLE' '/flux/c15?prm=12345678901234'",
+            "table_info": "curl -H 'X-API-Key: VOTRE_CLE' '/flux/r64/info'",
+            "pagination": "curl -H 'X-API-Key: VOTRE_CLE' '/flux/r151?limit=50&offset=100'",
+        },
+        "docs": "/docs",
+    }
 
 
 @app.get("/flux/c15/entrees/xlsx", tags=["flux"])
