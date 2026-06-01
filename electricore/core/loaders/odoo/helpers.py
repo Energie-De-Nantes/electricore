@@ -8,15 +8,13 @@ Toutes les fonctions sont pures : elles prennent un OdooReader en paramètre
 et retournent un OdooQuery chainable.
 """
 
-import polars as pl
-from typing import Optional, List
 
-from .reader import OdooReader
 from .query import OdooQuery
+from .reader import OdooReader
 
 
-def query(odoo: OdooReader, model: str, domain: List = None,
-          fields: Optional[List[str]] = None) -> OdooQuery:
+def query(odoo: OdooReader, model: str, domain: list = None,
+          fields: list[str] | None = None) -> OdooQuery:
     """
     Crée un OdooQuery depuis un OdooReader connecté.
 
@@ -42,7 +40,7 @@ def query(odoo: OdooReader, model: str, domain: List = None,
     return OdooQuery(connector=odoo, lazy_frame=df.lazy(), _current_model=model)
 
 
-def factures(odoo: OdooReader, domain: List = None) -> OdooQuery:
+def factures(odoo: OdooReader, domain: list = None) -> OdooQuery:
     """
     Query builder pour factures Odoo (account.move).
 
@@ -66,7 +64,7 @@ def factures(odoo: OdooReader, domain: List = None) -> OdooQuery:
                 fields=['name', 'invoice_date', 'amount_total', 'state', 'partner_id'])
 
 
-def lignes_factures(odoo: OdooReader, domain: List = None) -> OdooQuery:
+def lignes_factures(odoo: OdooReader, domain: list = None) -> OdooQuery:
     """
     Query builder pour lignes de factures Odoo (account.move.line).
 
@@ -88,7 +86,7 @@ def lignes_factures(odoo: OdooReader, domain: List = None) -> OdooQuery:
                 fields=['name', 'quantity', 'price_unit', 'product_id', 'move_id'])
 
 
-def commandes(odoo: OdooReader, domain: List = None) -> OdooQuery:
+def commandes(odoo: OdooReader, domain: list = None) -> OdooQuery:
     """
     Query builder pour commandes de vente Odoo (sale.order).
 
@@ -110,7 +108,7 @@ def commandes(odoo: OdooReader, domain: List = None) -> OdooQuery:
                 fields=['name', 'date_order', 'amount_total', 'state', 'partner_id'])
 
 
-def partenaires(odoo: OdooReader, domain: List = None) -> OdooQuery:
+def partenaires(odoo: OdooReader, domain: list = None) -> OdooQuery:
     """
     Query builder pour partenaires Odoo (res.partner).
 
@@ -135,7 +133,7 @@ def partenaires(odoo: OdooReader, domain: List = None) -> OdooQuery:
 # HELPERS AVEC NAVIGATION - Raccourcis pour relations multi-niveaux
 # =============================================================================
 
-def commandes_factures(odoo: OdooReader, domain: List = None) -> OdooQuery:
+def commandes_factures(odoo: OdooReader, domain: list = None) -> OdooQuery:
     """
     Query builder pour commandes avec factures.
 
@@ -166,7 +164,7 @@ def commandes_factures(odoo: OdooReader, domain: List = None) -> OdooQuery:
     )
 
 
-def commandes_lignes(odoo: OdooReader, domain: List = None) -> OdooQuery:
+def commandes_lignes(odoo: OdooReader, domain: list = None) -> OdooQuery:
     """
     Query builder pour commandes avec lignes de factures détaillées.
 
@@ -220,7 +218,7 @@ def commandes_lignes(odoo: OdooReader, domain: List = None) -> OdooQuery:
     )
 
 
-def consommations_mensuelles(odoo: OdooReader, domain: List = None) -> OdooQuery:
+def consommations_mensuelles(odoo: OdooReader, domain: list = None) -> OdooQuery:
     """
     Query builder pour consommations mensuelles agrégées.
 
@@ -258,7 +256,7 @@ def consommations_mensuelles(odoo: OdooReader, domain: List = None) -> OdooQuery
     return commandes_lignes(odoo, domain=domain)
 
 
-def lignes_a_facturer(odoo: OdooReader, domain: List = None) -> OdooQuery:
+def lignes_a_facturer(odoo: OdooReader, domain: list = None) -> OdooQuery:
     """
     Query builder pour les lignes de factures brouillon à facturer.
 
@@ -302,7 +300,7 @@ def lignes_a_facturer(odoo: OdooReader, domain: List = None) -> OdooQuery:
     )
 
 
-def lignes_quantite_zero(odoo: OdooReader, domain: List = None) -> OdooQuery:
+def lignes_quantite_zero(odoo: OdooReader, domain: list = None) -> OdooQuery:
     """
     Query builder pour les lignes de factures brouillon avec quantité nulle.
 

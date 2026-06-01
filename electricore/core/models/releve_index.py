@@ -1,8 +1,8 @@
-import polars as pl
+
 import pandera.polars as pa
-from pandera.typing.polars import DataFrame
+import polars as pl
 from pandera.engines.polars_engine import DateTime
-from typing import Optional, Annotated
+
 
 class RelevéIndex(pa.DataFrameModel):
     """
@@ -18,13 +18,13 @@ class RelevéIndex(pa.DataFrameModel):
 
     # 🔹 Identifiant du Point de Livraison (PDL)
     pdl: pl.Utf8 = pa.Field(nullable=False)
-    ref_situation_contractuelle: Optional[pl.Utf8] = pa.Field(nullable=True)
-    formule_tarifaire_acheminement: Optional[pl.Utf8] = pa.Field(nullable=True)
+    ref_situation_contractuelle: pl.Utf8 | None = pa.Field(nullable=True)
+    formule_tarifaire_acheminement: pl.Utf8 | None = pa.Field(nullable=True)
 
     # 🏢 Références Fournisseur & Distributeur
-    id_calendrier_fournisseur: Optional[pl.Utf8] = pa.Field(nullable=True)
-    id_calendrier_distributeur: Optional[pl.Utf8] = pa.Field(nullable=True)
-    id_affaire: Optional[pl.Utf8] = pa.Field(nullable=True)
+    id_calendrier_fournisseur: pl.Utf8 | None = pa.Field(nullable=True)
+    id_calendrier_distributeur: pl.Utf8 | None = pa.Field(nullable=True)
+    id_affaire: pl.Utf8 | None = pa.Field(nullable=True)
 
     # Source des données
     source: pl.Utf8 = pa.Field(nullable=False, isin=["flux_R151", "flux_R15", "flux_C15", "flux_R64", "FACTURATION"])
@@ -34,20 +34,20 @@ class RelevéIndex(pa.DataFrameModel):
     precision: pl.Utf8 = pa.Field(nullable=False, isin=["kWh", "Wh", "MWh"])
 
     # ⚡ Index de compteurs (valeurs cumulées en kWh)
-    index_hp_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
-    index_hc_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
-    index_hch_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
-    index_hph_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
-    index_hpb_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
-    index_hcb_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
-    index_base_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
+    index_hp_kwh: pl.Float64 | None = pa.Field(nullable=True)
+    index_hc_kwh: pl.Float64 | None = pa.Field(nullable=True)
+    index_hch_kwh: pl.Float64 | None = pa.Field(nullable=True)
+    index_hph_kwh: pl.Float64 | None = pa.Field(nullable=True)
+    index_hpb_kwh: pl.Float64 | None = pa.Field(nullable=True)
+    index_hcb_kwh: pl.Float64 | None = pa.Field(nullable=True)
+    index_base_kwh: pl.Float64 | None = pa.Field(nullable=True)
 
     # 🔌 Métadonnées spécifiques R64 (optionnelles)
-    type_releve: Optional[pl.Utf8] = pa.Field(nullable=True, isin=["AQ", "AM", "AC"])
-    contexte_releve: Optional[pl.Utf8] = pa.Field(nullable=True, isin=["COL", "IND"])
-    etape_metier: Optional[pl.Utf8] = pa.Field(nullable=True, isin=["BRUT", "CORR", "VALID"])
-    grandeur_physique: Optional[pl.Utf8] = pa.Field(nullable=True, isin=["EA", "ER"])
-    grandeur_metier: Optional[pl.Utf8] = pa.Field(nullable=True, isin=["CONS", "PROD"])
+    type_releve: pl.Utf8 | None = pa.Field(nullable=True, isin=["AQ", "AM", "AC"])
+    contexte_releve: pl.Utf8 | None = pa.Field(nullable=True, isin=["COL", "IND"])
+    etape_metier: pl.Utf8 | None = pa.Field(nullable=True, isin=["BRUT", "CORR", "VALID"])
+    grandeur_physique: pl.Utf8 | None = pa.Field(nullable=True, isin=["EA", "ER"])
+    grandeur_metier: pl.Utf8 | None = pa.Field(nullable=True, isin=["CONS", "PROD"])
 
     @pa.dataframe_check
     def verifier_presence_mesures(cls, data) -> pl.LazyFrame:

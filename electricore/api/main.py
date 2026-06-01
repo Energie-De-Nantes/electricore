@@ -7,17 +7,16 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Query, HTTPException, Depends
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.responses import Response
-from typing import Optional
 
-from electricore.api.services import duckdb_service, etl_service
-from electricore.api.services.taxes_service import generer_accise_xlsx, generer_cta_xlsx
-from electricore.api.services.facturation_service import generer_facturation_xlsx, generer_documents_facturation
-from electricore.api.services.check_facturation_service import verifier_odoo
 from electricore.api.config import settings
-from electricore.api.models import ETLRunRequest, ETLJobResponse
-from electricore.api.security import get_current_api_key, get_api_key_info, APIKeyInfo
+from electricore.api.models import ETLJobResponse, ETLRunRequest
+from electricore.api.security import APIKeyInfo, get_api_key_info, get_current_api_key
+from electricore.api.services import duckdb_service, etl_service
+from electricore.api.services.check_facturation_service import verifier_odoo
+from electricore.api.services.facturation_service import generer_documents_facturation, generer_facturation_xlsx
+from electricore.api.services.taxes_service import generer_accise_xlsx, generer_cta_xlsx
 
 logger = logging.getLogger(__name__)
 
@@ -161,7 +160,7 @@ async def get_sorties_xlsx(
 @app.get("/flux/{table_name}", tags=["flux"])
 async def get_flux(
     table_name: str,
-    prm: Optional[str] = Query(None, description="Filtrer par pdl (Point de Livraison)"),
+    prm: str | None = Query(None, description="Filtrer par pdl (Point de Livraison)"),
     limit: int = Query(100, le=1000, description="Nombre maximum de lignes à retourner"),
     offset: int = Query(0, ge=0, description="Nombre de lignes à ignorer (pagination)"),
     api_key: str = Depends(get_current_api_key)
@@ -226,7 +225,7 @@ async def get_flux(
 @app.get("/flux/{table_name}/xlsx", tags=["flux"])
 async def get_flux_xlsx(
     table_name: str,
-    prm: Optional[str] = Query(None, description="Filtrer par pdl (Point de Livraison)"),
+    prm: str | None = Query(None, description="Filtrer par pdl (Point de Livraison)"),
     limit: int = Query(10000, le=100000, description="Nombre maximum de lignes"),
     api_key: str = Depends(get_current_api_key),
 ):
@@ -285,7 +284,7 @@ async def get_table_info(
     """
     try:
         return duckdb_service.get_table_info(table_name)
-    except Exception as e:
+    except Exception:
         available_tables = duckdb_service.list_tables()
         raise HTTPException(
             404, 
@@ -456,7 +455,7 @@ _XLSX_MEDIA = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
 
 @app.get("/taxes/accise/xlsx", tags=["taxes"])
 async def export_accise_xlsx(
-    trimestre: Optional[str] = Query(
+    trimestre: str | None = Query(
         default=None,
         examples=["2025-T1"],
         description="Filtre par trimestre au format YYYY-TX. Sans filtre : toutes les données.",
@@ -489,7 +488,7 @@ async def export_accise_xlsx(
 
 @app.get("/taxes/cta/xlsx", tags=["taxes"])
 async def export_cta_xlsx(
-    trimestre: Optional[str] = Query(
+    trimestre: str | None = Query(
         default=None,
         examples=["2025-T1"],
         description="Filtre par trimestre au format YYYY-TX. Sans filtre : toutes les données.",
@@ -526,7 +525,7 @@ async def export_cta_xlsx(
 
 @app.get("/facturation/xlsx", tags=["facturation"])
 async def export_facturation_xlsx(
-    mois: Optional[str] = Query(
+    mois: str | None = Query(
         default=None,
         examples=["2025-01-01"],
         description="Mois au format YYYY-MM-DD (défaut : dernier mois disponible dans les données)",
@@ -586,7 +585,7 @@ async def check_facturation_odoo(api_key: str = Depends(get_current_api_key)):
 
 @app.get("/facturation/documents", tags=["facturation"])
 async def export_facturation_documents(
-    mois: Optional[str] = Query(
+    mois: str | None = Query(
         default=None,
         examples=["2025-01-01"],
         description="Mois au format YYYY-MM-DD (défaut : dernier mois disponible dans les données)",

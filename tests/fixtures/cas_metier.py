@@ -16,9 +16,10 @@ Pour ajouter un nouveau cas :
 4. Créer la fixture pytest correspondante
 """
 
+from pathlib import Path
+
 import polars as pl
 import pytest
-from pathlib import Path
 
 # Chemin vers les données anonymisées
 FIXTURES_DIR = Path(__file__).parent / "donnees_anonymisees"

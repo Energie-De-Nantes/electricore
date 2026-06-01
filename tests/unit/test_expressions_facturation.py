@@ -5,19 +5,20 @@ Ce module teste chaque expression atomique individuellement avant de tester
 les fonctions d'agrégation complètes.
 """
 
-import polars as pl
-import pytest
 from datetime import datetime
+
+import polars as pl
 import polars.testing as pl_testing
+import pytest
 
 from electricore.core.pipelines.facturation import (
-    expr_puissance_moyenne,
-    expr_memo_puissance_simple,
-    expr_coverage_temporelle,
-    expr_data_complete_meta_periode,
     agreger_abonnements_mensuel,
     agreger_energies_mensuel,
-    joindre_meta_periodes
+    expr_coverage_temporelle,
+    expr_data_complete_meta_periode,
+    expr_memo_puissance_simple,
+    expr_puissance_moyenne,
+    joindre_meta_periodes,
 )
 
 

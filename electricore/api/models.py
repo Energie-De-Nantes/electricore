@@ -3,9 +3,10 @@ Modèles de données pour l'API ElectriCore.
 Définit les structures de données Pydantic pour les réponses API.
 """
 
-from typing import Dict, List, Optional, Any
-from pydantic import BaseModel, Field
 from datetime import datetime
+from typing import Any
+
+from pydantic import BaseModel, Field
 
 
 class APIResponse(BaseModel):
@@ -19,9 +20,9 @@ class FluxData(BaseModel):
     """Modèle pour les données de flux Enedis."""
 
     table: str = Field(..., description="Nom de la table flux")
-    filters: Optional[Dict[str, Any]] = Field(None, description="Filtres appliqués")
-    pagination: Dict[str, int] = Field(..., description="Informations de pagination")
-    data: List[Dict[str, Any]] = Field(..., description="Données du flux")
+    filters: dict[str, Any] | None = Field(None, description="Filtres appliqués")
+    pagination: dict[str, int] = Field(..., description="Informations de pagination")
+    data: list[dict[str, Any]] = Field(..., description="Données du flux")
 
 
 class TableInfo(BaseModel):
@@ -30,15 +31,15 @@ class TableInfo(BaseModel):
     table: str = Field(..., description="Nom complet de la table")
     db_schema: str = Field(..., description="Schéma de la table")
     count: int = Field(..., description="Nombre total de lignes")
-    columns: List[Dict[str, str]] = Field(..., description="Liste des colonnes avec leurs types")
+    columns: list[dict[str, str]] = Field(..., description="Liste des colonnes avec leurs types")
 
 
 class APIKeyConfiguration(BaseModel):
     """Modèle pour la configuration des clés API."""
 
     total_keys: int = Field(..., description="Nombre total de clés configurées")
-    methods_enabled: Dict[str, bool] = Field(..., description="Méthodes d'authentification activées")
-    public_endpoints: List[str] = Field(..., description="Liste des endpoints publics")
+    methods_enabled: dict[str, bool] = Field(..., description="Méthodes d'authentification activées")
+    public_endpoints: list[str] = Field(..., description="Liste des endpoints publics")
 
 
 class APIKeyInfo(BaseModel):
@@ -56,7 +57,7 @@ class HealthStatus(BaseModel):
     api_version: str = Field(..., description="Version de l'API")
     database: str = Field(..., description="Statut de la base de données")
     tables_count: int = Field(..., description="Nombre de tables disponibles")
-    authentication: Dict[str, Any] = Field(..., description="Configuration de l'authentification")
+    authentication: dict[str, Any] = Field(..., description="Configuration de l'authentification")
 
 
 class APIError(BaseModel):
@@ -64,7 +65,7 @@ class APIError(BaseModel):
 
     error: str = Field(..., description="Type d'erreur")
     message: str = Field(..., description="Message d'erreur détaillé")
-    details: Optional[Dict[str, Any]] = Field(None, description="Détails supplémentaires sur l'erreur")
+    details: dict[str, Any] | None = Field(None, description="Détails supplémentaires sur l'erreur")
 
 
 class WelcomeMessage(BaseModel):
@@ -72,9 +73,9 @@ class WelcomeMessage(BaseModel):
 
     message: str = Field(..., description="Message de bienvenue")
     version: str = Field(..., description="Version de l'API")
-    authentication: Dict[str, Any] = Field(..., description="Informations d'authentification")
-    available_tables: List[str] = Field(..., description="Tables disponibles")
-    examples: Dict[str, str] = Field(..., description="Exemples d'utilisation")
+    authentication: dict[str, Any] = Field(..., description="Informations d'authentification")
+    available_tables: list[str] = Field(..., description="Tables disponibles")
+    examples: dict[str, str] = Field(..., description="Exemples d'utilisation")
     docs: str = Field(..., description="URL de la documentation")
 
 
@@ -93,9 +94,9 @@ class ETLJobResponse(BaseModel):
     mode: str = Field(..., description="Mode d'exécution utilisé")
     status: str = Field(..., description="Statut : running | completed | failed")
     started_at: datetime = Field(..., description="Horodatage de démarrage")
-    finished_at: Optional[datetime] = Field(None, description="Horodatage de fin")
-    error: Optional[str] = Field(None, description="Message d'erreur si failed")
-    output: Optional[str] = Field(None, description="Sortie stdout/stderr du pipeline")
+    finished_at: datetime | None = Field(None, description="Horodatage de fin")
+    error: str | None = Field(None, description="Message d'erreur si failed")
+    output: str | None = Field(None, description="Sortie stdout/stderr du pipeline")
 
 
 # Modèles pour les requêtes (si nécessaire pour des POST/PUT futurs)
@@ -104,26 +105,26 @@ class FluxQuery(BaseModel):
     """Modèle pour les requêtes de flux avancées."""
 
     table_name: str = Field(..., description="Nom de la table à interroger")
-    filters: Optional[Dict[str, Any]] = Field(None, description="Filtres à appliquer")
-    columns: Optional[List[str]] = Field(None, description="Colonnes à sélectionner")
+    filters: dict[str, Any] | None = Field(None, description="Filtres à appliquer")
+    columns: list[str] | None = Field(None, description="Colonnes à sélectionner")
     limit: int = Field(100, ge=1, le=1000, description="Nombre maximum de résultats")
     offset: int = Field(0, ge=0, description="Décalage pour la pagination")
-    order_by: Optional[str] = Field(None, description="Colonne pour le tri")
+    order_by: str | None = Field(None, description="Colonne pour le tri")
 
 
 class APIKeyRequest(BaseModel):
     """Modèle pour les requêtes de gestion des clés API (futur)."""
 
-    name: Optional[str] = Field(None, description="Nom descriptif de la clé API")
-    permissions: List[str] = Field(default=["read"], description="Permissions accordées")
-    expires_at: Optional[datetime] = Field(None, description="Date d'expiration optionnelle")
+    name: str | None = Field(None, description="Nom descriptif de la clé API")
+    permissions: list[str] = Field(default=["read"], description="Permissions accordées")
+    expires_at: datetime | None = Field(None, description="Date d'expiration optionnelle")
 
 
 class APIKeyResponse(BaseModel):
     """Modèle pour les réponses de création de clés API (futur)."""
 
     api_key: str = Field(..., description="Clé API générée")
-    name: Optional[str] = Field(None, description="Nom descriptif")
-    permissions: List[str] = Field(..., description="Permissions accordées")
+    name: str | None = Field(None, description="Nom descriptif")
+    permissions: list[str] = Field(..., description="Permissions accordées")
     created_at: datetime = Field(default_factory=datetime.now, description="Date de création")
-    expires_at: Optional[datetime] = Field(None, description="Date d'expiration")
+    expires_at: datetime | None = Field(None, description="Date d'expiration")

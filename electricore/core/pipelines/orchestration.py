@@ -9,13 +9,14 @@ que pipeline_perimetre n'est appelé qu'une seule fois et que les résultats
 intermédiaires sont accessibles via le container ResultatFacturationPolars.
 """
 
-from typing import NamedTuple, Optional
+from typing import NamedTuple
+
 import polars as pl
 
-from electricore.core.pipelines.perimetre import pipeline_perimetre
 from electricore.core.pipelines.abonnements import pipeline_abonnements
 from electricore.core.pipelines.energie import pipeline_energie
 from electricore.core.pipelines.facturation import pipeline_facturation
+from electricore.core.pipelines.perimetre import pipeline_perimetre
 
 
 class ResultatFacturationPolars(NamedTuple):
@@ -45,9 +46,9 @@ class ResultatFacturationPolars(NamedTuple):
         abonnements_df = abo.collect()
     """
     historique_enrichi: pl.LazyFrame
-    abonnements: Optional[pl.LazyFrame] = None
-    energie: Optional[pl.LazyFrame] = None
-    facturation: Optional[pl.DataFrame] = None  # Collecté pour l'agrégation finale
+    abonnements: pl.LazyFrame | None = None
+    energie: pl.LazyFrame | None = None
+    facturation: pl.DataFrame | None = None  # Collecté pour l'agrégation finale
 
 
 def calculer_historique_enrichi(

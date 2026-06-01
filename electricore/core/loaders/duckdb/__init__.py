@@ -23,24 +23,23 @@ API publique :
 
 # Imports internes
 from .config import DuckDBConfig, duckdb_connection
-from .query import DuckDBQuery
 from .helpers import (
     # API fluide
     c15,
-    r151,
-    r15,
+    execute_custom_query,
     f15,
-    r64,
-    releves,
-    releves_harmonises,
+    # Utilitaires
+    get_available_tables,
     # API legacy
     load_historique_perimetre,
     load_releves,
-    # Utilitaires
-    get_available_tables,
-    execute_custom_query,
+    r15,
+    r64,
+    r151,
+    releves,
+    releves_harmonises,
 )
-
+from .query import DuckDBQuery
 
 # =============================================================================
 # EXPORTS PUBLICS

@@ -9,10 +9,9 @@ Le TURPE se décompose en :
 - TURPE variable : appliqué aux périodes d'énergie (tarifs par cadran horaire)
 """
 
-import polars as pl
 from pathlib import Path
-from typing import List, Optional
 
+import polars as pl
 
 # =============================================================================
 # CHARGEMENT DES RÈGLES TURPE
@@ -215,12 +214,12 @@ def expr_calculer_turpe_cadran(cadran: str) -> pl.Expr:
 
     return (
         pl.when(pl.col(energie_col).is_not_null() & pl.col(tarif_col).is_not_null())
-        .then((pl.col(energie_col) * pl.col(tarif_col) / 100))
+        .then(pl.col(energie_col) * pl.col(tarif_col) / 100)
         .otherwise(pl.lit(0.0))
     )
 
 
-def expr_calculer_turpe_contributions_cadrans() -> List[pl.Expr]:
+def expr_calculer_turpe_contributions_cadrans() -> list[pl.Expr]:
     """
     Expressions pour calculer les contributions TURPE de chaque cadran.
 
@@ -360,7 +359,7 @@ def valider_regles_presentes(lf: pl.LazyFrame) -> pl.LazyFrame:
 
 def ajouter_turpe_fixe(
     periodes: pl.LazyFrame,
-    regles: Optional[pl.LazyFrame] = None
+    regles: pl.LazyFrame | None = None
 ) -> pl.LazyFrame:
     """
     Ajoute le calcul du TURPE fixe aux périodes d'abonnement.
@@ -425,7 +424,7 @@ def ajouter_turpe_fixe(
 
 def ajouter_turpe_variable(
     periodes: pl.LazyFrame,
-    regles: Optional[pl.LazyFrame] = None
+    regles: pl.LazyFrame | None = None
 ) -> pl.LazyFrame:
     """
     Ajoute le calcul du TURPE variable aux périodes d'énergie.

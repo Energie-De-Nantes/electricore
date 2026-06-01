@@ -8,21 +8,23 @@ Les transformations peuvent être composées avec compose() pour créer
 des pipelines de transformation complexes.
 """
 
-import polars as pl
-from typing import Callable, Any
-from .expressions import (
-    INDEX_COLS,
-    DATE_COLS_HISTORIQUE,
-    DATE_COLS_RELEVES,
-    DATE_COLS_FACTURES,
-    DATE_COLS_R64,
-    expr_dates_with_timezone,
-    expr_wh_to_kwh_multi,
-    expr_normalize_unit,
-    expr_has_metadata,
-    expr_cadrans_count,
-)
+from collections.abc import Callable
+from typing import Any
 
+import polars as pl
+
+from .expressions import (
+    DATE_COLS_FACTURES,
+    DATE_COLS_HISTORIQUE,
+    DATE_COLS_R64,
+    DATE_COLS_RELEVES,
+    INDEX_COLS,
+    expr_cadrans_count,
+    expr_dates_with_timezone,
+    expr_has_metadata,
+    expr_normalize_unit,
+    expr_wh_to_kwh_multi,
+)
 
 # =============================================================================
 # HIGHER-ORDER FUNCTIONS (Currying)

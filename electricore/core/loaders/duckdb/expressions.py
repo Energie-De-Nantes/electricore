@@ -8,9 +8,8 @@ Les expressions sont composables et peuvent être utilisées dans with_columns()
 pour construire des pipelines de transformation complexes.
 """
 
-import polars as pl
-from typing import List
 
+import polars as pl
 
 # =============================================================================
 # CONSTANTES IMMUTABLES
@@ -52,7 +51,7 @@ def expr_with_timezone(date_col: str, tz: str = "Europe/Paris") -> pl.Expr:
 def expr_dates_with_timezone(
     *date_cols: str,
     tz: str = "Europe/Paris"
-) -> List[pl.Expr]:
+) -> list[pl.Expr]:
     """
     Expressions multiples pour conversion de plusieurs colonnes dates.
 
@@ -111,7 +110,7 @@ def expr_wh_to_kwh(index_col: str) -> pl.Expr:
     )
 
 
-def expr_wh_to_kwh_multi(*index_cols: str) -> List[pl.Expr]:
+def expr_wh_to_kwh_multi(*index_cols: str) -> list[pl.Expr]:
     """
     Expressions multiples pour conversion Wh -> kWh de plusieurs colonnes.
 

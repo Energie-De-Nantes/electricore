@@ -7,14 +7,14 @@ la duplication de code et améliorer la couverture des edge cases.
 
 import polars as pl
 import pytest
+
 from electricore.core.pipelines.perimetre import (
     expr_changement,
-    expr_resume_changement,
     expr_evenement_structurant,
     expr_impacte_abonnement,
     expr_impacte_energie,
+    expr_resume_changement,
 )
-
 
 # =========================================================================
 # TESTS PARAMÉTRÉS - expr_changement

@@ -9,6 +9,7 @@ Traite tous les flux configurés avec des options flexibles.
 #   AES__KEY   →  dlt.secrets['aes']['key']  etc.
 import os as _os
 from pathlib import Path as _Path
+
 for _c in [_Path(".env"), _Path(__file__).parents[3] / ".env"]:
     if _c.exists():
         with open(_c) as _f:
@@ -21,10 +22,10 @@ for _c in [_Path(".env"), _Path(__file__).parents[3] / ".env"]:
 
 import logging
 import sys
+from pathlib import Path
 
 import dlt
 import yaml
-from pathlib import Path
 from sources.sftp_enedis import flux_enedis
 
 # DLT écrit sur stderr — on laisse faire, le bot ne lit que stdout
@@ -58,7 +59,7 @@ def run_production_pipeline(
     if not config_path.exists():
         raise FileNotFoundError("Configuration flux.yaml non trouvée")
 
-    with open(config_path, 'r', encoding='utf-8') as f:
+    with open(config_path, encoding='utf-8') as f:
         all_flux_config = yaml.safe_load(f)
 
     # Filtrer les flux si spécifié
@@ -86,7 +87,7 @@ def run_production_pipeline(
 
     try:
         # Pipeline complet: Extract + Normalize + Load
-        load_info = pipeline.run(source, refresh=refresh)
+        pipeline.run(source, refresh=refresh)
 
         trace = pipeline.last_trace
         total_rows = 0
@@ -114,7 +115,6 @@ def run_production_pipeline(
 def main():
     """Point d'entrée principal avec différents modes"""
 
-    import sys
 
     if len(sys.argv) > 1:
         mode = sys.argv[1]

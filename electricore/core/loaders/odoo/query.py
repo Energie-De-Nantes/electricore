@@ -7,11 +7,14 @@ qui permet de naviguer et enrichir les données Odoo de manière fluide.
 
 from __future__ import annotations
 
-import polars as pl
-from typing import Dict, List, Optional
-from dataclasses import dataclass, field
-
 import logging
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
+import polars as pl
+
+if TYPE_CHECKING:
+    from electricore.core.loaders.odoo.reader import OdooReader
 
 logger = logging.getLogger(__name__)
 
@@ -32,14 +35,14 @@ class OdooQuery:
         ...         .collect())
     """
 
-    connector: 'OdooReader'  # Type hint forward reference
+    connector: OdooReader  # Type hint forward reference
     lazy_frame: pl.LazyFrame
-    _field_mappings: Dict[str, str] = field(default_factory=dict)
-    _current_model: Optional[str] = None
+    _field_mappings: dict[str, str] = field(default_factory=dict)
+    _current_model: str | None = None
 
     # === Méthodes atomiques privées ===
 
-    def _detect_relation_info(self, field_name: str) -> tuple[Optional[str], Optional[str]]:
+    def _detect_relation_info(self, field_name: str) -> tuple[str | None, str | None]:
         """
         Détecte le type de relation et le modèle cible.
 
@@ -66,7 +69,7 @@ class OdooQuery:
             return df.explode(field_name)
         return df
 
-    def _extract_ids(self, df: pl.DataFrame, field_name: str, relation_type: str) -> List[int]:
+    def _extract_ids(self, df: pl.DataFrame, field_name: str, relation_type: str) -> list[int]:
         """
         Extrait les IDs uniques depuis un champ selon son type.
         """
@@ -96,8 +99,8 @@ class OdooQuery:
 
         return unique_ids
 
-    def _fetch_related_data(self, target_model: str, ids: List[int],
-                            fields: Optional[List[str]], domain: Optional[List] = None) -> pl.DataFrame:
+    def _fetch_related_data(self, target_model: str, ids: list[int],
+                            fields: list[str] | None, domain: list | None = None) -> pl.DataFrame:
         """
         Récupère les données liées depuis Odoo.
         """
@@ -187,9 +190,9 @@ class OdooQuery:
 
     # === Méthode centrale ===
 
-    def _enrich_data(self, field_name: str, target_model: Optional[str] = None,
-                     fields: Optional[List[str]] = None,
-                     domain: Optional[List] = None,
+    def _enrich_data(self, field_name: str, target_model: str | None = None,
+                     fields: list[str] | None = None,
+                     domain: list | None = None,
                      how: str = 'left') -> tuple[pl.LazyFrame, str]:
         """
         Méthode centrale pour enrichir avec des données liées.
@@ -245,9 +248,9 @@ class OdooQuery:
 
     # === API publique ===
 
-    def follow(self, relation_field: str, target_model: Optional[str] = None,
-               fields: Optional[List[str]] = None,
-               domain: Optional[List] = None) -> OdooQuery:
+    def follow(self, relation_field: str, target_model: str | None = None,
+               fields: list[str] | None = None,
+               domain: list | None = None) -> OdooQuery:
         """
         Navigue vers une relation (change le modèle courant).
 
@@ -276,9 +279,9 @@ class OdooQuery:
             _current_model=target_model  # Navigation : change le modèle courant
         )
 
-    def enrich(self, relation_field: str, target_model: Optional[str] = None,
-               fields: Optional[List[str]] = None,
-               domain: Optional[List] = None) -> OdooQuery:
+    def enrich(self, relation_field: str, target_model: str | None = None,
+               fields: list[str] | None = None,
+               domain: list | None = None) -> OdooQuery:
         """
         Enrichit avec des données liées (garde le modèle courant).
 
@@ -326,7 +329,7 @@ class OdooQuery:
             _current_model=self._current_model
         )
 
-    def rename(self, mapping: Dict[str, str]) -> OdooQuery:
+    def rename(self, mapping: dict[str, str]) -> OdooQuery:
         """Renomme des colonnes."""
         return OdooQuery(
             connector=self.connector,

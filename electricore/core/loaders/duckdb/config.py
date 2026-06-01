@@ -6,9 +6,8 @@ pour l'accès aux bases DuckDB dans un style fonctionnel.
 """
 
 import os
-from pathlib import Path
-from typing import Union
 from contextlib import contextmanager
+from pathlib import Path
 
 import duckdb
 
@@ -16,7 +15,7 @@ import duckdb
 class DuckDBConfig:
     """Configuration pour les connexions DuckDB."""
 
-    def __init__(self, database_path: Union[str, Path] = None):
+    def __init__(self, database_path: str | Path = None):
         """
         Initialise la configuration DuckDB.
 
@@ -44,7 +43,7 @@ class DuckDBConfig:
 
 
 @contextmanager
-def duckdb_connection(database_path: Union[str, Path]):
+def duckdb_connection(database_path: str | Path):
     """
     Context manager pour connexions DuckDB.
 

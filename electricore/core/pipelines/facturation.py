@@ -6,17 +6,17 @@ fonctionnelle de Polars. Les expressions sont des transformations pures
 qui peuvent être composées entre elles pour générer les méta-périodes de facturation.
 """
 
-import polars as pl
+
 import pandera.polars as pa
+import polars as pl
 from pandera.typing.polars import DataFrame, LazyFrame
-from typing import Optional, List
+
+from electricore.core.models.aggregates import AbonnementMensuel, EnergieMensuel
+from electricore.core.models.periode_abonnement import PeriodeAbonnement
+from electricore.core.models.periode_energie import PeriodeEnergie
 
 # Import des modèles Pandera
 from electricore.core.models.periode_meta import PeriodeMeta
-from electricore.core.models.periode_abonnement import PeriodeAbonnement
-from electricore.core.models.periode_energie import PeriodeEnergie
-from electricore.core.models.aggregates import AbonnementMensuel, EnergieMensuel
-
 
 # =============================================================================
 # EXPRESSIONS ATOMIQUES POUR CALCULS D'AGRÉGATION
@@ -459,5 +459,5 @@ __all__ = [
     'expr_coverage_temporelle',
     'expr_calculer_trimestre',
     'expr_has_changement',
-    'expr_data_complete'
+    'expr_data_complete_meta_periode',
 ]

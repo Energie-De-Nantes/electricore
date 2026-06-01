@@ -5,7 +5,6 @@ Produit updates_rsc sans écriture dans Odoo.
 
 import io
 import zipfile
-from typing import Optional
 
 import polars as pl
 import xlsxwriter
@@ -22,7 +21,7 @@ MAPPING_CATEGORIE = {
 }
 
 
-def generer_facturation_xlsx(mois: Optional[str] = None) -> bytes:
+def generer_facturation_xlsx(mois: str | None = None) -> bytes:
     """
     Réconciliation Odoo ↔ Enedis pour le mois donné (défaut : dernier mois disponible).
 
@@ -85,7 +84,7 @@ def generer_facturation_xlsx(mois: Optional[str] = None) -> bytes:
     return buf.getvalue()
 
 
-def generer_documents_facturation(mois: Optional[str] = None) -> tuple[bytes, str]:
+def generer_documents_facturation(mois: str | None = None) -> tuple[bytes, str]:
     """
     Génère un ZIP avec les 6 documents utiles pour la facturation.
 

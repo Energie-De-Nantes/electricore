@@ -8,15 +8,15 @@ des snapshots.
 Pour mettre à jour les snapshots : pytest --snapshot-update
 """
 
-import pytest
-import polars as pl
 from datetime import datetime
+
+import polars as pl
+import pytest
 from syrupy.assertion import SnapshotAssertion
 
-from electricore.core.pipelines.perimetre import pipeline_perimetre
 from electricore.core.pipelines.abonnements import pipeline_abonnements
 from electricore.core.pipelines.energie import pipeline_energie
-
+from electricore.core.pipelines.perimetre import pipeline_perimetre
 
 # =========================================================================
 # FIXTURES SNAPSHOT - DONNÉES DE TEST

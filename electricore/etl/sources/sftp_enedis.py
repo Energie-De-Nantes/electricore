@@ -3,11 +3,11 @@ Source DLT pour les flux Enedis via SFTP avec architecture modulaire.
 Utilise le chaînage de transformers DLT pour une architecture propre.
 """
 
-import dlt
 import logging
 import os
 import re
-from typing import Iterator
+
+import dlt
 from dlt.sources.filesystem import filesystem
 
 logger = logging.getLogger(__name__)
@@ -33,13 +33,13 @@ def mask_password_in_url(url: str) -> str:
 
 
 # Imports des transformers modulaires
-from electricore.etl.transformers.crypto import create_decrypt_transformer
 from electricore.etl.transformers.archive import create_unzip_transformer
+from electricore.etl.transformers.crypto import create_decrypt_transformer
 from electricore.etl.transformers.parsers import (
-    create_xml_parser_transformer,
     create_csv_parser_transformer,
     create_json_parser_transformer,
-    create_json_r64_transformer
+    create_json_r64_transformer,
+    create_xml_parser_transformer,
 )
 
 

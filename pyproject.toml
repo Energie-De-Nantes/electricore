@@ -127,3 +127,27 @@ fail_under = 45
 
 [tool.coverage.html]
 directory = "htmlcov"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+extend-exclude = ["notebooks", "scripts"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = [
+    "E501",  # line-too-long — fix opportunistically (max line is 161, mass-fixing creates noise)
+    "B904",  # raise-without-from-inside-except — style, 26 sites, deferred
+]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends"]  # standard FastAPI DI pattern
+
+[tool.ruff.lint.per-file-ignores]
+"electricore/etl/pipeline_production.py" = ["E402"]  # sys.path setup before imports
+"electricore/etl/sources/sftp_enedis.py" = ["E402"]  # imports after section banner
+"electricore/etl/transformers/archive.py" = ["E402"]  # cross-module import after constants block
+"electricore/etl/tools/debug_single_flux.py" = ["E722"]  # debug-only script, bare except OK
+"electricore/etl/tools/check_incremental_state.py" = ["E722"]  # debug-only script, bare except OK
+"tests/integration/test_odoo_writer.py" = ["B017"]  # XML-RPC raises raw Exception, no specific type
+

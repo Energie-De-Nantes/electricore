@@ -4,43 +4,43 @@ Chargeurs de données pour ElectriCore.
 Modules de chargement et validation des données depuis différentes sources.
 """
 
-from .parquet import charger_releves, charger_historique
 from .duckdb import (
+    DuckDBConfig,
+    DuckDBQuery,
     # API fluide (nouvelles fonctions recommandées)
     c15,
-    r151,
-    r15,
+    execute_custom_query,
     f15,
-    r64,
-    releves,
-    releves_harmonises,
-    DuckDBQuery,
+    # Utilitaires
+    get_available_tables,
     # API legacy (compatibilité)
     load_historique_perimetre,
     load_releves,
-    # Utilitaires
-    get_available_tables,
-    execute_custom_query,
-    DuckDBConfig
+    r15,
+    r64,
+    r151,
+    releves,
+    releves_harmonises,
 )
 from .odoo import (
-    OdooReader,
-    OdooQuery,
     OdooConfig,
-    # API fonctionnelle - Helpers simples
-    query,
-    factures,
-    lignes_factures,
+    OdooQuery,
+    OdooReader,
     commandes,
-    partenaires,
     # API fonctionnelle - Helpers avec navigation
     commandes_factures,
     commandes_lignes,
     consommations_mensuelles,
-    lignes_a_facturer,
     # Expressions Polars utilitaires
     expr_calculer_trimestre_facturation,
+    factures,
+    lignes_a_facturer,
+    lignes_factures,
+    partenaires,
+    # API fonctionnelle - Helpers simples
+    query,
 )
+from .parquet import charger_historique, charger_releves
 
 __all__ = [
     # Loaders Parquet existants

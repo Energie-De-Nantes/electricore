@@ -5,14 +5,15 @@ Ce module fournit des fonctions pour charger des fichiers Parquet
 (exportés depuis les flux Enedis) et les valider avec Pandera.
 """
 
-import polars as pl
 from pathlib import Path
-from typing import Union
-from electricore.core.models.releve_index import RelevéIndex
+
+import polars as pl
+
 from electricore.core.models.historique_perimetre import HistoriquePérimètre
+from electricore.core.models.releve_index import RelevéIndex
 
 
-def charger_releves(path: Union[str, Path], valider: bool = True) -> pl.DataFrame:
+def charger_releves(path: str | Path, valider: bool = True) -> pl.DataFrame:
     """
     Charge et valide un fichier parquet de relevés d'index.
     
@@ -53,7 +54,7 @@ def charger_releves(path: Union[str, Path], valider: bool = True) -> pl.DataFram
     return df
 
 
-def charger_historique(path: Union[str, Path], valider: bool = True) -> pl.DataFrame:
+def charger_historique(path: str | Path, valider: bool = True) -> pl.DataFrame:
     """
     Charge et valide un fichier parquet d'historique de périmètre.
     

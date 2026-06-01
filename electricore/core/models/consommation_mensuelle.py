@@ -6,7 +6,6 @@ issues des lignes de factures Odoo.
 """
 
 import pandera.polars as pa
-from pandera.typing.polars import DataFrame
 
 
 class ConsommationMensuelle(pa.DataFrameModel):

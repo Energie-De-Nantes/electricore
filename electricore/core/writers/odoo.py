@@ -6,7 +6,8 @@ Ce module fournit OdooWriter pour créer et modifier des données dans Odoo ERP.
 
 import copy
 import logging
-from typing import Dict, List, Any, Hashable
+from collections.abc import Hashable
+from typing import Any
 
 from electricore.core.loaders.odoo.reader import OdooReader
 
@@ -26,7 +27,7 @@ class OdooWriter(OdooReader):
         'action_done', 'button_confirm', 'button_cancel', 'toggle_active'
     }
 
-    def __init__(self, config: Dict[str, str], sim: bool = False, **kwargs):
+    def __init__(self, config: dict[str, str], sim: bool = False, **kwargs):
         """
         Initialise le connecteur avec mode simulation.
 
@@ -38,7 +39,7 @@ class OdooWriter(OdooReader):
         super().__init__(config, **kwargs)
         self._sim = sim
 
-    def create(self, model: str, records: List[Dict[Hashable, Any]]) -> List[int]:
+    def create(self, model: str, records: list[dict[Hashable, Any]]) -> list[int]:
         """
         Crée des enregistrements dans Odoo.
 
@@ -68,7 +69,7 @@ class OdooWriter(OdooReader):
         logger.info(f'{model} #{created_ids} created in Odoo db.')
         return created_ids
 
-    def update(self, model: str, records: List[Dict[Hashable, Any]]) -> None:
+    def update(self, model: str, records: list[dict[Hashable, Any]]) -> None:
         """
         Met à jour des enregistrements dans Odoo.
 

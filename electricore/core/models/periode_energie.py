@@ -1,8 +1,7 @@
-import polars as pl
+
 import pandera.polars as pa
-from pandera.typing.polars import DataFrame
+import polars as pl
 from pandera.engines.polars_engine import DateTime
-from typing import Optional
 
 
 class PeriodeEnergie(pa.DataFrameModel):
@@ -15,17 +14,17 @@ class PeriodeEnergie(pa.DataFrameModel):
     """
     # Identifiants
     pdl: pl.Utf8 = pa.Field(nullable=False)
-    ref_situation_contractuelle: Optional[pl.Utf8] = pa.Field(nullable=True)
+    ref_situation_contractuelle: pl.Utf8 | None = pa.Field(nullable=True)
 
     # Période
     debut: DateTime = pa.Field(nullable=False, dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"})
     fin: DateTime = pa.Field(nullable=False, dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"})
-    nb_jours: Optional[pl.Int32] = pa.Field(nullable=True, ge=0)
+    nb_jours: pl.Int32 | None = pa.Field(nullable=True, ge=0)
 
     # Dates lisibles (optionnelles)
-    debut_lisible: Optional[pl.Utf8] = pa.Field(nullable=True)
-    fin_lisible: Optional[pl.Utf8] = pa.Field(nullable=True)
-    mois_annee: Optional[pl.Utf8] = pa.Field(nullable=True)
+    debut_lisible: pl.Utf8 | None = pa.Field(nullable=True)
+    fin_lisible: pl.Utf8 | None = pa.Field(nullable=True)
+    mois_annee: pl.Utf8 | None = pa.Field(nullable=True)
 
     # Sources des relevés
     source_avant: pl.Utf8 = pa.Field(nullable=False)
@@ -35,32 +34,32 @@ class PeriodeEnergie(pa.DataFrameModel):
     data_complete: pl.Boolean = pa.Field(nullable=False)
 
     # Énergies consommées par cadran en kWh (optionnelles selon le type de compteur)
-    energie_base_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
-    energie_hp_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
-    energie_hc_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
-    energie_hph_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
-    energie_hpb_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
-    energie_hch_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
-    energie_hcb_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
+    energie_base_kwh: pl.Float64 | None = pa.Field(nullable=True)
+    energie_hp_kwh: pl.Float64 | None = pa.Field(nullable=True)
+    energie_hc_kwh: pl.Float64 | None = pa.Field(nullable=True)
+    energie_hph_kwh: pl.Float64 | None = pa.Field(nullable=True)
+    energie_hpb_kwh: pl.Float64 | None = pa.Field(nullable=True)
+    energie_hch_kwh: pl.Float64 | None = pa.Field(nullable=True)
+    energie_hcb_kwh: pl.Float64 | None = pa.Field(nullable=True)
 
     # Informations contractuelles pour calcul TURPE (colonnes optionnelles)
-    formule_tarifaire_acheminement: Optional[pl.Utf8] = pa.Field(nullable=True)
+    formule_tarifaire_acheminement: pl.Utf8 | None = pa.Field(nullable=True)
 
     # Calculs TURPE en euros (colonnes optionnelles)
-    turpe_variable_eur: Optional[pl.Float64] = pa.Field(nullable=True)
+    turpe_variable_eur: pl.Float64 | None = pa.Field(nullable=True)
 
     # Composante dépassement C4 (colonne optionnelle en entrée, fournie par l'appelant)
     # Durée totale de dépassement de puissance souscrite sur tous les cadrans (heures)
-    duree_depassement_h: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)
+    duree_depassement_h: pl.Float64 | None = pa.Field(nullable=True, ge=0.0)
 
     # Flags pour tracer les relevés manquants (colonnes optionnelles)
-    releve_manquant_debut: Optional[pl.Boolean] = pa.Field(nullable=True)
-    releve_manquant_fin: Optional[pl.Boolean] = pa.Field(nullable=True)
+    releve_manquant_debut: pl.Boolean | None = pa.Field(nullable=True)
+    releve_manquant_fin: pl.Boolean | None = pa.Field(nullable=True)
 
     # Métadonnées de qualité et complétude
-    nb_sous_periodes: Optional[pl.Int32] = pa.Field(nullable=True, ge=1)
-    coverage_energie: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0, le=1.0)
-    has_changement: Optional[pl.Boolean] = pa.Field(nullable=True)
+    nb_sous_periodes: pl.Int32 | None = pa.Field(nullable=True, ge=1)
+    coverage_energie: pl.Float64 | None = pa.Field(nullable=True, ge=0.0, le=1.0)
+    has_changement: pl.Boolean | None = pa.Field(nullable=True)
 
     @pa.dataframe_check
     def verifier_coherence_periode(cls, data) -> pl.LazyFrame:

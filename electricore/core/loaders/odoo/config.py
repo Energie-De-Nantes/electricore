@@ -6,7 +6,6 @@ aux serveurs Odoo dans un style fonctionnel immutable.
 """
 
 from dataclasses import dataclass
-from typing import Dict, Optional
 
 
 @dataclass(frozen=True)
@@ -26,7 +25,7 @@ class OdooConfig:
     password: str
 
     @classmethod
-    def from_dict(cls, config: Dict[str, str]) -> 'OdooConfig':
+    def from_dict(cls, config: dict[str, str]) -> 'OdooConfig':
         """
         Crée une OdooConfig depuis un dictionnaire de configuration.
 
@@ -55,10 +54,14 @@ class OdooConfig:
 
         # Validation
         missing = []
-        if not url: missing.append('url')
-        if not db: missing.append('db')
-        if not username: missing.append('username')
-        if not password: missing.append('password')
+        if not url:
+            missing.append('url')
+        if not db:
+            missing.append('db')
+        if not username:
+            missing.append('username')
+        if not password:
+            missing.append('password')
 
         if missing:
             raise ValueError(
@@ -82,9 +85,9 @@ class FieldsCache:
 
     def __init__(self):
         """Initialise un cache vide."""
-        self._cache: Dict[str, Dict[str, Dict]] = {}
+        self._cache: dict[str, dict[str, dict]] = {}
 
-    def get(self, model: str, field_name: str) -> Optional[Dict]:
+    def get(self, model: str, field_name: str) -> dict | None:
         """
         Récupère les métadonnées d'un champ depuis le cache.
 
@@ -97,7 +100,7 @@ class FieldsCache:
         """
         return self._cache.get(model, {}).get(field_name)
 
-    def set(self, model: str, field_name: str, field_info: Optional[Dict]) -> None:
+    def set(self, model: str, field_name: str, field_info: dict | None) -> None:
         """
         Stocke les métadonnées d'un champ dans le cache.
 

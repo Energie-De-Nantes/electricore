@@ -31,12 +31,7 @@ def __getattr__(name: str):
     """
     # Pipeline Accise (pas de Pandera)
     if name in ["pipeline_accise", "load_accise_rules", "agreger_consommations_mensuelles", "ajouter_accise"]:
-        from .accise import (
-            pipeline_accise,
-            load_accise_rules,
-            agreger_consommations_mensuelles,
-            ajouter_accise
-        )
+        from .accise import agreger_consommations_mensuelles, ajouter_accise, load_accise_rules, pipeline_accise
 
         return {
             "pipeline_accise": pipeline_accise,
@@ -49,10 +44,10 @@ def __getattr__(name: str):
     if name in __all__:
         from .orchestration import (
             ResultatFacturationPolars,
-            calculer_historique_enrichi,
             calculer_abonnements,
             calculer_energie,
-            facturation
+            calculer_historique_enrichi,
+            facturation,
         )
 
         return {

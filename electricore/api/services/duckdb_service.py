@@ -4,13 +4,10 @@ Fonctions pures pour lire les tables de flux Enedis.
 """
 
 import io
-
 import os
+from pathlib import Path
 
 import duckdb
-import polars as pl
-from pathlib import Path
-from typing import Optional
 
 DB_PATH = Path(os.getenv("DUCKDB_PATH", "electricore/etl/flux_enedis_pipeline.duckdb"))
 SCHEMA = "flux_enedis"
@@ -18,7 +15,7 @@ SCHEMA = "flux_enedis"
 
 def query_table(
     table_name: str, 
-    filters: Optional[dict] = None, 
+    filters: dict | None = None, 
     limit: int = 100,
     offset: int = 0
 ) -> list[dict]:
@@ -46,7 +43,7 @@ def query_table(
     with duckdb.connect(str(DB_PATH), read_only=True) as conn:
         result = conn.execute(sql)
         columns = [desc[0] for desc in result.description]
-        return [dict(zip(columns, row)) for row in result.fetchall()]
+        return [dict(zip(columns, row, strict=False)) for row in result.fetchall()]
 
 
 def get_table_info(table_name: str) -> dict:
@@ -84,7 +81,7 @@ def get_table_info(table_name: str) -> dict:
 
 def query_table_xlsx(
     table_name: str,
-    filters: Optional[dict] = None,
+    filters: dict | None = None,
     limit: int = 10000,
 ) -> bytes:
     """

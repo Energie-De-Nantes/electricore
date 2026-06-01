@@ -9,22 +9,21 @@ import uuid
 from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
-from typing import Optional
 
 # Racine du projet (3 niveaux au-dessus de electricore/api/services/)
 _PROJECT_ROOT = Path(__file__).parents[3]
 
 
-class ETLMode(str, Enum):
+class ETLMode(StrEnum):
     test = "test"
     r151 = "r151"
     all = "all"
     reset = "reset"
 
 
-class ETLStatus(str, Enum):
+class ETLStatus(StrEnum):
     running = "running"
     completed = "completed"
     failed = "failed"
@@ -41,9 +40,9 @@ class ETLJob:
     mode: ETLMode
     status: ETLStatus
     started_at: datetime
-    finished_at: Optional[datetime] = None
-    error: Optional[str] = None
-    output: Optional[str] = None
+    finished_at: datetime | None = None
+    error: str | None = None
+    output: str | None = None
 
 
 def is_etl_available() -> bool:
@@ -60,7 +59,7 @@ def is_running() -> bool:
     return any(j.status == ETLStatus.running for j in _jobs.values())
 
 
-def get_job(job_id: str) -> Optional[ETLJob]:
+def get_job(job_id: str) -> ETLJob | None:
     return _jobs.get(job_id)
 
 

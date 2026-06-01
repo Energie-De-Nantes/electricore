@@ -6,8 +6,8 @@ fonctionnelle de Polars. Les expressions sont des transformations pures
 qui peuvent être composées entre elles pour générer les périodes d'abonnement.
 """
 
+
 import polars as pl
-from typing import Optional
 
 # =============================================================================
 # EXPRESSIONS PURES ATOMIQUES

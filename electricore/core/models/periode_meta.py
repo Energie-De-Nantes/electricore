@@ -6,11 +6,10 @@ agrégées de facturation, combinant abonnements et énergies en utilisant Polar
 pour des performances optimisées.
 """
 
-import polars as pl
+
 import pandera.polars as pa
-from pandera.typing.polars import DataFrame
+import polars as pl
 from pandera.engines.polars_engine import DateTime
-from typing import Optional
 
 
 class PeriodeMeta(pa.DataFrameModel):
@@ -47,13 +46,13 @@ class PeriodeMeta(pa.DataFrameModel):
     nb_jours: pl.Int32 = pa.Field(nullable=False, ge=1)
 
     # Énergies consommées par cadran en kWh (optionnelles selon le type de compteur)
-    energie_base_kwh: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)
-    energie_hp_kwh: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)
-    energie_hc_kwh: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)
+    energie_base_kwh: pl.Float64 | None = pa.Field(nullable=True, ge=0.0)
+    energie_hp_kwh: pl.Float64 | None = pa.Field(nullable=True, ge=0.0)
+    energie_hc_kwh: pl.Float64 | None = pa.Field(nullable=True, ge=0.0)
 
     # Montants TURPE en euros
-    turpe_fixe_eur: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)
-    turpe_variable_eur: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)
+    turpe_fixe_eur: pl.Float64 | None = pa.Field(nullable=True, ge=0.0)
+    turpe_variable_eur: pl.Float64 | None = pa.Field(nullable=True, ge=0.0)
 
     # Métadonnées de traçabilité des sous-périodes
     nb_sous_periodes_abo: pl.Int32 = pa.Field(nullable=False, ge=1)
@@ -66,11 +65,11 @@ class PeriodeMeta(pa.DataFrameModel):
     data_complete: pl.Boolean = pa.Field(nullable=False)  # True si coverage_abo=1.0 ET coverage_energie=1.0
 
     # Métadonnées optionnelles pour lisibilité
-    debut_lisible: Optional[pl.Utf8] = pa.Field(nullable=True)
-    fin_lisible: Optional[pl.Utf8] = pa.Field(nullable=True)
+    debut_lisible: pl.Utf8 | None = pa.Field(nullable=True)
+    fin_lisible: pl.Utf8 | None = pa.Field(nullable=True)
 
     # Mémo des changements de puissance (optionnel, pratique pour facturation)
-    memo_puissance: Optional[pl.Utf8] = pa.Field(nullable=True)
+    memo_puissance: pl.Utf8 | None = pa.Field(nullable=True)
 
     @pa.dataframe_check
     def verifier_coherence_periode(cls, data) -> pl.LazyFrame:

@@ -8,10 +8,9 @@ L'Accise est calculée sur la base de la consommation mensuelle en appliquant
 les taux réglementaires en vigueur selon la période.
 """
 
-import polars as pl
 from pathlib import Path
-from typing import Optional
 
+import polars as pl
 
 # =============================================================================
 # CHARGEMENT DES RÈGLES ACCISE
@@ -169,7 +168,7 @@ def expr_filtrer_regles_temporelles() -> pl.Expr:
 
 def ajouter_accise(
     consommations: pl.LazyFrame,
-    regles: Optional[pl.LazyFrame] = None
+    regles: pl.LazyFrame | None = None
 ) -> pl.LazyFrame:
     """
     Ajoute le calcul de l'Accise aux consommations mensuelles.
@@ -248,7 +247,7 @@ def ajouter_accise(
 
 def pipeline_accise(
     lignes_factures: pl.LazyFrame,
-    regles: Optional[pl.LazyFrame] = None
+    regles: pl.LazyFrame | None = None
 ) -> pl.DataFrame:
     """
     Pipeline complet de calcul de l'Accise depuis les lignes de factures.

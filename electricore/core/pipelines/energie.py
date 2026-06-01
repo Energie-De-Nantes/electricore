@@ -6,18 +6,17 @@ fonctionnelle de Polars. Les expressions sont des transformations pures
 qui peuvent être composées entre elles pour générer les périodes d'énergie.
 """
 
+
 import polars as pl
-from typing import Optional, List
 
 # Import du calcul TURPE variable
 from electricore.core.pipelines.turpe import ajouter_turpe_variable
-
 
 # =============================================================================
 # EXPRESSIONS PURES ATOMIQUES POUR LE CALCUL D'ÉNERGIE
 # =============================================================================
 
-def expr_bornes_depuis_shift(over: str = "ref_situation_contractuelle") -> List[pl.Expr]:
+def expr_bornes_depuis_shift(over: str = "ref_situation_contractuelle") -> list[pl.Expr]:
     """
     Définit les bornes temporelles des périodes en utilisant shift sur les relevés.
 
@@ -44,7 +43,7 @@ def expr_bornes_depuis_shift(over: str = "ref_situation_contractuelle") -> List[
     ]
 
 
-def expr_arrondir_index_kwh(cadrans: List[str]) -> List[pl.Expr]:
+def expr_arrondir_index_kwh(cadrans: list[str]) -> list[pl.Expr]:
     """
     Expressions pour arrondir les index à l'entier inférieur (kWh complets).
 
@@ -99,7 +98,7 @@ def expr_calculer_energie_cadran(index_col: str, over: str = "ref_situation_cont
     )
 
 
-def expr_calculer_energies_tous_cadrans(index_cols: List[str]) -> List[pl.Expr]:
+def expr_calculer_energies_tous_cadrans(index_cols: list[str]) -> list[pl.Expr]:
     """
     Expressions pour calculer les énergies de tous les cadrans présents.
 
@@ -123,7 +122,7 @@ def expr_calculer_energies_tous_cadrans(index_cols: List[str]) -> List[pl.Expr]:
     ]
 
 
-def expr_enrichir_cadrans_principaux() -> List[pl.Expr]:
+def expr_enrichir_cadrans_principaux() -> list[pl.Expr]:
     """
     Enrichit tous les cadrans principaux avec synthèse hiérarchique des énergies.
 

@@ -8,14 +8,15 @@ Ce module fournit un builder de requêtes suivant les principes fonctionnels :
 - Séparation claire entre construction et exécution
 """
 
-import polars as pl
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Union, Dict, Any, Callable, Optional
+from typing import Any
+
+import polars as pl
 
 from .config import DuckDBConfig, duckdb_connection
 from .sql import FluxSchema, build_base_query
-
 
 # =============================================================================
 # CONFIGURATIONS IMMUTABLES
@@ -33,7 +34,7 @@ class QueryConfig:
     """
     schema: FluxSchema
     transform: Callable[[pl.LazyFrame], pl.LazyFrame]
-    validator: Optional[type] = None
+    validator: type | None = None
 
 
 # =============================================================================
@@ -64,17 +65,17 @@ class DuckDBQuery:
     config: QueryConfig
 
     # État de la requête (immutable tuples)
-    database_path: Optional[Union[str, Path]] = None
+    database_path: str | Path | None = None
     filters: tuple[tuple[str, Any], ...] = ()  # Tuple de tuples = immutable
-    limit_value: Optional[int] = None
+    limit_value: int | None = None
     valider: bool = True
-    base_sql: Optional[str] = None  # Pour requêtes CTE/UNION pré-construites
+    base_sql: str | None = None  # Pour requêtes CTE/UNION pré-construites
 
     # =========================================================================
     # MÉTHODES BUILDER (Retournent nouvelles instances)
     # =========================================================================
 
-    def filter(self, filters: Dict[str, Any]) -> 'DuckDBQuery':
+    def filter(self, filters: dict[str, Any]) -> 'DuckDBQuery':
         """
         Ajoute des filtres à la requête.
 
@@ -268,7 +269,7 @@ class DuckDBQuery:
 
 def make_query(
     config: QueryConfig,
-    database_path: Optional[Union[str, Path]] = None
+    database_path: str | Path | None = None
 ) -> DuckDBQuery:
     """
     Factory générique pour créer un DuckDBQuery depuis une configuration.

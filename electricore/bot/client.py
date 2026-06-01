@@ -4,6 +4,7 @@ Utilisé par le bot Telegram pour appeler les endpoints REST.
 """
 
 import httpx
+
 from electricore.api.config import settings
 
 

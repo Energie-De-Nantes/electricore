@@ -3,9 +3,9 @@ Configuration de l'API ElectriCore avec gestion des clés API.
 Utilise Pydantic Settings pour une configuration basée sur les variables d'environnement.
 """
 
-import secrets
 import os
-from typing import Dict, List
+import secrets
+
 from pydantic import BaseModel, Field, validator
 
 from electricore.config.env import charger_env
@@ -41,7 +41,7 @@ class APISettings(BaseModel):
     telegram_allowed_users: str = Field(default="")  # IDs séparés par virgule
 
     # Endpoints publics (sans authentification)
-    public_endpoints: List[str] = Field(
+    public_endpoints: list[str] = Field(
         default=["/", "/health", "/docs", "/redoc", "/openapi.json"]
     )
 
@@ -57,7 +57,7 @@ class APISettings(BaseModel):
         except (ValueError, Exception):
             return False
 
-    def get_odoo_config(self) -> Dict[str, str]:
+    def get_odoo_config(self) -> dict[str, str]:
         """Retourne la config Odoo sous forme de dict compatible avec OdooReader."""
         from electricore.config.odoo import charger_config_odoo
         return charger_config_odoo(env=self.odoo_env)
@@ -97,7 +97,7 @@ class APISettings(BaseModel):
 
         return ",".join(keys) if keys else ""
 
-    def get_valid_api_keys(self) -> List[str]:
+    def get_valid_api_keys(self) -> list[str]:
         """
         Retourne la liste des clés API valides.
 

@@ -4,10 +4,10 @@ Modèles Pandera pour factures Odoo (account.move).
 Schémas de validation pour les factures et lignes de factures.
 """
 
-import polars as pl
+
 import pandera.polars as pa
+import polars as pl
 from pandera.dtypes import DateTime
-from typing import Optional
 
 
 class FactureOdoo(pa.DataFrameModel):
@@ -22,11 +22,11 @@ class FactureOdoo(pa.DataFrameModel):
 
     # Référence et dates
     name: pl.Utf8 = pa.Field(nullable=False)  # Numéro de facture
-    invoice_date: Optional[DateTime] = pa.Field(
+    invoice_date: DateTime | None = pa.Field(
         nullable=True,
         dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"}
     )
-    invoice_date_due: Optional[DateTime] = pa.Field(
+    invoice_date_due: DateTime | None = pa.Field(
         nullable=True,
         dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"}
     )
@@ -42,13 +42,13 @@ class FactureOdoo(pa.DataFrameModel):
     )
 
     # Montants
-    amount_untaxed: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)
-    amount_tax: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)
-    amount_total: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)
-    amount_residual: Optional[pl.Float64] = pa.Field(nullable=True)
+    amount_untaxed: pl.Float64 | None = pa.Field(nullable=True, ge=0.0)
+    amount_tax: pl.Float64 | None = pa.Field(nullable=True, ge=0.0)
+    amount_total: pl.Float64 | None = pa.Field(nullable=True, ge=0.0)
+    amount_residual: pl.Float64 | None = pa.Field(nullable=True)
 
     # Relations (IDs extraits)
-    partner_id: Optional[pl.Int64] = pa.Field(nullable=True)
+    partner_id: pl.Int64 | None = pa.Field(nullable=True)
 
     class Config:
         """Configuration du modèle."""
@@ -70,18 +70,18 @@ class LigneFactureOdoo(pa.DataFrameModel):
     name: pl.Utf8 = pa.Field(nullable=False)  # Description
 
     # Quantités et prix
-    quantity: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)
-    price_unit: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)
-    price_subtotal: Optional[pl.Float64] = pa.Field(nullable=True)
-    price_total: Optional[pl.Float64] = pa.Field(nullable=True)
+    quantity: pl.Float64 | None = pa.Field(nullable=True, ge=0.0)
+    price_unit: pl.Float64 | None = pa.Field(nullable=True, ge=0.0)
+    price_subtotal: pl.Float64 | None = pa.Field(nullable=True)
+    price_total: pl.Float64 | None = pa.Field(nullable=True)
 
     # Relations (IDs extraits)
-    move_id: Optional[pl.Int64] = pa.Field(nullable=True)
-    product_id: Optional[pl.Int64] = pa.Field(nullable=True)
-    account_id: Optional[pl.Int64] = pa.Field(nullable=True)
+    move_id: pl.Int64 | None = pa.Field(nullable=True)
+    product_id: pl.Int64 | None = pa.Field(nullable=True)
+    account_id: pl.Int64 | None = pa.Field(nullable=True)
 
     # Taxes
-    tax_ids: Optional[pl.List] = pa.Field(nullable=True)
+    tax_ids: pl.List | None = pa.Field(nullable=True)
 
     class Config:
         """Configuration du modèle."""

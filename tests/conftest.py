@@ -7,13 +7,13 @@ les hooks pytest pour personnaliser le comportement des tests.
 """
 
 import tempfile
-from pathlib import Path
-from typing import Generator
-import pytest
-import polars as pl
-import duckdb
+from collections.abc import Generator
 from datetime import datetime
+from pathlib import Path
 
+import duckdb
+import polars as pl
+import pytest
 
 # =========================================================================
 # FIXTURES - DONNÉES DE TEST MINIMALES

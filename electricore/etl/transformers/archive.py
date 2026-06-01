@@ -3,12 +3,12 @@ Transformer DLT pour l'extraction de fichiers depuis des archives ZIP.
 Inclut les fonctions pures d'extraction et le transformer DLT.
 """
 
-import dlt
+import io
 import logging
 import zipfile
-import io
-from typing import Iterator, Optional
-import fnmatch
+from collections.abc import Iterator
+
+import dlt
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,6 @@ def extract_files_from_zip(zip_data: bytes, file_extension: str = '.xml') -> lis
 # Import de la fonction de matching depuis parsers
 from electricore.etl.transformers.parsers import match_xml_pattern
 
-
 # =============================================================================
 # TRANSFORMER DLT
 # =============================================================================
@@ -58,7 +57,7 @@ from electricore.etl.transformers.parsers import match_xml_pattern
 def _unzip_transformer_base(
     decrypted_file: dict,
     file_extension: str,
-    file_regex: Optional[str]
+    file_regex: str | None
 ) -> Iterator[dict]:
     """
     Fonction de base pour extraire les fichiers d'archives ZIP déchiffrées.
@@ -114,7 +113,7 @@ def _unzip_transformer_base(
 
 def create_unzip_transformer(
     file_extension: str = '.xml',
-    file_regex: Optional[str] = None
+    file_regex: str | None = None
 ):
     """
     Factory pour créer un transformer d'extraction ZIP configuré.

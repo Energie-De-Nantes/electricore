@@ -5,26 +5,30 @@ Ces tests valident l'intégration DuckDB avec les pipelines ElectriCore,
 incluant le chargement des données, les transformations et la validation Pandera.
 """
 
-import pytest
-import polars as pl
+from datetime import UTC
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
+
+import polars as pl
+import pytest
 
 from electricore.core.loaders.duckdb import (
     DuckDBConfig,
     DuckDBQuery,
+    c15,
+    duckdb_connection,
+    execute_custom_query,
+    get_available_tables,
     load_historique_perimetre,
     load_releves,
-    get_available_tables,
-    execute_custom_query,
-    duckdb_connection,
-    c15,
     releves,
 )
 
 # Import des transformations depuis le module interne
 from electricore.core.loaders.duckdb.transforms import (
     transform_historique_perimetre as _transform_historique_perimetre,
+)
+from electricore.core.loaders.duckdb.transforms import (
     transform_releves as _transform_releves,
 )
 
@@ -79,7 +83,7 @@ class TestDuckDBConnection:
         mock_connect.return_value = mock_conn
 
         try:
-            with duckdb_connection("test.duckdb") as conn:
+            with duckdb_connection("test.duckdb"):
                 raise Exception("Test error")
         except Exception:
             pass
@@ -93,13 +97,13 @@ class TestTransformationFunctions:
 
     def test_transform_historique_perimetre(self):
         """Test de transformation des données d'historique."""
-        from datetime import datetime, timezone as tz
+        from datetime import datetime
 
         # Créer un LazyFrame de test avec dates timezone-aware Python
         test_data = pl.DataFrame({
-            "date_evenement": [datetime(2024, 1, 1, 10, 0, 0, tzinfo=tz.utc)],
-            "avant_date_releve": [datetime(2024, 1, 1, 9, 0, 0, tzinfo=tz.utc)],
-            "apres_date_releve": [datetime(2024, 1, 1, 11, 0, 0, tzinfo=tz.utc)],
+            "date_evenement": [datetime(2024, 1, 1, 10, 0, 0, tzinfo=UTC)],
+            "avant_date_releve": [datetime(2024, 1, 1, 9, 0, 0, tzinfo=UTC)],
+            "apres_date_releve": [datetime(2024, 1, 1, 11, 0, 0, tzinfo=UTC)],
             "pdl": ["PDL123"]
         }).lazy()
 
@@ -120,11 +124,11 @@ class TestTransformationFunctions:
 
     def test_transform_releves(self):
         """Test de transformation des données de relevés."""
-        from datetime import datetime, timezone as tz
+        from datetime import datetime
 
         # Créer un LazyFrame de test avec noms de colonnes selon convention
         test_data = pl.DataFrame({
-            "date_releve": [datetime(2024, 1, 1, 10, 0, 0, tzinfo=tz.utc)],
+            "date_releve": [datetime(2024, 1, 1, 10, 0, 0, tzinfo=UTC)],
             "pdl": ["PDL123"],
             "index_hp_kwh": [1000.0],
             "index_base_kwh": [2000.0],
@@ -276,7 +280,6 @@ class TestLoadFunctions:
         """Test de base du chargement d'historique."""
         # Test simplifié : vérifier que la fonction retourne un LazyFrame
         # lorsque la base existe
-        from pathlib import Path
 
         # Créer une query avec la méthode factory et vérifier l'API
         query = c15()
@@ -298,7 +301,6 @@ class TestLoadFunctions:
     def test_load_releves_basic(self):
         """Test de base du chargement de relevés."""
         # Test simplifié : vérifier que la fonction API fonctionne
-        from pathlib import Path
         from electricore.core.loaders.duckdb import DuckDBQuery
 
         # Créer une query avec la méthode factory

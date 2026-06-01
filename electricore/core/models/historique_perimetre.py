@@ -1,8 +1,8 @@
-import polars as pl
+
 import pandera.polars as pa
-from pandera.typing.polars import DataFrame
+import polars as pl
 from pandera.engines.polars_engine import DateTime
-from typing import Optional, Annotated
+
 
 class HistoriquePérimètre(pa.DataFrameModel):
     """
@@ -24,7 +24,7 @@ class HistoriquePérimètre(pa.DataFrameModel):
     etat_contractuel: pl.Utf8 = pa.Field(nullable=False)  # "EN SERVICE", "RESILIE", etc.
     evenement_declencheur: pl.Utf8 = pa.Field(nullable=False)  # Ex: "MCT", "MES", "RES"
     type_evenement: pl.Utf8 = pa.Field(nullable=False)
-    categorie: Optional[pl.Utf8] = pa.Field(nullable=True)
+    categorie: pl.Utf8 | None = pa.Field(nullable=True)
 
     # Informations pour calculs tarifs
     puissance_souscrite_kva: pl.Float64 = pa.Field(nullable=False)
@@ -35,42 +35,42 @@ class HistoriquePérimètre(pa.DataFrameModel):
     num_compteur: pl.Utf8 = pa.Field(nullable=False)
 
     # Informations Demande (Optionnelles)
-    ref_demandeur: Optional[pl.Utf8] = pa.Field(nullable=True)
-    id_affaire: Optional[pl.Utf8] = pa.Field(nullable=True)
+    ref_demandeur: pl.Utf8 | None = pa.Field(nullable=True)
+    id_affaire: pl.Utf8 | None = pa.Field(nullable=True)
 
     # Colonnes supplémentaires fréquemment présentes dans les exports
-    source: Optional[pl.Utf8] = pa.Field(nullable=True)
-    marque: Optional[pl.Utf8] = pa.Field(nullable=True)
-    unite: Optional[pl.Utf8] = pa.Field(nullable=True)
-    precision: Optional[pl.Utf8] = pa.Field(nullable=True)
-    num_depannage: Optional[pl.Utf8] = pa.Field(nullable=True)
-    date_derniere_modification_fta: Optional[pl.Utf8] = pa.Field(nullable=True)
+    source: pl.Utf8 | None = pa.Field(nullable=True)
+    marque: pl.Utf8 | None = pa.Field(nullable=True)
+    unite: pl.Utf8 | None = pa.Field(nullable=True)
+    precision: pl.Utf8 | None = pa.Field(nullable=True)
+    num_depannage: pl.Utf8 | None = pa.Field(nullable=True)
+    date_derniere_modification_fta: pl.Utf8 | None = pa.Field(nullable=True)
     
     # Colonnes de relevés "Avant" (index de compteurs)
-    avant_date_releve: Optional[DateTime] = pa.Field(nullable=True, dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"})
-    avant_nature_index: Optional[pl.Utf8] = pa.Field(nullable=True)
-    avant_id_calendrier_fournisseur: Optional[pl.Utf8] = pa.Field(nullable=True)
-    avant_id_calendrier_distributeur: Optional[pl.Utf8] = pa.Field(nullable=True)
-    avant_index_hp_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
-    avant_index_hc_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
-    avant_index_hch_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
-    avant_index_hph_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
-    avant_index_hpb_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
-    avant_index_hcb_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
-    avant_index_base_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
+    avant_date_releve: DateTime | None = pa.Field(nullable=True, dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"})
+    avant_nature_index: pl.Utf8 | None = pa.Field(nullable=True)
+    avant_id_calendrier_fournisseur: pl.Utf8 | None = pa.Field(nullable=True)
+    avant_id_calendrier_distributeur: pl.Utf8 | None = pa.Field(nullable=True)
+    avant_index_hp_kwh: pl.Float64 | None = pa.Field(nullable=True)
+    avant_index_hc_kwh: pl.Float64 | None = pa.Field(nullable=True)
+    avant_index_hch_kwh: pl.Float64 | None = pa.Field(nullable=True)
+    avant_index_hph_kwh: pl.Float64 | None = pa.Field(nullable=True)
+    avant_index_hpb_kwh: pl.Float64 | None = pa.Field(nullable=True)
+    avant_index_hcb_kwh: pl.Float64 | None = pa.Field(nullable=True)
+    avant_index_base_kwh: pl.Float64 | None = pa.Field(nullable=True)
 
     # Colonnes de relevés "Après" (index de compteurs)
-    apres_date_releve: Optional[DateTime] = pa.Field(nullable=True, dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"})
-    apres_nature_index: Optional[pl.Utf8] = pa.Field(nullable=True)
-    apres_id_calendrier_fournisseur: Optional[pl.Utf8] = pa.Field(nullable=True)
-    apres_id_calendrier_distributeur: Optional[pl.Utf8] = pa.Field(nullable=True)
-    apres_index_hp_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
-    apres_index_hc_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
-    apres_index_hch_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
-    apres_index_hph_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
-    apres_index_hpb_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
-    apres_index_hcb_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
-    apres_index_base_kwh: Optional[pl.Float64] = pa.Field(nullable=True)
+    apres_date_releve: DateTime | None = pa.Field(nullable=True, dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"})
+    apres_nature_index: pl.Utf8 | None = pa.Field(nullable=True)
+    apres_id_calendrier_fournisseur: pl.Utf8 | None = pa.Field(nullable=True)
+    apres_id_calendrier_distributeur: pl.Utf8 | None = pa.Field(nullable=True)
+    apres_index_hp_kwh: pl.Float64 | None = pa.Field(nullable=True)
+    apres_index_hc_kwh: pl.Float64 | None = pa.Field(nullable=True)
+    apres_index_hch_kwh: pl.Float64 | None = pa.Field(nullable=True)
+    apres_index_hph_kwh: pl.Float64 | None = pa.Field(nullable=True)
+    apres_index_hpb_kwh: pl.Float64 | None = pa.Field(nullable=True)
+    apres_index_hcb_kwh: pl.Float64 | None = pa.Field(nullable=True)
+    apres_index_base_kwh: pl.Float64 | None = pa.Field(nullable=True)
 
     @pa.dataframe_check
     def verifier_coherence_dates(cls, data) -> pl.LazyFrame:

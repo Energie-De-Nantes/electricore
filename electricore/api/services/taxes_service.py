@@ -6,7 +6,6 @@ et la génération des fichiers XLSX.
 """
 
 import io
-from typing import Optional
 
 import polars as pl
 import xlsxwriter
@@ -25,7 +24,7 @@ from electricore.core.pipelines.facturation import expr_calculer_trimestre
 from electricore.core.pipelines.orchestration import facturation
 
 
-def generer_accise_xlsx(trimestre: Optional[str] = None) -> bytes:
+def generer_accise_xlsx(trimestre: str | None = None) -> bytes:
     """
     Calcule l'accise TICFE et retourne un fichier XLSX multi-onglets.
 
@@ -73,7 +72,7 @@ def generer_accise_xlsx(trimestre: Optional[str] = None) -> bytes:
     })
 
 
-def generer_cta_xlsx(trimestre: Optional[str] = None) -> bytes:
+def generer_cta_xlsx(trimestre: str | None = None) -> bytes:
     """
     Calcule la CTA et retourne un fichier XLSX multi-onglets.
 

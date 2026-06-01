@@ -1,26 +1,25 @@
 """Tests unitaires pour les expressions Polars du pipeline périmètre."""
 
 import polars as pl
-import pytest
+
 from electricore.core.pipelines.perimetre import (
+    colonnes_evenement_facturation,
+    detecter_points_de_rupture,
     expr_changement,
-    expr_resume_changement,
-    expr_impacte_abonnement,
-    expr_evenement_structurant,
     expr_changement_avant_apres,
     expr_changement_index,
-    expr_impacte_energie,
-    expr_resume_modification,
-    detecter_points_de_rupture,
+    expr_colonnes_a_propager,
+    expr_date_entree_periode,
+    expr_date_sortie_periode,
     # Nouvelles expressions pour facturation
     expr_evenement_entree,
     expr_evenement_sortie,
-    expr_date_entree_periode,
-    expr_date_sortie_periode,
-    colonnes_evenement_facturation,
+    expr_evenement_structurant,
+    expr_impacte_abonnement,
+    expr_impacte_energie,
+    expr_resume_changement,
     generer_dates_facturation,
-    expr_colonnes_a_propager,
-    inserer_evenements_facturation
+    inserer_evenements_facturation,
 )
 
 
@@ -663,7 +662,7 @@ def test_detecter_points_de_rupture_pipeline_complet():
     assert "avant_puissance_souscrite" in resultat.columns
     assert "avant_formule_tarifaire_acheminement" in resultat.columns
     
-    print(f"Pipeline complet testé avec succès:")
+    print("Pipeline complet testé avec succès:")
     print(f"- Impacts abonnement: {sum(impacts_abonnement)}/5")
     print(f"- Impacts énergie: {sum(impacts_energie)}/5")
     print(f"- Résumés générés: {len([r for r in resumes if r != ''])}/5")
@@ -892,9 +891,9 @@ def test_generer_dates_facturation_cas_nominal():
         "ref_situation_contractuelle": ["PDL1", "PDL1", "PDL1"],
         "pdl": ["123", "123", "123"], 
         "date_evenement": [
-            dt.datetime(2024, 1, 15, tzinfo=dt.timezone.utc).replace(tzinfo=None),
-            dt.datetime(2024, 3, 10, tzinfo=dt.timezone.utc).replace(tzinfo=None),
-            dt.datetime(2024, 4, 20, tzinfo=dt.timezone.utc).replace(tzinfo=None),
+            dt.datetime(2024, 1, 15, tzinfo=dt.UTC).replace(tzinfo=None),
+            dt.datetime(2024, 3, 10, tzinfo=dt.UTC).replace(tzinfo=None),
+            dt.datetime(2024, 4, 20, tzinfo=dt.UTC).replace(tzinfo=None),
         ],
         "evenement_declencheur": ["MES", "MCT", "RES"],
     }).with_columns([
@@ -922,8 +921,8 @@ def test_generer_dates_facturation_pdl_non_resilie():
         "ref_situation_contractuelle": ["PDL1", "PDL1"],
         "pdl": ["123", "123"],
         "date_evenement": [
-            dt.datetime(2024, 1, 15, tzinfo=dt.timezone.utc).replace(tzinfo=None),
-            dt.datetime(2024, 2, 10, tzinfo=dt.timezone.utc).replace(tzinfo=None),
+            dt.datetime(2024, 1, 15, tzinfo=dt.UTC).replace(tzinfo=None),
+            dt.datetime(2024, 2, 10, tzinfo=dt.UTC).replace(tzinfo=None),
         ],
         "evenement_declencheur": ["MES", "MCT"],  # Pas de RES
     }).with_columns([
@@ -945,7 +944,7 @@ def test_generer_dates_facturation_aucune_periode_valide():
         "ref_situation_contractuelle": ["PDL1"],
         "pdl": ["123"],
         "date_evenement": [
-            dt.datetime(2024, 1, 15, tzinfo=dt.timezone.utc).replace(tzinfo=None),
+            dt.datetime(2024, 1, 15, tzinfo=dt.UTC).replace(tzinfo=None),
         ],
         "evenement_declencheur": ["MCT"],  # Pas d'événement d'entrée
     }).with_columns([
@@ -1003,9 +1002,9 @@ def test_inserer_evenements_facturation_integration():
         "ref_situation_contractuelle": ["PDL1", "PDL1", "PDL1"],
         "pdl": ["123", "123", "123"],
         "date_evenement": [
-            dt.datetime(2024, 1, 15, tzinfo=dt.timezone.utc).replace(tzinfo=None),
-            dt.datetime(2024, 2, 10, tzinfo=dt.timezone.utc).replace(tzinfo=None),
-            dt.datetime(2024, 4, 20, tzinfo=dt.timezone.utc).replace(tzinfo=None),
+            dt.datetime(2024, 1, 15, tzinfo=dt.UTC).replace(tzinfo=None),
+            dt.datetime(2024, 2, 10, tzinfo=dt.UTC).replace(tzinfo=None),
+            dt.datetime(2024, 4, 20, tzinfo=dt.UTC).replace(tzinfo=None),
         ],
         "evenement_declencheur": ["MES", "MCT", "RES"],
         "puissance_souscrite_kva": [6.0, 9.0, 9.0],
@@ -1033,11 +1032,11 @@ def test_inserer_evenements_facturation_integration():
     # Vérifier la propagation des données : les événements FACTURATION 
     # doivent hériter de la puissance de l'événement précédent
     factu_fevrier = resultat.filter(
-        (pl.col("date_evenement").dt.strftime("%Y-%m-%d") == "2024-02-01")
+        pl.col("date_evenement").dt.strftime("%Y-%m-%d") == "2024-02-01"
     ).item(0, "puissance_souscrite_kva")  # Hérité de MES (6.0)
     assert factu_fevrier == 6.0
 
     factu_mars = resultat.filter(
-        (pl.col("date_evenement").dt.strftime("%Y-%m-%d") == "2024-03-01")
+        pl.col("date_evenement").dt.strftime("%Y-%m-%d") == "2024-03-01"
     ).item(0, "puissance_souscrite_kva")  # Hérité de MCT (9.0)
     assert factu_mars == 9.0

@@ -17,12 +17,11 @@ trimestre.
 Formule : cta_eur = turpe_fixe_eur × taux_cta_pct / 100
 """
 
-import polars as pl
 from pathlib import Path
-from typing import Optional
+
+import polars as pl
 
 from electricore.core.pipelines.facturation import expr_calculer_trimestre
-
 
 # =============================================================================
 # CHARGEMENT DES RÈGLES CTA
@@ -75,7 +74,7 @@ def expr_filtrer_regles_temporelles() -> pl.Expr:
 
 def ajouter_cta(
     df_facturation_mensuel: pl.LazyFrame,
-    regles: Optional[pl.LazyFrame] = None,
+    regles: pl.LazyFrame | None = None,
 ) -> pl.LazyFrame:
     """
     Ajoute `taux_cta_pct` et `cta_eur` à chaque ligne de facturation mensuelle.
@@ -126,7 +125,7 @@ def pipeline_cta(
     df_facturation: pl.DataFrame,
     df_pdl: pl.DataFrame,
     trimestre: str | None = None,
-    regles: Optional[pl.LazyFrame] = None,
+    regles: pl.LazyFrame | None = None,
 ) -> pl.DataFrame:
     """
     Calcule la CTA par PDL sur la période choisie.

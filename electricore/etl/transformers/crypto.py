@@ -25,12 +25,13 @@ Gestion de la rotation de clés :
   le diagnostic lors d'une transition.
 """
 
-import dlt
 import logging
 import os
-from typing import Iterator
-from dlt.common.storages.fsspec_filesystem import FileItemDict
+from collections.abc import Iterator
+
+import dlt
 from Crypto.Cipher import AES
+from dlt.common.storages.fsspec_filesystem import FileItemDict
 
 logger = logging.getLogger(__name__)
 

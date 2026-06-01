@@ -5,16 +5,15 @@ Démontre l'usage de parametrize pour tester différentes FTA et configurations
 sans duplication de code.
 """
 
-import pytest
 import polars as pl
+import pytest
 
 from electricore.core.pipelines.turpe import (
+    expr_calculer_turpe_cadran,
     expr_calculer_turpe_fixe_annuel,
     expr_calculer_turpe_fixe_journalier,
     expr_calculer_turpe_fixe_periode,
-    expr_calculer_turpe_cadran,
 )
-
 
 # =========================================================================
 # TESTS PARAMÉTRÉS - TURPE FIXE

@@ -18,32 +18,31 @@ API publique :
 """
 
 # Imports internes
-from .config import OdooConfig, FieldsCache
-from .reader import OdooReader
-from .query import OdooQuery
+from .config import FieldsCache, OdooConfig
 from .helpers import (
-    query,
-    factures,
-    lignes_factures,
     commandes,
-    partenaires,
     # Helpers avec navigation multi-niveaux
     commandes_factures,
     commandes_lignes,
     consommations_mensuelles,
+    factures,
     lignes_a_facturer,
+    lignes_factures,
     lignes_quantite_zero,
+    partenaires,
+    query,
 )
+from .query import OdooQuery
+from .reader import OdooReader
 from .transforms import (
-    normalize_many2one_fields,
-    convert_odoo_dates,
     add_computed_columns,
-    filter_active_records,
-    explode_one2many_field,
     aggregate_by_period,
-    expr_calculer_trimestre_facturation
+    convert_odoo_dates,
+    explode_one2many_field,
+    expr_calculer_trimestre_facturation,
+    filter_active_records,
+    normalize_many2one_fields,
 )
-
 
 # =============================================================================
 # EXPORTS PUBLICS

@@ -12,8 +12,9 @@ Lancer uniquement ces tests :
 Skippés automatiquement si aucune config Odoo n'est disponible.
 """
 
-import pytest
 from pathlib import Path
+
+import pytest
 
 try:
     import tomllib
@@ -21,7 +22,6 @@ except ImportError:
     import tomli as tomllib  # type: ignore[no-reattr]
 
 from electricore.core.writers import OdooWriter
-
 
 # =============================================================================
 # FIXTURES

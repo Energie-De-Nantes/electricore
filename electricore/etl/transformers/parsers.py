@@ -3,13 +3,15 @@ Transformers DLT pour le parsing XML et CSV des flux Enedis.
 Inclut les fonctions pures de parsing et les transformers DLT.
 """
 
-import dlt
+import fnmatch
 import io
+import json
 import logging
 import re
-import json
-import fnmatch
-from typing import Iterator, Dict, Any, Optional, List
+from collections.abc import Iterator
+from typing import Any
+
+import dlt
 import polars as pl
 from lxml import etree
 
@@ -158,9 +160,9 @@ def xml_to_dict_from_bytes(
 def _xml_parser_transformer_base(
     extracted_file: dict,
     row_level: str,
-    metadata_fields: Dict[str, str],
-    data_fields: Dict[str, str],
-    nested_fields: List[Dict[str, Any]],
+    metadata_fields: dict[str, str],
+    data_fields: dict[str, str],
+    nested_fields: list[dict[str, Any]],
     flux_type: str
 ) -> Iterator[dict]:
     """
@@ -219,7 +221,7 @@ def _csv_parser_transformer_base(
     delimiter: str,
     encoding: str,
     flux_type: str,
-    column_mapping: Dict[str, str]
+    column_mapping: dict[str, str]
 ) -> Iterator[dict]:
     """
     Fonction de base pour parser les fichiers CSV avec Polars.
@@ -279,9 +281,9 @@ def _csv_parser_transformer_base(
 
 def create_xml_parser_transformer(
     row_level: str,
-    metadata_fields: Dict[str, str] = None,
-    data_fields: Dict[str, str] = None,
-    nested_fields: List[Dict[str, Any]] = None,
+    metadata_fields: dict[str, str] = None,
+    data_fields: dict[str, str] = None,
+    nested_fields: list[dict[str, Any]] = None,
     flux_type: str = "unknown"
 ):
     """
@@ -311,7 +313,7 @@ def create_csv_parser_transformer(
     delimiter: str = ',',
     encoding: str = 'utf-8',
     flux_type: str = "unknown",
-    column_mapping: Dict[str, str] = None
+    column_mapping: dict[str, str] = None
 ):
     """
     Factory pour créer un transformer de parsing CSV configuré.
@@ -340,9 +342,9 @@ def create_csv_parser_transformer(
 def _json_parser_transformer_base(
     extracted_file: dict,
     record_path: str,
-    metadata_fields: Dict[str, str],
-    data_fields: Dict[str, str],
-    nested_fields: List[Dict[str, Any]],
+    metadata_fields: dict[str, str],
+    data_fields: dict[str, str],
+    nested_fields: list[dict[str, Any]],
     flux_type: str
 ) -> Iterator[dict]:
     """
@@ -378,7 +380,10 @@ def _json_parser_transformer_base(
         records_count = 0
 
         # Parser le JSON et extraire les enregistrements
-        for record in json_to_dict_from_bytes(
+        # TODO: json_to_dict_from_bytes n'est pas défini — chemin générique JSON jamais exercé
+        # (tous les flux JSON actuels utilisent _json_r64_transformer_base). À implémenter
+        # avant d'ajouter un nouveau type de flux JSON.
+        for record in json_to_dict_from_bytes(  # noqa: F821
             json_content, record_path, metadata_fields, data_fields, nested_fields
         ):
             # Enrichir avec métadonnées de traçabilité DLT
@@ -400,9 +405,9 @@ def _json_parser_transformer_base(
 
 def create_json_parser_transformer(
     record_path: str,
-    metadata_fields: Dict[str, str] = None,
-    data_fields: Dict[str, str] = None,
-    nested_fields: List[Dict[str, Any]] = None,
+    metadata_fields: dict[str, str] = None,
+    data_fields: dict[str, str] = None,
+    nested_fields: list[dict[str, Any]] = None,
     flux_type: str = "unknown"
 ):
     """
@@ -516,7 +521,7 @@ def build_base_record(mesure: dict, contexte: dict, grandeur: dict, header_meta:
     Returns:
         dict: Enregistrement de base avec métadonnées
     """
-    periode = mesure.get('periode', {})
+    mesure.get('periode', {})
 
     return {
         # Métadonnées de base
@@ -622,14 +627,14 @@ def process_single_mesure(mesure: dict, header_meta: dict) -> Iterator[dict]:
     values_by_date = collect_timeseries_data(mesure, base_record)
 
     # Générer les enregistrements
-    for date_str, row_data in values_by_date.items():
+    for _date_str, row_data in values_by_date.items():
         yield row_data
 
 
 def r64_timeseries_to_wide_format(
     json_bytes: bytes,
     flux_type: str
-) -> Iterator[Dict[str, Any]]:
+) -> Iterator[dict[str, Any]]:
     """
     Transforme les timeseries R64 en format WIDE pour cohérence avec R15/R151.
 

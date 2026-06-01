@@ -5,12 +5,13 @@ Ce module fournit OdooReader, un connecteur XML-RPC en lecture seule
 qui retourne des DataFrames Polars.
 """
 
-import xmlrpc.client
-import polars as pl
 import logging
-from typing import Any, Optional, Dict, List
+import xmlrpc.client
+from typing import Any
 
-from .config import OdooConfig, FieldsCache
+import polars as pl
+
+from .config import FieldsCache, OdooConfig
 
 logger = logging.getLogger(__name__)
 
@@ -35,11 +36,11 @@ class OdooReader:
         'check_access_rights', 'exists'
     }
 
-    def __init__(self, config: Dict[str, str],
-                 url: Optional[str] = None,
-                 db: Optional[str] = None,
-                 username: Optional[str] = None,
-                 password: Optional[str] = None):
+    def __init__(self, config: dict[str, str],
+                 url: str | None = None,
+                 db: str | None = None,
+                 username: str | None = None,
+                 password: str | None = None):
         """
         Initialise le connecteur Odoo avec configuration explicite.
 
@@ -68,8 +69,8 @@ class OdooReader:
         self._fields_cache = FieldsCache()
 
         # État de connexion
-        self._uid: Optional[int] = None
-        self._proxy: Optional[Any] = None
+        self._uid: int | None = None
+        self._proxy: Any | None = None
 
     @property
     def is_connected(self) -> bool:
@@ -129,8 +130,8 @@ class OdooReader:
         return uid
 
     @_ensure_connection
-    def execute(self, model: str, method: str, args: Optional[List] = None,
-                kwargs: Optional[Dict] = None) -> Any:
+    def execute(self, model: str, method: str, args: list | None = None,
+                kwargs: dict | None = None) -> Any:
         """
         Exécute une méthode sur le serveur Odoo.
 
@@ -168,7 +169,7 @@ class OdooReader:
 
         return result if isinstance(result, list) else [result]
 
-    def _normalize_for(self, response: List[Dict]) -> pl.DataFrame:
+    def _normalize_for(self, response: list[dict]) -> pl.DataFrame:
         """
         Normalise les données Odoo pour Polars.
 
@@ -194,8 +195,8 @@ class OdooReader:
         # qui sont des listes [id, name] - Polars doit scanner plus de lignes
         return pl.DataFrame(response, strict=False, infer_schema_length=None)
 
-    def search_read(self, model: str, domain: List = None,
-                   fields: Optional[List[str]] = None) -> pl.DataFrame:
+    def search_read(self, model: str, domain: list = None,
+                   fields: list[str] | None = None) -> pl.DataFrame:
         """
         Recherche et lit des enregistrements, retourne un DataFrame Polars.
 
@@ -233,8 +234,8 @@ class OdooReader:
 
         return df
 
-    def read(self, model: str, ids: List[int],
-             fields: Optional[List[str]] = None) -> pl.DataFrame:
+    def read(self, model: str, ids: list[int],
+             fields: list[str] | None = None) -> pl.DataFrame:
         """
         Lit des enregistrements par ID, retourne un DataFrame Polars.
 
@@ -267,7 +268,7 @@ class OdooReader:
 
         return df
 
-    def get_field_info(self, model: str, field_name: str) -> Optional[Dict]:
+    def get_field_info(self, model: str, field_name: str) -> dict | None:
         """
         Récupère les métadonnées d'un champ avec cache.
 
@@ -300,7 +301,7 @@ class OdooReader:
             self._fields_cache.set(model, field_name, None)
             return None
 
-    def get_relation_model(self, model: str, field_name: str) -> Optional[str]:
+    def get_relation_model(self, model: str, field_name: str) -> str | None:
         """
         Détermine automatiquement le modèle cible d'une relation.
 

@@ -14,11 +14,9 @@ import pytest
 
 from electricore.core.pipelines.cta import (
     ajouter_cta,
-    expr_filtrer_regles_temporelles,
     load_cta_rules,
     pipeline_cta,
 )
-
 
 TZ = ZoneInfo("Europe/Paris")
 

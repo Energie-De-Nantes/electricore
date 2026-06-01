@@ -5,28 +5,26 @@ Ce module centralise toutes les configurations de flux Enedis
 avec leur schéma SQL, transformation Polars et validation Pandera.
 """
 
-from typing import Dict
 
-from .sql import FLUX_SCHEMAS
-from .transforms import (
-    transform_historique_perimetre,
-    transform_releves,
-    transform_factures,
-    transform_r64,
-    transform_releves_harmonises,
-)
-from .query import QueryConfig
+from electricore.core.models.historique_perimetre import HistoriquePérimètre
 
 # Imports de validation
 from electricore.core.models.releve_index import RelevéIndex
-from electricore.core.models.historique_perimetre import HistoriquePérimètre
 
+from .query import QueryConfig
+from .sql import FLUX_SCHEMAS
+from .transforms import (
+    transform_factures,
+    transform_historique_perimetre,
+    transform_r64,
+    transform_releves,
+)
 
 # =============================================================================
 # REGISTRE FONCTIONNEL DES FLUX
 # =============================================================================
 
-FLUX_CONFIGS: Dict[str, QueryConfig] = {
+FLUX_CONFIGS: dict[str, QueryConfig] = {
     "c15": QueryConfig(
         schema=FLUX_SCHEMAS["c15"],
         transform=transform_historique_perimetre,

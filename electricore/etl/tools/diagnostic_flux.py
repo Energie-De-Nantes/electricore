@@ -4,11 +4,13 @@ Diagnostic méthodique de chaque flux configuré.
 Vérifie la présence de fichiers et l'état du pipeline pour chaque flux.
 """
 
+from datetime import datetime
+from pathlib import Path
+
 import dlt
 import yaml
-from pathlib import Path
 from dlt.sources.filesystem import filesystem
-from datetime import datetime
+
 
 def diagnostic_complet():
     """Diagnostic complet de tous les flux configurés."""
@@ -21,7 +23,7 @@ def diagnostic_complet():
     
     # 1. Charger la configuration
     config_path = Path("config/flux.yaml")
-    with open(config_path, 'r', encoding='utf-8') as f:
+    with open(config_path, encoding='utf-8') as f:
         flux_config = yaml.safe_load(f)
     
     # 2. Configuration SFTP
@@ -60,7 +62,7 @@ def diagnostic_complet():
                 print(f"      - {csv_config['name']}")
         
         # Chercher les fichiers
-        print(f"\n🔍 Recherche de fichiers...")
+        print("\n🔍 Recherche de fichiers...")
         try:
             files = filesystem(
                 bucket_url=sftp_url,
@@ -79,7 +81,7 @@ def diagnostic_complet():
                     break
             
             if file_count == 0:
-                print(f"   ❌ AUCUN FICHIER TROUVÉ!")
+                print("   ❌ AUCUN FICHIER TROUVÉ!")
                 resultats[flux_name] = {
                     'status': 'NO_FILES',
                     'file_count': 0,

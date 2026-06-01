@@ -6,11 +6,10 @@ de facturation de la part fixe (TURPE) en utilisant Polars pour des
 performances optimisées.
 """
 
-import polars as pl
+
 import pandera.polars as pa
-from pandera.typing.polars import DataFrame
+import polars as pl
 from pandera.engines.polars_engine import DateTime
-from typing import Optional
 
 
 class PeriodeAbonnement(pa.DataFrameModel):
@@ -38,10 +37,10 @@ class PeriodeAbonnement(pa.DataFrameModel):
 
     # Puissances souscrites C4 (BT > 36 kVA) - 4 puissances par cadran temporel en kVA
     # Contrainte réglementaire CRE : P₁ ≤ P₂ ≤ P₃ ≤ P₄
-    puissance_souscrite_hph_kva: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)  # P₁ - HPH
-    puissance_souscrite_hch_kva: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)  # P₂ - HCH
-    puissance_souscrite_hpb_kva: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)  # P₃ - HPB
-    puissance_souscrite_hcb_kva: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)  # P₄ - HCB
+    puissance_souscrite_hph_kva: pl.Float64 | None = pa.Field(nullable=True, ge=0.0)  # P₁ - HPH
+    puissance_souscrite_hch_kva: pl.Float64 | None = pa.Field(nullable=True, ge=0.0)  # P₂ - HCH
+    puissance_souscrite_hpb_kva: pl.Float64 | None = pa.Field(nullable=True, ge=0.0)  # P₃ - HPB
+    puissance_souscrite_hcb_kva: pl.Float64 | None = pa.Field(nullable=True, ge=0.0)  # P₄ - HCB
 
     # Durée de la période
     nb_jours: pl.Int32 = pa.Field(nullable=False)
@@ -51,20 +50,20 @@ class PeriodeAbonnement(pa.DataFrameModel):
         nullable=False,
         dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"}
     )
-    fin: Optional[DateTime] = pa.Field(
+    fin: DateTime | None = pa.Field(
         nullable=True,
         dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"}
     )
 
     # Champs TURPE (ajoutés après calcul)
-    turpe_fixe_journalier_eur: Optional[pl.Float64] = pa.Field(nullable=True)
-    turpe_fixe_eur: Optional[pl.Float64] = pa.Field(nullable=True)
+    turpe_fixe_journalier_eur: pl.Float64 | None = pa.Field(nullable=True)
+    turpe_fixe_eur: pl.Float64 | None = pa.Field(nullable=True)
 
     # Métadonnées de qualité et complétude
-    data_complete: Optional[pl.Boolean] = pa.Field(nullable=True)
-    nb_sous_periodes: Optional[pl.Int32] = pa.Field(nullable=True, ge=1)
-    coverage_abo: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0, le=1.0)
-    has_changement: Optional[pl.Boolean] = pa.Field(nullable=True)
+    data_complete: pl.Boolean | None = pa.Field(nullable=True)
+    nb_sous_periodes: pl.Int32 | None = pa.Field(nullable=True, ge=1)
+    coverage_abo: pl.Float64 | None = pa.Field(nullable=True, ge=0.0, le=1.0)
+    has_changement: pl.Boolean | None = pa.Field(nullable=True)
 
     class Config:
         """Configuration du modèle Pandera."""

@@ -4,8 +4,9 @@ Charge la configuration des flux et expose les constantes principales.
 """
 
 import logging
-import yaml
 from pathlib import Path
+
+import yaml
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ def load_flux_config() -> dict:
         yaml.YAMLError: Si erreur de parsing YAML
     """
     try:
-        with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+        with open(CONFIG_FILE, encoding='utf-8') as f:
             config = yaml.safe_load(f)
         logger.debug("Configuration chargée pour %d types de flux: %s", len(config), list(config.keys()))
         return config

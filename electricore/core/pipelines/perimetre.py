@@ -441,7 +441,7 @@ def expr_date_sortie_periode() -> pl.Expr:
     """
     import datetime as dt
     fin_par_defaut = (
-        pl.lit(dt.datetime.now(tz=dt.timezone.utc).replace(tzinfo=None))
+        pl.lit(dt.datetime.now(tz=dt.UTC).replace(tzinfo=None))
         .dt.replace_time_zone("Europe/Paris")
         .dt.month_start()
     )
@@ -478,7 +478,7 @@ def generer_dates_facturation(lf: pl.LazyFrame) -> pl.LazyFrame:
     
     # Date par défaut = début du mois courant
     fin_defaut = (
-        pl.lit(dt.datetime.now(tz=dt.timezone.utc).replace(tzinfo=None))
+        pl.lit(dt.datetime.now(tz=dt.UTC).replace(tzinfo=None))
         .dt.replace_time_zone("Europe/Paris")
         .dt.month_start()
     )

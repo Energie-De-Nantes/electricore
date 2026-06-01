@@ -4,10 +4,10 @@ Modèles Pandera pour commandes de vente Odoo (sale.order).
 Schémas de validation pour les commandes.
 """
 
-import polars as pl
+
 import pandera.polars as pa
+import polars as pl
 from pandera.dtypes import DateTime
-from typing import Optional
 
 
 class CommandeVenteOdoo(pa.DataFrameModel):
@@ -22,11 +22,11 @@ class CommandeVenteOdoo(pa.DataFrameModel):
 
     # Référence et dates
     name: pl.Utf8 = pa.Field(nullable=False)  # Numéro de commande
-    date_order: Optional[DateTime] = pa.Field(
+    date_order: DateTime | None = pa.Field(
         nullable=True,
         dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"}
     )
-    validity_date: Optional[DateTime] = pa.Field(
+    validity_date: DateTime | None = pa.Field(
         nullable=True,
         dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"}
     )
@@ -38,16 +38,16 @@ class CommandeVenteOdoo(pa.DataFrameModel):
     )
 
     # Montants
-    amount_untaxed: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)
-    amount_tax: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)
-    amount_total: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)
+    amount_untaxed: pl.Float64 | None = pa.Field(nullable=True, ge=0.0)
+    amount_tax: pl.Float64 | None = pa.Field(nullable=True, ge=0.0)
+    amount_total: pl.Float64 | None = pa.Field(nullable=True, ge=0.0)
 
     # Relations (IDs extraits)
-    partner_id: Optional[pl.Int64] = pa.Field(nullable=True)
-    user_id: Optional[pl.Int64] = pa.Field(nullable=True)  # Commercial
+    partner_id: pl.Int64 | None = pa.Field(nullable=True)
+    user_id: pl.Int64 | None = pa.Field(nullable=True)  # Commercial
 
     # Champs métier spécifiques (optionnels)
-    x_pdl: Optional[pl.Utf8] = pa.Field(nullable=True)  # PDL pour électricité
+    x_pdl: pl.Utf8 | None = pa.Field(nullable=True)  # PDL pour électricité
 
     class Config:
         """Configuration du modèle."""

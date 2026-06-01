@@ -5,37 +5,32 @@ Ce module teste toutes les expressions et fonctions du pipeline TURPE
 en utilisant des données contrôlées pour valider les calculs.
 """
 
-import pytest
-import polars as pl
 from datetime import datetime
-from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from electricore.core.pipelines.turpe import (
-    # Chargement des règles
-    load_turpe_rules,
+import polars as pl
+import pytest
 
+from electricore.core.pipelines.turpe import (
+    # Fonctions pipeline
+    ajouter_turpe_fixe,
+    ajouter_turpe_variable,
+    # Fonctions de debug
+    debug_turpe_variable,
+    # Expressions TURPE variable
+    expr_calculer_turpe_cadran,
+    expr_calculer_turpe_contributions_cadrans,
     # Expressions TURPE fixe
     expr_calculer_turpe_fixe_annuel,
     expr_calculer_turpe_fixe_journalier,
     expr_calculer_turpe_fixe_periode,
-    expr_valider_puissances_croissantes_c4,
-
-    # Expressions TURPE variable
-    expr_calculer_turpe_cadran,
-    expr_calculer_turpe_contributions_cadrans,
-    expr_sommer_turpe_cadrans,
-
     # Expressions communes
     expr_filtrer_regles_temporelles,
+    expr_sommer_turpe_cadrans,
+    expr_valider_puissances_croissantes_c4,
+    # Chargement des règles
+    load_turpe_rules,
     valider_regles_presentes,
-
-    # Fonctions pipeline
-    ajouter_turpe_fixe,
-    ajouter_turpe_variable,
-
-    # Fonctions de debug
-    debug_turpe_variable,
 )
 
 
@@ -144,7 +139,7 @@ class TestExpressionsTurpeFixe:
         attendu = [99.72, 121.32]
         resultats = df_result["turpe_annuel"].to_list()
 
-        for i, (res, att) in enumerate(zip(resultats, attendu)):
+        for i, (res, att) in enumerate(zip(resultats, attendu, strict=False)):
             assert abs(res - att) < 0.01, f"Ligne {i}: attendu {att}, obtenu {res}"
 
     def test_expr_calculer_turpe_fixe_journalier(self, df_test_fixe):
@@ -160,7 +155,7 @@ class TestExpressionsTurpeFixe:
         attendu = [99.72 / 365, 121.32 / 365]
         resultats = df_result["turpe_journalier"].to_list()
 
-        for i, (res, att) in enumerate(zip(resultats, attendu)):
+        for i, (res, att) in enumerate(zip(resultats, attendu, strict=False)):
             assert abs(res - att) < 0.000001, f"Ligne {i}: attendu {att}, obtenu {res}"
 
     def test_expr_calculer_turpe_fixe_periode(self, df_test_fixe):
@@ -176,7 +171,7 @@ class TestExpressionsTurpeFixe:
         attendu = [8.20, 10.30]
         resultats = df_result["turpe_periode"].to_list()
 
-        for i, (res, att) in enumerate(zip(resultats, attendu)):
+        for i, (res, att) in enumerate(zip(resultats, attendu, strict=False)):
             assert abs(res - att) < 0.01, f"Ligne {i}: attendu {att}, obtenu {res}"
 
 
@@ -225,7 +220,7 @@ class TestExpressionsTurpeVariable:
         attendu = [4.37, 0.0]
         resultats = df_result["turpe_base"].to_list()
 
-        for i, (res, att) in enumerate(zip(resultats, attendu)):
+        for i, (res, att) in enumerate(zip(resultats, attendu, strict=False)):
             assert abs(res - att) < 0.01, f"Ligne {i}: attendu {att}, obtenu {res}"
 
     def test_expr_calculer_turpe_cadran_hp(self, df_test_variable):
@@ -241,7 +236,7 @@ class TestExpressionsTurpeVariable:
         attendu = [0.0, 2.34]
         resultats = df_result["turpe_hp"].to_list()
 
-        for i, (res, att) in enumerate(zip(resultats, attendu)):
+        for i, (res, att) in enumerate(zip(resultats, attendu, strict=False)):
             assert abs(res - att) < 0.01, f"Ligne {i}: attendu {att}, obtenu {res}"
 
     def test_expr_calculer_turpe_contributions_cadrans(self, df_test_variable):
@@ -274,7 +269,7 @@ class TestExpressionsTurpeVariable:
         attendu = [4.37, 7.00]
         resultats = df_result["turpe_total"].to_list()
 
-        for i, (res, att) in enumerate(zip(resultats, attendu)):
+        for i, (res, att) in enumerate(zip(resultats, attendu, strict=False)):
             assert abs(res - att) < 0.02, f"Ligne {i}: attendu {att}, obtenu {res}"
 
 

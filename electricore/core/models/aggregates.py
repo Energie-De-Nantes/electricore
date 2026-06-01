@@ -6,10 +6,10 @@ dans les pipelines de transformation, notamment pour les agrégations
 mensuelles avant la jointure finale.
 """
 
-import polars as pl
+
 import pandera.polars as pa
+import polars as pl
 from pandera.engines.polars_engine import DateTime
-from typing import Optional
 
 
 class AbonnementMensuel(pa.DataFrameModel):
@@ -41,7 +41,7 @@ class AbonnementMensuel(pa.DataFrameModel):
     nb_jours: pl.Int32 = pa.Field(nullable=False, ge=1)
 
     # Montants TURPE fixe
-    turpe_fixe_eur: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)
+    turpe_fixe_eur: pl.Float64 | None = pa.Field(nullable=True, ge=0.0)
 
     # Métadonnées d'agrégation
     nb_sous_periodes_abo: pl.Int32 = pa.Field(nullable=False, ge=1)
@@ -49,7 +49,7 @@ class AbonnementMensuel(pa.DataFrameModel):
     coverage_abo: pl.Float64 = pa.Field(nullable=False, ge=0.0, le=1.0)
 
     # Mémo optionnel pour lisibilité
-    memo_puissance: Optional[pl.Utf8] = pa.Field(nullable=True)
+    memo_puissance: pl.Utf8 | None = pa.Field(nullable=True)
 
     class Config:
         strict = False
@@ -80,12 +80,12 @@ class EnergieMensuel(pa.DataFrameModel):
     )
 
     # Énergies consommées par cadran en kWh (sommes mensuelles)
-    energie_base_kwh: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)
-    energie_hp_kwh: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)
-    energie_hc_kwh: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)
+    energie_base_kwh: pl.Float64 | None = pa.Field(nullable=True, ge=0.0)
+    energie_hp_kwh: pl.Float64 | None = pa.Field(nullable=True, ge=0.0)
+    energie_hc_kwh: pl.Float64 | None = pa.Field(nullable=True, ge=0.0)
 
     # Montants TURPE variable en euros
-    turpe_variable_eur: Optional[pl.Float64] = pa.Field(nullable=True, ge=0.0)
+    turpe_variable_eur: pl.Float64 | None = pa.Field(nullable=True, ge=0.0)
 
     # Métadonnées d'agrégation
     nb_sous_periodes_energie: pl.Int32 = pa.Field(nullable=False, ge=0)

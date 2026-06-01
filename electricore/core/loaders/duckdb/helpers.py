@@ -8,25 +8,25 @@ Toutes les fonctions factory sont pures : elles prennent des paramètres
 optionnels et retournent un DuckDBQuery configuré.
 """
 
-import polars as pl
 from pathlib import Path
-from typing import Union, Dict, Any, Optional, List
+from typing import Any
 
-from .config import DuckDBConfig, duckdb_connection
-from .query import DuckDBQuery, QueryConfig, make_query
-from .registry import FLUX_CONFIGS
-from .sql import BASE_QUERY_RELEVES_UNIFIES, BASE_QUERY_RELEVES_HARMONISES, FluxSchema
-from .transforms import transform_releves, transform_releves_harmonises
+import polars as pl
 
 # Imports de validation
 from electricore.core.models.releve_index import RelevéIndex
 
+from .config import DuckDBConfig, duckdb_connection
+from .query import DuckDBQuery, QueryConfig, make_query
+from .registry import FLUX_CONFIGS
+from .sql import BASE_QUERY_RELEVES_HARMONISES, BASE_QUERY_RELEVES_UNIFIES, FluxSchema
+from .transforms import transform_releves, transform_releves_harmonises
 
 # =============================================================================
 # API FLUIDE - FONCTIONS FACTORY PAR FLUX
 # =============================================================================
 
-def c15(database_path: Union[str, Path] = None) -> DuckDBQuery:
+def c15(database_path: str | Path = None) -> DuckDBQuery:
     """
     Crée un DuckDBQuery pour les données flux C15 (historique périmètre).
 
@@ -46,7 +46,7 @@ def c15(database_path: Union[str, Path] = None) -> DuckDBQuery:
     return make_query(FLUX_CONFIGS["c15"], database_path)
 
 
-def r151(database_path: Union[str, Path] = None) -> DuckDBQuery:
+def r151(database_path: str | Path = None) -> DuckDBQuery:
     """
     Crée un DuckDBQuery pour les données flux R151 (relevés périodiques).
 
@@ -63,7 +63,7 @@ def r151(database_path: Union[str, Path] = None) -> DuckDBQuery:
     return make_query(FLUX_CONFIGS["r151"], database_path)
 
 
-def r15(database_path: Union[str, Path] = None) -> DuckDBQuery:
+def r15(database_path: str | Path = None) -> DuckDBQuery:
     """
     Crée un DuckDBQuery pour les données flux R15 (relevés avec événements).
 
@@ -80,7 +80,7 @@ def r15(database_path: Union[str, Path] = None) -> DuckDBQuery:
     return make_query(FLUX_CONFIGS["r15"], database_path)
 
 
-def f15(database_path: Union[str, Path] = None) -> DuckDBQuery:
+def f15(database_path: str | Path = None) -> DuckDBQuery:
     """
     Crée un DuckDBQuery pour les données flux F15 (factures détaillées).
 
@@ -100,7 +100,7 @@ def f15(database_path: Union[str, Path] = None) -> DuckDBQuery:
     return make_query(FLUX_CONFIGS["f15"], database_path)
 
 
-def r64(database_path: Union[str, Path] = None) -> DuckDBQuery:
+def r64(database_path: str | Path = None) -> DuckDBQuery:
     """
     Crée un DuckDBQuery pour les données flux R64 (relevés JSON timeseries).
 
@@ -120,7 +120,7 @@ def r64(database_path: Union[str, Path] = None) -> DuckDBQuery:
     return make_query(FLUX_CONFIGS["r64"], database_path)
 
 
-def releves(database_path: Union[str, Path] = None) -> DuckDBQuery:
+def releves(database_path: str | Path = None) -> DuckDBQuery:
     """
     Crée un DuckDBQuery pour les relevés unifiés (R151 + R15).
 
@@ -161,7 +161,7 @@ def releves(database_path: Union[str, Path] = None) -> DuckDBQuery:
     )
 
 
-def releves_harmonises(database_path: Union[str, Path] = None) -> DuckDBQuery:
+def releves_harmonises(database_path: str | Path = None) -> DuckDBQuery:
     """
     Crée un DuckDBQuery pour les relevés harmonisés (R151 + R64).
 
@@ -208,9 +208,9 @@ def releves_harmonises(database_path: Union[str, Path] = None) -> DuckDBQuery:
 # =============================================================================
 
 def load_historique_perimetre(
-    database_path: Union[str, Path] = None,
-    filters: Optional[Dict[str, Any]] = None,
-    limit: Optional[int] = None,
+    database_path: str | Path = None,
+    filters: dict[str, Any] | None = None,
+    limit: int | None = None,
     valider: bool = True
 ) -> pl.LazyFrame:
     """
@@ -246,9 +246,9 @@ def load_historique_perimetre(
 
 
 def load_releves(
-    database_path: Union[str, Path] = None,
-    filters: Optional[Dict[str, Any]] = None,
-    limit: Optional[int] = None,
+    database_path: str | Path = None,
+    filters: dict[str, Any] | None = None,
+    limit: int | None = None,
     valider: bool = True
 ) -> pl.LazyFrame:
     """
@@ -287,7 +287,7 @@ def load_releves(
 # UTILITAIRES
 # =============================================================================
 
-def get_available_tables(database_path: Union[str, Path] = None) -> List[str]:
+def get_available_tables(database_path: str | Path = None) -> list[str]:
     """
     Liste les tables disponibles dans la base DuckDB.
 
@@ -312,9 +312,9 @@ def get_available_tables(database_path: Union[str, Path] = None) -> List[str]:
 
 def execute_custom_query(
     query: str,
-    database_path: Union[str, Path] = None,
+    database_path: str | Path = None,
     lazy: bool = True
-) -> Union[pl.DataFrame, pl.LazyFrame]:
+) -> pl.DataFrame | pl.LazyFrame:
     """
     Exécute une requête SQL personnalisée sur DuckDB.
 

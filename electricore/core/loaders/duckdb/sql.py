@@ -9,8 +9,6 @@ depuis des définitions structurées.
 """
 
 from dataclasses import dataclass
-from typing import Dict, Optional
-
 
 # =============================================================================
 # DATACLASSES IMMUTABLES POUR DÉFINITION SQL
@@ -28,7 +26,7 @@ class Column:
     """
     name: str
     sql_expr: str
-    alias: Optional[str] = None
+    alias: str | None = None
 
     def to_sql(self) -> str:
         """Convertit en fragment SQL SELECT."""
@@ -55,8 +53,8 @@ class FluxSchema:
     flux_name: str
     table: str
     columns: tuple[Column, ...]
-    where_clause: Optional[str] = None
-    comments: Optional[str] = None
+    where_clause: str | None = None
+    comments: str | None = None
 
 
 # =============================================================================
@@ -338,7 +336,7 @@ SCHEMA_R64 = FluxSchema(
 # REGISTRE FONCTIONNEL (Mapping immutable)
 # =============================================================================
 
-FLUX_SCHEMAS: Dict[str, FluxSchema] = {
+FLUX_SCHEMAS: dict[str, FluxSchema] = {
     "c15": SCHEMA_C15,
     "r151": SCHEMA_R151,
     "r15": SCHEMA_R15,

@@ -3,10 +3,13 @@
 Test d'un seul flux pour comprendre le problème.
 """
 
+from pathlib import Path
+
 import dlt
 import yaml
-from pathlib import Path
+
 from electricore.etl.sources.sftp_enedis import flux_enedis
+
 
 def test_single_flux(flux_name: str):
     """Teste un seul flux spécifique."""
@@ -17,7 +20,7 @@ def test_single_flux(flux_name: str):
     
     # Charger la configuration
     config_path = Path("config/flux.yaml")
-    with open(config_path, 'r', encoding='utf-8') as f:
+    with open(config_path, encoding='utf-8') as f:
         all_flux_config = yaml.safe_load(f)
     
     if flux_name not in all_flux_config:

@@ -5,11 +5,17 @@ Ce module fournit des fonctions de transformation communes
 pour normaliser et enrichir les données extraites depuis Odoo.
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import polars as pl
-from typing import List, Optional
+
+if TYPE_CHECKING:
+    from electricore.core.loaders.odoo.reader import OdooReader
 
 
-def normalize_many2one_fields(lf: pl.LazyFrame, fields: List[str]) -> pl.LazyFrame:
+def normalize_many2one_fields(lf: pl.LazyFrame, fields: list[str]) -> pl.LazyFrame:
     """
     Normalise les champs many2one qui retournent [id, name] depuis Odoo.
 
@@ -36,7 +42,7 @@ def normalize_many2one_fields(lf: pl.LazyFrame, fields: List[str]) -> pl.LazyFra
     return lf
 
 
-def convert_odoo_dates(lf: pl.LazyFrame, date_fields: List[str],
+def convert_odoo_dates(lf: pl.LazyFrame, date_fields: list[str],
                        timezone: str = "Europe/Paris") -> pl.LazyFrame:
     """
     Convertit les champs date/datetime Odoo en DateTime Polars avec timezone.
@@ -99,13 +105,13 @@ def filter_active_records(lf: pl.LazyFrame) -> pl.LazyFrame:
         >>> lf = filter_active_records(lf)
     """
     if 'active' in lf.columns:
-        return lf.filter(pl.col('active') == True)
+        return lf.filter(pl.col('active'))
     return lf
 
 
 def explode_one2many_field(lf: pl.LazyFrame, field: str,
-                          related_model: str, related_fields: List[str],
-                          connector: 'OdooReader') -> pl.LazyFrame:
+                          related_model: str, related_fields: list[str],
+                          connector: OdooReader) -> pl.LazyFrame:
     """
     Explode un champ one2many et enrichit avec les données liées.
 
@@ -161,7 +167,7 @@ def explode_one2many_field(lf: pl.LazyFrame, field: str,
 
 def aggregate_by_period(lf: pl.LazyFrame, date_column: str,
                        period: str = 'month',
-                       agg_exprs: Optional[List[pl.Expr]] = None) -> pl.LazyFrame:
+                       agg_exprs: list[pl.Expr] | None = None) -> pl.LazyFrame:
     """
     Agrège les données par période temporelle.
 

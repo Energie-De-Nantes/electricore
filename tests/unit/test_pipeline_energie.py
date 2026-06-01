@@ -1,16 +1,17 @@
 """Tests unitaires pour le pipeline énergie Polars (nouveau)."""
 
-import polars as pl
-import pytest
 from datetime import datetime
 
+import polars as pl
+import pytest
+
 from electricore.core.pipelines.energie import (
+    calculer_periodes_energie,
+    # Tests d'expressions ajoutés localement dans chaque test
     expr_bornes_depuis_shift,
     extraire_releves_evenements,
     interroger_releves,
     reconstituer_chronologie_releves,
-    calculer_periodes_energie,
-    # Tests d'expressions ajoutés localement dans chaque test
 )
 
 

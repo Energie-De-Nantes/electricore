@@ -1,24 +1,25 @@
 """Tests unitaires pour les expressions Polars du pipeline abonnements."""
 
+from datetime import UTC, datetime
+
 import polars as pl
 import pytest
-from datetime import datetime, timezone
+
 from electricore.core.pipelines.abonnements import (
+    calculer_periodes_abonnement,
     expr_bornes_periode,
-    expr_nb_jours,
     expr_date_formatee_fr,
     expr_fin_lisible,
+    expr_nb_jours,
     expr_periode_valide,
-    calculer_periodes_abonnement,
     generer_periodes_abonnement,
-    pipeline_abonnements
 )
 
 
 @pytest.fixture
 def sample_historique():
     """Fixture avec des données d'historique de test."""
-    paris_tz = timezone.utc  # Simplifié pour les tests
+    paris_tz = UTC  # Simplifié pour les tests
 
     return pl.DataFrame({
         "ref_situation_contractuelle": ["PDL001", "PDL001", "PDL001", "PDL002", "PDL002"],

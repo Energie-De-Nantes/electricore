@@ -5,8 +5,8 @@ Ce module fournit des schémas de validation pour les principales
 entités Odoo (factures, commandes, partenaires).
 """
 
-from .facture import FactureOdoo, LigneFactureOdoo
 from .commande import CommandeVenteOdoo
+from .facture import FactureOdoo, LigneFactureOdoo
 
 __all__ = [
     'FactureOdoo',

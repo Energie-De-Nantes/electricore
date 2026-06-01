@@ -3,9 +3,11 @@
 Vérifie l'état incrémental de chaque resource dans le pipeline.
 """
 
-import dlt
 import json
 from datetime import datetime
+
+import dlt
+
 
 def check_incremental_state():
     """Affiche l'état incrémental détaillé de chaque resource."""
@@ -56,7 +58,7 @@ def check_incremental_state():
                                 except:
                                     pass
                             else:
-                                print(f"         Start: None (pas encore initialisé)")
+                                print("         Start: None (pas encore initialisé)")
                             
                             if end_value:
                                 print(f"         End: {end_value}")
@@ -64,7 +66,7 @@ def check_incremental_state():
                             if last_value and last_value != start_value:
                                 print(f"         Last: {last_value}")
                     else:
-                        print(f"      ❌ Pas d'incrémental configuré")
+                        print("      ❌ Pas d'incrémental configuré")
             print()
     else:
         print("❌ Pas de sources dans l'état")
