@@ -15,22 +15,27 @@ logger = logging.getLogger(__name__)
 
 def mask_password_in_url(url: str) -> str:
     """
-    Masque le mot de passe dans une URL SFTP pour les logs.
+    Masque le mot de passe dans une URL source pour les logs.
+
+    Gère les URLs avec authentification (SFTP, FTP, ...) ainsi que les URLs
+    locales sans authentification (file://) — ces dernières sont retournées
+    inchangées.
 
     Args:
-        url: URL SFTP avec mot de passe
+        url: URL source (sftp://, file://, ...)
 
     Returns:
-        URL avec mot de passe masqué
+        URL avec mot de passe masqué le cas échéant
 
-    Example:
+    Examples:
         >>> mask_password_in_url("sftp://user:pass@host:22/path")
         "sftp://user:****@host:22/path"
+        >>> mask_password_in_url("file:///var/enedis/")
+        "file:///var/enedis/"
     """
-    # Pattern pour capturer: protocol://user:password@host
-    pattern = r"(sftp://[^:]+:)[^@]+(@.+)"
-    replacement = r"\1****\2"
-    return re.sub(pattern, replacement, url)
+    # Capture: protocole://user:password@host (uniquement si user:password présent)
+    pattern = r"([a-z][a-z0-9+.-]*://[^:/@]+:)[^@]+(@.+)"
+    return re.sub(pattern, r"\1****\2", url)
 
 
 # Imports des transformers modulaires
@@ -108,7 +113,7 @@ def flux_enedis(flux_config: dict, max_files: int = None):
     # Configuration SFTP : env var SFTP__URL (chargée depuis .env) ou secrets.toml [sftp] url
     sftp_url = os.environ.get("SFTP__URL") or dlt.secrets["sftp"]["url"]
 
-    logger.info("SFTP: %s", mask_password_in_url(sftp_url))
+    logger.info("Source URL: %s", mask_password_in_url(sftp_url))
 
     # Créer les transformers communs une seule fois (optimisation)
     decrypt_transformer = create_decrypt_transformer()
