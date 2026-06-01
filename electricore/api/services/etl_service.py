@@ -4,7 +4,9 @@ Gestion asynchrone via ThreadPoolExecutor avec job store en mémoire.
 """
 
 import asyncio
+import shutil
 import subprocess
+import sys
 import uuid
 from collections import OrderedDict
 from dataclasses import dataclass
@@ -14,6 +16,21 @@ from pathlib import Path
 
 # Racine du projet (3 niveaux au-dessus de electricore/api/services/)
 _PROJECT_ROOT = Path(__file__).parents[3]
+
+
+def _build_pipeline_command(mode: str) -> list[str]:
+    """
+    Construit la commande subprocess pour lancer le pipeline ETL.
+
+    - Si `uv` est disponible (env. dev local), utilise `uv run` pour garantir
+      la résolution des dépendances depuis le lockfile.
+    - Sinon (env. Docker, ou venv déjà activée), appelle directement l'interpréteur
+      Python courant via `sys.executable` — les deps sont déjà installées dans /app/.venv.
+    """
+    module_args = ["-m", "electricore.etl.pipeline_production", mode]
+    if shutil.which("uv"):
+        return ["uv", "run", "--project", str(_PROJECT_ROOT), "python", *module_args]
+    return [sys.executable, *module_args]
 
 
 class ETLMode(StrEnum):
@@ -94,12 +111,10 @@ async def start_job(mode: ETLMode) -> ETLJob:
 
 
 def _run_pipeline(job: ETLJob) -> None:
-    """Exécute le pipeline ETL via subprocess (isolation + import paths corrects)."""
+    """Exécute le pipeline ETL via subprocess (isolation des dépendances DLT)."""
     try:
-        script = _PROJECT_ROOT / "electricore" / "etl" / "pipeline_production.py"
         result = subprocess.run(
-            ["uv", "run", "--project", str(_PROJECT_ROOT), "python", str(script), job.mode.value],
-            cwd=_PROJECT_ROOT / "electricore" / "etl",
+            _build_pipeline_command(job.mode.value),
             capture_output=True,
             text=True,
         )

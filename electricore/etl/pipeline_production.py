@@ -26,7 +26,8 @@ from pathlib import Path
 
 import dlt
 import yaml
-from sources.sftp_enedis import flux_enedis
+
+from electricore.etl.sources.sftp_enedis import flux_enedis
 
 # DLT écrit sur stderr — on laisse faire, le bot ne lit que stdout
 logging.disable(logging.CRITICAL)
@@ -75,6 +76,13 @@ def run_production_pipeline(
     flux_list = ", ".join(flux_config.keys())
     suffix = f" | {max_files} fichiers max" if max_files else ""
     _out(f"Pipeline {dataset_name} | flux: {flux_list}{suffix}")
+
+    # Pour duckdb, on rend explicite le chemin du fichier via DUCKDB_PATH (env var de
+    # convention du projet). Sans cela, DLT crée <pipeline_name>.duckdb dans le cwd,
+    # ce qui dépend du contexte d'invocation (dev local vs conteneur Docker).
+    db_path = _os.getenv("DUCKDB_PATH")
+    if destination == "duckdb" and db_path:
+        destination = dlt.destinations.duckdb(db_path)
 
     # Créer le pipeline
     pipeline = dlt.pipeline(pipeline_name="flux_enedis_pipeline", destination=destination, dataset_name=dataset_name)
