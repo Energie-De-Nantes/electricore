@@ -7,7 +7,8 @@ qui retourne des DataFrames Polars.
 
 import logging
 import xmlrpc.client
-from typing import Any
+from collections.abc import Callable
+from typing import Any, cast
 
 import polars as pl
 
@@ -88,20 +89,24 @@ class OdooReader:
         """Vérifie si la connexion est active."""
         return self._uid is not None and self._proxy is not None
 
-    def __enter__(self):
+    def __enter__(self) -> "OdooReader":
         """Support du gestionnaire de contexte."""
         self.connect()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Déconnexion propre."""
         self.disconnect()
         logger.info(f"Disconnected from {self._config.db} Odoo db.")
 
-    def _ensure_connection(func):
-        """Décorateur pour s'assurer que la connexion est active."""
+    def _ensure_connection(func: Callable[..., Any]) -> Callable[..., Any]:  # type: ignore[misc]
+        """Décorateur pour s'assurer que la connexion est active.
 
-        def wrapper(self, *args, **kwargs):
+        Note : déclaré dans le corps de la classe par convention d'organisation
+        (pas un vrai `staticmethod`). Le `# type: ignore[misc]` couvre l'absence de `self`.
+        """
+
+        def wrapper(self: "OdooReader", *args: Any, **kwargs: Any) -> Any:
             if not self.is_connected:
                 self.connect()
             return func(self, *args, **kwargs)
@@ -118,7 +123,7 @@ class OdooReader:
         """Ferme la connexion à Odoo."""
         if self.is_connected:
             if hasattr(self._proxy, "_ServerProxy__transport"):
-                self._proxy._ServerProxy__transport.close()
+                self._proxy._ServerProxy__transport.close()  # type: ignore[union-attr]  # is_connected garantit non-None
             self._uid = None
             self._proxy = None
 
@@ -136,7 +141,8 @@ class OdooReader:
         uid = common_proxy.authenticate(self._config.db, self._config.username, self._config.password, {})
         if not uid:
             raise Exception(f"Authentication failed for user {self._config.username} on {self._config.db}")
-        return uid
+        # xmlrpc.client retourne une union large ; pour authenticate() Odoo c'est toujours un int
+        return cast(int, uid)
 
     @_ensure_connection
     def execute(self, model: str, method: str, args: list | None = None, kwargs: dict | None = None) -> Any:
@@ -170,7 +176,8 @@ class OdooReader:
 
         logger.debug(f"Executing {method} on {model} with args {args} and kwargs {kwargs}")
 
-        result = self._proxy.execute_kw(self._config.db, self._uid, self._config.password, model, method, args, kwargs)
+        # _ensure_connection garantit self._proxy non-None à ce point
+        result = self._proxy.execute_kw(self._config.db, self._uid, self._config.password, model, method, args, kwargs)  # type: ignore[union-attr]
 
         return result if isinstance(result, list) else [result]
 
@@ -200,7 +207,7 @@ class OdooReader:
         # qui sont des listes [id, name] - Polars doit scanner plus de lignes
         return pl.DataFrame(response, strict=False, infer_schema_length=None)
 
-    def search_read(self, model: str, domain: list = None, fields: list[str] | None = None) -> pl.DataFrame:
+    def search_read(self, model: str, domain: list | None = None, fields: list[str] | None = None) -> pl.DataFrame:
         """
         Recherche et lit des enregistrements, retourne un DataFrame Polars.
 
@@ -224,11 +231,9 @@ class OdooReader:
 
         if not response:
             # Retourner un DataFrame vide avec la structure appropriée
-            if fields:
-                schema = {field: pl.Utf8 for field in fields}
-                schema["id"] = pl.Int64
-            else:
-                schema = {"id": pl.Int64}
+            schema: dict[str, type[pl.DataType]] = (
+                {field: pl.Utf8 for field in fields} | {"id": pl.Int64} if fields else {"id": pl.Int64}
+            )
             return pl.DataFrame(schema=schema)
 
         df = self._normalize_for(response)
@@ -254,11 +259,9 @@ class OdooReader:
             >>> df = odoo.read('res.partner', [1, 2, 3], fields=['name', 'email'])
         """
         if not ids:
-            if fields:
-                schema = {field: pl.Utf8 for field in fields}
-                schema["id"] = pl.Int64
-            else:
-                schema = {"id": pl.Int64}
+            schema: dict[str, type[pl.DataType]] = (
+                {field: pl.Utf8 for field in fields} | {"id": pl.Int64} if fields else {"id": pl.Int64}
+            )
             return pl.DataFrame(schema=schema)
 
         kwargs = {"fields": fields} if fields else {}

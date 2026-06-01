@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import polars as pl
 
@@ -100,11 +100,10 @@ class OdooQuery:
         """
         if not ids:
             # Retourner DataFrame vide avec schéma approprié
-            if fields:
-                schema = {field: pl.Utf8 for field in fields}
-                schema[f"{target_model.replace('.', '_')}_id"] = pl.Int64
-            else:
-                schema = {f"{target_model.replace('.', '_')}_id": pl.Int64}
+            id_col = f"{target_model.replace('.', '_')}_id"
+            schema: dict[str, type[pl.DataType]] = (
+                {field: pl.Utf8 for field in fields} | {id_col: pl.Int64} if fields else {id_col: pl.Int64}
+            )
             return pl.DataFrame(schema=schema)
 
         # Récupérer depuis Odoo (avec domain additionnel optionnel)
@@ -127,7 +126,7 @@ class OdooQuery:
         field_name: str,
         relation_type: str,
         target_model: str,
-        how: str = "left",
+        how: Literal["inner", "left", "right", "full", "semi", "anti", "cross", "outer"] = "left",
     ) -> pl.DataFrame:
         """
         Joint les DataFrames en gérant les conflits de noms et types.
@@ -187,7 +186,7 @@ class OdooQuery:
         target_model: str | None = None,
         fields: list[str] | None = None,
         domain: list | None = None,
-        how: str = "left",
+        how: Literal["inner", "left", "right", "full", "semi", "anti", "cross", "outer"] = "left",
     ) -> tuple[pl.LazyFrame, str]:
         """
         Méthode centrale pour enrichir avec des données liées.
@@ -315,7 +314,7 @@ class OdooQuery:
             _current_model=self._current_model,  # Enrichissement : garde le modèle courant
         )
 
-    def filter(self, *conditions) -> OdooQuery:
+    def filter(self, *conditions: pl.Expr) -> OdooQuery:
         """Applique des filtres Polars."""
         return OdooQuery(
             connector=self.connector,
@@ -324,7 +323,7 @@ class OdooQuery:
             _current_model=self._current_model,
         )
 
-    def select(self, *columns) -> OdooQuery:
+    def select(self, *columns: str | pl.Expr) -> OdooQuery:
         """Sélectionne des colonnes spécifiques."""
         return OdooQuery(
             connector=self.connector,

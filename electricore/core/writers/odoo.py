@@ -35,7 +35,7 @@ class OdooWriter(OdooReader):
         "toggle_active",
     }
 
-    def __init__(self, config: dict[str, str], sim: bool = False, **kwargs):
+    def __init__(self, config: dict[str, str], sim: bool = False, **kwargs: Any) -> None:
         """
         Initialise le connecteur avec mode simulation.
 

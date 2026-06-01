@@ -26,7 +26,7 @@ class OdooConfig:
     password: str
 
     @classmethod
-    def from_dict(cls, config: dict[str, str]) -> "OdooConfig":
+    def from_dict(cls, config: dict[str, str | None]) -> "OdooConfig":
         """
         Crée une OdooConfig depuis un dictionnaire de configuration.
 
@@ -67,6 +67,8 @@ class OdooConfig:
         if missing:
             raise ValueError(f"Paramètres manquants dans la configuration: {', '.join(missing)}")
 
+        # Validation ci-dessus garantit non-None ; assert pour le type checker
+        assert url is not None and db is not None and username is not None and password is not None
         return cls(url=url, db=db, username=username, password=password)
 
 
@@ -77,9 +79,9 @@ class FieldsCache:
     Améliore les performances en évitant les appels répétés à fields_get.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialise un cache vide."""
-        self._cache: dict[str, dict[str, dict]] = {}
+        self._cache: dict[str, dict[str, dict | None]] = {}
 
     def get(self, model: str, field_name: str) -> dict | None:
         """

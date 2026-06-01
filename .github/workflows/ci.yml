@@ -23,6 +23,22 @@ jobs:
         with:
           args: "format --check"
 
+  typecheck:
+    name: typecheck (mypy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+          python-version: "3.12"
+      - name: Install dependencies (locked)
+        run: uv sync --locked --extra etl --group typecheck
+      - name: Run mypy
+        run: uv run --group typecheck mypy
+
   test:
     name: test (py${{ matrix.python-version }})
     runs-on: ubuntu-latest

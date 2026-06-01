@@ -13,6 +13,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
+import pandera.polars as pa
 import polars as pl
 
 from .config import DuckDBConfig, duckdb_connection
@@ -36,7 +37,7 @@ class QueryConfig:
 
     schema: FluxSchema
     transform: Callable[[pl.LazyFrame], pl.LazyFrame]
-    validator: type | None = None
+    validator: type[pa.DataFrameModel] | None = None
 
 
 # =============================================================================

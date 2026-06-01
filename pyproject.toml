@@ -81,6 +81,9 @@ test = [
     "syrupy>=4.7.2",
     "pytz>=2024.1",  # requis par DuckDB pour les tests avec vraie base de données
 ]
+typecheck = [
+    "mypy>=1.13",
+]
 
 
 [tool.pytest.ini_options]
@@ -142,6 +145,32 @@ ignore = [
 
 [tool.ruff.lint.flake8-bugbear]
 extend-immutable-calls = ["fastapi.Depends"]  # standard FastAPI DI pattern
+
+[tool.mypy]
+python_version = "3.12"
+files = [
+    "electricore/core/loaders",
+    "electricore/core/writers",
+    "electricore/core/pipelines/orchestration.py",
+]
+# external libs without complete stubs — skip "module not found" noise
+ignore_missing_imports = true
+# keep ignores honest (flag any "# type: ignore" that no longer suppresses anything)
+warn_unused_ignores = true
+
+# narrow strict scope: enforce annotations + explicit Optional on the public API surface
+[[tool.mypy.overrides]]
+module = [
+    "electricore.core.loaders.*",
+    "electricore.core.writers.*",
+    "electricore.core.pipelines.orchestration",
+]
+disallow_untyped_defs = true        # all defs must be annotated
+check_untyped_defs = true           # check bodies even if signature is untyped
+no_implicit_optional = true         # forbid `x: str = None`
+# intentionally skipped (Polars/Pandera produce too many false positives):
+# - disallow_untyped_decorators (DLT/Pandera decorators)
+# - warn_return_any (Polars chains)
 
 [tool.ruff.lint.per-file-ignores]
 "electricore/etl/pipeline_production.py" = ["E402"]  # sys.path setup before imports

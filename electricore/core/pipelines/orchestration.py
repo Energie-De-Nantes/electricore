@@ -166,7 +166,9 @@ def facturation(
     energie = pipeline_energie(historique_enrichi, releves)
 
     # Agrégation finale - nécessite la collecte pour l'agrégation
-    facturation_mensuelle = pipeline_facturation(abonnements, energie)
+    # pipeline_facturation attend des LazyFrame typés Pandera, mais pipeline_abonnements/energie
+    # retournent des pl.LazyFrame génériques (les schémas sont validés à l'exécution via @pa.check_types)
+    facturation_mensuelle = pipeline_facturation(abonnements, energie)  # type: ignore[arg-type]
 
     return ResultatFacturationPolars(
         historique_enrichi=historique_enrichi,
