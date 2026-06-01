@@ -268,26 +268,26 @@ async def health():
     Endpoint de vérification de santé de l'API.
 
     Endpoint public - aucune authentification requise.
-    Vérifie que l'API et la base de données sont accessibles.
+
+    Retourne toujours un 200 avec un payload structuré : ops peut détecter
+    les problèmes (base verrouillée, ETL en retard, bot arrêté) sans avoir
+    à parser des erreurs HTTP. Un `database.accessible: false` indique typiquement
+    un verrou ETL en cours — l'API se rétablit d'elle-même après le checkpoint.
 
     Returns:
-        Dict avec le statut de l'API et des composants critiques
+        Dict avec api_version, database (mtime + tailles tables), bot, authentication
     """
-    try:
-        # Test de connexion à la base
-        tables = duckdb_service.list_tables()
-        return {
-            "status": "ok",
-            "api_version": settings.api_version,
-            "database": "accessible",
-            "tables_count": len(tables),
-            "authentication": {
-                "api_keys_configured": len(settings.get_valid_api_keys()) > 0,
-                "method": "X-API-Key header",
-            },
-        }
-    except Exception as e:
-        raise HTTPException(500, f"Base de données inaccessible: {e}")
+    freshness = duckdb_service.get_freshness()
+    return {
+        "status": "ok",
+        "api_version": settings.api_version,
+        "database": freshness,
+        "bot": {"running": _tg_app is not None},
+        "authentication": {
+            "api_keys_configured": len(settings.get_valid_api_keys()) > 0,
+            "method": "X-API-Key header",
+        },
+    }
 
 
 @app.post("/etl/run", tags=["etl"], response_model=ETLJobResponse, status_code=202)
