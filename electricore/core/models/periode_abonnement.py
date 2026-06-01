@@ -6,7 +6,6 @@ de facturation de la part fixe (TURPE) en utilisant Polars pour des
 performances optimisées.
 """
 
-
 import pandera.polars as pa
 import polars as pl
 from pandera.engines.polars_engine import DateTime
@@ -27,7 +26,7 @@ class PeriodeAbonnement(pa.DataFrameModel):
     # Métadonnées de période
     mois_annee: pl.Utf8 = pa.Field(nullable=False)  # ex: "mars 2025"
     debut_lisible: pl.Utf8 = pa.Field(nullable=False)  # ex: "1 mars 2025"
-    fin_lisible: pl.Utf8 = pa.Field(nullable=False)    # ex: "31 mars 2025" ou "en cours"
+    fin_lisible: pl.Utf8 = pa.Field(nullable=False)  # ex: "31 mars 2025" ou "en cours"
 
     # Paramètres tarifaires
     formule_tarifaire_acheminement: pl.Utf8 = pa.Field(nullable=False)
@@ -46,14 +45,8 @@ class PeriodeAbonnement(pa.DataFrameModel):
     nb_jours: pl.Int32 = pa.Field(nullable=False)
 
     # Bornes temporelles précises (timezone Europe/Paris)
-    debut: DateTime = pa.Field(
-        nullable=False,
-        dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"}
-    )
-    fin: DateTime | None = pa.Field(
-        nullable=True,
-        dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"}
-    )
+    debut: DateTime = pa.Field(nullable=False, dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"})
+    fin: DateTime | None = pa.Field(nullable=True, dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"})
 
     # Champs TURPE (ajoutés après calcul)
     turpe_fixe_journalier_eur: pl.Float64 | None = pa.Field(nullable=True)
@@ -67,5 +60,6 @@ class PeriodeAbonnement(pa.DataFrameModel):
 
     class Config:
         """Configuration du modèle Pandera."""
+
         strict = False  # Permet colonnes supplémentaires pour flexibilité
-        coerce = True   # Conversion automatique des types compatibles
+        coerce = True  # Conversion automatique des types compatibles

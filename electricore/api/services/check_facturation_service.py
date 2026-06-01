@@ -22,10 +22,7 @@ def _rows_with_links(df: pl.DataFrame, model: str) -> list[dict]:
     if df.is_empty():
         return []
     id_col = f"{model.replace('.', '_')}_id"
-    return [
-        {**row, "url": _odoo_link(model, row[id_col])}
-        for row in df.to_dicts()
-    ]
+    return [{**row, "url": _odoo_link(model, row[id_col])} for row in df.to_dicts()]
 
 
 def verifier_odoo() -> dict:
@@ -44,26 +41,30 @@ def verifier_odoo() -> dict:
     """
     with OdooReader(config=settings.get_odoo_config()) as odoo:
         rsc_df = query(
-            odoo, "sale.order",
+            odoo,
+            "sale.order",
             domain=[("state", "=", "sale"), ("x_ref_situation_contractuelle", "=", False)],
             fields=["name", "x_pdl"],
         ).collect()
 
         cfne_df = query(
-            odoo, "sale.order",
+            odoo,
+            "sale.order",
             domain=[("state", "=", "sale"), ("x_date_cfne", "=", False)],
             fields=["name", "x_pdl"],
         ).collect()
 
         states_df = query(
-            odoo, "sale.order",
+            odoo,
+            "sale.order",
             domain=[("state", "=", "sale")],
             fields=["x_invoicing_state"],
         ).collect()
 
         factures_df = (
             query(
-                odoo, "sale.order",
+                odoo,
+                "sale.order",
                 domain=[("state", "=", "sale")],
                 fields=["name", "invoice_ids"],
             )
@@ -73,13 +74,12 @@ def verifier_odoo() -> dict:
 
         lisses_qty1_df = (
             query(
-                odoo, "sale.order",
+                odoo,
+                "sale.order",
                 domain=[("state", "=", "sale"), ("x_lisse", "=", True)],
                 fields=["name", "order_line"],
             )
-            .follow("order_line",
-                    domain=[("product_uom_qty", "=", 1)],
-                    fields=["product_id", "product_uom_qty"])
+            .follow("order_line", domain=[("product_uom_qty", "=", 1)], fields=["product_id", "product_uom_qty"])
             .follow("product_id", fields=["name", "categ_id"])
             .enrich("categ_id", fields=["name"])
             .filter(pl.col("name_product_category").is_in(["Base", "HP", "HC"]))
@@ -87,12 +87,7 @@ def verifier_odoo() -> dict:
         )
 
     state_col = pl.col("x_invoicing_state").fill_null("(non défini)")
-    counts = dict(
-        states_df.group_by(state_col.alias("state"))
-        .agg(pl.len().alias("n"))
-        .sort("state")
-        .iter_rows()
-    )
+    counts = dict(states_df.group_by(state_col.alias("state")).agg(pl.len().alias("n")).sort("state").iter_rows())
 
     factures_records = []
     if not factures_df.is_empty():
@@ -110,8 +105,7 @@ def verifier_odoo() -> dict:
     lisses_qty1_records = []
     if not lisses_qty1_df.is_empty():
         grouped = (
-            lisses_qty1_df
-            .group_by(["sale_order_id", "name"])
+            lisses_qty1_df.group_by(["sale_order_id", "name"])
             .agg(pl.col("name_product_category").unique().sort().alias("categ_names"))
             .sort("name")
         )

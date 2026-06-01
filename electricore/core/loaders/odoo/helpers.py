@@ -8,13 +8,11 @@ Toutes les fonctions sont pures : elles prennent un OdooReader en paramètre
 et retournent un OdooQuery chainable.
 """
 
-
 from .query import OdooQuery
 from .reader import OdooReader
 
 
-def query(odoo: OdooReader, model: str, domain: list = None,
-          fields: list[str] | None = None) -> OdooQuery:
+def query(odoo: OdooReader, model: str, domain: list = None, fields: list[str] | None = None) -> OdooQuery:
     """
     Crée un OdooQuery depuis un OdooReader connecté.
 
@@ -60,8 +58,9 @@ def factures(odoo: OdooReader, domain: list = None) -> OdooQuery:
         ...         .filter(pl.col('amount_total') > 1000)
         ...         .collect())
     """
-    return query(odoo, 'account.move', domain=domain,
-                fields=['name', 'invoice_date', 'amount_total', 'state', 'partner_id'])
+    return query(
+        odoo, "account.move", domain=domain, fields=["name", "invoice_date", "amount_total", "state", "partner_id"]
+    )
 
 
 def lignes_factures(odoo: OdooReader, domain: list = None) -> OdooQuery:
@@ -82,8 +81,9 @@ def lignes_factures(odoo: OdooReader, domain: list = None) -> OdooQuery:
         ...         .enrich('product_id', fields=['name', 'default_code'])
         ...         .collect())
     """
-    return query(odoo, 'account.move.line', domain=domain,
-                fields=['name', 'quantity', 'price_unit', 'product_id', 'move_id'])
+    return query(
+        odoo, "account.move.line", domain=domain, fields=["name", "quantity", "price_unit", "product_id", "move_id"]
+    )
 
 
 def commandes(odoo: OdooReader, domain: list = None) -> OdooQuery:
@@ -104,8 +104,9 @@ def commandes(odoo: OdooReader, domain: list = None) -> OdooQuery:
         ...         .filter(pl.col('amount_total') > 500)
         ...         .collect())
     """
-    return query(odoo, 'sale.order', domain=domain,
-                fields=['name', 'date_order', 'amount_total', 'state', 'partner_id'])
+    return query(
+        odoo, "sale.order", domain=domain, fields=["name", "date_order", "amount_total", "state", "partner_id"]
+    )
 
 
 def partenaires(odoo: OdooReader, domain: list = None) -> OdooQuery:
@@ -125,13 +126,13 @@ def partenaires(odoo: OdooReader, domain: list = None) -> OdooQuery:
         ...         .filter(pl.col('active') == True)
         ...         .collect())
     """
-    return query(odoo, 'res.partner', domain=domain,
-                fields=['name', 'email', 'phone', 'customer_rank', 'active'])
+    return query(odoo, "res.partner", domain=domain, fields=["name", "email", "phone", "customer_rank", "active"])
 
 
 # =============================================================================
 # HELPERS AVEC NAVIGATION - Raccourcis pour relations multi-niveaux
 # =============================================================================
+
 
 def commandes_factures(odoo: OdooReader, domain: list = None) -> OdooQuery:
     """
@@ -157,11 +158,12 @@ def commandes_factures(odoo: OdooReader, domain: list = None) -> OdooQuery:
         ...         .select(['name', 'date_order', 'name_account_move', 'invoice_date'])
         ...         .collect())
     """
-    return (
-        query(odoo, 'sale.order', domain=domain,
-              fields=['name', 'date_order', 'amount_total', 'state', 'x_pdl', 'partner_id', 'invoice_ids'])
-        .follow('invoice_ids', fields=['name', 'invoice_date', 'invoice_line_ids'])
-    )
+    return query(
+        odoo,
+        "sale.order",
+        domain=domain,
+        fields=["name", "date_order", "amount_total", "state", "x_pdl", "partner_id", "invoice_ids"],
+    ).follow("invoice_ids", fields=["name", "invoice_date", "invoice_line_ids"])
 
 
 def commandes_lignes(odoo: OdooReader, domain: list = None) -> OdooQuery:
@@ -209,12 +211,16 @@ def commandes_lignes(odoo: OdooReader, domain: list = None) -> OdooQuery:
         ...         ]))
     """
     return (
-        query(odoo, 'sale.order', domain=domain,
-              fields=['name', 'date_order', 'amount_total', 'state', 'x_pdl', 'partner_id', 'invoice_ids'])
-        .follow('invoice_ids', fields=['name', 'invoice_date', 'invoice_line_ids'])
-        .follow('invoice_line_ids', fields=['name', 'product_id', 'quantity', 'price_unit', 'price_total'])
-        .follow('product_id', fields=['name', 'categ_id'])
-        .enrich('categ_id', fields=['name'])
+        query(
+            odoo,
+            "sale.order",
+            domain=domain,
+            fields=["name", "date_order", "amount_total", "state", "x_pdl", "partner_id", "invoice_ids"],
+        )
+        .follow("invoice_ids", fields=["name", "invoice_date", "invoice_line_ids"])
+        .follow("invoice_line_ids", fields=["name", "product_id", "quantity", "price_unit", "price_total"])
+        .follow("product_id", fields=["name", "categ_id"])
+        .enrich("categ_id", fields=["name"])
     )
 
 
@@ -285,18 +291,18 @@ def lignes_a_facturer(odoo: OdooReader, domain: list = None) -> OdooQuery:
         ...                  'name_product_product', 'name_product_category'])
         ...         .collect())
     """
-    base_domain = [('state', '=', 'sale'), ('x_invoicing_state', '=', 'draft')] + (domain or [])
+    base_domain = [("state", "=", "sale"), ("x_invoicing_state", "=", "draft")] + (domain or [])
     return (
-        query(odoo, 'sale.order', domain=base_domain,
-              fields=['name', 'x_pdl', 'x_ref_situation_contractuelle', 'x_lisse', 'invoice_ids'])
-        .follow('invoice_ids',
-                domain=[('state', '=', 'draft')],
-                fields=['name', 'invoice_date', 'invoice_line_ids'])
-        .follow('invoice_line_ids',
-                domain=[('quantity', '>', 0)],
-                fields=['name', 'product_id', 'quantity'])
-        .follow('product_id', fields=['name', 'categ_id'])
-        .enrich('categ_id', fields=['name'])
+        query(
+            odoo,
+            "sale.order",
+            domain=base_domain,
+            fields=["name", "x_pdl", "x_ref_situation_contractuelle", "x_lisse", "invoice_ids"],
+        )
+        .follow("invoice_ids", domain=[("state", "=", "draft")], fields=["name", "invoice_date", "invoice_line_ids"])
+        .follow("invoice_line_ids", domain=[("quantity", ">", 0)], fields=["name", "product_id", "quantity"])
+        .follow("product_id", fields=["name", "categ_id"])
+        .enrich("categ_id", fields=["name"])
     )
 
 
@@ -328,15 +334,12 @@ def lignes_quantite_zero(odoo: OdooReader, domain: list = None) -> OdooQuery:
         ...     df = lignes_quantite_zero(odoo).collect()
         ...     ids_a_supprimer = df['invoice_line_ids'].drop_nulls().to_list()
     """
-    base_domain = [('state', '=', 'sale'), ('x_invoicing_state', '=', 'draft')] + (domain or [])
+    base_domain = [("state", "=", "sale"), ("x_invoicing_state", "=", "draft")] + (domain or [])
     return (
-        query(odoo, 'sale.order', domain=base_domain,
-              fields=['name', 'state', 'x_pdl', 'x_lisse', 'invoice_ids'])
-        .follow('invoice_ids',
-                domain=[('state', '=', 'draft')],
-                fields=['name', 'invoice_date', 'invoice_line_ids'])
-        .follow('invoice_line_ids',
-                domain=[('quantity', '=', 0)],
-                fields=['name', 'product_id', 'quantity', 'price_unit'])
-        .follow('product_id', fields=['name'])
+        query(odoo, "sale.order", domain=base_domain, fields=["name", "state", "x_pdl", "x_lisse", "invoice_ids"])
+        .follow("invoice_ids", domain=[("state", "=", "draft")], fields=["name", "invoice_date", "invoice_line_ids"])
+        .follow(
+            "invoice_line_ids", domain=[("quantity", "=", 0)], fields=["name", "product_id", "quantity", "price_unit"]
+        )
+        .follow("product_id", fields=["name"])
     )

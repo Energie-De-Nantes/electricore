@@ -23,9 +23,7 @@ class DuckDBConfig:
             database_path: Chemin vers la base DuckDB. Si None, utilise la config par défaut.
         """
         if database_path is None:
-            self.database_path = Path(
-                os.getenv("DUCKDB_PATH", "electricore/etl/flux_enedis_pipeline.duckdb")
-            )
+            self.database_path = Path(os.getenv("DUCKDB_PATH", "electricore/etl/flux_enedis_pipeline.duckdb"))
         else:
             self.database_path = Path(database_path)
 
@@ -33,12 +31,12 @@ class DuckDBConfig:
         self.table_mappings = {
             "historique_perimetre": {
                 "source_tables": ["flux_enedis.flux_c15"],
-                "description": "Historique des événements contractuels avec relevés avant/après"
+                "description": "Historique des événements contractuels avec relevés avant/après",
             },
             "releves": {
                 "source_tables": ["flux_enedis.flux_r151", "flux_enedis.flux_r15"],
-                "description": "Relevés de compteurs unifiés depuis R151 et R15"
-            }
+                "description": "Relevés de compteurs unifiés depuis R151 et R15",
+            },
         }
 
 

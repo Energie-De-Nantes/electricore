@@ -38,8 +38,8 @@ def charger_config_odoo(env: str | None = None) -> dict:
     prefix = f"ODOO_{env.upper()}_"
 
     config = {
-        "url":      os.getenv(f"{prefix}URL", ""),
-        "db":       os.getenv(f"{prefix}DB", ""),
+        "url": os.getenv(f"{prefix}URL", ""),
+        "db": os.getenv(f"{prefix}DB", ""),
         "username": os.getenv(f"{prefix}USERNAME", ""),
         "password": os.getenv(f"{prefix}PASSWORD", ""),
     }
@@ -48,8 +48,7 @@ def charger_config_odoo(env: str | None = None) -> dict:
     if manquantes:
         vars_manquantes = [f"{prefix}{k.upper()}" for k in manquantes]
         raise ValueError(
-            f"Configuration Odoo [{env}] incomplète. "
-            f"Définissez {', '.join(vars_manquantes)} dans le fichier .env"
+            f"Configuration Odoo [{env}] incomplète. Définissez {', '.join(vars_manquantes)} dans le fichier .env"
         )
 
     return config

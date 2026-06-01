@@ -35,103 +35,107 @@ from electricore.core.pipelines.turpe import (
         # BTINFCUST - 36 kVA (puissance maximale BT INF)
         ("BTINFCUST", 36.0, 10.44, 16.2, 20.88, 410.0, 420.0),
     ],
-    ids=["BTINFCUST_6kVA", "BTINFCU4_9kVA", "BTINFMU4_12kVA", "BTINFCU4_3kVA", "BTINFCUST_36kVA"]
+    ids=["BTINFCUST_6kVA", "BTINFCU4_9kVA", "BTINFMU4_12kVA", "BTINFCU4_3kVA", "BTINFCUST_36kVA"],
 )
-def test_turpe_fixe_annuel_par_fta(
-    fta,
-    puissance,
-    b,
-    cg,
-    cc,
-    expected_annuel_min,
-    expected_annuel_max
-):
+def test_turpe_fixe_annuel_par_fta(fta, puissance, b, cg, cc, expected_annuel_min, expected_annuel_max):
     """Teste le calcul TURPE fixe annuel pour différentes FTA."""
-    df = pl.DataFrame({
-        "formule_tarifaire_acheminement": [fta],
-        "puissance_souscrite_kva": [puissance],
-        "b": [b],
-        "cg": [cg],
-        "cc": [cc],
-        # Colonnes C4 avec NULL (C5 n'utilise pas ces colonnes)
-        "b_hph": [None],
-        "b_hch": [None],
-        "b_hpb": [None],
-        "b_hcb": [None],
-        "puissance_souscrite_hph_kva": [None],
-        "puissance_souscrite_hch_kva": [None],
-        "puissance_souscrite_hpb_kva": [None],
-        "puissance_souscrite_hcb_kva": [None],
-    })
-
-    result = df.with_columns(
-        expr_calculer_turpe_fixe_annuel().alias("turpe_annuel")
+    df = pl.DataFrame(
+        {
+            "formule_tarifaire_acheminement": [fta],
+            "puissance_souscrite_kva": [puissance],
+            "b": [b],
+            "cg": [cg],
+            "cc": [cc],
+            # Colonnes C4 avec NULL (C5 n'utilise pas ces colonnes)
+            "b_hph": [None],
+            "b_hch": [None],
+            "b_hpb": [None],
+            "b_hcb": [None],
+            "puissance_souscrite_hph_kva": [None],
+            "puissance_souscrite_hch_kva": [None],
+            "puissance_souscrite_hpb_kva": [None],
+            "puissance_souscrite_hcb_kva": [None],
+        }
     )
+
+    result = df.with_columns(expr_calculer_turpe_fixe_annuel().alias("turpe_annuel"))
 
     turpe_annuel = result["turpe_annuel"][0]
 
     # Vérification par plage (formule: b * P + cg + cc)
-    assert expected_annuel_min <= turpe_annuel <= expected_annuel_max, \
+    assert expected_annuel_min <= turpe_annuel <= expected_annuel_max, (
         f"TURPE annuel hors plage pour {fta} {puissance}kVA: {turpe_annuel}"
+    )
 
 
 @pytest.mark.unit
 @pytest.mark.parametrize(
     "b,cg,cc,puissance",
     [
-        (10.44, 16.2, 20.88, 6.0),   # BTINFCUST 6kVA
-        (10.44, 16.2, 20.88, 9.0),   # BTINFCUST 9kVA
-        (8.40,  16.2, 20.88, 12.0),  # BTINFMU4 12kVA
-        (9.36,  16.2, 20.88, 3.0),   # BTINFCU4 3kVA (puissance min)
+        (10.44, 16.2, 20.88, 6.0),  # BTINFCUST 6kVA
+        (10.44, 16.2, 20.88, 9.0),  # BTINFCUST 9kVA
+        (8.40, 16.2, 20.88, 12.0),  # BTINFMU4 12kVA
+        (9.36, 16.2, 20.88, 3.0),  # BTINFCU4 3kVA (puissance min)
         (10.44, 16.2, 20.88, 36.0),  # BTINFCUST 36kVA (puissance max BT INF)
     ],
-    ids=["BTINFCUST_6kVA", "BTINFCUST_9kVA", "BTINFMU4_12kVA", "BTINFCU4_3kVA", "BTINFCUST_36kVA"]
+    ids=["BTINFCUST_6kVA", "BTINFCUST_9kVA", "BTINFMU4_12kVA", "BTINFCU4_3kVA", "BTINFCUST_36kVA"],
 )
 def test_turpe_fixe_journalier_fta(b, cg, cc, puissance):
     """Teste que le tarif journalier = annuel / 365 pour différentes FTA."""
-    df = pl.DataFrame({
-        "puissance_souscrite_kva": [puissance],
-        "b": [b], "cg": [cg], "cc": [cc],
-        "b_hph": [None], "b_hch": [None], "b_hpb": [None], "b_hcb": [None],
-        "puissance_souscrite_hph_kva": [None], "puissance_souscrite_hch_kva": [None],
-        "puissance_souscrite_hpb_kva": [None], "puissance_souscrite_hcb_kva": [None],
-    })
-
-    result = df.with_columns(
-        expr_calculer_turpe_fixe_journalier().alias("turpe_journalier")
+    df = pl.DataFrame(
+        {
+            "puissance_souscrite_kva": [puissance],
+            "b": [b],
+            "cg": [cg],
+            "cc": [cc],
+            "b_hph": [None],
+            "b_hch": [None],
+            "b_hpb": [None],
+            "b_hcb": [None],
+            "puissance_souscrite_hph_kva": [None],
+            "puissance_souscrite_hch_kva": [None],
+            "puissance_souscrite_hpb_kva": [None],
+            "puissance_souscrite_hcb_kva": [None],
+        }
     )
+
+    result = df.with_columns(expr_calculer_turpe_fixe_journalier().alias("turpe_journalier"))
 
     expected = (b * puissance + cg + cc) / 365
     assert abs(result["turpe_journalier"][0] - expected) < 0.001
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize(
-    "nb_jours",
-    [30, 31, 90, 180, 365],
-    ids=["1_mois", "31j", "1_trimestre", "6_mois", "1_an"]
-)
+@pytest.mark.parametrize("nb_jours", [30, 31, 90, 180, 365], ids=["1_mois", "31j", "1_trimestre", "6_mois", "1_an"])
 def test_turpe_fixe_periode_prorata(nb_jours):
     """Teste que le TURPE période respecte le prorata temporis (annuel * nb_jours / 365)."""
     b, cg, cc, puissance = 10.44, 16.2, 20.88, 6.0  # BTINFCUST 6kVA
-    df = pl.DataFrame({
-        "nb_jours": [nb_jours],
-        "puissance_souscrite_kva": [puissance],
-        "b": [b], "cg": [cg], "cc": [cc],
-        "b_hph": [None], "b_hch": [None], "b_hpb": [None], "b_hcb": [None],
-        "puissance_souscrite_hph_kva": [None], "puissance_souscrite_hch_kva": [None],
-        "puissance_souscrite_hpb_kva": [None], "puissance_souscrite_hcb_kva": [None],
-    })
-
-    result = df.with_columns(
-        expr_calculer_turpe_fixe_periode().alias("turpe_periode")
+    df = pl.DataFrame(
+        {
+            "nb_jours": [nb_jours],
+            "puissance_souscrite_kva": [puissance],
+            "b": [b],
+            "cg": [cg],
+            "cc": [cc],
+            "b_hph": [None],
+            "b_hch": [None],
+            "b_hpb": [None],
+            "b_hcb": [None],
+            "puissance_souscrite_hph_kva": [None],
+            "puissance_souscrite_hch_kva": [None],
+            "puissance_souscrite_hpb_kva": [None],
+            "puissance_souscrite_hcb_kva": [None],
+        }
     )
+
+    result = df.with_columns(expr_calculer_turpe_fixe_periode().alias("turpe_periode"))
 
     turpe_annuel = b * puissance + cg + cc
     expected_periode = round(turpe_annuel * nb_jours / 365, 2)
 
-    assert abs(result["turpe_periode"][0] - expected_periode) < 0.01, \
+    assert abs(result["turpe_periode"][0] - expected_periode) < 0.01, (
         f"TURPE période incorrect: {result['turpe_periode'][0]} vs {expected_periode}"
+    )
 
 
 # =========================================================================
@@ -144,26 +148,26 @@ def test_turpe_fixe_periode_prorata(nb_jours):
     "cadran,energie,tarif,expected",
     [
         # Formule : energie * tarif / 100  (tarif en c€/kWh → résultat en €)
-        ("hp",   1000.0, 1.5,  15.0),
-        ("hc",    800.0, 1.2,   9.6),
+        ("hp", 1000.0, 1.5, 15.0),
+        ("hc", 800.0, 1.2, 9.6),
         ("base", 1500.0, 1.35, 20.25),
-        ("hph",   500.0, 1.6,   8.0),
-        ("hch",   400.0, 1.3,   5.2),
-        ("hp",      0.0, 1.5,   0.0),   # consommation nulle
+        ("hph", 500.0, 1.6, 8.0),
+        ("hch", 400.0, 1.3, 5.2),
+        ("hp", 0.0, 1.5, 0.0),  # consommation nulle
         ("hp", 100000.0, 1.5, 1500.0),  # très grosse consommation
     ],
-    ids=["hp_normal", "hc_normal", "base_normal", "hph_hiver", "hch_hiver", "zero", "tres_grosse_conso"]
+    ids=["hp_normal", "hc_normal", "base_normal", "hph_hiver", "hch_hiver", "zero", "tres_grosse_conso"],
 )
 def test_turpe_variable_cadran(cadran, energie, tarif, expected):
     """Teste le calcul TURPE variable par cadran (tarif en c€/kWh, résultat en €)."""
-    df = pl.DataFrame({
-        f"energie_{cadran}_kwh": [energie],
-        f"c_{cadran}": [tarif],
-    })
-
-    result = df.with_columns(
-        expr_calculer_turpe_cadran(cadran).alias(f"cout_{cadran}")
+    df = pl.DataFrame(
+        {
+            f"energie_{cadran}_kwh": [energie],
+            f"c_{cadran}": [tarif],
+        }
     )
+
+    result = df.with_columns(expr_calculer_turpe_cadran(cadran).alias(f"cout_{cadran}"))
 
     cout = result[f"cout_{cadran}"][0]
     assert abs(cout - expected) < 0.001, f"Coût TURPE {cadran} incorrect: {cout} vs {expected}"
@@ -187,31 +191,31 @@ def test_turpe_variable_cadran(cadran, energie, tarif, expected):
 )
 def test_turpe_fixe_puissances_limites(puissance, description):
     """Teste les cas limites de puissance."""
-    df = pl.DataFrame({
-        "formule_tarifaire_acheminement": ["BTINFCU4"],
-        "puissance_souscrite_kva": [puissance],
-        "b": [9.36],
-        "cg": [16.2],
-        "cc": [20.88],
-        "nb_jours": [30],
-        # Colonnes C4 avec NULL (C5 n'utilise pas ces colonnes)
-        "b_hph": [None],
-        "b_hch": [None],
-        "b_hpb": [None],
-        "b_hcb": [None],
-        "puissance_souscrite_hph_kva": [None],
-        "puissance_souscrite_hch_kva": [None],
-        "puissance_souscrite_hpb_kva": [None],
-        "puissance_souscrite_hcb_kva": [None],
-    })
+    df = pl.DataFrame(
+        {
+            "formule_tarifaire_acheminement": ["BTINFCU4"],
+            "puissance_souscrite_kva": [puissance],
+            "b": [9.36],
+            "cg": [16.2],
+            "cc": [20.88],
+            "nb_jours": [30],
+            # Colonnes C4 avec NULL (C5 n'utilise pas ces colonnes)
+            "b_hph": [None],
+            "b_hch": [None],
+            "b_hpb": [None],
+            "b_hcb": [None],
+            "puissance_souscrite_hph_kva": [None],
+            "puissance_souscrite_hch_kva": [None],
+            "puissance_souscrite_hpb_kva": [None],
+            "puissance_souscrite_hcb_kva": [None],
+        }
+    )
 
     # Ne doit pas planter
-    result = df.with_columns(
-        expr_calculer_turpe_fixe_annuel().alias("turpe_annuel")
-    ).with_columns(
-        expr_calculer_turpe_fixe_journalier().alias("turpe_journalier")
-    ).with_columns(
-        expr_calculer_turpe_fixe_periode().alias("turpe_periode")
+    result = (
+        df.with_columns(expr_calculer_turpe_fixe_annuel().alias("turpe_annuel"))
+        .with_columns(expr_calculer_turpe_fixe_journalier().alias("turpe_journalier"))
+        .with_columns(expr_calculer_turpe_fixe_periode().alias("turpe_periode"))
     )
 
     # Vérifications de cohérence
@@ -228,9 +232,9 @@ def test_turpe_fixe_puissances_limites(puissance, description):
 @pytest.mark.parametrize(
     "calendrier,cadrans_attendus",
     [
-        ("DI000001", ["BASE"]),                          # BASE uniquement
-        ("DI000002", ["HP", "HC"]),                      # HP/HC
-        ("DI000003", ["HPH", "HCH", "HPB", "HCB"]),     # Tempo 4 cadrans
+        ("DI000001", ["BASE"]),  # BASE uniquement
+        ("DI000002", ["HP", "HC"]),  # HP/HC
+        ("DI000003", ["HPH", "HCH", "HPB", "HCB"]),  # Tempo 4 cadrans
     ],
 )
 def test_turpe_variable_calendriers(calendrier, cadrans_attendus):
@@ -270,10 +274,7 @@ def test_turpe_variable_calendriers(calendrier, cadrans_attendus):
 def test_validation_fta(fta, valide):
     """Teste la validation des FTA."""
     # Les FTA valides doivent être dans les règles TURPE
-    fta_valides = {
-        "BTINFCUST", "BTINFCU4", "BTINFMU4",
-        "BTSUPCUST", "BTSUPCU4", "BTINFCUMP"
-    }
+    fta_valides = {"BTINFCUST", "BTINFCU4", "BTINFMU4", "BTSUPCUST", "BTSUPCU4", "BTINFCUMP"}
 
     if valide:
         assert fta in fta_valides

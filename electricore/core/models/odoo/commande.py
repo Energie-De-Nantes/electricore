@@ -4,7 +4,6 @@ Modèles Pandera pour commandes de vente Odoo (sale.order).
 Schémas de validation pour les commandes.
 """
 
-
 import pandera.polars as pa
 import polars as pl
 from pandera.dtypes import DateTime
@@ -22,20 +21,13 @@ class CommandeVenteOdoo(pa.DataFrameModel):
 
     # Référence et dates
     name: pl.Utf8 = pa.Field(nullable=False)  # Numéro de commande
-    date_order: DateTime | None = pa.Field(
-        nullable=True,
-        dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"}
-    )
+    date_order: DateTime | None = pa.Field(nullable=True, dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"})
     validity_date: DateTime | None = pa.Field(
-        nullable=True,
-        dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"}
+        nullable=True, dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"}
     )
 
     # État
-    state: pl.Utf8 = pa.Field(
-        nullable=False,
-        isin=["draft", "sent", "sale", "done", "cancel"]
-    )
+    state: pl.Utf8 = pa.Field(nullable=False, isin=["draft", "sent", "sale", "done", "cancel"])
 
     # Montants
     amount_untaxed: pl.Float64 | None = pa.Field(nullable=True, ge=0.0)
@@ -51,5 +43,6 @@ class CommandeVenteOdoo(pa.DataFrameModel):
 
     class Config:
         """Configuration du modèle."""
+
         strict = False  # Permet colonnes supplémentaires
-        coerce = True   # Coercition automatique des types
+        coerce = True  # Coercition automatique des types

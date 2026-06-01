@@ -22,6 +22,7 @@ from .sql import FluxSchema, build_base_query
 # CONFIGURATIONS IMMUTABLES
 # =============================================================================
 
+
 @dataclass(frozen=True)  # Immutable
 class QueryConfig:
     """
@@ -32,6 +33,7 @@ class QueryConfig:
         transform: Fonction de transformation LazyFrame
         validator: Classe Pandera pour validation (optionnel)
     """
+
     schema: FluxSchema
     transform: Callable[[pl.LazyFrame], pl.LazyFrame]
     validator: type | None = None
@@ -40,6 +42,7 @@ class QueryConfig:
 # =============================================================================
 # QUERY BUILDER IMMUTABLE
 # =============================================================================
+
 
 @dataclass(frozen=True)  # Immutable
 class DuckDBQuery:
@@ -75,7 +78,7 @@ class DuckDBQuery:
     # MÉTHODES BUILDER (Retournent nouvelles instances)
     # =========================================================================
 
-    def filter(self, filters: dict[str, Any]) -> 'DuckDBQuery':
+    def filter(self, filters: dict[str, Any]) -> "DuckDBQuery":
         """
         Ajoute des filtres à la requête.
 
@@ -93,7 +96,7 @@ class DuckDBQuery:
         new_filters = self.filters + tuple(filters.items())
         return replace(self, filters=new_filters)
 
-    def where(self, condition: str) -> 'DuckDBQuery':
+    def where(self, condition: str) -> "DuckDBQuery":
         """
         Ajoute une condition WHERE sous forme de chaîne brute.
 
@@ -110,7 +113,7 @@ class DuckDBQuery:
         new_filters = self.filters + (("__raw_condition", condition),)
         return replace(self, filters=new_filters)
 
-    def limit(self, count: int) -> 'DuckDBQuery':
+    def limit(self, count: int) -> "DuckDBQuery":
         """
         Ajoute une limite au nombre de lignes retournées.
 
@@ -125,7 +128,7 @@ class DuckDBQuery:
         """
         return replace(self, limit_value=count)
 
-    def validate(self, enable: bool = True) -> 'DuckDBQuery':
+    def validate(self, enable: bool = True) -> "DuckDBQuery":
         """
         Active ou désactive la validation Pandera.
 
@@ -162,7 +165,7 @@ class DuckDBQuery:
             return f"{column} IN ('{values}')"
 
         # String avec opérateur (>=, <=, etc.)
-        if isinstance(condition, str) and any(op in condition for op in ['>=', '<=', '>', '<', '=']):
+        if isinstance(condition, str) and any(op in condition for op in [">=", "<=", ">", "<", "="]):
             return f"{column} {condition}"
 
         # Égalité simple
@@ -184,9 +187,7 @@ class DuckDBQuery:
 
         # Ajouter les filtres
         if self.filters:
-            where_clauses = [
-                self._build_filter_clause(col, val) for col, val in self.filters
-            ]
+            where_clauses = [self._build_filter_clause(col, val) for col, val in self.filters]
 
             # Vérifier si la requête a déjà une clause WHERE
             if "WHERE" in query.upper():
@@ -267,10 +268,8 @@ class DuckDBQuery:
 # FACTORY GÉNÉRIQUE (Fonction pure)
 # =============================================================================
 
-def make_query(
-    config: QueryConfig,
-    database_path: str | Path | None = None
-) -> DuckDBQuery:
+
+def make_query(config: QueryConfig, database_path: str | Path | None = None) -> DuckDBQuery:
     """
     Factory générique pour créer un DuckDBQuery depuis une configuration.
 
@@ -286,7 +285,4 @@ def make_query(
     Example:
         >>> query = make_query(FLUX_CONFIGS["c15"])
     """
-    return DuckDBQuery(
-        config=config,
-        database_path=database_path
-    )
+    return DuckDBQuery(config=config, database_path=database_path)

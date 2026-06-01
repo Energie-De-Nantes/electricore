@@ -8,7 +8,6 @@ Les expressions sont composables et peuvent être utilisées dans with_columns()
 pour construire des pipelines de transformation complexes.
 """
 
-
 import polars as pl
 
 # =============================================================================
@@ -16,7 +15,15 @@ import polars as pl
 # =============================================================================
 
 # Colonnes d'index énergétiques (tuple = immutable) - Format: index_cadran_kwh
-INDEX_COLS = ("index_base_kwh", "index_hp_kwh", "index_hc_kwh", "index_hph_kwh", "index_hpb_kwh", "index_hcb_kwh", "index_hch_kwh")
+INDEX_COLS = (
+    "index_base_kwh",
+    "index_hp_kwh",
+    "index_hc_kwh",
+    "index_hph_kwh",
+    "index_hpb_kwh",
+    "index_hcb_kwh",
+    "index_hch_kwh",
+)
 
 # Colonnes de dates pour chaque type de flux
 DATE_COLS_HISTORIQUE = ("date_evenement", "avant_date_releve", "apres_date_releve")
@@ -28,6 +35,7 @@ DATE_COLS_R64 = ("date_releve", "modification_date")
 # =============================================================================
 # EXPRESSIONS POUR CONVERSION TIMEZONE
 # =============================================================================
+
 
 def expr_with_timezone(date_col: str, tz: str = "Europe/Paris") -> pl.Expr:
     """
@@ -48,10 +56,7 @@ def expr_with_timezone(date_col: str, tz: str = "Europe/Paris") -> pl.Expr:
     return pl.col(date_col).dt.convert_time_zone(tz)
 
 
-def expr_dates_with_timezone(
-    *date_cols: str,
-    tz: str = "Europe/Paris"
-) -> list[pl.Expr]:
+def expr_dates_with_timezone(*date_cols: str, tz: str = "Europe/Paris") -> list[pl.Expr]:
     """
     Expressions multiples pour conversion de plusieurs colonnes dates.
 
@@ -74,6 +79,7 @@ def expr_dates_with_timezone(
 # =============================================================================
 # EXPRESSIONS POUR CONVERSION UNITÉS (Wh -> kWh)
 # =============================================================================
+
 
 def expr_wh_to_kwh(index_col: str) -> pl.Expr:
     """
@@ -144,17 +150,13 @@ def expr_normalize_unit(unit_col: str = "unite") -> pl.Expr:
     Example:
         >>> df.with_columns(expr_normalize_unit("unite"))
     """
-    return (
-        pl.when(pl.col(unit_col) == "Wh")
-        .then(pl.lit("kWh"))
-        .otherwise(pl.col(unit_col))
-        .alias(unit_col)
-    )
+    return pl.when(pl.col(unit_col) == "Wh").then(pl.lit("kWh")).otherwise(pl.col(unit_col)).alias(unit_col)
 
 
 # =============================================================================
 # EXPRESSIONS POUR MÉTADONNÉES DÉRIVÉES
 # =============================================================================
+
 
 def expr_has_metadata(flux_origin_col: str = "flux_origine") -> pl.Expr:
     """
@@ -198,6 +200,4 @@ def expr_cadrans_count(*index_cols: str) -> pl.Expr:
     Example:
         >>> df.with_columns(expr_cadrans_count("index_hp_kwh", "index_hc_kwh", "index_base_kwh"))
     """
-    return pl.sum_horizontal([
-        pl.col(col).is_not_null().cast(pl.Int32) for col in index_cols
-    ]).alias("cadrans_count")
+    return pl.sum_horizontal([pl.col(col).is_not_null().cast(pl.Int32) for col in index_cols]).alias("cadrans_count")

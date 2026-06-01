@@ -3,17 +3,13 @@ Système de sécurité pour l'API ElectriCore.
 Gestion de l'authentification par clés API via header X-API-Key uniquement.
 """
 
-
 from fastapi import HTTPException, Security, status
 from fastapi.security import APIKeyHeader
 
 from electricore.api.config import settings
 
 # Schéma de sécurité unique
-api_key_header = APIKeyHeader(
-    name="X-API-Key",
-    description="Clé API dans le header X-API-Key"
-)
+api_key_header = APIKeyHeader(name="X-API-Key", description="Clé API dans le header X-API-Key")
 
 
 def get_api_key(api_key: str | None = Security(api_key_header)) -> str:
@@ -33,14 +29,12 @@ def get_api_key(api_key: str | None = Security(api_key_header)) -> str:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Clé API requise dans le header 'X-API-Key'",
-            headers={"WWW-Authenticate": "APIKey"}
+            headers={"WWW-Authenticate": "APIKey"},
         )
 
     if not settings.is_valid_api_key(api_key):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Clé API invalide",
-            headers={"WWW-Authenticate": "APIKey"}
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Clé API invalide", headers={"WWW-Authenticate": "APIKey"}
         )
 
     return api_key

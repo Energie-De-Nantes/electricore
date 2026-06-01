@@ -6,7 +6,6 @@ fonctionnelle de Polars. Les expressions sont des transformations pures
 qui peuvent être composées entre elles pour générer les méta-périodes de facturation.
 """
 
-
 import pandera.polars as pa
 import polars as pl
 from pandera.typing.polars import DataFrame, LazyFrame
@@ -22,6 +21,7 @@ from electricore.core.models.periode_meta import PeriodeMeta
 # EXPRESSIONS ATOMIQUES POUR CALCULS D'AGRÉGATION
 # =============================================================================
 
+
 def expr_puissance_moyenne() -> pl.Expr:
     """
     Calcule la puissance moyenne pondérée par le nombre de jours directement dans le groupby.
@@ -36,10 +36,7 @@ def expr_puissance_moyenne() -> pl.Expr:
         >>> lf.group_by(["ref_situation_contractuelle", "pdl", "mois_annee"])
         ...   .agg(expr_puissance_moyenne().alias("puissance_moyenne"))
     """
-    return (
-        (pl.col("puissance_souscrite_kva") * pl.col("nb_jours")).sum() /
-        pl.col("nb_jours").sum()
-    )
+    return (pl.col("puissance_souscrite_kva") * pl.col("nb_jours")).sum() / pl.col("nb_jours").sum()
 
 
 def expr_memo_puissance_simple() -> pl.Expr:
@@ -75,10 +72,7 @@ def expr_coverage_temporelle(duree_totale_col: str = "nb_jours_total") -> pl.Exp
     Example:
         >>> lf.with_columns(expr_coverage_temporelle().alias("coverage"))
     """
-    return (
-        pl.col("nb_jours").cast(pl.Float64) /
-        pl.col(duree_totale_col).cast(pl.Float64)
-    ).clip(0.0, 1.0)
+    return (pl.col("nb_jours").cast(pl.Float64) / pl.col(duree_totale_col).cast(pl.Float64)).clip(0.0, 1.0)
 
 
 def expr_calculer_trimestre() -> pl.Expr:
@@ -96,13 +90,13 @@ def expr_calculer_trimestre() -> pl.Expr:
         >>> df.with_columns(expr_calculer_trimestre().alias("trimestre"))
     """
     # Utiliser directement la colonne debut (déjà en datetime)
-    date_col = pl.col('debut')
+    date_col = pl.col("debut")
 
     # Extraire année et calculer trimestre
     annee = date_col.dt.year().cast(pl.Utf8)
     quarter = ((date_col.dt.month() - 1) // 3 + 1).cast(pl.Utf8)
 
-    return annee + pl.lit('-T') + quarter
+    return annee + pl.lit("-T") + quarter
 
 
 def expr_has_changement() -> pl.Expr:
@@ -135,9 +129,7 @@ def expr_data_complete_meta_periode() -> pl.Expr:
         >>> lf.with_columns(expr_data_complete_meta_periode().alias("data_complete"))
     """
     return (
-        (pl.col("coverage_abo") == 1.0) &
-        (pl.col("coverage_energie") == 1.0) &
-        (pl.col("nb_sous_periodes_energie") > 0)
+        (pl.col("coverage_abo") == 1.0) & (pl.col("coverage_energie") == 1.0) & (pl.col("nb_sous_periodes_energie") > 0)
     )
 
 
@@ -145,10 +137,9 @@ def expr_data_complete_meta_periode() -> pl.Expr:
 # EXPRESSIONS D'AGRÉGATION MENSUELLE
 # =============================================================================
 
+
 @pa.check_types(lazy=True)
-def agreger_abonnements_mensuel(
-    periodes: LazyFrame[PeriodeAbonnement]
-) -> LazyFrame[AbonnementMensuel]:
+def agreger_abonnements_mensuel(periodes: LazyFrame[PeriodeAbonnement]) -> LazyFrame[AbonnementMensuel]:
     """
     Agrège les périodes d'abonnement par mois avec puissance moyenne pondérée.
 
@@ -164,56 +155,49 @@ def agreger_abonnements_mensuel(
     """
 
     # Ajouter le mémo simple pour chaque ligne avant agrégation
-    periodes_avec_memo = periodes.with_columns(
-        expr_memo_puissance_simple().alias("memo_simple")
-    )
+    periodes_avec_memo = periodes.with_columns(expr_memo_puissance_simple().alias("memo_simple"))
 
     return (
-        periodes_avec_memo
-        .group_by(["ref_situation_contractuelle", "pdl", "mois_annee"])
-        .agg([
-            # Agrégations numériques
-            pl.col("nb_jours").sum(),
-            expr_puissance_moyenne().alias("puissance_moyenne_kva"),
-            pl.col("turpe_fixe_eur").sum(),
-
-            # Métadonnées (première valeur car identique dans le groupe)
-            pl.col("formule_tarifaire_acheminement").first(),
-
-            # Bornes temporelles
-            pl.col("debut").min(),
-            pl.col("fin").max(),
-
-            # Comptage des sous-périodes
-            pl.col("ref_situation_contractuelle").len().alias("nb_sous_periodes_abo"),
-
-            # Construction du mémo des puissances
-            pl.col("memo_simple").str.join(", ").alias("memo_puissance_concat"),
-        ])
-        .with_columns([
-            # Flag de changement si plusieurs sous-périodes
-            (pl.col("nb_sous_periodes_abo") > 1).alias("has_changement_abo"),
-
-            # Mémo final : vide si pas de changement de puissance réel
-            pl.when(pl.col("nb_sous_periodes_abo") <= 1)
-            .then(pl.lit(""))
-            .otherwise(
-                # TODO: Vérifier si changement réel de puissance
-                pl.col("memo_puissance_concat")
-            )
-            .alias("memo_puissance"),
-
-            # TODO: Calculer coverage_abo réel
-            pl.lit(1.0).alias("coverage_abo")  # Placeholder
-        ])
+        periodes_avec_memo.group_by(["ref_situation_contractuelle", "pdl", "mois_annee"])
+        .agg(
+            [
+                # Agrégations numériques
+                pl.col("nb_jours").sum(),
+                expr_puissance_moyenne().alias("puissance_moyenne_kva"),
+                pl.col("turpe_fixe_eur").sum(),
+                # Métadonnées (première valeur car identique dans le groupe)
+                pl.col("formule_tarifaire_acheminement").first(),
+                # Bornes temporelles
+                pl.col("debut").min(),
+                pl.col("fin").max(),
+                # Comptage des sous-périodes
+                pl.col("ref_situation_contractuelle").len().alias("nb_sous_periodes_abo"),
+                # Construction du mémo des puissances
+                pl.col("memo_simple").str.join(", ").alias("memo_puissance_concat"),
+            ]
+        )
+        .with_columns(
+            [
+                # Flag de changement si plusieurs sous-périodes
+                (pl.col("nb_sous_periodes_abo") > 1).alias("has_changement_abo"),
+                # Mémo final : vide si pas de changement de puissance réel
+                pl.when(pl.col("nb_sous_periodes_abo") <= 1)
+                .then(pl.lit(""))
+                .otherwise(
+                    # TODO: Vérifier si changement réel de puissance
+                    pl.col("memo_puissance_concat")
+                )
+                .alias("memo_puissance"),
+                # TODO: Calculer coverage_abo réel
+                pl.lit(1.0).alias("coverage_abo"),  # Placeholder
+            ]
+        )
         .drop("memo_puissance_concat")
     )
 
 
 @pa.check_types(lazy=True)
-def agreger_energies_mensuel(
-    periodes: LazyFrame[PeriodeEnergie]
-) -> LazyFrame[EnergieMensuel]:
+def agreger_energies_mensuel(periodes: LazyFrame[PeriodeEnergie]) -> LazyFrame[EnergieMensuel]:
     """
     Agrège les périodes d'énergie par mois avec sommes simples.
 
@@ -231,61 +215,58 @@ def agreger_energies_mensuel(
 
     # Calculer nb_jours si pas présent
     if "nb_jours" not in schema_cols:
-        periodes = periodes.with_columns([
-            ((pl.col("fin").dt.date() - pl.col("debut").dt.date()).dt.total_days().cast(pl.Int32))
-            .alias("nb_jours")
-        ])
+        periodes = periodes.with_columns(
+            [((pl.col("fin").dt.date() - pl.col("debut").dt.date()).dt.total_days().cast(pl.Int32)).alias("nb_jours")]
+        )
     else:
-        periodes = periodes.with_columns([
-            pl.when(pl.col("nb_jours").is_null())
-            .then((pl.col("fin").dt.date() - pl.col("debut").dt.date()).dt.total_days().cast(pl.Int32))
-            .otherwise(pl.col("nb_jours"))
-            .alias("nb_jours")
-        ])
+        periodes = periodes.with_columns(
+            [
+                pl.when(pl.col("nb_jours").is_null())
+                .then((pl.col("fin").dt.date() - pl.col("debut").dt.date()).dt.total_days().cast(pl.Int32))
+                .otherwise(pl.col("nb_jours"))
+                .alias("nb_jours")
+            ]
+        )
 
     return (
-        periodes
-        .group_by(["ref_situation_contractuelle", "pdl", "mois_annee"])
-        .agg([
-            # Énergies par cadran (sommes simples)
-            pl.col("energie_base_kwh").sum(),
-            pl.col("energie_hp_kwh").sum(),
-            pl.col("energie_hc_kwh").sum(),
-
-            # Bornes temporelles
-            pl.col("debut").min(),
-            pl.col("fin").max(),
-
-            # Montants TURPE
-            pl.col("turpe_variable_eur").sum(),
-
-            # Qualité des données (True seulement si TOUTES les périodes sont complètes)
-            pl.col("data_complete").all(),
-
-            # Comptage des sous-périodes COMPLÈTES uniquement
-            pl.col("data_complete").filter(pl.col("data_complete")).len().alias("nb_sous_periodes_energie"),
-
-            # Calcul du coverage : somme des jours des périodes complètes
-            pl.when(pl.col("data_complete"))
-            .then(pl.col("nb_jours"))
-            .otherwise(0)
-            .sum()
-            .alias("nb_jours_complets"),
-        ])
-        .with_columns([
-            # Calculer le nombre de jours total du mois
-            ((pl.col("fin").dt.date() - pl.col("debut").dt.date()).dt.total_days().cast(pl.Int32))
-            .alias("nb_jours_total_mois"),
-        ])
-        .with_columns([
-            # Flag de changement si plusieurs sous-périodes
-            (pl.col("nb_sous_periodes_energie") > 1).alias("has_changement_energie"),
-
-            # Coverage réel : ratio jours complets / jours total du mois
-            (pl.col("nb_jours_complets").cast(pl.Float64) / pl.col("nb_jours_total_mois").cast(pl.Float64))
-            .clip(0.0, 1.0)
-            .alias("coverage_energie")
-        ])
+        periodes.group_by(["ref_situation_contractuelle", "pdl", "mois_annee"])
+        .agg(
+            [
+                # Énergies par cadran (sommes simples)
+                pl.col("energie_base_kwh").sum(),
+                pl.col("energie_hp_kwh").sum(),
+                pl.col("energie_hc_kwh").sum(),
+                # Bornes temporelles
+                pl.col("debut").min(),
+                pl.col("fin").max(),
+                # Montants TURPE
+                pl.col("turpe_variable_eur").sum(),
+                # Qualité des données (True seulement si TOUTES les périodes sont complètes)
+                pl.col("data_complete").all(),
+                # Comptage des sous-périodes COMPLÈTES uniquement
+                pl.col("data_complete").filter(pl.col("data_complete")).len().alias("nb_sous_periodes_energie"),
+                # Calcul du coverage : somme des jours des périodes complètes
+                pl.when(pl.col("data_complete")).then(pl.col("nb_jours")).otherwise(0).sum().alias("nb_jours_complets"),
+            ]
+        )
+        .with_columns(
+            [
+                # Calculer le nombre de jours total du mois
+                ((pl.col("fin").dt.date() - pl.col("debut").dt.date()).dt.total_days().cast(pl.Int32)).alias(
+                    "nb_jours_total_mois"
+                ),
+            ]
+        )
+        .with_columns(
+            [
+                # Flag de changement si plusieurs sous-périodes
+                (pl.col("nb_sous_periodes_energie") > 1).alias("has_changement_energie"),
+                # Coverage réel : ratio jours complets / jours total du mois
+                (pl.col("nb_jours_complets").cast(pl.Float64) / pl.col("nb_jours_total_mois").cast(pl.Float64))
+                .clip(0.0, 1.0)
+                .alias("coverage_energie"),
+            ]
+        )
         .drop("nb_jours_complets", "nb_jours_total_mois")
     )
 
@@ -294,10 +275,10 @@ def agreger_energies_mensuel(
 # EXPRESSIONS DE JOINTURE ET RÉCONCILIATION
 # =============================================================================
 
+
 @pa.check_types(lazy=True)
 def joindre_meta_periodes(
-    abo_mensuel: LazyFrame[AbonnementMensuel],
-    energie_mensuel: LazyFrame[EnergieMensuel]
+    abo_mensuel: LazyFrame[AbonnementMensuel], energie_mensuel: LazyFrame[EnergieMensuel]
 ) -> LazyFrame[PeriodeMeta]:
     """
     Joint les agrégats d'abonnement et d'énergie sur les clés communes.
@@ -316,81 +297,77 @@ def joindre_meta_periodes(
     cles_jointure = ["ref_situation_contractuelle", "pdl", "mois_annee"]
 
     # Jointure externe pour conserver toutes les périodes
-    meta_periodes_lf = abo_mensuel.join(
-        energie_mensuel,
-        on=cles_jointure,
-        how="full",
-        suffix="_energie"
-    )
+    meta_periodes_lf = abo_mensuel.join(energie_mensuel, on=cles_jointure, how="full", suffix="_energie")
 
     return (
-        meta_periodes_lf
-        .with_columns([
-            # Réconciliation des clés de jointure (priorité aux abonnements)
-            pl.coalesce([pl.col("ref_situation_contractuelle"), pl.col("ref_situation_contractuelle_energie")]).alias("ref_situation_contractuelle"),
-            pl.coalesce([pl.col("pdl"), pl.col("pdl_energie")]).alias("pdl"),
-            pl.coalesce([pl.col("mois_annee"), pl.col("mois_annee_energie")]).alias("mois_annee"),
-
-            # Réconciliation des dates (priorité aux abonnements)
-            pl.coalesce([pl.col("debut"), pl.col("debut_energie")]).alias("debut"),
-            pl.coalesce([pl.col("fin"), pl.col("fin_energie")]).alias("fin"),
-
-            # Réconciliation des valeurs manquantes
-            pl.col("puissance_moyenne_kva").fill_null(0.0),
-            pl.col("formule_tarifaire_acheminement").fill_null("INCONNU"),
-            pl.col("turpe_fixe_eur").fill_null(0.0),
-            pl.col("turpe_variable_eur").fill_null(0.0),
-
-            # Gestion des compteurs de sous-périodes
-            pl.col("nb_sous_periodes_abo").fill_null(1),
-            pl.col("nb_sous_periodes_energie").fill_null(0),
-
-            # Gestion des flags de changement
-            pl.col("has_changement_abo").fill_null(False),
-            pl.col("has_changement_energie").fill_null(False),
-
-            # Gestion des énergies
-            pl.col("energie_base_kwh").fill_null(0.0),
-            pl.col("energie_hp_kwh").fill_null(0.0),
-            pl.col("energie_hc_kwh").fill_null(0.0),
-
-            # Gestion de data_complete (False si pas d'énergie)
-            pl.col("data_complete").fill_null(False),
-
-            # Mémo puissance
-            pl.col("memo_puissance").fill_null(""),
-        ])
-        .with_columns([
-            # Recalculer nb_jours si manquant
-            pl.when(pl.col("nb_jours").is_null())
-            .then(
-                (pl.col("fin").dt.date() - pl.col("debut").dt.date()).dt.total_days().cast(pl.Int32)
-            )
-            .otherwise(pl.col("nb_jours"))
-            .alias("nb_jours"),
-
-            # Flag de changement global
-            (pl.col("has_changement_abo") | pl.col("has_changement_energie")).alias("has_changement"),
-
-            # Coverage : utiliser les valeurs calculées ou mettre 0.0 si manquantes
-            # Si nb_sous_periodes_energie = 0, coverage_energie doit être 0.0
-            pl.when(pl.col("nb_sous_periodes_energie") == 0)
-            .then(pl.lit(0.0))
-            .otherwise(pl.col("coverage_energie").fill_null(0.0))
-            .alias("coverage_energie"),
-
-            # TODO: Calculer coverage_abo réel
-            pl.lit(1.0).alias("coverage_abo"),  # Placeholder pour l'instant
-        ])
-        .with_columns([
-            # data_complete final basé sur les coverages
-            expr_data_complete_meta_periode().alias("data_complete")
-        ])
-        .drop([
-            "debut_energie", "fin_energie",
-            "has_changement_abo", "has_changement_energie",
-            "ref_situation_contractuelle_energie", "pdl_energie", "mois_annee_energie"
-        ])
+        meta_periodes_lf.with_columns(
+            [
+                # Réconciliation des clés de jointure (priorité aux abonnements)
+                pl.coalesce(
+                    [pl.col("ref_situation_contractuelle"), pl.col("ref_situation_contractuelle_energie")]
+                ).alias("ref_situation_contractuelle"),
+                pl.coalesce([pl.col("pdl"), pl.col("pdl_energie")]).alias("pdl"),
+                pl.coalesce([pl.col("mois_annee"), pl.col("mois_annee_energie")]).alias("mois_annee"),
+                # Réconciliation des dates (priorité aux abonnements)
+                pl.coalesce([pl.col("debut"), pl.col("debut_energie")]).alias("debut"),
+                pl.coalesce([pl.col("fin"), pl.col("fin_energie")]).alias("fin"),
+                # Réconciliation des valeurs manquantes
+                pl.col("puissance_moyenne_kva").fill_null(0.0),
+                pl.col("formule_tarifaire_acheminement").fill_null("INCONNU"),
+                pl.col("turpe_fixe_eur").fill_null(0.0),
+                pl.col("turpe_variable_eur").fill_null(0.0),
+                # Gestion des compteurs de sous-périodes
+                pl.col("nb_sous_periodes_abo").fill_null(1),
+                pl.col("nb_sous_periodes_energie").fill_null(0),
+                # Gestion des flags de changement
+                pl.col("has_changement_abo").fill_null(False),
+                pl.col("has_changement_energie").fill_null(False),
+                # Gestion des énergies
+                pl.col("energie_base_kwh").fill_null(0.0),
+                pl.col("energie_hp_kwh").fill_null(0.0),
+                pl.col("energie_hc_kwh").fill_null(0.0),
+                # Gestion de data_complete (False si pas d'énergie)
+                pl.col("data_complete").fill_null(False),
+                # Mémo puissance
+                pl.col("memo_puissance").fill_null(""),
+            ]
+        )
+        .with_columns(
+            [
+                # Recalculer nb_jours si manquant
+                pl.when(pl.col("nb_jours").is_null())
+                .then((pl.col("fin").dt.date() - pl.col("debut").dt.date()).dt.total_days().cast(pl.Int32))
+                .otherwise(pl.col("nb_jours"))
+                .alias("nb_jours"),
+                # Flag de changement global
+                (pl.col("has_changement_abo") | pl.col("has_changement_energie")).alias("has_changement"),
+                # Coverage : utiliser les valeurs calculées ou mettre 0.0 si manquantes
+                # Si nb_sous_periodes_energie = 0, coverage_energie doit être 0.0
+                pl.when(pl.col("nb_sous_periodes_energie") == 0)
+                .then(pl.lit(0.0))
+                .otherwise(pl.col("coverage_energie").fill_null(0.0))
+                .alias("coverage_energie"),
+                # TODO: Calculer coverage_abo réel
+                pl.lit(1.0).alias("coverage_abo"),  # Placeholder pour l'instant
+            ]
+        )
+        .with_columns(
+            [
+                # data_complete final basé sur les coverages
+                expr_data_complete_meta_periode().alias("data_complete")
+            ]
+        )
+        .drop(
+            [
+                "debut_energie",
+                "fin_energie",
+                "has_changement_abo",
+                "has_changement_energie",
+                "ref_situation_contractuelle_energie",
+                "pdl_energie",
+                "mois_annee_energie",
+            ]
+        )
     )
 
 
@@ -398,10 +375,10 @@ def joindre_meta_periodes(
 # PIPELINE PRINCIPAL
 # =============================================================================
 
+
 @pa.check_types(lazy=True)
 def pipeline_facturation(
-    abonnements_lf: LazyFrame[PeriodeAbonnement],
-    energies_lf: LazyFrame[PeriodeEnergie]
+    abonnements_lf: LazyFrame[PeriodeAbonnement], energies_lf: LazyFrame[PeriodeEnergie]
 ) -> DataFrame[PeriodeMeta]:
     """
     Pipeline pur d'agrégation de facturation avec méta-périodes mensuelles - Version Polars.
@@ -433,16 +410,14 @@ def pipeline_facturation(
     meta_periodes_lf = joindre_meta_periodes(abo_mensuel_lf, energie_mensuel_lf)
 
     # Étape 4 : Formatage final et tri
-    result_lf = (
-        meta_periodes_lf
-        .with_columns([
+    result_lf = meta_periodes_lf.with_columns(
+        [
             # Formatage des dates lisibles (réutiliser les expressions existantes)
             # TODO: Implémenter expr_date_formatee_fr pour Polars
             pl.col("debut").dt.strftime("%d %B %Y").alias("debut_lisible"),
             pl.col("fin").dt.strftime("%d %B %Y").alias("fin_lisible"),
-        ])
-        .sort(["ref_situation_contractuelle", "debut"])
-    )
+        ]
+    ).sort(["ref_situation_contractuelle", "debut"])
 
     # Étape 5 : Collecte et validation Pandera
     return result_lf.collect()
@@ -450,14 +425,14 @@ def pipeline_facturation(
 
 # Export des fonctions principales
 __all__ = [
-    'pipeline_facturation',
-    'agreger_abonnements_mensuel',
-    'agreger_energies_mensuel',
-    'joindre_meta_periodes',
-    'expr_puissance_moyenne',
-    'expr_memo_puissance_simple',
-    'expr_coverage_temporelle',
-    'expr_calculer_trimestre',
-    'expr_has_changement',
-    'expr_data_complete_meta_periode',
+    "pipeline_facturation",
+    "agreger_abonnements_mensuel",
+    "agreger_energies_mensuel",
+    "joindre_meta_periodes",
+    "expr_puissance_moyenne",
+    "expr_memo_puissance_simple",
+    "expr_coverage_temporelle",
+    "expr_calculer_trimestre",
+    "expr_has_changement",
+    "expr_data_complete_meta_periode",
 ]

@@ -15,19 +15,20 @@ ETL_DIR = Path(__file__).parent.parent
 CONFIG_DIR = ETL_DIR / "config"
 CONFIG_FILE = CONFIG_DIR / "flux.yaml"
 
+
 def load_flux_config() -> dict:
     """
     Charge la configuration YAML des flux Enedis.
-    
+
     Returns:
         dict: Configuration des flux par type
-        
+
     Raises:
         FileNotFoundError: Si le fichier de configuration n'existe pas
         yaml.YAMLError: Si erreur de parsing YAML
     """
     try:
-        with open(CONFIG_FILE, encoding='utf-8') as f:
+        with open(CONFIG_FILE, encoding="utf-8") as f:
             config = yaml.safe_load(f)
         logger.debug("Configuration chargée pour %d types de flux: %s", len(config), list(config.keys()))
         return config
@@ -35,6 +36,7 @@ def load_flux_config() -> dict:
         raise FileNotFoundError(f"Fichier de configuration introuvable: {CONFIG_FILE}")
     except yaml.YAMLError as e:
         raise yaml.YAMLError(f"Erreur de parsing YAML dans {CONFIG_FILE}: {e}")
+
 
 # Configuration globale des flux (chargée au premier import)
 FLUX_CONFIG = load_flux_config()

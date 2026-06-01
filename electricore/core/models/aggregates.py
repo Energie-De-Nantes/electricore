@@ -6,7 +6,6 @@ dans les pipelines de transformation, notamment pour les agrégations
 mensuelles avant la jointure finale.
 """
 
-
 import pandera.polars as pa
 import polars as pl
 from pandera.engines.polars_engine import DateTime
@@ -26,14 +25,8 @@ class AbonnementMensuel(pa.DataFrameModel):
     mois_annee: pl.Utf8 = pa.Field(nullable=False)  # ex: "mars 2025"
 
     # Bornes temporelles du mois
-    debut: DateTime = pa.Field(
-        nullable=False,
-        dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"}
-    )
-    fin: DateTime = pa.Field(
-        nullable=False,
-        dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"}
-    )
+    debut: DateTime = pa.Field(nullable=False, dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"})
+    fin: DateTime = pa.Field(nullable=False, dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"})
 
     # Paramètres tarifaires agrégés
     puissance_moyenne_kva: pl.Float64 = pa.Field(nullable=False, ge=0.0)
@@ -70,14 +63,8 @@ class EnergieMensuel(pa.DataFrameModel):
     mois_annee: pl.Utf8 = pa.Field(nullable=False)  # ex: "mars 2025"
 
     # Bornes temporelles du mois
-    debut: DateTime = pa.Field(
-        nullable=False,
-        dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"}
-    )
-    fin: DateTime = pa.Field(
-        nullable=False,
-        dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"}
-    )
+    debut: DateTime = pa.Field(nullable=False, dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"})
+    fin: DateTime = pa.Field(nullable=False, dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"})
 
     # Énergies consommées par cadran en kWh (sommes mensuelles)
     energie_base_kwh: pl.Float64 | None = pa.Field(nullable=True, ge=0.0)

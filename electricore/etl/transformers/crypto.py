@@ -37,12 +37,13 @@ logger = logging.getLogger(__name__)
 
 
 # Magic bytes d'un fichier ZIP (PK local file header)
-_ZIP_MAGIC = b'PK\x03\x04'
+_ZIP_MAGIC = b"PK\x03\x04"
 
 
 # =============================================================================
 # FONCTIONS PURES DE CRYPTOGRAPHIE
 # =============================================================================
+
 
 def decrypt_file_aes(encrypted_data: bytes, key: bytes, iv: bytes) -> bytes:
     """
@@ -71,17 +72,13 @@ def decrypt_file_aes(encrypted_data: bytes, key: bytes, iv: bytes) -> bytes:
     # Validation PKCS7 complète : les N derniers octets doivent tous valoir N
     n = raw[-1]
     if not (1 <= n <= 16) or any(b != n for b in raw[-n:]):
-        raise ValueError(
-            f"Clé AES incorrecte : padding PKCS7 invalide (dernier octet = {n})"
-        )
+        raise ValueError(f"Clé AES incorrecte : padding PKCS7 invalide (dernier octet = {n})")
     decrypted = raw[:-n]
 
     # Vérification magic bytes ZIP — tous les fichiers Enedis sont des archives ZIP
     if len(decrypted) < 4 or decrypted[:4] != _ZIP_MAGIC:
         magic = decrypted[:4].hex() if len(decrypted) >= 4 else decrypted.hex()
-        raise ValueError(
-            f"Clé AES incorrecte : résultat non-ZIP (magic bytes = {magic})"
-        )
+        raise ValueError(f"Clé AES incorrecte : résultat non-ZIP (magic bytes = {magic})")
 
     return decrypted
 
@@ -105,67 +102,75 @@ def load_aes_key_chain() -> list[tuple[str, bytes, bytes]]:
 
     # Env vars (chargées depuis .env avant DLT) — priorité maximale
     # Format v2 : AES__CURRENT__KEY / AES__CURRENT__IV
-    if os.environ.get('AES__CURRENT__KEY') and os.environ.get('AES__CURRENT__IV'):
+    if os.environ.get("AES__CURRENT__KEY") and os.environ.get("AES__CURRENT__IV"):
         try:
-            chain.append(('current', bytes.fromhex(os.environ['AES__CURRENT__KEY']),
-                                     bytes.fromhex(os.environ['AES__CURRENT__IV'])))
+            chain.append(
+                (
+                    "current",
+                    bytes.fromhex(os.environ["AES__CURRENT__KEY"]),
+                    bytes.fromhex(os.environ["AES__CURRENT__IV"]),
+                )
+            )
         except Exception as e:
             raise ValueError(f"Erreur env vars AES__CURRENT__KEY/IV : {e}")
-        if os.environ.get('AES__PREVIOUS__KEY') and os.environ.get('AES__PREVIOUS__IV'):
+        if os.environ.get("AES__PREVIOUS__KEY") and os.environ.get("AES__PREVIOUS__IV"):
             try:
-                chain.append(('previous', bytes.fromhex(os.environ['AES__PREVIOUS__KEY']),
-                                          bytes.fromhex(os.environ['AES__PREVIOUS__IV'])))
+                chain.append(
+                    (
+                        "previous",
+                        bytes.fromhex(os.environ["AES__PREVIOUS__KEY"]),
+                        bytes.fromhex(os.environ["AES__PREVIOUS__IV"]),
+                    )
+                )
             except Exception as e:
                 raise ValueError(f"Erreur env vars AES__PREVIOUS__KEY/IV : {e}")
         return chain
 
     # Format v1 env vars : AES__KEY / AES__IV
-    if os.environ.get('AES__KEY') and os.environ.get('AES__IV'):
+    if os.environ.get("AES__KEY") and os.environ.get("AES__IV"):
         try:
-            chain.append(('legacy', bytes.fromhex(os.environ['AES__KEY']),
-                                    bytes.fromhex(os.environ['AES__IV'])))
+            chain.append(("legacy", bytes.fromhex(os.environ["AES__KEY"]), bytes.fromhex(os.environ["AES__IV"])))
         except Exception as e:
             raise ValueError(f"Erreur env vars AES__KEY/IV : {e}")
         return chain
 
     # Fallback : secrets.toml DLT
     try:
-        aes_config = dlt.secrets['aes']
+        aes_config = dlt.secrets["aes"]
     except Exception as e:
         raise ValueError(f"Section [aes] absente des secrets DLT et des variables d'environnement : {e}")
 
     # Format v2 : sous-sections current / previous
-    if 'current' in aes_config:
+    if "current" in aes_config:
         try:
-            key = bytes.fromhex(aes_config['current']['key'])
-            iv = bytes.fromhex(aes_config['current']['iv'])
-            chain.append(('current', key, iv))
+            key = bytes.fromhex(aes_config["current"]["key"])
+            iv = bytes.fromhex(aes_config["current"]["iv"])
+            chain.append(("current", key, iv))
         except Exception as e:
             raise ValueError(f"Erreur chargement [aes.current] : {e}")
 
-        if 'previous' in aes_config:
+        if "previous" in aes_config:
             try:
-                key = bytes.fromhex(aes_config['previous']['key'])
-                iv = bytes.fromhex(aes_config['previous']['iv'])
-                chain.append(('previous', key, iv))
+                key = bytes.fromhex(aes_config["previous"]["key"])
+                iv = bytes.fromhex(aes_config["previous"]["iv"])
+                chain.append(("previous", key, iv))
             except Exception as e:
                 raise ValueError(f"Erreur chargement [aes.previous] : {e}")
 
         return chain
 
     # Format v1 hérité : clé/iv directement dans [aes]
-    if 'key' in aes_config and 'iv' in aes_config:
+    if "key" in aes_config and "iv" in aes_config:
         try:
-            key = bytes.fromhex(aes_config['key'])
-            iv = bytes.fromhex(aes_config['iv'])
-            chain.append(('legacy', key, iv))
+            key = bytes.fromhex(aes_config["key"])
+            iv = bytes.fromhex(aes_config["iv"])
+            chain.append(("legacy", key, iv))
         except Exception as e:
             raise ValueError(f"Erreur chargement [aes] (format v1) : {e}")
         return chain
 
     raise ValueError(
-        "Format [aes] invalide dans secrets.toml. "
-        "Attendu : [aes.current] avec key/iv, ou [aes] avec key/iv."
+        "Format [aes] invalide dans secrets.toml. Attendu : [aes.current] avec key/iv, ou [aes] avec key/iv."
     )
 
 
@@ -210,9 +215,7 @@ def decrypt_with_key_chain(
         except ValueError as e:
             errors.append(f"  [{name}] {e}")
 
-    raise ValueError(
-        f"Échec déchiffrement avec {len(key_chain)} clé(s) :\n" + "\n".join(errors)
-    )
+    raise ValueError(f"Échec déchiffrement avec {len(key_chain)} clé(s) :\n" + "\n".join(errors))
 
 
 def read_sftp_file(encrypted_item: FileItemDict) -> bytes:
@@ -267,19 +270,19 @@ def _decrypt_aes_transformer_base(
         decrypted_size = len(decrypted_data)
 
         if len(key_chain) > 1:
-            logger.debug("Déchiffré avec clé '%s' : %s", key_used, encrypted_file['file_name'])
+            logger.debug("Déchiffré avec clé '%s' : %s", key_used, encrypted_file["file_name"])
 
         yield {
-            'file_name': encrypted_file['file_name'],
-            'modification_date': encrypted_file['modification_date'],
-            'decrypted_content': decrypted_data,
-            'original_size': original_size,
-            'decrypted_size': decrypted_size,
-            'key_used': key_used,
+            "file_name": encrypted_file["file_name"],
+            "modification_date": encrypted_file["modification_date"],
+            "decrypted_content": decrypted_data,
+            "original_size": original_size,
+            "decrypted_size": decrypted_size,
+            "key_used": key_used,
         }
 
     except Exception as e:
-        logger.error("Erreur déchiffrement %s: %s", encrypted_file['file_name'], e)
+        logger.error("Erreur déchiffrement %s: %s", encrypted_file["file_name"], e)
         return
 
 
@@ -299,7 +302,7 @@ def create_decrypt_transformer(aes_key: bytes = None, aes_iv: bytes = None):
         Transformer DLT configuré
     """
     if aes_key is not None and aes_iv is not None:
-        key_chain = [('explicit', aes_key, aes_iv)]
+        key_chain = [("explicit", aes_key, aes_iv)]
     else:
         key_chain = load_aes_key_chain()
         nb = len(key_chain)

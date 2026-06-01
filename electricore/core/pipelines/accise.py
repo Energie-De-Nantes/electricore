@@ -16,6 +16,7 @@ import polars as pl
 # CHARGEMENT DES RÈGLES ACCISE
 # =============================================================================
 
+
 def load_accise_rules() -> pl.LazyFrame:
     """
     Charge les règles tarifaires Accise depuis le fichier CSV.
@@ -32,20 +33,21 @@ def load_accise_rules() -> pl.LazyFrame:
     return (
         pl.scan_csv(file_path)
         # Conversion des colonnes de dates avec timezone Europe/Paris
-        .with_columns([
-            pl.col("start").str.to_datetime().dt.replace_time_zone("Europe/Paris"),
-            pl.col("end").str.to_datetime().dt.replace_time_zone("Europe/Paris")
-        ])
-        # Conversion du taux en Float64
         .with_columns(
-            pl.col("taux_accise_eur_mwh").cast(pl.Float64)
+            [
+                pl.col("start").str.to_datetime().dt.replace_time_zone("Europe/Paris"),
+                pl.col("end").str.to_datetime().dt.replace_time_zone("Europe/Paris"),
+            ]
         )
+        # Conversion du taux en Float64
+        .with_columns(pl.col("taux_accise_eur_mwh").cast(pl.Float64))
     )
 
 
 # =============================================================================
 # EXPRESSIONS DE PRÉPARATION DES DONNÉES
 # =============================================================================
+
 
 def expr_calculer_mois_consommation() -> pl.Expr:
     """
@@ -61,8 +63,8 @@ def expr_calculer_mois_consommation() -> pl.Expr:
         >>> df.with_columns(expr_calculer_mois_consommation().alias('mois_consommation'))
     """
     # Parser invoice_date, décaler -1 mois, formater en YYYY-MM
-    date_conso = pl.col('invoice_date').str.to_date('%Y-%m-%d').dt.offset_by('-1mo')
-    return date_conso.dt.strftime('%Y-%m')
+    date_conso = pl.col("invoice_date").str.to_date("%Y-%m-%d").dt.offset_by("-1mo")
+    return date_conso.dt.strftime("%Y-%m")
 
 
 def expr_calculer_trimestre_consommation() -> pl.Expr:
@@ -79,18 +81,16 @@ def expr_calculer_trimestre_consommation() -> pl.Expr:
         >>> df.with_columns(expr_calculer_trimestre_consommation().alias('trimestre'))
     """
     # Parser invoice_date et décaler -1 mois
-    date_conso = pl.col('invoice_date').str.to_date('%Y-%m-%d').dt.offset_by('-1mo')
+    date_conso = pl.col("invoice_date").str.to_date("%Y-%m-%d").dt.offset_by("-1mo")
 
     # Extraire année et calculer trimestre
     annee = date_conso.dt.year().cast(pl.Utf8)
     quarter = ((date_conso.dt.month() - 1) // 3 + 1).cast(pl.Utf8)
 
-    return annee + pl.lit('-T') + quarter
+    return annee + pl.lit("-T") + quarter
 
 
-def agreger_consommations_mensuelles(
-    lignes_factures: pl.LazyFrame
-) -> pl.LazyFrame:
+def agreger_consommations_mensuelles(lignes_factures: pl.LazyFrame) -> pl.LazyFrame:
     """
     Agrège les lignes de factures Odoo par PDL et mois de consommation.
 
@@ -112,29 +112,26 @@ def agreger_consommations_mensuelles(
     return (
         lignes_factures
         # Filtrer sur les catégories d'énergie
-        .filter(pl.col('name_product_category').is_in(['Base', 'HP', 'HC']))
-
+        .filter(pl.col("name_product_category").is_in(["Base", "HP", "HC"]))
         # Calculer mois et trimestre de consommation
-        .with_columns([
-            expr_calculer_mois_consommation().alias('mois_consommation'),
-            expr_calculer_trimestre_consommation().alias('trimestre')
-        ])
-
+        .with_columns(
+            [
+                expr_calculer_mois_consommation().alias("mois_consommation"),
+                expr_calculer_trimestre_consommation().alias("trimestre"),
+            ]
+        )
         # Agréger par PDL et mois de consommation
-        .group_by(['x_pdl', 'mois_consommation', 'trimestre'])
-        .agg([
-            pl.col('quantity').sum().alias('energie_kwh'),
-            pl.col('name').first().alias('order_name')
-        ])
-
+        .group_by(["x_pdl", "mois_consommation", "trimestre"])
+        .agg([pl.col("quantity").sum().alias("energie_kwh"), pl.col("name").first().alias("order_name")])
         # Renommer x_pdl en pdl
-        .rename({'x_pdl': 'pdl'})
+        .rename({"x_pdl": "pdl"})
     )
 
 
 # =============================================================================
 # EXPRESSIONS DE FILTRAGE TEMPOREL
 # =============================================================================
+
 
 def expr_filtrer_regles_temporelles() -> pl.Expr:
     """
@@ -150,15 +147,10 @@ def expr_filtrer_regles_temporelles() -> pl.Expr:
         >>> df_joint.filter(expr_filtrer_regles_temporelles())
     """
     # Convertir mois_consommation string vers date (1er du mois)
-    date_conso = pl.col('mois_consommation').str.to_date('%Y-%m')
+    date_conso = pl.col("mois_consommation").str.to_date("%Y-%m")
 
-    return (
-        (date_conso >= pl.col("start")) &
-        (
-            date_conso < pl.col("end").fill_null(
-                pl.datetime(2100, 1, 1, time_zone="Europe/Paris")
-            )
-        )
+    return (date_conso >= pl.col("start")) & (
+        date_conso < pl.col("end").fill_null(pl.datetime(2100, 1, 1, time_zone="Europe/Paris"))
     )
 
 
@@ -166,10 +158,8 @@ def expr_filtrer_regles_temporelles() -> pl.Expr:
 # PIPELINE PRINCIPAL
 # =============================================================================
 
-def ajouter_accise(
-    consommations: pl.LazyFrame,
-    regles: pl.LazyFrame | None = None
-) -> pl.LazyFrame:
+
+def ajouter_accise(consommations: pl.LazyFrame, regles: pl.LazyFrame | None = None) -> pl.LazyFrame:
     """
     Ajoute le calcul de l'Accise aux consommations mensuelles.
 
@@ -198,57 +188,41 @@ def ajouter_accise(
 
     # Convertir mois_consommation en datetime pour la jointure (alignement avec start/end)
     consommations_avec_date = consommations.with_columns(
-        pl.col('mois_consommation')
-        .str.to_datetime('%Y-%m')
-        .dt.replace_time_zone('Europe/Paris')
-        .alias('date_conso_temp')
+        pl.col("mois_consommation")
+        .str.to_datetime("%Y-%m")
+        .dt.replace_time_zone("Europe/Paris")
+        .alias("date_conso_temp")
     )
 
     # Trier les consommations par date_conso_temp (requis pour join_asof)
-    consommations_triees = consommations_avec_date.sort('date_conso_temp')
+    consommations_triees = consommations_avec_date.sort("date_conso_temp")
 
     # Trier les règles par start (requis pour join_asof)
-    regles_triees = regles.collect().sort('start').lazy()
+    regles_triees = regles.collect().sort("start").lazy()
 
     return (
         consommations_triees
         # Jointure asof : prend la règle la plus récente avant date_conso
-        .join_asof(
-            regles_triees,
-            left_on='date_conso_temp',
-            right_on='start',
-            strategy='backward'
-        )
-
+        .join_asof(regles_triees, left_on="date_conso_temp", right_on="start", strategy="backward")
         # Validation des règles présentes
         .filter(pl.col("start").is_not_null())
-
         # Filtrage temporel des règles applicables
         .filter(expr_filtrer_regles_temporelles())
-
         # Supprimer les colonnes temporaires et de règles avant calculs
-        .drop('date_conso_temp', 'start', 'end')
-
+        .drop("date_conso_temp", "start", "end")
         # Calcul de l'Accise
-        .with_columns([
-            (pl.col('energie_kwh') / 1000).alias('energie_mwh'),
-            ((pl.col('energie_kwh') / 1000) * pl.col('taux_accise_eur_mwh')).round(2).alias('accise_eur')
-        ])
-
+        .with_columns(
+            [
+                (pl.col("energie_kwh") / 1000).alias("energie_mwh"),
+                ((pl.col("energie_kwh") / 1000) * pl.col("taux_accise_eur_mwh")).round(2).alias("accise_eur"),
+            ]
+        )
         # Sélection des colonnes finales
-        .select([
-            *colonnes_originales,
-            'taux_accise_eur_mwh',
-            'energie_mwh',
-            'accise_eur'
-        ])
+        .select([*colonnes_originales, "taux_accise_eur_mwh", "energie_mwh", "accise_eur"])
     )
 
 
-def pipeline_accise(
-    lignes_factures: pl.LazyFrame,
-    regles: pl.LazyFrame | None = None
-) -> pl.DataFrame:
+def pipeline_accise(lignes_factures: pl.LazyFrame, regles: pl.LazyFrame | None = None) -> pl.DataFrame:
     """
     Pipeline complet de calcul de l'Accise depuis les lignes de factures.
 
@@ -280,19 +254,15 @@ def pipeline_accise(
     consos_avec_accise = ajouter_accise(consos_mensuelles, regles)
 
     # Étape 3 : Collecte et tri
-    return (
-        consos_avec_accise
-        .sort(['pdl', 'mois_consommation'])
-        .collect()
-    )
+    return consos_avec_accise.sort(["pdl", "mois_consommation"]).collect()
 
 
 # Export des fonctions principales
 __all__ = [
-    'load_accise_rules',
-    'expr_calculer_mois_consommation',
-    'expr_calculer_trimestre_consommation',
-    'agreger_consommations_mensuelles',
-    'ajouter_accise',
-    'pipeline_accise',
+    "load_accise_rules",
+    "expr_calculer_mois_consommation",
+    "expr_calculer_trimestre_consommation",
+    "agreger_consommations_mensuelles",
+    "ajouter_accise",
+    "pipeline_accise",
 ]

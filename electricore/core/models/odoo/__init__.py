@@ -9,7 +9,7 @@ from .commande import CommandeVenteOdoo
 from .facture import FactureOdoo, LigneFactureOdoo
 
 __all__ = [
-    'FactureOdoo',
-    'LigneFactureOdoo',
-    'CommandeVenteOdoo',
+    "FactureOdoo",
+    "LigneFactureOdoo",
+    "CommandeVenteOdoo",
 ]

@@ -4,7 +4,6 @@ Modèles Pandera pour factures Odoo (account.move).
 Schémas de validation pour les factures et lignes de factures.
 """
 
-
 import pandera.polars as pa
 import polars as pl
 from pandera.dtypes import DateTime
@@ -23,22 +22,17 @@ class FactureOdoo(pa.DataFrameModel):
     # Référence et dates
     name: pl.Utf8 = pa.Field(nullable=False)  # Numéro de facture
     invoice_date: DateTime | None = pa.Field(
-        nullable=True,
-        dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"}
+        nullable=True, dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"}
     )
     invoice_date_due: DateTime | None = pa.Field(
-        nullable=True,
-        dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"}
+        nullable=True, dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"}
     )
 
     # État et type
-    state: pl.Utf8 = pa.Field(
-        nullable=False,
-        isin=["draft", "posted", "cancel"]
-    )
+    state: pl.Utf8 = pa.Field(nullable=False, isin=["draft", "posted", "cancel"])
     move_type: pl.Utf8 = pa.Field(
         nullable=False,
-        isin=["entry", "out_invoice", "out_refund", "in_invoice", "in_refund", "out_receipt", "in_receipt"]
+        isin=["entry", "out_invoice", "out_refund", "in_invoice", "in_refund", "out_receipt", "in_receipt"],
     )
 
     # Montants
@@ -52,8 +46,9 @@ class FactureOdoo(pa.DataFrameModel):
 
     class Config:
         """Configuration du modèle."""
+
         strict = False  # Permet colonnes supplémentaires
-        coerce = True   # Coercition automatique des types
+        coerce = True  # Coercition automatique des types
 
 
 class LigneFactureOdoo(pa.DataFrameModel):
@@ -85,5 +80,6 @@ class LigneFactureOdoo(pa.DataFrameModel):
 
     class Config:
         """Configuration du modèle."""
+
         strict = False  # Permet colonnes supplémentaires
-        coerce = True   # Coercition automatique des types
+        coerce = True  # Coercition automatique des types

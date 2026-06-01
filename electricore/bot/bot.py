@@ -89,7 +89,9 @@ async def cmd_etl(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     job_id = job["id"]
     chat_id = update.effective_message.chat_id
-    await update.effective_message.reply_text(f"⏳ Pipeline `{mode}` lancé (job `{job_id[:8]}…`). Je te notifie à la fin.")
+    await update.effective_message.reply_text(
+        f"⏳ Pipeline `{mode}` lancé (job `{job_id[:8]}…`). Je te notifie à la fin."
+    )
 
     async def _notify():
         for _ in range(360):  # max 30 minutes
@@ -151,7 +153,8 @@ async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             await update.effective_message.reply_text(f"❌ Erreur : {e}")
             return
         await update.effective_message.reply_text(
-            "Tables disponibles :\n" + "\n".join(f"  • {t}" for t in tables)
+            "Tables disponibles :\n"
+            + "\n".join(f"  • {t}" for t in tables)
             + "\n\nUtilise /stats <table> pour les détails."
         )
         return
@@ -166,9 +169,7 @@ async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     count = info.get("count", "?")
     cols = len(info.get("columns", []))
     await update.effective_message.reply_markdown(
-        f"📊 *flux_{table}*\n"
-        f"  • Lignes : `{count:,}`\n"
-        f"  • Colonnes : `{cols}`"
+        f"📊 *flux_{table}*\n  • Lignes : `{count:,}`\n  • Colonnes : `{cols}`"
     )
 
 
@@ -357,13 +358,19 @@ def _format_check_odoo(result: dict) -> tuple[str, bool]:
             lines.append(f"  _… et {n - _CHECK_LIMIT} autres → voir XLSX joint_")
             xlsx_needed = True
 
-    _bloc("sale.order sans `x_ref_situation_contractuelle`",
-          result["rsc_manquante"], lambda r: r["name"],
-          "Tous les sale.order ont une RSC")
+    _bloc(
+        "sale.order sans `x_ref_situation_contractuelle`",
+        result["rsc_manquante"],
+        lambda r: r["name"],
+        "Tous les sale.order ont une RSC",
+    )
     lines.append("")
-    _bloc("sale.order sans `x_date_cfne`",
-          result["cfne_manquante"], lambda r: r["name"],
-          "Tous les sale.order ont une date CFNE")
+    _bloc(
+        "sale.order sans `x_date_cfne`",
+        result["cfne_manquante"],
+        lambda r: r["name"],
+        "Tous les sale.order ont une date CFNE",
+    )
     lines.append("")
 
     counts = result["invoicing_state_counts"]
@@ -375,23 +382,29 @@ def _format_check_odoo(result: dict) -> tuple[str, bool]:
         lines.append("  _(aucune commande)_")
     lines.append("")
 
-    _bloc("factures encore en draft",
-          result["factures_draft"],
-          lambda r: f"{r['sale_order_name']}{r['invoice_name']}",
-          "Aucune facture en draft")
+    _bloc(
+        "factures encore en draft",
+        result["factures_draft"],
+        lambda r: f"{r['sale_order_name']}{r['invoice_name']}",
+        "Aucune facture en draft",
+    )
     lines.append("")
 
-    _bloc("contrats lissés avec ligne énergie à qty=1",
-          result.get("lisses_quantite_1", []),
-          lambda r: f"{r['sale_order_name']} ({', '.join(r['categ_names'])})",
-          "Aucun contrat lissé avec qty=1 sur Base/HP/HC")
-
-    all_ok = not any([
-        result["rsc_manquante"],
-        result["cfne_manquante"],
-        result["factures_draft"],
+    _bloc(
+        "contrats lissés avec ligne énergie à qty=1",
         result.get("lisses_quantite_1", []),
-    ])
+        lambda r: f"{r['sale_order_name']} ({', '.join(r['categ_names'])})",
+        "Aucun contrat lissé avec qty=1 sur Base/HP/HC",
+    )
+
+    all_ok = not any(
+        [
+            result["rsc_manquante"],
+            result["cfne_manquante"],
+            result["factures_draft"],
+            result.get("lisses_quantite_1", []),
+        ]
+    )
     if all_ok:
         lines.append("")
         lines.append("🟢 *OK pour lancer le cycle de facturation*")
@@ -405,9 +418,7 @@ async def cmd_check(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         return
 
     usage = (
-        "Usage :\n"
-        "  /check odoo  — Vérifications pré-facturation côté Odoo\n"
-        "  (sources `enedis` et `croise` à venir)"
+        "Usage :\n  /check odoo  — Vérifications pré-facturation côté Odoo\n  (sources `enedis` et `croise` à venir)"
     )
 
     if not context.args:
@@ -430,9 +441,8 @@ async def cmd_check(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
         if xlsx_needed:
             from electricore.api.services.check_facturation_service import generer_check_odoo_xlsx
-            xlsx_bytes = await asyncio.get_event_loop().run_in_executor(
-                None, generer_check_odoo_xlsx, result
-            )
+
+            xlsx_bytes = await asyncio.get_event_loop().run_in_executor(None, generer_check_odoo_xlsx, result)
             await update.effective_message.reply_document(
                 document=io.BytesIO(xlsx_bytes),
                 filename="check_odoo.xlsx",

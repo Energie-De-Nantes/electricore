@@ -98,11 +98,14 @@ def _load_duckdb_state(con) -> tuple:
 
 def _write_duckdb_state(con, version: int, engine_version, pipeline_name: str, state: dict, load_id: str) -> int:
     new_version = version + 1
-    con.execute(f"""
+    con.execute(
+        f"""
         INSERT INTO {DATASET}._dlt_pipeline_state
             (version, engine_version, pipeline_name, state, created_at, version_hash, _dlt_load_id, _dlt_id)
         VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, NULL, ?, ?)
-    """, [new_version, engine_version, pipeline_name, _encode_duckdb_state(state), load_id, str(uuid.uuid4())])
+    """,
+        [new_version, engine_version, pipeline_name, _encode_duckdb_state(state), load_id, str(uuid.uuid4())],
+    )
     return new_version
 
 

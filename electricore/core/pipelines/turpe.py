@@ -17,6 +17,7 @@ import polars as pl
 # CHARGEMENT DES RÈGLES TURPE
 # =============================================================================
 
+
 def load_turpe_rules() -> pl.LazyFrame:
     """
     Charge les règles tarifaires TURPE depuis le fichier CSV.
@@ -36,55 +37,66 @@ def load_turpe_rules() -> pl.LazyFrame:
             file_path,
             schema_overrides={
                 # Composantes fixes
-                "cg": str, "cc": str, "b": str,
+                "cg": str,
+                "cc": str,
+                "b": str,
                 # Coefficients puissance C4 (€/kVA/an)
-                "b_hph": str, "b_hch": str, "b_hpb": str, "b_hcb": str,
+                "b_hph": str,
+                "b_hch": str,
+                "b_hpb": str,
+                "b_hcb": str,
                 # Coefficients énergie C4 (c€/kWh)
-                "c_hph": str, "c_hch": str, "c_hpb": str, "c_hcb": str,
+                "c_hph": str,
+                "c_hch": str,
+                "c_hpb": str,
+                "c_hcb": str,
                 # Coefficients énergie C5 (c€/kWh)
-                "c_hp": str, "c_hc": str, "c_base": str,
+                "c_hp": str,
+                "c_hc": str,
+                "c_base": str,
                 # Composante dépassement
-                "cmdps": str
-            }
+                "cmdps": str,
+            },
         )
         # Conversion des colonnes de dates avec timezone Europe/Paris
-        .with_columns([
-            pl.col("start").str.to_datetime().dt.replace_time_zone("Europe/Paris"),
-            pl.col("end").str.to_datetime().dt.replace_time_zone("Europe/Paris")
-        ])
+        .with_columns(
+            [
+                pl.col("start").str.to_datetime().dt.replace_time_zone("Europe/Paris"),
+                pl.col("end").str.to_datetime().dt.replace_time_zone("Europe/Paris"),
+            ]
+        )
         # Conversion des colonnes numériques avec nettoyage des espaces
-        .with_columns([
-            # Composantes fixes (€/an)
-            pl.col("b").str.strip_chars().cast(pl.Float64),
-            pl.col("cg").str.strip_chars().cast(pl.Float64),
-            pl.col("cc").str.strip_chars().cast(pl.Float64),
-
-            # Coefficients puissance C4 (€/kVA/an)
-            pl.col("b_hph").str.strip_chars().cast(pl.Float64),
-            pl.col("b_hch").str.strip_chars().cast(pl.Float64),
-            pl.col("b_hpb").str.strip_chars().cast(pl.Float64),
-            pl.col("b_hcb").str.strip_chars().cast(pl.Float64),
-
-            # Coefficients énergie C4 (c€/kWh)
-            pl.col("c_hph").str.strip_chars().cast(pl.Float64),
-            pl.col("c_hch").str.strip_chars().cast(pl.Float64),
-            pl.col("c_hpb").str.strip_chars().cast(pl.Float64),
-            pl.col("c_hcb").str.strip_chars().cast(pl.Float64),
-
-            # Coefficients énergie C5 (c€/kWh)
-            pl.col("c_hp").str.strip_chars().cast(pl.Float64),
-            pl.col("c_hc").str.strip_chars().cast(pl.Float64),
-            pl.col("c_base").str.strip_chars().cast(pl.Float64),
-
-            # Composante dépassement (€/h)
-            pl.col("cmdps").str.strip_chars().cast(pl.Float64),
-        ])
+        .with_columns(
+            [
+                # Composantes fixes (€/an)
+                pl.col("b").str.strip_chars().cast(pl.Float64),
+                pl.col("cg").str.strip_chars().cast(pl.Float64),
+                pl.col("cc").str.strip_chars().cast(pl.Float64),
+                # Coefficients puissance C4 (€/kVA/an)
+                pl.col("b_hph").str.strip_chars().cast(pl.Float64),
+                pl.col("b_hch").str.strip_chars().cast(pl.Float64),
+                pl.col("b_hpb").str.strip_chars().cast(pl.Float64),
+                pl.col("b_hcb").str.strip_chars().cast(pl.Float64),
+                # Coefficients énergie C4 (c€/kWh)
+                pl.col("c_hph").str.strip_chars().cast(pl.Float64),
+                pl.col("c_hch").str.strip_chars().cast(pl.Float64),
+                pl.col("c_hpb").str.strip_chars().cast(pl.Float64),
+                pl.col("c_hcb").str.strip_chars().cast(pl.Float64),
+                # Coefficients énergie C5 (c€/kWh)
+                pl.col("c_hp").str.strip_chars().cast(pl.Float64),
+                pl.col("c_hc").str.strip_chars().cast(pl.Float64),
+                pl.col("c_base").str.strip_chars().cast(pl.Float64),
+                # Composante dépassement (€/h)
+                pl.col("cmdps").str.strip_chars().cast(pl.Float64),
+            ]
+        )
     )
 
 
 # =============================================================================
 # EXPRESSIONS TURPE FIXE (ABONNEMENTS)
 # =============================================================================
+
 
 def expr_calculer_turpe_fixe_annuel() -> pl.Expr:
     """
@@ -106,28 +118,24 @@ def expr_calculer_turpe_fixe_annuel() -> pl.Expr:
         >>> df.with_columns(expr_calculer_turpe_fixe_annuel().alias("turpe_fixe_annuel"))
     """
     # Calcul C5 (par défaut) : (b × P) + cg + cc
-    turpe_c5 = (
-        (pl.col("b") * pl.col("puissance_souscrite_kva")) +
-        pl.col("cg") +
-        pl.col("cc")
-    )
+    turpe_c5 = (pl.col("b") * pl.col("puissance_souscrite_kva")) + pl.col("cg") + pl.col("cc")
 
     # Calcul C4 : b₁×P₁ + b₂×(P₂-P₁) + b₃×(P₃-P₂) + b₄×(P₄-P₃) + cg + cc
     turpe_c4 = (
-        (pl.col("b_hph") * pl.col("puissance_souscrite_hph_kva")) +
-        (pl.col("b_hch") * (pl.col("puissance_souscrite_hch_kva") - pl.col("puissance_souscrite_hph_kva"))) +
-        (pl.col("b_hpb") * (pl.col("puissance_souscrite_hpb_kva") - pl.col("puissance_souscrite_hch_kva"))) +
-        (pl.col("b_hcb") * (pl.col("puissance_souscrite_hcb_kva") - pl.col("puissance_souscrite_hpb_kva"))) +
-        pl.col("cg") +
-        pl.col("cc")
+        (pl.col("b_hph") * pl.col("puissance_souscrite_hph_kva"))
+        + (pl.col("b_hch") * (pl.col("puissance_souscrite_hch_kva") - pl.col("puissance_souscrite_hph_kva")))
+        + (pl.col("b_hpb") * (pl.col("puissance_souscrite_hpb_kva") - pl.col("puissance_souscrite_hch_kva")))
+        + (pl.col("b_hcb") * (pl.col("puissance_souscrite_hcb_kva") - pl.col("puissance_souscrite_hpb_kva")))
+        + pl.col("cg")
+        + pl.col("cc")
     )
 
     # Détection C4 : tous les coefficients b_* doivent être non-NULL
     is_c4 = (
-        pl.col("b_hph").is_not_null() &
-        pl.col("b_hch").is_not_null() &
-        pl.col("b_hpb").is_not_null() &
-        pl.col("b_hcb").is_not_null()
+        pl.col("b_hph").is_not_null()
+        & pl.col("b_hch").is_not_null()
+        & pl.col("b_hpb").is_not_null()
+        & pl.col("b_hcb").is_not_null()
     )
 
     # Si C4 → calcul C4, sinon (défaut) → calcul C5
@@ -181,17 +189,16 @@ def expr_valider_puissances_croissantes_c4() -> pl.Expr:
         ... )
     """
     return (
-        (pl.col("puissance_souscrite_hph_kva") <= pl.col("puissance_souscrite_hch_kva")) &
-        (pl.col("puissance_souscrite_hch_kva") <= pl.col("puissance_souscrite_hpb_kva")) &
-        (pl.col("puissance_souscrite_hpb_kva") <= pl.col("puissance_souscrite_hcb_kva"))
+        (pl.col("puissance_souscrite_hph_kva") <= pl.col("puissance_souscrite_hch_kva"))
+        & (pl.col("puissance_souscrite_hch_kva") <= pl.col("puissance_souscrite_hpb_kva"))
+        & (pl.col("puissance_souscrite_hpb_kva") <= pl.col("puissance_souscrite_hcb_kva"))
     )
-
-
 
 
 # =============================================================================
 # EXPRESSIONS TURPE VARIABLE (ÉNERGIE)
 # =============================================================================
+
 
 def expr_calculer_turpe_cadran(cadran: str) -> pl.Expr:
     """
@@ -231,10 +238,7 @@ def expr_calculer_turpe_contributions_cadrans() -> list[pl.Expr]:
     """
     cadrans = ["hph", "hch", "hpb", "hcb", "hp", "hc", "base"]
 
-    return [
-        expr_calculer_turpe_cadran(cadran).alias(f"turpe_{cadran}")
-        for cadran in cadrans
-    ]
+    return [expr_calculer_turpe_cadran(cadran).alias(f"turpe_{cadran}") for cadran in cadrans]
 
 
 def expr_sommer_turpe_cadrans() -> pl.Expr:
@@ -252,10 +256,7 @@ def expr_sommer_turpe_cadrans() -> pl.Expr:
     cadrans = ["hph", "hch", "hpb", "hcb", "hp", "hc", "base"]
     contributions_cols = [f"turpe_{cadran}" for cadran in cadrans]
 
-    return (
-        pl.sum_horizontal([pl.col(col) for col in contributions_cols])
-        .round(2)
-    )
+    return pl.sum_horizontal([pl.col(col) for col in contributions_cols]).round(2)
 
 
 def expr_calculer_composante_depassement() -> pl.Expr:
@@ -289,11 +290,8 @@ def expr_calculer_composante_depassement() -> pl.Expr:
         >>> # → turpe_depassement = 10 × 12.41 = 124.10 €
     """
     return (
-        pl.when(
-            pl.col('cmdps').is_not_null() &
-            pl.col('duree_depassement_h').is_not_null()
-        )
-        .then(pl.col('duree_depassement_h') * pl.col('cmdps'))
+        pl.when(pl.col("cmdps").is_not_null() & pl.col("duree_depassement_h").is_not_null())
+        .then(pl.col("duree_depassement_h") * pl.col("cmdps"))
         .otherwise(0.0)
     )
 
@@ -301,6 +299,7 @@ def expr_calculer_composante_depassement() -> pl.Expr:
 # =============================================================================
 # EXPRESSIONS DE FILTRAGE TEMPOREL (COMMUNES)
 # =============================================================================
+
 
 def expr_filtrer_regles_temporelles() -> pl.Expr:
     """
@@ -317,13 +316,8 @@ def expr_filtrer_regles_temporelles() -> pl.Expr:
     Example:
         >>> df_joint.filter(expr_filtrer_regles_temporelles())
     """
-    return (
-        (pl.col("debut") >= pl.col("start")) &
-        (
-            pl.col("debut") < pl.col("end").fill_null(
-                pl.datetime(2100, 1, 1, time_zone="Europe/Paris")
-            )
-        )
+    return (pl.col("debut") >= pl.col("start")) & (
+        pl.col("debut") < pl.col("end").fill_null(pl.datetime(2100, 1, 1, time_zone="Europe/Paris"))
     )
 
 
@@ -357,10 +351,8 @@ def valider_regles_presentes(lf: pl.LazyFrame) -> pl.LazyFrame:
 # FONCTIONS PIPELINE D'INTÉGRATION
 # =============================================================================
 
-def ajouter_turpe_fixe(
-    periodes: pl.LazyFrame,
-    regles: pl.LazyFrame | None = None
-) -> pl.LazyFrame:
+
+def ajouter_turpe_fixe(periodes: pl.LazyFrame, regles: pl.LazyFrame | None = None) -> pl.LazyFrame:
     """
     Ajoute le calcul du TURPE fixe aux périodes d'abonnement.
 
@@ -385,8 +377,12 @@ def ajouter_turpe_fixe(
     colonnes_originales = periodes.collect_schema().names()
 
     # S'assurer que les colonnes C4 existent (avec NULL par défaut pour C5)
-    colonnes_c4 = ["puissance_souscrite_hph_kva", "puissance_souscrite_hch_kva",
-                   "puissance_souscrite_hpb_kva", "puissance_souscrite_hcb_kva"]
+    colonnes_c4 = [
+        "puissance_souscrite_hph_kva",
+        "puissance_souscrite_hch_kva",
+        "puissance_souscrite_hpb_kva",
+        "puissance_souscrite_hcb_kva",
+    ]
 
     for col in colonnes_c4:
         if col not in colonnes_originales:
@@ -396,36 +392,26 @@ def ajouter_turpe_fixe(
     return (
         periodes
         # Jointure avec les règles TURPE sur la FTA
-        .join(
-            regles,
-            left_on="formule_tarifaire_acheminement",
-            right_on="Formule_Tarifaire_Acheminement",
-            how="left"
-        )
-
+        .join(regles, left_on="formule_tarifaire_acheminement", right_on="Formule_Tarifaire_Acheminement", how="left")
         # Validation des règles présentes
         .pipe(valider_regles_presentes)
-
         # Filtrage temporel des règles applicables
         .filter(expr_filtrer_regles_temporelles())
-
         # Calcul du TURPE fixe
         .with_columns(expr_calculer_turpe_fixe_periode().alias("turpe_fixe_eur"))
-
         # Sélection des colonnes finales (exclure les colonnes de règles intermédiaires)
-        .select([
-            # Colonnes originales des périodes
-            *colonnes_originales,
-            # Colonne TURPE calculée
-            "turpe_fixe_eur"
-        ])
+        .select(
+            [
+                # Colonnes originales des périodes
+                *colonnes_originales,
+                # Colonne TURPE calculée
+                "turpe_fixe_eur",
+            ]
+        )
     )
 
 
-def ajouter_turpe_variable(
-    periodes: pl.LazyFrame,
-    regles: pl.LazyFrame | None = None
-) -> pl.LazyFrame:
+def ajouter_turpe_variable(periodes: pl.LazyFrame, regles: pl.LazyFrame | None = None) -> pl.LazyFrame:
     """
     Ajoute le calcul du TURPE variable aux périodes d'énergie.
 
@@ -458,41 +444,33 @@ def ajouter_turpe_variable(
     return (
         periodes
         # Jointure avec les règles TURPE sur la FTA (nomenclature CRE : c_*)
-        .join(
-            regles,
-            left_on="formule_tarifaire_acheminement",
-            right_on="Formule_Tarifaire_Acheminement",
-            how="left"
-        )
-
+        .join(regles, left_on="formule_tarifaire_acheminement", right_on="Formule_Tarifaire_Acheminement", how="left")
         # Validation des règles présentes
         .pipe(valider_regles_presentes)
-
         # Filtrage temporel des règles applicables
         .filter(expr_filtrer_regles_temporelles())
-
         # Calcul des contributions TURPE variable par cadran
         .with_columns(expr_calculer_turpe_contributions_cadrans())
-
         # Calcul du total TURPE variable (cadrans + dépassement)
         .with_columns(
-            (expr_sommer_turpe_cadrans() + expr_calculer_composante_depassement())
-            .alias("turpe_variable_eur")
+            (expr_sommer_turpe_cadrans() + expr_calculer_composante_depassement()).alias("turpe_variable_eur")
         )
-
         # Sélection des colonnes finales (exclure les colonnes de règles intermédiaires)
-        .select([
-            # Colonnes originales des périodes
-            *colonnes_originales,
-            # Colonnes TURPE calculées
-            "turpe_variable_eur"
-        ])
+        .select(
+            [
+                # Colonnes originales des périodes
+                *colonnes_originales,
+                # Colonnes TURPE calculées
+                "turpe_variable_eur",
+            ]
+        )
     )
 
 
 # =============================================================================
 # FONCTIONS DE VALIDATION ET DEBUGGING
 # =============================================================================
+
 
 def debug_turpe_variable(lf: pl.LazyFrame) -> pl.LazyFrame:
     """
@@ -518,12 +496,12 @@ def debug_turpe_variable(lf: pl.LazyFrame) -> pl.LazyFrame:
     for cadran in cadrans:
         energie_col = f"energie_{cadran}_kwh"
         tarif_col = f"c_{cadran}"  # Nomenclature CRE officielle
-        debug_expressions.extend([
-            pl.col(energie_col).alias(f"debug_energie_{cadran}"),
-            pl.col(tarif_col).alias(f"debug_tarif_{cadran}"),
-            (pl.col(energie_col) * pl.col(tarif_col) / 100).alias(f"debug_contribution_{cadran}")
-        ])
+        debug_expressions.extend(
+            [
+                pl.col(energie_col).alias(f"debug_energie_{cadran}"),
+                pl.col(tarif_col).alias(f"debug_tarif_{cadran}"),
+                (pl.col(energie_col) * pl.col(tarif_col) / 100).alias(f"debug_contribution_{cadran}"),
+            ]
+        )
 
     return lf.with_columns(debug_expressions)
-
-

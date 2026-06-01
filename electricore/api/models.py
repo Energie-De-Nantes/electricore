@@ -81,6 +81,7 @@ class WelcomeMessage(BaseModel):
 
 # Modèles ETL
 
+
 class ETLRunRequest(BaseModel):
     """Corps de la requête pour lancer le pipeline ETL."""
 
@@ -100,6 +101,7 @@ class ETLJobResponse(BaseModel):
 
 
 # Modèles pour les requêtes (si nécessaire pour des POST/PUT futurs)
+
 
 class FluxQuery(BaseModel):
     """Modèle pour les requêtes de flux avancées."""

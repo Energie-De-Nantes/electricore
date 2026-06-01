@@ -14,9 +14,9 @@ from electricore.core.loaders import OdooReader, c15, f15, lignes_a_facturer, re
 from electricore.core.pipelines.orchestration import facturation
 
 MAPPING_CATEGORIE = {
-    "HP":          "energie_hp_kwh",
-    "HC":          "energie_hc_kwh",
-    "Base":        "energie_base_kwh",
+    "HP": "energie_hp_kwh",
+    "HC": "energie_hc_kwh",
+    "Base": "energie_base_kwh",
     "Abonnements": "nb_jours",
 }
 
@@ -52,25 +52,34 @@ def generer_facturation_xlsx(mois: str | None = None) -> bytes:
         fact_mois = fact.filter(debut_date_mois == mois_en_cours)
 
     # 5. Jointure + calcul quantite_enedis par catégorie produit
-    quantite_enedis_expr = pl.coalesce([
-        pl.when(pl.col("name_product_category") == cat).then(pl.col(col).cast(pl.Float64))
-        for cat, col in MAPPING_CATEGORIE.items()
-    ]).alias("quantite_enedis")
+    quantite_enedis_expr = pl.coalesce(
+        [
+            pl.when(pl.col("name_product_category") == cat).then(pl.col(col).cast(pl.Float64))
+            for cat, col in MAPPING_CATEGORIE.items()
+        ]
+    ).alias("quantite_enedis")
 
     updates_rsc = (
-        lignes_df
-        .join(
+        lignes_df.join(
             fact_mois,
             left_on="x_ref_situation_contractuelle",
             right_on="ref_situation_contractuelle",
             how="left",
         )
         .with_columns(quantite_enedis_expr)
-        .select([
-            "invoice_line_ids", "x_pdl", "x_lisse", "name_account_move",
-            "name_product_category", "name_product_product",
-            "quantity", "quantite_enedis", "memo_puissance",
-        ])
+        .select(
+            [
+                "invoice_line_ids",
+                "x_pdl",
+                "x_lisse",
+                "name_account_move",
+                "name_product_category",
+                "name_product_product",
+                "quantity",
+                "quantite_enedis",
+                "memo_puissance",
+            ]
+        )
     )
 
     changements_puissance = updates_rsc.filter(pl.col("memo_puissance") != "")
@@ -124,20 +133,31 @@ def generer_documents_facturation(mois: str | None = None) -> tuple[bytes, str]:
     suffix = mois[:7]  # YYYY-MM
 
     # 4. Réconciliation Odoo ↔ Enedis
-    quantite_enedis_expr = pl.coalesce([
-        pl.when(pl.col("name_product_category") == cat).then(pl.col(col).cast(pl.Float64))
-        for cat, col in MAPPING_CATEGORIE.items()
-    ]).alias("quantite_enedis")
+    quantite_enedis_expr = pl.coalesce(
+        [
+            pl.when(pl.col("name_product_category") == cat).then(pl.col(col).cast(pl.Float64))
+            for cat, col in MAPPING_CATEGORIE.items()
+        ]
+    ).alias("quantite_enedis")
 
     reconciliation = (
-        lignes_df
-        .join(fact_mois, left_on="x_ref_situation_contractuelle", right_on="ref_situation_contractuelle", how="left")
+        lignes_df.join(
+            fact_mois, left_on="x_ref_situation_contractuelle", right_on="ref_situation_contractuelle", how="left"
+        )
         .with_columns(quantite_enedis_expr)
-        .select([
-            "invoice_line_ids", "x_pdl", "x_lisse", "name_account_move",
-            "name_product_category", "name_product_product",
-            "quantity", "quantite_enedis", "memo_puissance",
-        ])
+        .select(
+            [
+                "invoice_line_ids",
+                "x_pdl",
+                "x_lisse",
+                "name_account_move",
+                "name_product_category",
+                "name_product_product",
+                "quantity",
+                "quantite_enedis",
+                "memo_puissance",
+            ]
+        )
     )
     changements_puissance = reconciliation.filter(pl.col("memo_puissance") != "")
 

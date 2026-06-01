@@ -6,7 +6,6 @@ agrégées de facturation, combinant abonnements et énergies en utilisant Polar
 pour des performances optimisées.
 """
 
-
 import pandera.polars as pa
 import polars as pl
 from pandera.engines.polars_engine import DateTime
@@ -31,14 +30,8 @@ class PeriodeMeta(pa.DataFrameModel):
     mois_annee: pl.Utf8 = pa.Field(nullable=False)  # ex: "mars 2025"
 
     # Bornes temporelles de la méta-période (timezone Europe/Paris)
-    debut: DateTime = pa.Field(
-        nullable=False,
-        dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"}
-    )
-    fin: DateTime = pa.Field(
-        nullable=False,
-        dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"}
-    )
+    debut: DateTime = pa.Field(nullable=False, dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"})
+    fin: DateTime = pa.Field(nullable=False, dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"})
 
     # Paramètres tarifaires agrégés
     puissance_moyenne_kva: pl.Float64 = pa.Field(nullable=False, ge=0.0)
@@ -89,9 +82,7 @@ class PeriodeMeta(pa.DataFrameModel):
         df_lazy = data.lazyframe
 
         # Calculer nb_jours attendu
-        nb_jours_calcule = (
-            pl.col("fin").dt.date() - pl.col("debut").dt.date()
-        ).dt.total_days().cast(pl.Int32)
+        nb_jours_calcule = (pl.col("fin").dt.date() - pl.col("debut").dt.date()).dt.total_days().cast(pl.Int32)
 
         condition = pl.col("nb_jours") == nb_jours_calcule
         return df_lazy.select(condition.alias("nb_jours_coherent"))
@@ -104,11 +95,7 @@ class PeriodeMeta(pa.DataFrameModel):
         """
         df_lazy = data.lazyframe
 
-        condition = (
-            pl.col("data_complete") == (
-                (pl.col("coverage_abo") == 1.0) & (pl.col("coverage_energie") == 1.0)
-            )
-        )
+        condition = pl.col("data_complete") == ((pl.col("coverage_abo") == 1.0) & (pl.col("coverage_energie") == 1.0))
         return df_lazy.select(condition.alias("data_complete_coherent"))
 
     @pa.dataframe_check
@@ -119,14 +106,13 @@ class PeriodeMeta(pa.DataFrameModel):
         """
         df_lazy = data.lazyframe
 
-        condition = (
-            pl.col("has_changement") == (
-                (pl.col("nb_sous_periodes_abo") > 1) | (pl.col("nb_sous_periodes_energie") > 1)
-            )
+        condition = pl.col("has_changement") == (
+            (pl.col("nb_sous_periodes_abo") > 1) | (pl.col("nb_sous_periodes_energie") > 1)
         )
         return df_lazy.select(condition.alias("has_changement_coherent"))
 
     class Config:
         """Configuration du modèle Pandera."""
+
         strict = False  # Permet colonnes supplémentaires pour compatibilité
-        coerce = True   # Conversion automatique des types compatibles
+        coerce = True  # Conversion automatique des types compatibles

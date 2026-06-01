@@ -21,41 +21,40 @@ def sample_historique():
     """Fixture avec des données d'historique de test."""
     paris_tz = UTC  # Simplifié pour les tests
 
-    return pl.DataFrame({
-        "ref_situation_contractuelle": ["PDL001", "PDL001", "PDL001", "PDL002", "PDL002"],
-        "pdl": ["12345", "12345", "12345", "67890", "67890"],
-        "date_evenement": [
-            datetime(2024, 1, 1, tzinfo=paris_tz),
-            datetime(2024, 2, 1, tzinfo=paris_tz),
-            datetime(2024, 4, 1, tzinfo=paris_tz),
-            datetime(2024, 1, 15, tzinfo=paris_tz),
-            datetime(2024, 3, 15, tzinfo=paris_tz),
-        ],
-        "formule_tarifaire_acheminement": ["BTINFCU4", "BTINFCU4", "BTINFMU4", "BTINFCU4", "BTINFCU4"],
-        "puissance_souscrite_kva": [6.0, 6.0, 9.0, 3.0, 3.0],
-        "impacte_abonnement": [True, True, True, True, True],
-    }).lazy()
+    return pl.DataFrame(
+        {
+            "ref_situation_contractuelle": ["PDL001", "PDL001", "PDL001", "PDL002", "PDL002"],
+            "pdl": ["12345", "12345", "12345", "67890", "67890"],
+            "date_evenement": [
+                datetime(2024, 1, 1, tzinfo=paris_tz),
+                datetime(2024, 2, 1, tzinfo=paris_tz),
+                datetime(2024, 4, 1, tzinfo=paris_tz),
+                datetime(2024, 1, 15, tzinfo=paris_tz),
+                datetime(2024, 3, 15, tzinfo=paris_tz),
+            ],
+            "formule_tarifaire_acheminement": ["BTINFCU4", "BTINFCU4", "BTINFMU4", "BTINFCU4", "BTINFCU4"],
+            "puissance_souscrite_kva": [6.0, 6.0, 9.0, 3.0, 3.0],
+            "impacte_abonnement": [True, True, True, True, True],
+        }
+    ).lazy()
 
 
 def test_expr_bornes_periode():
     """Teste le calcul des bornes de période."""
-    df = pl.DataFrame({
-        "ref_situation_contractuelle": ["A", "A", "A", "B", "B"],
-        "date_evenement": [
-            datetime(2024, 1, 1),
-            datetime(2024, 2, 1),
-            datetime(2024, 3, 1),
-            datetime(2024, 1, 15),
-            datetime(2024, 2, 15),
-        ],
-    }).lazy()
+    df = pl.DataFrame(
+        {
+            "ref_situation_contractuelle": ["A", "A", "A", "B", "B"],
+            "date_evenement": [
+                datetime(2024, 1, 1),
+                datetime(2024, 2, 1),
+                datetime(2024, 3, 1),
+                datetime(2024, 1, 15),
+                datetime(2024, 2, 15),
+            ],
+        }
+    ).lazy()
 
-    result = (
-        df
-        .sort(["ref_situation_contractuelle", "date_evenement"])
-        .with_columns(expr_bornes_periode())
-        .collect()
-    )
+    result = df.sort(["ref_situation_contractuelle", "date_evenement"]).with_columns(expr_bornes_periode()).collect()
 
     # Vérifier que debut = date_evenement
     assert result["debut"].to_list() == result["date_evenement"].to_list()
@@ -64,19 +63,21 @@ def test_expr_bornes_periode():
     fins_attendues = [
         datetime(2024, 2, 1),  # A: 1er -> 2ème
         datetime(2024, 3, 1),  # A: 2ème -> 3ème
-        None,                  # A: 3ème -> None (dernière)
-        datetime(2024, 2, 15), # B: 1er -> 2ème
-        None,                  # B: 2ème -> None (dernière)
+        None,  # A: 3ème -> None (dernière)
+        datetime(2024, 2, 15),  # B: 1er -> 2ème
+        None,  # B: 2ème -> None (dernière)
     ]
     assert result["fin"].to_list() == fins_attendues
 
 
 def test_expr_nb_jours():
     """Teste le calcul du nombre de jours."""
-    df = pl.DataFrame({
-        "debut": [datetime(2024, 1, 1), datetime(2024, 2, 1), datetime(2024, 3, 1)],
-        "fin": [datetime(2024, 1, 31), datetime(2024, 2, 29), None],  # 2024 est bissextile
-    }).lazy()
+    df = pl.DataFrame(
+        {
+            "debut": [datetime(2024, 1, 1), datetime(2024, 2, 1), datetime(2024, 3, 1)],
+            "fin": [datetime(2024, 1, 31), datetime(2024, 2, 29), None],  # 2024 est bissextile
+        }
+    ).lazy()
 
     result = df.with_columns(expr_nb_jours().alias("nb_jours")).collect()
 
@@ -86,13 +87,13 @@ def test_expr_nb_jours():
 
 def test_expr_date_formatee_fr_complet():
     """Teste le formatage complet des dates en français."""
-    df = pl.DataFrame({
-        "ma_date": [datetime(2024, 3, 15), datetime(2024, 12, 25)],
-    }).lazy()
+    df = pl.DataFrame(
+        {
+            "ma_date": [datetime(2024, 3, 15), datetime(2024, 12, 25)],
+        }
+    ).lazy()
 
-    result = df.with_columns(
-        expr_date_formatee_fr("ma_date", "complet").alias("date_fr")
-    ).collect()
+    result = df.with_columns(expr_date_formatee_fr("ma_date", "complet").alias("date_fr")).collect()
 
     # Note: Les tests dépendent de la locale système
     # On vérifie juste que les dates sont formatées
@@ -104,13 +105,13 @@ def test_expr_date_formatee_fr_complet():
 
 def test_expr_date_formatee_fr_mois_annee():
     """Teste le formatage mois-année des dates."""
-    df = pl.DataFrame({
-        "ma_date": [datetime(2024, 3, 15)],
-    }).lazy()
+    df = pl.DataFrame(
+        {
+            "ma_date": [datetime(2024, 3, 15)],
+        }
+    ).lazy()
 
-    result = df.with_columns(
-        expr_date_formatee_fr("ma_date", "mois_annee").alias("mois_annee")
-    ).collect()
+    result = df.with_columns(expr_date_formatee_fr("ma_date", "mois_annee").alias("mois_annee")).collect()
 
     mois_annee = result["mois_annee"].to_list()[0]
     assert "2024" in mois_annee
@@ -118,9 +119,11 @@ def test_expr_date_formatee_fr_mois_annee():
 
 def test_expr_fin_lisible():
     """Teste le formatage de la fin avec gestion des nulls."""
-    df = pl.DataFrame({
-        "fin": [datetime(2024, 3, 31), None],
-    }).lazy()
+    df = pl.DataFrame(
+        {
+            "fin": [datetime(2024, 3, 31), None],
+        }
+    ).lazy()
 
     result = df.with_columns(expr_fin_lisible().alias("fin_lisible")).collect()
 
@@ -134,10 +137,12 @@ def test_expr_fin_lisible():
 
 def test_expr_periode_valide():
     """Teste la validation des périodes."""
-    df = pl.DataFrame({
-        "fin": [datetime(2024, 3, 31), None, datetime(2024, 4, 1)],
-        "nb_jours": [30, 15, 0],
-    }).lazy()
+    df = pl.DataFrame(
+        {
+            "fin": [datetime(2024, 3, 31), None, datetime(2024, 4, 1)],
+            "nb_jours": [30, 15, 0],
+        }
+    ).lazy()
 
     result = df.filter(expr_periode_valide()).collect()
 
@@ -155,9 +160,16 @@ def test_calculer_periodes_abonnement_pipeline(sample_historique):
 
     # Vérifier la structure de base
     colonnes_attendues = [
-        "ref_situation_contractuelle", "pdl", "mois_annee",
-        "debut_lisible", "fin_lisible", "formule_tarifaire_acheminement",
-        "puissance_souscrite_kva", "nb_jours", "debut", "fin"
+        "ref_situation_contractuelle",
+        "pdl",
+        "mois_annee",
+        "debut_lisible",
+        "fin_lisible",
+        "formule_tarifaire_acheminement",
+        "puissance_souscrite_kva",
+        "nb_jours",
+        "debut",
+        "fin",
     ]
 
     for col in colonnes_attendues:
@@ -171,18 +183,20 @@ def test_calculer_periodes_abonnement_pipeline(sample_historique):
 def test_generer_periodes_abonnement_filtre_correctement():
     """Teste que la génération filtre correctement les événements."""
     # Créer des données avec des événements qui n'impactent pas l'abonnement
-    historique_mixte = pl.DataFrame({
-        "ref_situation_contractuelle": ["PDL001", "PDL001", "PDL001"],
-        "pdl": ["12345", "12345", "12345"],
-        "date_evenement": [
-            datetime(2024, 1, 1),
-            datetime(2024, 2, 1),
-            datetime(2024, 3, 1),
-        ],
-        "formule_tarifaire_acheminement": ["BTINFCU4", "BTINFCU4", "BTINFMU4"],
-        "puissance_souscrite_kva": [6.0, 6.0, 9.0],
-        "impacte_abonnement": [True, False, True],  # Le 2ème n'impacte pas
-    }).lazy()
+    historique_mixte = pl.DataFrame(
+        {
+            "ref_situation_contractuelle": ["PDL001", "PDL001", "PDL001"],
+            "pdl": ["12345", "12345", "12345"],
+            "date_evenement": [
+                datetime(2024, 1, 1),
+                datetime(2024, 2, 1),
+                datetime(2024, 3, 1),
+            ],
+            "formule_tarifaire_acheminement": ["BTINFCU4", "BTINFCU4", "BTINFMU4"],
+            "puissance_souscrite_kva": [6.0, 6.0, 9.0],
+            "impacte_abonnement": [True, False, True],  # Le 2ème n'impacte pas
+        }
+    ).lazy()
 
     result = generer_periodes_abonnement(historique_mixte).collect()
 
@@ -193,26 +207,27 @@ def test_generer_periodes_abonnement_filtre_correctement():
 
 def test_format_date_invalide():
     """Teste la gestion des formats de date invalides."""
-    df = pl.DataFrame({
-        "ma_date": [datetime(2024, 3, 15)],
-    }).lazy()
+    df = pl.DataFrame(
+        {
+            "ma_date": [datetime(2024, 3, 15)],
+        }
+    ).lazy()
 
     with pytest.raises(ValueError, match="Format non supporté"):
-        df.with_columns(
-            expr_date_formatee_fr("ma_date", "format_inexistant")
-        ).collect()
+        df.with_columns(expr_date_formatee_fr("ma_date", "format_inexistant")).collect()
 
 
 def test_composition_expressions():
     """Teste la composition des expressions dans un pipeline."""
-    df = pl.DataFrame({
-        "ref_situation_contractuelle": ["A", "A"],
-        "date_evenement": [datetime(2024, 1, 1), datetime(2024, 2, 1)],
-    }).lazy()
+    df = pl.DataFrame(
+        {
+            "ref_situation_contractuelle": ["A", "A"],
+            "date_evenement": [datetime(2024, 1, 1), datetime(2024, 2, 1)],
+        }
+    ).lazy()
 
     result = (
-        df
-        .with_columns(expr_bornes_periode())
+        df.with_columns(expr_bornes_periode())
         .with_columns(expr_nb_jours().alias("nb_jours"))
         .filter(expr_periode_valide())
         .collect()

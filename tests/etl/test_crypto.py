@@ -8,6 +8,7 @@ Couvre :
 
 Nécessite l'extra [etl] : uv sync --extra etl
 """
+
 import io
 import zipfile
 from unittest.mock import patch
@@ -138,7 +139,7 @@ def test_decrypt_with_key_chain_fallback(encrypted_zip, zip_bytes, aes_key, aes_
     """Première clé incorrecte, deuxième correcte → succès avec 'previous'."""
     chain = [
         ("current", bytes(16), aes_iv),  # Mauvaise clé
-        ("previous", aes_key, aes_iv),   # Bonne clé
+        ("previous", aes_key, aes_iv),  # Bonne clé
     ]
     result, key_used = decrypt_with_key_chain(encrypted_zip, chain)
     assert result == zip_bytes

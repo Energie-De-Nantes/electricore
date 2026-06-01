@@ -59,7 +59,7 @@ def run_production_pipeline(
     if not config_path.exists():
         raise FileNotFoundError("Configuration flux.yaml non trouvée")
 
-    with open(config_path, encoding='utf-8') as f:
+    with open(config_path, encoding="utf-8") as f:
         all_flux_config = yaml.safe_load(f)
 
     # Filtrer les flux si spécifié
@@ -77,11 +77,7 @@ def run_production_pipeline(
     _out(f"Pipeline {dataset_name} | flux: {flux_list}{suffix}")
 
     # Créer le pipeline
-    pipeline = dlt.pipeline(
-        pipeline_name="flux_enedis_pipeline",
-        destination=destination,
-        dataset_name=dataset_name
-    )
+    pipeline = dlt.pipeline(pipeline_name="flux_enedis_pipeline", destination=destination, dataset_name=dataset_name)
 
     source = flux_enedis(flux_config, max_files=max_files)
 
@@ -115,37 +111,26 @@ def run_production_pipeline(
 def main():
     """Point d'entrée principal avec différents modes"""
 
-
     if len(sys.argv) > 1:
         mode = sys.argv[1]
 
         if mode == "test":
             _out("MODE TEST RAPIDE")
             run_production_pipeline(
-                flux_selection=['R151', 'C15', 'F15', 'R64'],
-                max_files=2,
-                dataset_name="flux_enedis_test"
+                flux_selection=["R151", "C15", "F15", "R64"], max_files=2, dataset_name="flux_enedis_test"
             )
 
         elif mode == "r151":
             _out("MODE R151 COMPLET")
-            run_production_pipeline(
-                flux_selection=['R151'],
-                dataset_name="flux_enedis_r151"
-            )
+            run_production_pipeline(flux_selection=["R151"], dataset_name="flux_enedis_r151")
 
         elif mode == "all":
             _out("MODE PRODUCTION COMPLÈTE")
-            run_production_pipeline(
-                dataset_name="flux_enedis"
-            )
+            run_production_pipeline(dataset_name="flux_enedis")
 
         elif mode == "reset":
             _out("MODE RESET COMPLET (données supprimées)")
-            run_production_pipeline(
-                dataset_name="flux_enedis",
-                refresh="drop_sources"
-            )
+            run_production_pipeline(dataset_name="flux_enedis", refresh="drop_sources")
 
         else:
             _out(f"Mode inconnu: {mode}")
@@ -153,11 +138,7 @@ def main():
             sys.exit(1)
     else:
         _out("MODE PAR DÉFAUT: TEST RAPIDE")
-        run_production_pipeline(
-            flux_selection=['R151'],
-            max_files=2,
-            dataset_name="flux_enedis_default"
-        )
+        run_production_pipeline(flux_selection=["R151"], max_files=2, dataset_name="flux_enedis_default")
 
 
 if __name__ == "__main__":

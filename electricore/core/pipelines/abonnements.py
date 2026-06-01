@@ -6,12 +6,12 @@ fonctionnelle de Polars. Les expressions sont des transformations pures
 qui peuvent être composées entre elles pour générer les périodes d'abonnement.
 """
 
-
 import polars as pl
 
 # =============================================================================
 # EXPRESSIONS PURES ATOMIQUES
 # =============================================================================
+
 
 def expr_bornes_periode(over: str = "ref_situation_contractuelle") -> list[pl.Expr]:
     """
@@ -29,10 +29,7 @@ def expr_bornes_periode(over: str = "ref_situation_contractuelle") -> list[pl.Ex
     Example:
         >>> df.with_columns(expr_bornes_periode())
     """
-    return [
-        pl.col("date_evenement").alias("debut"),
-        pl.col("date_evenement").shift(-1).over(over).alias("fin")
-    ]
+    return [pl.col("date_evenement").alias("debut"), pl.col("date_evenement").shift(-1).over(over).alias("fin")]
 
 
 def expr_nb_jours() -> pl.Expr:
@@ -48,9 +45,7 @@ def expr_nb_jours() -> pl.Expr:
     Example:
         >>> df.with_columns(expr_nb_jours().alias("nb_jours"))
     """
-    return (
-        pl.col("fin").dt.date() - pl.col("debut").dt.date()
-    ).dt.total_days().cast(pl.Int32)
+    return (pl.col("fin").dt.date() - pl.col("debut").dt.date()).dt.total_days().cast(pl.Int32)
 
 
 def expr_date_formatee_fr(col: str, format_type: str = "complet") -> pl.Expr:
@@ -83,7 +78,7 @@ def expr_date_formatee_fr(col: str, format_type: str = "complet") -> pl.Expr:
         "September": "septembre",
         "October": "octobre",
         "November": "novembre",
-        "December": "décembre"
+        "December": "décembre",
     }
 
     if format_type == "complet":
@@ -123,11 +118,7 @@ def expr_fin_lisible() -> pl.Expr:
     Example:
         >>> df.with_columns(expr_fin_lisible().alias("fin_lisible"))
     """
-    return (
-        pl.when(pl.col("fin").is_null())
-        .then(pl.lit("en cours"))
-        .otherwise(expr_date_formatee_fr("fin", "complet"))
-    )
+    return pl.when(pl.col("fin").is_null()).then(pl.lit("en cours")).otherwise(expr_date_formatee_fr("fin", "complet"))
 
 
 def expr_periode_valide() -> pl.Expr:
@@ -150,6 +141,7 @@ def expr_periode_valide() -> pl.Expr:
 # =============================================================================
 # FONCTIONS DE TRANSFORMATION LAZYFRAME
 # =============================================================================
+
 
 def calculer_periodes_abonnement(lf: pl.LazyFrame) -> pl.LazyFrame:
     """
@@ -183,36 +175,36 @@ def calculer_periodes_abonnement(lf: pl.LazyFrame) -> pl.LazyFrame:
         lf
         # 1. Tri pour assurer l'ordre chronologique par contrat
         .sort(["ref_situation_contractuelle", "date_evenement"])
-
         # 2. Calcul des bornes de période avec window functions
         .with_columns(expr_bornes_periode())
-
         # 3-4. Calcul des colonnes dérivées qui dépendent des bornes
-        .with_columns([
-            # Durée en jours (dépend de debut/fin)
-            expr_nb_jours().alias("nb_jours"),
-            # Formatage des dates en français
-            expr_date_formatee_fr("debut", "complet").alias("debut_lisible"),
-            expr_fin_lisible().alias("fin_lisible"),
-            expr_date_formatee_fr("debut", "mois_annee").alias("mois_annee")
-        ])
-
+        .with_columns(
+            [
+                # Durée en jours (dépend de debut/fin)
+                expr_nb_jours().alias("nb_jours"),
+                # Formatage des dates en français
+                expr_date_formatee_fr("debut", "complet").alias("debut_lisible"),
+                expr_fin_lisible().alias("fin_lisible"),
+                expr_date_formatee_fr("debut", "mois_annee").alias("mois_annee"),
+            ]
+        )
         # 5. Filtrage des périodes valides
         .filter(expr_periode_valide())
-
         # 6. Sélection des colonnes finales
-        .select([
-            "ref_situation_contractuelle",
-            "pdl",
-            "mois_annee",
-            "debut_lisible",
-            "fin_lisible",
-            "formule_tarifaire_acheminement",
-            "puissance_souscrite_kva",
-            "nb_jours",
-            "debut",
-            "fin"
-        ])
+        .select(
+            [
+                "ref_situation_contractuelle",
+                "pdl",
+                "mois_annee",
+                "debut_lisible",
+                "fin_lisible",
+                "formule_tarifaire_acheminement",
+                "puissance_souscrite_kva",
+                "nb_jours",
+                "debut",
+                "fin",
+            ]
+        )
     )
 
 
@@ -235,10 +227,7 @@ def generer_periodes_abonnement(historique: pl.LazyFrame) -> pl.LazyFrame:
     return (
         historique
         # Filtrer les événements qui impactent l'abonnement
-        .filter(
-            pl.col("impacte_abonnement") &
-            pl.col("ref_situation_contractuelle").is_not_null()
-        )
+        .filter(pl.col("impacte_abonnement") & pl.col("ref_situation_contractuelle").is_not_null())
         # Appliquer le pipeline de calcul des périodes
         .pipe(calculer_periodes_abonnement)
     )
@@ -264,16 +253,13 @@ def pipeline_abonnements(historique: pl.LazyFrame) -> pl.LazyFrame:
     """
     from .turpe import ajouter_turpe_fixe
 
-    return (
-        historique
-        .pipe(generer_periodes_abonnement)
-        .pipe(ajouter_turpe_fixe)
-    )
+    return historique.pipe(generer_periodes_abonnement).pipe(ajouter_turpe_fixe)
 
 
 # =============================================================================
 # FONCTIONS DE VALIDATION ET SÉLECTION
 # =============================================================================
+
 
 def selectionner_colonnes_abonnement(lf: pl.LazyFrame) -> pl.LazyFrame:
     """
@@ -300,7 +286,7 @@ def selectionner_colonnes_abonnement(lf: pl.LazyFrame) -> pl.LazyFrame:
         "fin",
         # Colonnes TURPE (optionnelles)
         "turpe_fixe_journalier_eur",
-        "turpe_fixe_eur"
+        "turpe_fixe_eur",
     ]
 
     # Sélectionner uniquement les colonnes qui existent

@@ -27,6 +27,7 @@ from electricore.core.pipelines.facturation import expr_calculer_trimestre
 # CHARGEMENT DES RÈGLES CTA
 # =============================================================================
 
+
 def load_cta_rules() -> pl.LazyFrame:
     """
     Charge les règles CTA depuis electricore/config/cta_rules.csv.
@@ -39,10 +40,12 @@ def load_cta_rules() -> pl.LazyFrame:
 
     return (
         pl.scan_csv(file_path)
-        .with_columns([
-            pl.col("start").str.to_datetime().dt.replace_time_zone("Europe/Paris"),
-            pl.col("end").str.to_datetime().dt.replace_time_zone("Europe/Paris"),
-        ])
+        .with_columns(
+            [
+                pl.col("start").str.to_datetime().dt.replace_time_zone("Europe/Paris"),
+                pl.col("end").str.to_datetime().dt.replace_time_zone("Europe/Paris"),
+            ]
+        )
         .with_columns(pl.col("taux_cta_pct").cast(pl.Float64))
     )
 
@@ -51,6 +54,7 @@ def load_cta_rules() -> pl.LazyFrame:
 # EXPRESSIONS DE FILTRAGE TEMPOREL
 # =============================================================================
 
+
 def expr_filtrer_regles_temporelles() -> pl.Expr:
     """
     Filtre les règles CTA applicables pour une ligne de facturation mensuelle.
@@ -58,19 +62,15 @@ def expr_filtrer_regles_temporelles() -> pl.Expr:
     Vérifie que `debut` (1er du mois) tombe dans la plage de validité :
     `start <= debut < end`, où `end=null` est traité comme « sans fin ».
     """
-    return (
-        (pl.col("debut") >= pl.col("start")) &
-        (
-            pl.col("debut") < pl.col("end").fill_null(
-                pl.datetime(2100, 1, 1, time_zone="Europe/Paris")
-            )
-        )
+    return (pl.col("debut") >= pl.col("start")) & (
+        pl.col("debut") < pl.col("end").fill_null(pl.datetime(2100, 1, 1, time_zone="Europe/Paris"))
     )
 
 
 # =============================================================================
 # AJOUT DU TAUX ET DU MONTANT CTA
 # =============================================================================
+
 
 def ajouter_cta(
     df_facturation_mensuel: pl.LazyFrame,
@@ -99,8 +99,7 @@ def ajouter_cta(
     regles_triees = regles.collect().sort("start").lazy()
 
     return (
-        facturation_triee
-        .join_asof(
+        facturation_triee.join_asof(
             regles_triees,
             left_on="debut",
             right_on="start",
@@ -108,11 +107,7 @@ def ajouter_cta(
         )
         .filter(pl.col("start").is_not_null())
         .filter(expr_filtrer_regles_temporelles())
-        .with_columns(
-            (pl.col("turpe_fixe_eur") * pl.col("taux_cta_pct") / 100)
-            .round(2)
-            .alias("cta_eur")
-        )
+        .with_columns((pl.col("turpe_fixe_eur") * pl.col("taux_cta_pct") / 100).round(2).alias("cta_eur"))
         .select([*colonnes_originales, "taux_cta_pct", "cta_eur"])
     )
 
@@ -120,6 +115,7 @@ def ajouter_cta(
 # =============================================================================
 # PIPELINE AGRÉGÉ PAR PDL
 # =============================================================================
+
 
 def pipeline_cta(
     df_facturation: pl.DataFrame,
@@ -148,27 +144,22 @@ def pipeline_cta(
         `taux_cta_appliques` est la liste triée des taux distincts
         rencontrés dans la période (plus d'une valeur ⇒ changement de taux).
     """
-    lf_jointure = (
-        df_facturation
-        .join(df_pdl.select(["pdl", "order_name"]), on="pdl", how="inner")
-        .lazy()
-    )
-    lf = ajouter_cta(lf_jointure, regles).with_columns(
-        expr_calculer_trimestre().alias("trimestre")
-    )
+    lf_jointure = df_facturation.join(df_pdl.select(["pdl", "order_name"]), on="pdl", how="inner").lazy()
+    lf = ajouter_cta(lf_jointure, regles).with_columns(expr_calculer_trimestre().alias("trimestre"))
 
     if trimestre is not None:
         lf = lf.filter(pl.col("trimestre") == trimestre)
 
     return (
-        lf
-        .group_by("pdl")
-        .agg([
-            pl.col("order_name").first(),
-            pl.col("turpe_fixe_eur").sum().alias("turpe_fixe_total"),
-            pl.col("cta_eur").sum().round(2).alias("cta"),
-            pl.col("taux_cta_pct").unique().sort().alias("taux_cta_appliques"),
-        ])
+        lf.group_by("pdl")
+        .agg(
+            [
+                pl.col("order_name").first(),
+                pl.col("turpe_fixe_eur").sum().alias("turpe_fixe_total"),
+                pl.col("cta_eur").sum().round(2).alias("cta"),
+                pl.col("taux_cta_pct").unique().sort().alias("taux_cta_appliques"),
+            ]
+        )
         .sort("cta", descending=True)
         .collect()
     )

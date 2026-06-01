@@ -1,4 +1,3 @@
-
 import pandera.polars as pa
 import polars as pl
 from pandera.engines.polars_engine import DateTime
@@ -11,7 +10,7 @@ class RelevéIndex(pa.DataFrameModel):
     Ce modèle permet de valider les relevés de compteurs avec leurs métadonnées
     en utilisant Polars pour des performances optimales.
     """
-    
+
     # 📆 Date du relevé - Utilisation du type DateTime Polars avec timezone
     date_releve: DateTime = pa.Field(nullable=False, dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"})
     ordre_index: pl.Boolean = pa.Field(default=False)
@@ -56,10 +55,10 @@ class RelevéIndex(pa.DataFrameModel):
         Utilise les expressions Polars natives pour la validation.
         """
         df_lazy = data.lazyframe
-        
+
         # Créer des conditions pour chaque type de calendrier
         conditions = []
-        
+
         # DI000001: index_base_kwh doit être non-null
         cond_d1 = (
             pl.when(pl.col("id_calendrier_distributeur") == "DI000001")
@@ -80,24 +79,25 @@ class RelevéIndex(pa.DataFrameModel):
         cond_d3 = (
             pl.when(pl.col("id_calendrier_distributeur") == "DI000003")
             .then(
-                pl.col("index_hph_kwh").is_not_null() &
-                pl.col("index_hch_kwh").is_not_null() &
-                pl.col("index_hpb_kwh").is_not_null() &
-                pl.col("index_hcb_kwh").is_not_null()
+                pl.col("index_hph_kwh").is_not_null()
+                & pl.col("index_hch_kwh").is_not_null()
+                & pl.col("index_hpb_kwh").is_not_null()
+                & pl.col("index_hcb_kwh").is_not_null()
             )
             .otherwise(pl.lit(True))
         )
         conditions.append(cond_d3)
-        
+
         # Combiner toutes les conditions
         combined_condition = conditions[0]
         for cond in conditions[1:]:
             combined_condition = combined_condition & cond
-        
+
         return df_lazy.select(combined_condition.alias("mesures_valides"))
 
     class Config:
         """Configuration du modèle."""
+
         strict = False  # Permet les colonnes supplémentaires durant la migration
 
 
@@ -107,6 +107,7 @@ class RequêteRelevé(pa.DataFrameModel):
 
     Assure que les requêtes sont bien formatées avant d'interroger le DataFrame `RelevéIndex`.
     """
+
     # 📆 Date du relevé demandée
     date_releve: DateTime = pa.Field(nullable=False, dtype_kwargs={"time_unit": "ns", "time_zone": "Europe/Paris"})
 

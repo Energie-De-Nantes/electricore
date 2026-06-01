@@ -1,4 +1,3 @@
-
 import pandera.polars as pa
 import polars as pl
 from pandera.engines.polars_engine import DateTime
@@ -7,7 +6,7 @@ from pandera.engines.polars_engine import DateTime
 class HistoriquePérimètre(pa.DataFrameModel):
     """
     📌 Modèle Pandera pour l'historique des événements contractuels - Version Polars.
-    
+
     Contient toutes les modifications de périmètre au fil du temps.
     Adapté pour fonctionner avec Polars pour des performances optimales.
     """
@@ -45,9 +44,11 @@ class HistoriquePérimètre(pa.DataFrameModel):
     precision: pl.Utf8 | None = pa.Field(nullable=True)
     num_depannage: pl.Utf8 | None = pa.Field(nullable=True)
     date_derniere_modification_fta: pl.Utf8 | None = pa.Field(nullable=True)
-    
+
     # Colonnes de relevés "Avant" (index de compteurs)
-    avant_date_releve: DateTime | None = pa.Field(nullable=True, dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"})
+    avant_date_releve: DateTime | None = pa.Field(
+        nullable=True, dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"}
+    )
     avant_nature_index: pl.Utf8 | None = pa.Field(nullable=True)
     avant_id_calendrier_fournisseur: pl.Utf8 | None = pa.Field(nullable=True)
     avant_id_calendrier_distributeur: pl.Utf8 | None = pa.Field(nullable=True)
@@ -60,7 +61,9 @@ class HistoriquePérimètre(pa.DataFrameModel):
     avant_index_base_kwh: pl.Float64 | None = pa.Field(nullable=True)
 
     # Colonnes de relevés "Après" (index de compteurs)
-    apres_date_releve: DateTime | None = pa.Field(nullable=True, dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"})
+    apres_date_releve: DateTime | None = pa.Field(
+        nullable=True, dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"}
+    )
     apres_nature_index: pl.Utf8 | None = pa.Field(nullable=True)
     apres_id_calendrier_fournisseur: pl.Utf8 | None = pa.Field(nullable=True)
     apres_id_calendrier_distributeur: pl.Utf8 | None = pa.Field(nullable=True)
@@ -79,7 +82,7 @@ class HistoriquePérimètre(pa.DataFrameModel):
         Les dates de relevés avant/après doivent être cohérentes avec la date d'événement.
         """
         df_lazy = data.lazyframe
-        
+
         # Vérifier que les dates de relevés "Avant" sont <= date_evenement (quand définies)
         condition_avant = (
             pl.when(pl.col("avant_date_releve").is_not_null())
@@ -93,20 +96,20 @@ class HistoriquePérimètre(pa.DataFrameModel):
             .then(pl.col("apres_date_releve") >= pl.col("date_evenement"))
             .otherwise(pl.lit(True))
         )
-        
+
         # Combiner les conditions
         coherence_dates = condition_avant & condition_apres
-        
+
         return df_lazy.select(coherence_dates.alias("dates_coherentes"))
 
     @pa.dataframe_check
     def verifier_presence_mesures_releves(cls, data) -> pl.LazyFrame:
         """
-        Vérifie que si un calendrier distributeur est défini, 
+        Vérifie que si un calendrier distributeur est défini,
         les mesures correspondantes sont présentes.
         """
         df_lazy = data.lazyframe
-        
+
         # Pour les relevés "Avant"
         cond_avant_d1 = (
             pl.when(pl.col("avant_id_calendrier_distributeur") == "DI000001")
@@ -123,10 +126,10 @@ class HistoriquePérimètre(pa.DataFrameModel):
         cond_avant_d3 = (
             pl.when(pl.col("avant_id_calendrier_distributeur") == "DI000003")
             .then(
-                pl.col("avant_index_hph_kwh").is_not_null() &
-                pl.col("avant_index_hch_kwh").is_not_null() &
-                pl.col("avant_index_hpb_kwh").is_not_null() &
-                pl.col("avant_index_hcb_kwh").is_not_null()
+                pl.col("avant_index_hph_kwh").is_not_null()
+                & pl.col("avant_index_hch_kwh").is_not_null()
+                & pl.col("avant_index_hpb_kwh").is_not_null()
+                & pl.col("avant_index_hcb_kwh").is_not_null()
             )
             .otherwise(pl.lit(True))
         )
@@ -147,22 +150,20 @@ class HistoriquePérimètre(pa.DataFrameModel):
         cond_apres_d3 = (
             pl.when(pl.col("apres_id_calendrier_distributeur") == "DI000003")
             .then(
-                pl.col("apres_index_hph_kwh").is_not_null() &
-                pl.col("apres_index_hch_kwh").is_not_null() &
-                pl.col("apres_index_hpb_kwh").is_not_null() &
-                pl.col("apres_index_hcb_kwh").is_not_null()
+                pl.col("apres_index_hph_kwh").is_not_null()
+                & pl.col("apres_index_hch_kwh").is_not_null()
+                & pl.col("apres_index_hpb_kwh").is_not_null()
+                & pl.col("apres_index_hcb_kwh").is_not_null()
             )
             .otherwise(pl.lit(True))
         )
-        
+
         # Combiner toutes les conditions
-        mesures_valides = (
-            cond_avant_d1 & cond_avant_d2 & cond_avant_d3 &
-            cond_apres_d1 & cond_apres_d2 & cond_apres_d3
-        )
-        
+        mesures_valides = cond_avant_d1 & cond_avant_d2 & cond_avant_d3 & cond_apres_d1 & cond_apres_d2 & cond_apres_d3
+
         return df_lazy.select(mesures_valides.alias("mesures_releves_valides"))
 
     class Config:
         """Configuration du modèle."""
+
         strict = False  # Permet les colonnes supplémentaires durant la migration

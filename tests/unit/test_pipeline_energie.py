@@ -17,37 +17,29 @@ from electricore.core.pipelines.energie import (
 
 def test_expr_bornes_depuis_shift():
     """Teste le calcul des bornes temporelles avec shift."""
-    df = pl.LazyFrame({
-        "ref_situation_contractuelle": ["A", "A", "A", "B", "B"],
-        "date_releve": [
-            datetime(2024, 1, 1),
-            datetime(2024, 2, 1),
-            datetime(2024, 3, 1),
-            datetime(2024, 1, 15),
-            datetime(2024, 2, 15),
-        ],
-        "source": ["flux_R151", "flux_R151", "flux_R151", "flux_C15", "flux_R151"],
-        "releve_manquant": [None, None, None, None, None],
-    })
-
-    result = (
-        df
-        .sort(["ref_situation_contractuelle", "date_releve"])
-        .with_columns(expr_bornes_depuis_shift())
-        .collect()
+    df = pl.LazyFrame(
+        {
+            "ref_situation_contractuelle": ["A", "A", "A", "B", "B"],
+            "date_releve": [
+                datetime(2024, 1, 1),
+                datetime(2024, 2, 1),
+                datetime(2024, 3, 1),
+                datetime(2024, 1, 15),
+                datetime(2024, 2, 15),
+            ],
+            "source": ["flux_R151", "flux_R151", "flux_R151", "flux_C15", "flux_R151"],
+            "releve_manquant": [None, None, None, None, None],
+        }
     )
 
+    result = df.sort(["ref_situation_contractuelle", "date_releve"]).with_columns(expr_bornes_depuis_shift()).collect()
+
     # Vérifier que debut = date_releve shifted
-    debuts_attendus = [
-        None, datetime(2024, 1, 1), datetime(2024, 2, 1),
-        None, datetime(2024, 1, 15)
-    ]
+    debuts_attendus = [None, datetime(2024, 1, 1), datetime(2024, 2, 1), None, datetime(2024, 1, 15)]
     assert result["debut"].to_list() == debuts_attendus
 
     # Vérifier les sources
-    sources_avant_attendues = [
-        None, "flux_R151", "flux_R151", None, "flux_C15"
-    ]
+    sources_avant_attendues = [None, "flux_R151", "flux_R151", None, "flux_C15"]
     assert result["source_avant"].to_list() == sources_avant_attendues
 
 
@@ -56,28 +48,30 @@ class TestExtraireRelevesEvenementsPolars:
 
     def test_extraction_releves_avant_apres(self):
         """Test nominal : extraction des relevés avant et après d'un événement."""
-        historique = pl.LazyFrame({
-            "pdl": ["PDL001"],
-            "ref_situation_contractuelle": ["REF001"],
-            "formule_tarifaire_acheminement": ["TURPE 5"],
-            "date_evenement": [datetime(2024, 1, 15, 10, 0)],
-            "avant_index_base_kwh": [1000.0],
-            "apres_index_base_kwh": [1500.0],
-            "avant_index_hp_kwh": [500.0],
-            "apres_index_hp_kwh": [750.0],
-            "avant_index_hc_kwh": [None],
-            "apres_index_hc_kwh": [None],
-            "avant_index_hch_kwh": [None],
-            "apres_index_hch_kwh": [None],
-            "avant_index_hph_kwh": [None],
-            "apres_index_hph_kwh": [None],
-            "avant_index_hcb_kwh": [None],
-            "apres_index_hcb_kwh": [None],
-            "avant_index_hpb_kwh": [None],
-            "apres_index_hpb_kwh": [None],
-            "avant_id_calendrier_distributeur": [1],
-            "apres_id_calendrier_distributeur": [1]
-        })
+        historique = pl.LazyFrame(
+            {
+                "pdl": ["PDL001"],
+                "ref_situation_contractuelle": ["REF001"],
+                "formule_tarifaire_acheminement": ["TURPE 5"],
+                "date_evenement": [datetime(2024, 1, 15, 10, 0)],
+                "avant_index_base_kwh": [1000.0],
+                "apres_index_base_kwh": [1500.0],
+                "avant_index_hp_kwh": [500.0],
+                "apres_index_hp_kwh": [750.0],
+                "avant_index_hc_kwh": [None],
+                "apres_index_hc_kwh": [None],
+                "avant_index_hch_kwh": [None],
+                "apres_index_hch_kwh": [None],
+                "avant_index_hph_kwh": [None],
+                "apres_index_hph_kwh": [None],
+                "avant_index_hcb_kwh": [None],
+                "apres_index_hcb_kwh": [None],
+                "avant_index_hpb_kwh": [None],
+                "apres_index_hpb_kwh": [None],
+                "avant_id_calendrier_distributeur": [1],
+                "apres_id_calendrier_distributeur": [1],
+            }
+        )
 
         result = extraire_releves_evenements(historique).collect()
 
@@ -98,20 +92,24 @@ class TestInterrogerRelevesPolars:
 
     def test_interrogation_tous_releves_trouves(self):
         """Test cas nominal : tous les relevés demandés sont trouvés."""
-        requete = pl.LazyFrame({
-            "pdl": ["PDL001", "PDL002"],
-            "date_releve": [datetime(2024, 1, 15), datetime(2024, 1, 16)],
-            "ref_situation_contractuelle": ["REF001", "REF002"]
-        })
+        requete = pl.LazyFrame(
+            {
+                "pdl": ["PDL001", "PDL002"],
+                "date_releve": [datetime(2024, 1, 15), datetime(2024, 1, 16)],
+                "ref_situation_contractuelle": ["REF001", "REF002"],
+            }
+        )
 
-        releves = pl.LazyFrame({
-            "pdl": ["PDL001", "PDL002", "PDL003"],
-            "date_releve": [datetime(2024, 1, 15), datetime(2024, 1, 16), datetime(2024, 1, 17)],
-            "source": ["flux_R151", "flux_R151", "flux_R151"],
-            "index_base_kwh": [1000.0, 2000.0, 3000.0],
-            "ordre_index": [0, 0, 0],
-            "id_calendrier_distributeur": ["DI000001", "DI000001", "DI000001"],
-        })
+        releves = pl.LazyFrame(
+            {
+                "pdl": ["PDL001", "PDL002", "PDL003"],
+                "date_releve": [datetime(2024, 1, 15), datetime(2024, 1, 16), datetime(2024, 1, 17)],
+                "source": ["flux_R151", "flux_R151", "flux_R151"],
+                "index_base_kwh": [1000.0, 2000.0, 3000.0],
+                "ordre_index": [0, 0, 0],
+                "id_calendrier_distributeur": ["DI000001", "DI000001", "DI000001"],
+            }
+        )
 
         result = interroger_releves(requete, releves).collect()
 
@@ -121,20 +119,21 @@ class TestInterrogerRelevesPolars:
 
     def test_interrogation_avec_releves_manquants(self):
         """Test cas mixte : certains relevés trouvés, d'autres non."""
-        requete = pl.LazyFrame({
-            "pdl": ["PDL001", "PDL002"],
-            "date_releve": [datetime(2024, 1, 15), datetime(2024, 1, 16)]
-        })
+        requete = pl.LazyFrame(
+            {"pdl": ["PDL001", "PDL002"], "date_releve": [datetime(2024, 1, 15), datetime(2024, 1, 16)]}
+        )
 
         # Base de relevés (seulement PDL001)
-        releves = pl.LazyFrame({
-            "pdl": ["PDL001"],
-            "date_releve": [datetime(2024, 1, 15)],
-            "source": ["flux_R151"],
-            "index_base_kwh": [1000.0],
-            "ordre_index": [0],
-            "id_calendrier_distributeur": ["DI000001"],
-        })
+        releves = pl.LazyFrame(
+            {
+                "pdl": ["PDL001"],
+                "date_releve": [datetime(2024, 1, 15)],
+                "source": ["flux_R151"],
+                "index_base_kwh": [1000.0],
+                "ordre_index": [0],
+                "id_calendrier_distributeur": ["DI000001"],
+            }
+        )
 
         result = interroger_releves(requete, releves).collect()
 
@@ -156,41 +155,46 @@ class TestReconstituerChronologieRelevesPolars:
 
     def test_reconstitution_avec_evenements_et_facturation(self):
         """Test nominal : combinaison d'événements contractuels + facturation."""
-        evenements = pl.LazyFrame({
-            "pdl": ["PDL001", "PDL001", "PDL002"],
-            "ref_situation_contractuelle": ["REF001", "REF001", "REF002"],
-            "formule_tarifaire_acheminement": ["TURPE 5", "TURPE 5", "TURPE 6"],
-            "evenement_declencheur": ["MES", "FACTURATION", "FACTURATION"],
-            "date_evenement": [
-                datetime(2024, 1, 15),
-                datetime(2024, 2, 1),
-                datetime(2024, 2, 1)
-            ],
-            # Données pour événement contractuel MES
-            "avant_index_base_kwh": [1000.0, None, None],
-            "apres_index_base_kwh": [1500.0, None, None],
-            "avant_index_hp_kwh": [500.0, None, None],
-            "apres_index_hp_kwh": [750.0, None, None],
-            # Autres colonnes nulles
-            **{f"{pos}_index_{col}_kwh": [None] * 3 for pos in ["avant", "apres"]
-               for col in ["hc", "hch", "hph", "hcb", "hpb"]}
-        })
+        evenements = pl.LazyFrame(
+            {
+                "pdl": ["PDL001", "PDL001", "PDL002"],
+                "ref_situation_contractuelle": ["REF001", "REF001", "REF002"],
+                "formule_tarifaire_acheminement": ["TURPE 5", "TURPE 5", "TURPE 6"],
+                "evenement_declencheur": ["MES", "FACTURATION", "FACTURATION"],
+                "date_evenement": [datetime(2024, 1, 15), datetime(2024, 2, 1), datetime(2024, 2, 1)],
+                # Données pour événement contractuel MES
+                "avant_index_base_kwh": [1000.0, None, None],
+                "apres_index_base_kwh": [1500.0, None, None],
+                "avant_index_hp_kwh": [500.0, None, None],
+                "apres_index_hp_kwh": [750.0, None, None],
+                # Autres colonnes nulles
+                **{
+                    f"{pos}_index_{col}_kwh": [None] * 3
+                    for pos in ["avant", "apres"]
+                    for col in ["hc", "hch", "hph", "hcb", "hpb"]
+                },
+            }
+        )
 
         # Ajouter manuellement les colonnes ID calendrier
-        evenements = evenements.with_columns([
-            pl.Series("avant_id_calendrier_distributeur", [1, None, None], dtype=pl.Int64),
-            pl.Series("apres_id_calendrier_distributeur", [1, None, None], dtype=pl.Int64)
-        ])
+        evenements = evenements.with_columns(
+            [
+                pl.Series("avant_id_calendrier_distributeur", [1, None, None], dtype=pl.Int64),
+                pl.Series("apres_id_calendrier_distributeur", [1, None, None], dtype=pl.Int64),
+            ]
+        )
 
         # Base de relevés R151 (seulement PDL001)
-        releves = pl.LazyFrame({
-            "pdl": ["PDL001"],
-            "date_releve": [datetime(2024, 2, 1)],
-            "source": ["flux_R151"],
-            "index_base_kwh": [2000.0],
-            "ordre_index": [0],
-            "id_calendrier_distributeur": ["DI000001"],
-        })
+        releves = pl.LazyFrame(
+            {
+                "pdl": ["PDL001"],
+                "date_releve": [datetime(2024, 2, 1)],
+                "source": ["flux_R151"],
+                "index_base_kwh": [2000.0],
+                "ordre_index": [0],
+                "id_calendrier_distributeur": ["DI000001"],
+            }
+        )
 
         result = reconstituer_chronologie_releves(evenements, releves).collect()
 
@@ -202,42 +206,49 @@ class TestReconstituerChronologieRelevesPolars:
         assert len(mes_releves) == 2  # avant + après
 
         # Vérifier les flags releve_manquant
-        facturation_pdl001 = result.filter(
-            (pl.col("pdl") == "PDL001") & (pl.col("source") == "flux_R151")
-        )
+        facturation_pdl001 = result.filter((pl.col("pdl") == "PDL001") & (pl.col("source") == "flux_R151"))
         if len(facturation_pdl001) > 0:
             assert facturation_pdl001["releve_manquant"][0] is False
 
     def test_priorite_flux_c15_sur_r151(self):
         """Test que flux_C15 a priorité sur flux_R151 en cas de conflit."""
-        evenements = pl.LazyFrame({
-            "pdl": ["PDL001", "PDL001"],
-            "ref_situation_contractuelle": ["REF001", "REF001"],
-            "formule_tarifaire_acheminement": ["TURPE 5", "TURPE 5"],
-            "evenement_declencheur": ["MES", "FACTURATION"],
-            "date_evenement": [datetime(2024, 1, 15), datetime(2024, 1, 15)],
-            # Données MES minimales
-            "avant_index_base_kwh": [1000.0, None],
-            "apres_index_base_kwh": [1500.0, None],
-            **{f"{pos}_index_{col}_kwh": [None, None] for pos in ["avant", "apres"]
-               for col in ["hp", "hc", "hch", "hph", "hcb", "hpb"]}
-        })
+        evenements = pl.LazyFrame(
+            {
+                "pdl": ["PDL001", "PDL001"],
+                "ref_situation_contractuelle": ["REF001", "REF001"],
+                "formule_tarifaire_acheminement": ["TURPE 5", "TURPE 5"],
+                "evenement_declencheur": ["MES", "FACTURATION"],
+                "date_evenement": [datetime(2024, 1, 15), datetime(2024, 1, 15)],
+                # Données MES minimales
+                "avant_index_base_kwh": [1000.0, None],
+                "apres_index_base_kwh": [1500.0, None],
+                **{
+                    f"{pos}_index_{col}_kwh": [None, None]
+                    for pos in ["avant", "apres"]
+                    for col in ["hp", "hc", "hch", "hph", "hcb", "hpb"]
+                },
+            }
+        )
 
         # Ajouter manuellement les colonnes ID calendrier
-        evenements = evenements.with_columns([
-            pl.Series("avant_id_calendrier_distributeur", [1, None], dtype=pl.Int64),
-            pl.Series("apres_id_calendrier_distributeur", [1, None], dtype=pl.Int64)
-        ])
+        evenements = evenements.with_columns(
+            [
+                pl.Series("avant_id_calendrier_distributeur", [1, None], dtype=pl.Int64),
+                pl.Series("apres_id_calendrier_distributeur", [1, None], dtype=pl.Int64),
+            ]
+        )
 
         # Relevé R151 à la même date
-        releves = pl.LazyFrame({
-            "pdl": ["PDL001"],
-            "date_releve": [datetime(2024, 1, 15)],
-            "source": ["flux_R151"],
-            "index_base_kwh": [9999.0],  # Valeur différente pour détecter le conflit
-            "ordre_index": [0],
-            "id_calendrier_distributeur": ["DI000001"],
-        })
+        releves = pl.LazyFrame(
+            {
+                "pdl": ["PDL001"],
+                "date_releve": [datetime(2024, 1, 15)],
+                "source": ["flux_R151"],
+                "index_base_kwh": [9999.0],  # Valeur différente pour détecter le conflit
+                "ordre_index": [0],
+                "id_calendrier_distributeur": ["DI000001"],
+            }
+        )
 
         result = reconstituer_chronologie_releves(evenements, releves).collect()
 
@@ -256,21 +267,23 @@ class TestReconstituerChronologieRelevesPolars:
 
 def test_propagation_flags_releve_manquant():
     """Test que les flags releve_manquant sont bien propagés dans les périodes."""
-    releves = pl.LazyFrame({
-        "pdl": ["PDL001", "PDL001", "PDL001"],
-        "ref_situation_contractuelle": ["REF001", "REF001", "REF001"],
-        "date_releve": [datetime(2024, 1, 1), datetime(2024, 2, 1), datetime(2024, 3, 1)],
-        "source": ["flux_C15", "flux_R151", "flux_R151"],
-        "index_base_kwh": [1000.0, 2000.0, 3000.0],
-        "index_hp_kwh": [500.0, 1000.0, 1500.0],
-        "index_hc_kwh": [200.0, 400.0, 600.0],
-        "index_hph_kwh": [100.0, 200.0, 300.0],
-        "index_hpb_kwh": [150.0, 300.0, 450.0],
-        "index_hch_kwh": [80.0, 160.0, 240.0],
-        "index_hcb_kwh": [120.0, 240.0, 360.0],
-        "releve_manquant": [None, False, True],  # C15: null, R151 trouvé: False, R151 manquant: True
-        "ordre_index": [0, 0, 0]
-    })
+    releves = pl.LazyFrame(
+        {
+            "pdl": ["PDL001", "PDL001", "PDL001"],
+            "ref_situation_contractuelle": ["REF001", "REF001", "REF001"],
+            "date_releve": [datetime(2024, 1, 1), datetime(2024, 2, 1), datetime(2024, 3, 1)],
+            "source": ["flux_C15", "flux_R151", "flux_R151"],
+            "index_base_kwh": [1000.0, 2000.0, 3000.0],
+            "index_hp_kwh": [500.0, 1000.0, 1500.0],
+            "index_hc_kwh": [200.0, 400.0, 600.0],
+            "index_hph_kwh": [100.0, 200.0, 300.0],
+            "index_hpb_kwh": [150.0, 300.0, 450.0],
+            "index_hch_kwh": [80.0, 160.0, 240.0],
+            "index_hcb_kwh": [120.0, 240.0, 360.0],
+            "releve_manquant": [None, False, True],  # C15: null, R151 trouvé: False, R151 manquant: True
+            "ordre_index": [0, 0, 0],
+        }
+    )
 
     result = calculer_periodes_energie(releves).collect()
 
@@ -282,22 +295,24 @@ def test_propagation_flags_releve_manquant():
     periode1 = periodes.filter(pl.col("fin") == datetime(2024, 2, 1))
     assert len(periode1) == 1
     assert periode1["releve_manquant_debut"][0] is None  # C15 n'a pas de flag
-    assert periode1["releve_manquant_fin"][0] is False   # R151 trouvé
+    assert periode1["releve_manquant_fin"][0] is False  # R151 trouvé
 
     # Deuxième période : début=R151 (False), fin=R151 (True)
     periode2 = periodes.filter(pl.col("fin") == datetime(2024, 3, 1))
     assert len(periode2) == 1
-    assert periode2["releve_manquant_debut"][0] is False # R151 trouvé
-    assert periode2["releve_manquant_fin"][0] is True   # R151 manquant
+    assert periode2["releve_manquant_debut"][0] is False  # R151 trouvé
+    assert periode2["releve_manquant_fin"][0] is True  # R151 manquant
 
 
 def test_expr_arrondir_index_kwh():
     """Teste l'arrondi des index à l'entier inférieur."""
-    df = pl.DataFrame({
-        "index_base_kwh": [1000.8, 1001.2, None],
-        "index_hp_kwh": [500.9, None, 502.1],
-        "index_hc_kwh": [None, 400.7, 401.3],
-    }).lazy()
+    df = pl.DataFrame(
+        {
+            "index_base_kwh": [1000.8, 1001.2, None],
+            "index_hp_kwh": [500.9, None, 502.1],
+            "index_hc_kwh": [None, 400.7, 401.3],
+        }
+    ).lazy()
 
     from electricore.core.pipelines.energie import expr_arrondir_index_kwh
 
@@ -311,45 +326,44 @@ def test_expr_arrondir_index_kwh():
 
 def test_expr_calculer_energie_cadran():
     """Teste le calcul d'énergie pour un cadran."""
-    df = pl.DataFrame({
-        "ref_situation_contractuelle": ["A", "A", "A", "B", "B"],
-        "index_base_kwh": [1000.0, 1050.0, 1100.0, 500.0, 530.0],
-    }).lazy()
+    df = pl.DataFrame(
+        {
+            "ref_situation_contractuelle": ["A", "A", "A", "B", "B"],
+            "index_base_kwh": [1000.0, 1050.0, 1100.0, 500.0, 530.0],
+        }
+    ).lazy()
 
     from electricore.core.pipelines.energie import expr_calculer_energie_cadran
 
     result = (
-        df
-        .sort(["ref_situation_contractuelle"])
-        .with_columns(
-            expr_calculer_energie_cadran("index_base_kwh").alias("energie_base_kwh")
-        )
+        df.sort(["ref_situation_contractuelle"])
+        .with_columns(expr_calculer_energie_cadran("index_base_kwh").alias("energie_base_kwh"))
         .collect()
     )
 
     # Premier relevé de chaque contrat = None (pas de précédent)
     # Relevés suivants = différence avec précédent
     energies_attendues = [
-        None,   # A: 1er relevé
-        50.0,   # A: 1050 - 1000
-        50.0,   # A: 1100 - 1050
-        None,   # B: 1er relevé
-        30.0,   # B: 530 - 500
+        None,  # A: 1er relevé
+        50.0,  # A: 1050 - 1000
+        50.0,  # A: 1100 - 1050
+        None,  # B: 1er relevé
+        30.0,  # B: 530 - 500
     ]
     assert result["energie_base_kwh"].to_list() == energies_attendues
 
 
 def test_expr_date_formatee_fr():
     """Teste le formatage des dates en français."""
-    df = pl.DataFrame({
-        "ma_date": [datetime(2024, 3, 15), datetime(2024, 12, 25)],
-    }).lazy()
+    df = pl.DataFrame(
+        {
+            "ma_date": [datetime(2024, 3, 15), datetime(2024, 12, 25)],
+        }
+    ).lazy()
 
     from electricore.core.pipelines.energie import expr_date_formatee_fr
 
-    result = df.with_columns(
-        expr_date_formatee_fr("ma_date", "complet").alias("date_fr")
-    ).collect()
+    result = df.with_columns(expr_date_formatee_fr("ma_date", "complet").alias("date_fr")).collect()
 
     # Vérifier que les dates contiennent les éléments français
     dates_fr = result["date_fr"].to_list()
@@ -359,10 +373,12 @@ def test_expr_date_formatee_fr():
 
 def test_expr_nb_jours():
     """Teste le calcul du nombre de jours."""
-    df = pl.DataFrame({
-        "debut": [datetime(2024, 1, 1), datetime(2024, 2, 1)],
-        "fin": [datetime(2024, 1, 15), datetime(2024, 2, 29)],
-    }).lazy()
+    df = pl.DataFrame(
+        {
+            "debut": [datetime(2024, 1, 1), datetime(2024, 2, 1)],
+            "fin": [datetime(2024, 1, 15), datetime(2024, 2, 29)],
+        }
+    ).lazy()
 
     from electricore.core.pipelines.energie import expr_nb_jours
 

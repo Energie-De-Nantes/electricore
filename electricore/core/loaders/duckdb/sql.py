@@ -14,6 +14,7 @@ from dataclasses import dataclass
 # DATACLASSES IMMUTABLES POUR DÉFINITION SQL
 # =============================================================================
 
+
 @dataclass(frozen=True)  # Immutable
 class Column:
     """
@@ -24,6 +25,7 @@ class Column:
         sql_expr: Expression SQL pour cette colonne
         alias: Alias optionnel (si différent du name)
     """
+
     name: str
     sql_expr: str
     alias: str | None = None
@@ -50,6 +52,7 @@ class FluxSchema:
         where_clause: Clause WHERE optionnelle
         comments: Commentaires SQL optionnels
     """
+
     flux_name: str
     table: str
     columns: tuple[Column, ...]
@@ -60,6 +63,7 @@ class FluxSchema:
 # =============================================================================
 # FONCTIONS PURES DE GÉNÉRATION SQL
 # =============================================================================
+
 
 def build_select_clause(columns: tuple[Column, ...]) -> str:
     """
@@ -112,6 +116,7 @@ def build_base_query(schema: FluxSchema) -> str:
 # =============================================================================
 # HELPERS POUR CONSTRUIRE DES COLONNES COMMUNES
 # =============================================================================
+
 
 def col_simple(name: str) -> Column:
     """Colonne simple sans transformation."""
@@ -194,7 +199,7 @@ SCHEMA_C15 = FluxSchema(
         col_cast_double("apres_index_base_kwh"),
         # Métadonnées
         col_literal("flux_C15", "source"),
-    )
+    ),
 )
 
 
@@ -204,11 +209,7 @@ SCHEMA_R151 = FluxSchema(
     table="flux_enedis.flux_r151",
     columns=(
         # Date avec harmonisation (convention fin de journée → début de journée)
-        Column(
-            name="date_releve",
-            sql_expr="CAST(date_releve AS TIMESTAMP) + INTERVAL '1 day'",
-            alias="date_releve"
-        ),
+        Column(name="date_releve", sql_expr="CAST(date_releve AS TIMESTAMP) + INTERVAL '1 day'", alias="date_releve"),
         col_simple("pdl"),
         col_cast_null_varchar("ref_situation_contractuelle"),
         col_cast_null_varchar("formule_tarifaire_acheminement"),
@@ -234,7 +235,7 @@ SCHEMA_R151 = FluxSchema(
 -- Problème : R151 utilise convention "fin de journée" (date J = index fin jour J)
 --           alors que R64, R15, C15 utilisent "début de journée" (date J = index début jour J)
 -- Solution : R151 date J → J+1 pour aligner sur convention majoritaire "début de journée"
--- Résultat : après ajustement, R151 et R64 correspondent parfaitement (244 matches exacts testés)"""
+-- Résultat : après ajustement, R151 et R64 correspondent parfaitement (244 matches exacts testés)""",
 )
 
 
@@ -264,7 +265,7 @@ SCHEMA_R15 = FluxSchema(
         col_literal("kWh", "unite"),
         col_literal("kWh", "precision"),
     ),
-    where_clause="date_releve IS NOT NULL"
+    where_clause="date_releve IS NOT NULL",
 )
 
 
@@ -291,7 +292,7 @@ SCHEMA_F15 = FluxSchema(
         col_cast_timestamp("date_fin"),
         col_simple("libelle_ev"),
         col_literal("flux_F15", "source"),
-    )
+    ),
 )
 
 
@@ -328,7 +329,7 @@ SCHEMA_R64 = FluxSchema(
         col_simple("_json_name"),
         col_literal("flux_R64", "source"),
     ),
-    where_clause="date_releve IS NOT NULL"
+    where_clause="date_releve IS NOT NULL",
 )
 
 

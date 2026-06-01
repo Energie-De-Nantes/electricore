@@ -1,4 +1,3 @@
-
 import pandera.polars as pa
 import polars as pl
 from pandera.engines.polars_engine import DateTime
@@ -12,6 +11,7 @@ class PeriodeEnergie(pa.DataFrameModel):
     avec les références d'index, les sources de données et les indicateurs de qualité,
     optimisée pour les performances Polars.
     """
+
     # Identifiants
     pdl: pl.Utf8 = pa.Field(nullable=False)
     ref_situation_contractuelle: pl.Utf8 | None = pa.Field(nullable=True)
@@ -69,10 +69,7 @@ class PeriodeEnergie(pa.DataFrameModel):
         df_lazy = data.lazyframe
 
         # Condition : début doit être antérieur à fin (ou fin null pour période en cours)
-        condition = (
-            pl.col("fin").is_null() |
-            (pl.col("debut") < pl.col("fin"))
-        )
+        condition = pl.col("fin").is_null() | (pl.col("debut") < pl.col("fin"))
 
         return df_lazy.select(condition.alias("periode_coherente"))
 
@@ -84,19 +81,14 @@ class PeriodeEnergie(pa.DataFrameModel):
         df_lazy = data.lazyframe
 
         # Calculer nb_jours attendu
-        nb_jours_calcule = (
-            pl.col("fin").dt.date() - pl.col("debut").dt.date()
-        ).dt.total_days().cast(pl.Int32)
+        nb_jours_calcule = (pl.col("fin").dt.date() - pl.col("debut").dt.date()).dt.total_days().cast(pl.Int32)
 
         # Condition : nb_jours doit correspondre au calcul (ou être null)
-        condition = (
-            pl.col("nb_jours").is_null() |
-            pl.col("fin").is_null() |
-            (pl.col("nb_jours") == nb_jours_calcule)
-        )
+        condition = pl.col("nb_jours").is_null() | pl.col("fin").is_null() | (pl.col("nb_jours") == nb_jours_calcule)
 
         return df_lazy.select(condition.alias("nb_jours_coherent"))
 
     class Config:
         """Configuration pour permettre des colonnes supplémentaires."""
+
         strict = False

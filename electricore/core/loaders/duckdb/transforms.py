@@ -30,10 +30,8 @@ from .expressions import (
 # HIGHER-ORDER FUNCTIONS (Currying)
 # =============================================================================
 
-def transform_dates(
-    date_cols: tuple[str, ...],
-    tz: str = "Europe/Paris"
-) -> Callable[[pl.LazyFrame], pl.LazyFrame]:
+
+def transform_dates(date_cols: tuple[str, ...], tz: str = "Europe/Paris") -> Callable[[pl.LazyFrame], pl.LazyFrame]:
     """
     Retourne une fonction de transformation des dates vers un timezone.
 
@@ -50,14 +48,14 @@ def transform_dates(
         >>> transform_fn = transform_dates(("date_debut", "date_fin"))
         >>> lf_transformed = transform_fn(lf)
     """
+
     def _transform(lf: pl.LazyFrame) -> pl.LazyFrame:
         return lf.with_columns(expr_dates_with_timezone(*date_cols, tz=tz))
+
     return _transform
 
 
-def transform_wh_to_kwh(
-    index_cols: tuple[str, ...] = INDEX_COLS
-) -> Callable[[pl.LazyFrame], pl.LazyFrame]:
+def transform_wh_to_kwh(index_cols: tuple[str, ...] = INDEX_COLS) -> Callable[[pl.LazyFrame], pl.LazyFrame]:
     """
     Retourne une fonction de conversion Wh -> kWh avec normalisation unités.
 
@@ -73,18 +71,16 @@ def transform_wh_to_kwh(
         >>> transform_fn = transform_wh_to_kwh(("hp", "hc", "base"))
         >>> lf_transformed = transform_fn(lf)
     """
+
     def _transform(lf: pl.LazyFrame) -> pl.LazyFrame:
-        return lf.with_columns([
-            *expr_wh_to_kwh_multi(*index_cols),
-            expr_normalize_unit("unite"),
-            expr_normalize_unit("precision")
-        ])
+        return lf.with_columns(
+            [*expr_wh_to_kwh_multi(*index_cols), expr_normalize_unit("unite"), expr_normalize_unit("precision")]
+        )
+
     return _transform
 
 
-def transform_add_defaults(
-    **defaults: Any
-) -> Callable[[pl.LazyFrame], pl.LazyFrame]:
+def transform_add_defaults(**defaults: Any) -> Callable[[pl.LazyFrame], pl.LazyFrame]:
     """
     Retourne une fonction d'ajout de colonnes avec valeurs par défaut.
 
@@ -100,16 +96,15 @@ def transform_add_defaults(
         >>> transform_fn = transform_add_defaults(unite="kWh", precision="kWh")
         >>> lf_transformed = transform_fn(lf)
     """
+
     def _transform(lf: pl.LazyFrame) -> pl.LazyFrame:
-        return lf.with_columns([
-            pl.lit(value).alias(col) for col, value in defaults.items()
-        ])
+        return lf.with_columns([pl.lit(value).alias(col) for col, value in defaults.items()])
+
     return _transform
 
 
 def transform_add_metadata(
-    flux_origin_col: str = "flux_origine",
-    index_cols: tuple[str, ...] = INDEX_COLS
+    flux_origin_col: str = "flux_origine", index_cols: tuple[str, ...] = INDEX_COLS
 ) -> Callable[[pl.LazyFrame], pl.LazyFrame]:
     """
     Retourne une fonction d'ajout de métadonnées dérivées.
@@ -131,11 +126,10 @@ def transform_add_metadata(
         >>> transform_fn = transform_add_metadata()
         >>> lf_transformed = transform_fn(lf)
     """
+
     def _transform(lf: pl.LazyFrame) -> pl.LazyFrame:
-        return lf.with_columns([
-            expr_has_metadata(flux_origin_col),
-            expr_cadrans_count(*index_cols)
-        ])
+        return lf.with_columns([expr_has_metadata(flux_origin_col), expr_cadrans_count(*index_cols)])
+
     return _transform
 
 
@@ -143,9 +137,8 @@ def transform_add_metadata(
 # COMPOSITION FONCTIONNELLE
 # =============================================================================
 
-def compose(
-    *transforms: Callable[[pl.LazyFrame], pl.LazyFrame]
-) -> Callable[[pl.LazyFrame], pl.LazyFrame]:
+
+def compose(*transforms: Callable[[pl.LazyFrame], pl.LazyFrame]) -> Callable[[pl.LazyFrame], pl.LazyFrame]:
     """
     Compose plusieurs transformations en une seule fonction.
 
@@ -167,11 +160,13 @@ def compose(
         ... )
         >>> lf_result = transform_pipeline(lf)
     """
+
     def _composed(lf: pl.LazyFrame) -> pl.LazyFrame:
         result = lf
         for transform in transforms:
             result = transform(result)
         return result
+
     return _composed
 
 
@@ -181,16 +176,12 @@ def compose(
 
 # Pipeline pour historique périmètre (flux C15)
 transform_historique_perimetre = compose(
-    transform_dates(DATE_COLS_HISTORIQUE),
-    transform_add_defaults(unite="kWh", precision="kWh")
+    transform_dates(DATE_COLS_HISTORIQUE), transform_add_defaults(unite="kWh", precision="kWh")
 )
 
 
 # Pipeline pour relevés (flux R151, R15)
-transform_releves = compose(
-    transform_dates(DATE_COLS_RELEVES),
-    transform_wh_to_kwh(INDEX_COLS)
-)
+transform_releves = compose(transform_dates(DATE_COLS_RELEVES), transform_wh_to_kwh(INDEX_COLS))
 
 
 # Pipeline pour factures (flux F15)
@@ -202,10 +193,12 @@ transform_factures = transform_dates(DATE_COLS_FACTURES)
 # on doit la créer avant la conversion Wh->kWh
 transform_r64 = compose(
     transform_dates(DATE_COLS_R64),
-    lambda lf: lf.with_columns([
-        pl.col("unite").alias("precision")  # Créer precision depuis unite
-    ]),
-    transform_wh_to_kwh(INDEX_COLS)
+    lambda lf: lf.with_columns(
+        [
+            pl.col("unite").alias("precision")  # Créer precision depuis unite
+        ]
+    ),
+    transform_wh_to_kwh(INDEX_COLS),
 )
 
 
@@ -213,5 +206,5 @@ transform_r64 = compose(
 transform_releves_harmonises = compose(
     transform_dates(DATE_COLS_RELEVES),
     transform_wh_to_kwh(INDEX_COLS),
-    transform_add_metadata(flux_origin_col="flux_origine", index_cols=INDEX_COLS)
+    transform_add_metadata(flux_origin_col="flux_origine", index_cols=INDEX_COLS),
 )

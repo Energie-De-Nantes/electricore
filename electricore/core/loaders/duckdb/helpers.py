@@ -26,6 +26,7 @@ from .transforms import transform_releves, transform_releves_harmonises
 # API FLUIDE - FONCTIONS FACTORY PAR FLUX
 # =============================================================================
 
+
 def c15(database_path: str | Path = None) -> DuckDBQuery:
     """
     Crée un DuckDBQuery pour les données flux C15 (historique périmètre).
@@ -144,21 +145,13 @@ def releves(database_path: str | Path = None) -> DuckDBQuery:
     union_schema = FluxSchema(
         flux_name="RELEVES_UNIFIES",
         table="",  # Pas utilisé (requête CTE)
-        columns=()  # Pas utilisé (requête CTE)
+        columns=(),  # Pas utilisé (requête CTE)
     )
 
-    config = QueryConfig(
-        schema=union_schema,
-        transform=transform_releves,
-        validator=RelevéIndex
-    )
+    config = QueryConfig(schema=union_schema, transform=transform_releves, validator=RelevéIndex)
 
     # Utiliser base_sql pour la requête CTE pré-construite
-    return DuckDBQuery(
-        config=config,
-        database_path=database_path,
-        base_sql=BASE_QUERY_RELEVES_UNIFIES
-    )
+    return DuckDBQuery(config=config, database_path=database_path, base_sql=BASE_QUERY_RELEVES_UNIFIES)
 
 
 def releves_harmonises(database_path: str | Path = None) -> DuckDBQuery:
@@ -183,35 +176,24 @@ def releves_harmonises(database_path: str | Path = None) -> DuckDBQuery:
         >>> df = releves_harmonises().filter({"flux_origine": "R64"}).collect()
     """
     # Schéma factice pour UNION
-    union_schema = FluxSchema(
-        flux_name="RELEVES_HARMONISES",
-        table="",
-        columns=()
-    )
+    union_schema = FluxSchema(flux_name="RELEVES_HARMONISES", table="", columns=())
 
-    config = QueryConfig(
-        schema=union_schema,
-        transform=transform_releves_harmonises,
-        validator=RelevéIndex
-    )
+    config = QueryConfig(schema=union_schema, transform=transform_releves_harmonises, validator=RelevéIndex)
 
     # Utiliser base_sql pour la requête CTE pré-construite
-    return DuckDBQuery(
-        config=config,
-        database_path=database_path,
-        base_sql=BASE_QUERY_RELEVES_HARMONISES
-    )
+    return DuckDBQuery(config=config, database_path=database_path, base_sql=BASE_QUERY_RELEVES_HARMONISES)
 
 
 # =============================================================================
 # API LEGACY (Compatibilité avec ancien code)
 # =============================================================================
 
+
 def load_historique_perimetre(
     database_path: str | Path = None,
     filters: dict[str, Any] | None = None,
     limit: int | None = None,
-    valider: bool = True
+    valider: bool = True,
 ) -> pl.LazyFrame:
     """
     Charge l'historique de périmètre depuis DuckDB.
@@ -249,7 +231,7 @@ def load_releves(
     database_path: str | Path = None,
     filters: dict[str, Any] | None = None,
     limit: int | None = None,
-    valider: bool = True
+    valider: bool = True,
 ) -> pl.LazyFrame:
     """
     Charge les relevés d'index depuis DuckDB.
@@ -287,6 +269,7 @@ def load_releves(
 # UTILITAIRES
 # =============================================================================
 
+
 def get_available_tables(database_path: str | Path = None) -> list[str]:
     """
     Liste les tables disponibles dans la base DuckDB.
@@ -311,9 +294,7 @@ def get_available_tables(database_path: str | Path = None) -> list[str]:
 
 
 def execute_custom_query(
-    query: str,
-    database_path: str | Path = None,
-    lazy: bool = True
+    query: str, database_path: str | Path = None, lazy: bool = True
 ) -> pl.DataFrame | pl.LazyFrame:
     """
     Exécute une requête SQL personnalisée sur DuckDB.
@@ -330,12 +311,6 @@ def execute_custom_query(
 
     with duckdb_connection(config.database_path) as conn:
         if lazy:
-            return pl.read_database(
-                query=query,
-                connection=conn
-            ).lazy()
+            return pl.read_database(query=query, connection=conn).lazy()
         else:
-            return pl.read_database(
-                query=query,
-                connection=conn
-            )
+            return pl.read_database(query=query, connection=conn)

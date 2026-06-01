@@ -19,13 +19,14 @@ class OdooConfig:
         username: Nom d'utilisateur
         password: Mot de passe API
     """
+
     url: str
     db: str
     username: str
     password: str
 
     @classmethod
-    def from_dict(cls, config: dict[str, str]) -> 'OdooConfig':
+    def from_dict(cls, config: dict[str, str]) -> "OdooConfig":
         """
         Crée une OdooConfig depuis un dictionnaire de configuration.
 
@@ -47,33 +48,26 @@ class OdooConfig:
             ...     'password': 'admin'
             ... })
         """
-        url = config.get('url') or config.get('ODOO_URL')
-        db = config.get('db') or config.get('ODOO_DB')
-        username = config.get('username') or config.get('ODOO_USERNAME')
-        password = config.get('password') or config.get('ODOO_PASSWORD')
+        url = config.get("url") or config.get("ODOO_URL")
+        db = config.get("db") or config.get("ODOO_DB")
+        username = config.get("username") or config.get("ODOO_USERNAME")
+        password = config.get("password") or config.get("ODOO_PASSWORD")
 
         # Validation
         missing = []
         if not url:
-            missing.append('url')
+            missing.append("url")
         if not db:
-            missing.append('db')
+            missing.append("db")
         if not username:
-            missing.append('username')
+            missing.append("username")
         if not password:
-            missing.append('password')
+            missing.append("password")
 
         if missing:
-            raise ValueError(
-                f"Paramètres manquants dans la configuration: {', '.join(missing)}"
-            )
+            raise ValueError(f"Paramètres manquants dans la configuration: {', '.join(missing)}")
 
-        return cls(
-            url=url,
-            db=db,
-            username=username,
-            password=password
-        )
+        return cls(url=url, db=db, username=username, password=password)
 
 
 class FieldsCache:

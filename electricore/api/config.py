@@ -41,9 +41,7 @@ class APISettings(BaseModel):
     telegram_allowed_users: str = Field(default="")  # IDs séparés par virgule
 
     # Endpoints publics (sans authentification)
-    public_endpoints: list[str] = Field(
-        default=["/", "/health", "/docs", "/redoc", "/openapi.json"]
-    )
+    public_endpoints: list[str] = Field(default=["/", "/health", "/docs", "/redoc", "/openapi.json"])
 
     # Environnement Odoo actif ("test" ou "prod")
     odoo_env: str = Field(default="test")
@@ -60,6 +58,7 @@ class APISettings(BaseModel):
     def get_odoo_config(self) -> dict[str, str]:
         """Retourne la config Odoo sous forme de dict compatible avec OdooReader."""
         from electricore.config.odoo import charger_config_odoo
+
         return charger_config_odoo(env=self.odoo_env)
 
     def __init__(self, **kwargs):

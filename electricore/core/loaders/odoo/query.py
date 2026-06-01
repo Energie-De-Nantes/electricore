@@ -56,8 +56,8 @@ class OdooQuery:
         if field_info is None:
             return None, None
 
-        relation_type = field_info.get('type')
-        target_model = field_info.get('relation') if relation_type in ['many2one', 'one2many', 'many2many'] else None
+        relation_type = field_info.get("type")
+        target_model = field_info.get("relation") if relation_type in ["many2one", "one2many", "many2many"] else None
 
         return relation_type, target_model
 
@@ -65,7 +65,7 @@ class OdooQuery:
         """
         Prépare le DataFrame (explode si nécessaire selon le type de relation).
         """
-        if relation_type in ['one2many', 'many2many']:
+        if relation_type in ["one2many", "many2many"]:
             return df.explode(field_name)
         return df
 
@@ -73,34 +73,28 @@ class OdooQuery:
         """
         Extrait les IDs uniques depuis un champ selon son type.
         """
-        if relation_type == 'many2one':
+        if relation_type == "many2one":
             # Gérer les champs many2one [id, name]
             id_col = df[field_name]
             if id_col.dtype == pl.List:
                 # Extraire l'ID depuis [id, name]
                 unique_ids = [
-                    int(id) for id in df.select(
-                        pl.col(field_name).list.get(0)
-                    ).to_series().unique().to_list()
+                    int(id)
+                    for id in df.select(pl.col(field_name).list.get(0)).to_series().unique().to_list()
                     if id is not None
                 ]
             else:
                 # Simple ID field
-                unique_ids = [
-                    int(id) for id in df[field_name].unique().to_list()
-                    if id is not None
-                ]
+                unique_ids = [int(id) for id in df[field_name].unique().to_list() if id is not None]
         else:
             # one2many, many2many : IDs directs (après explode)
-            unique_ids = [
-                int(id) for id in df[field_name].unique().to_list()
-                if id is not None
-            ]
+            unique_ids = [int(id) for id in df[field_name].unique().to_list() if id is not None]
 
         return unique_ids
 
-    def _fetch_related_data(self, target_model: str, ids: list[int],
-                            fields: list[str] | None, domain: list | None = None) -> pl.DataFrame:
+    def _fetch_related_data(
+        self, target_model: str, ids: list[int], fields: list[str] | None, domain: list | None = None
+    ) -> pl.DataFrame:
         """
         Récupère les données liées depuis Odoo.
         """
@@ -108,27 +102,33 @@ class OdooQuery:
             # Retourner DataFrame vide avec schéma approprié
             if fields:
                 schema = {field: pl.Utf8 for field in fields}
-                schema[f'{target_model.replace(".", "_")}_id'] = pl.Int64
+                schema[f"{target_model.replace('.', '_')}_id"] = pl.Int64
             else:
-                schema = {f'{target_model.replace(".", "_")}_id': pl.Int64}
+                schema = {f"{target_model.replace('.', '_')}_id": pl.Int64}
             return pl.DataFrame(schema=schema)
 
         # Récupérer depuis Odoo (avec domain additionnel optionnel)
-        effective_domain = [('id', 'in', ids)] + (domain or [])
+        effective_domain = [("id", "in", ids)] + (domain or [])
         related_df = self.connector.search_read(target_model, effective_domain, fields)
 
         # Renommer 'id' → '{alias}_id' avant le is_empty() check
         # pour garantir un schéma cohérent même sur DataFrame vide
-        target_alias = target_model.replace('.', '_')
-        id_column = f'{target_alias}_id'
-        if 'id' in related_df.columns:
-            related_df = related_df.rename({'id': id_column})
+        target_alias = target_model.replace(".", "_")
+        id_column = f"{target_alias}_id"
+        if "id" in related_df.columns:
+            related_df = related_df.rename({"id": id_column})
 
         return related_df
 
-    def _join_dataframes(self, left_df: pl.DataFrame, right_df: pl.DataFrame,
-                        field_name: str, relation_type: str, target_model: str,
-                        how: str = 'left') -> pl.DataFrame:
+    def _join_dataframes(
+        self,
+        left_df: pl.DataFrame,
+        right_df: pl.DataFrame,
+        field_name: str,
+        relation_type: str,
+        target_model: str,
+        how: str = "left",
+    ) -> pl.DataFrame:
         """
         Joint les DataFrames en gérant les conflits de noms et types.
 
@@ -137,52 +137,43 @@ class OdooQuery:
                  ou 'inner' (follow, ne garde que les lignes avec données liées)
         """
         # Générer alias et nom de colonne ID
-        target_alias = target_model.replace('.', '_')
-        id_column = f'{target_alias}_id'
+        target_alias = target_model.replace(".", "_")
+        id_column = f"{target_alias}_id"
 
         # Renommer colonnes en conflit
         rename_mapping = {}
         for col in right_df.columns:
             if col != id_column and col in left_df.columns:
-                new_name = f'{col}_{target_alias}'
+                new_name = f"{col}_{target_alias}"
                 rename_mapping[col] = new_name
 
         if rename_mapping:
             right_df = right_df.rename(rename_mapping)
 
         # Préparer la clé de jointure
-        if relation_type == 'many2one':
+        if relation_type == "many2one":
             if left_df[field_name].dtype == pl.List:
                 # Extraire l'ID depuis [id, name] et convertir en entier
-                left_df = left_df.with_columns([
-                    pl.col(field_name).list.get(0).cast(pl.Int64).alias(f'{field_name}_id_join')
-                ])
-                join_key = f'{field_name}_id_join'
+                left_df = left_df.with_columns(
+                    [pl.col(field_name).list.get(0).cast(pl.Int64).alias(f"{field_name}_id_join")]
+                )
+                join_key = f"{field_name}_id_join"
             else:
                 # S'assurer que la clé est en entier
-                left_df = left_df.with_columns([
-                    pl.col(field_name).cast(pl.Int64)
-                ])
+                left_df = left_df.with_columns([pl.col(field_name).cast(pl.Int64)])
                 join_key = field_name
         else:
             # one2many, many2many : s'assurer que la clé est Int64
             # (peut être Utf8 si le DataFrame vient d'un schema vide de search_read)
             if left_df[field_name].dtype != pl.Int64:
-                left_df = left_df.with_columns([
-                    pl.col(field_name).cast(pl.Int64, strict=False)
-                ])
+                left_df = left_df.with_columns([pl.col(field_name).cast(pl.Int64, strict=False)])
             join_key = field_name
 
         # Effectuer la jointure
-        result = left_df.join(
-            right_df,
-            left_on=join_key,
-            right_on=id_column,
-            how=how
-        )
+        result = left_df.join(right_df, left_on=join_key, right_on=id_column, how=how)
 
         # Nettoyer les colonnes temporaires de jointure (*_id_join)
-        temp_join_columns = [col for col in result.columns if col.endswith('_id_join')]
+        temp_join_columns = [col for col in result.columns if col.endswith("_id_join")]
         if temp_join_columns:
             result = result.drop(temp_join_columns)
 
@@ -190,10 +181,14 @@ class OdooQuery:
 
     # === Méthode centrale ===
 
-    def _enrich_data(self, field_name: str, target_model: str | None = None,
-                     fields: list[str] | None = None,
-                     domain: list | None = None,
-                     how: str = 'left') -> tuple[pl.LazyFrame, str]:
+    def _enrich_data(
+        self,
+        field_name: str,
+        target_model: str | None = None,
+        fields: list[str] | None = None,
+        domain: list | None = None,
+        how: str = "left",
+    ) -> tuple[pl.LazyFrame, str]:
         """
         Méthode centrale pour enrichir avec des données liées.
 
@@ -217,7 +212,9 @@ class OdooQuery:
             target_model = detected_model
 
         if target_model is None:
-            raise ValueError(f"Cannot determine target model for field '{field_name}' in model '{self._current_model}'. Please specify target_model explicitly.")
+            raise ValueError(
+                f"Cannot determine target model for field '{field_name}' in model '{self._current_model}'. Please specify target_model explicitly."
+            )
 
         if relation_type is None:
             raise ValueError(f"Field '{field_name}' is not a relation field in model '{self._current_model}'.")
@@ -248,9 +245,13 @@ class OdooQuery:
 
     # === API publique ===
 
-    def follow(self, relation_field: str, target_model: str | None = None,
-               fields: list[str] | None = None,
-               domain: list | None = None) -> OdooQuery:
+    def follow(
+        self,
+        relation_field: str,
+        target_model: str | None = None,
+        fields: list[str] | None = None,
+        domain: list | None = None,
+    ) -> OdooQuery:
         """
         Navigue vers une relation (change le modèle courant).
 
@@ -270,18 +271,22 @@ class OdooQuery:
             >>> query.follow('invoice_ids', fields=['name', 'invoice_date'])
             >>> query.follow('invoice_ids', domain=[('state', '=', 'draft')], fields=['name'])
         """
-        lazy_frame, target_model = self._enrich_data(relation_field, target_model, fields, domain=domain, how='inner')
+        lazy_frame, target_model = self._enrich_data(relation_field, target_model, fields, domain=domain, how="inner")
 
         return OdooQuery(
             connector=self.connector,
             lazy_frame=lazy_frame,
             _field_mappings=self._field_mappings,
-            _current_model=target_model  # Navigation : change le modèle courant
+            _current_model=target_model,  # Navigation : change le modèle courant
         )
 
-    def enrich(self, relation_field: str, target_model: str | None = None,
-               fields: list[str] | None = None,
-               domain: list | None = None) -> OdooQuery:
+    def enrich(
+        self,
+        relation_field: str,
+        target_model: str | None = None,
+        fields: list[str] | None = None,
+        domain: list | None = None,
+    ) -> OdooQuery:
         """
         Enrichit avec des données liées (garde le modèle courant).
 
@@ -307,9 +312,8 @@ class OdooQuery:
             connector=self.connector,
             lazy_frame=lazy_frame,
             _field_mappings=self._field_mappings,
-            _current_model=self._current_model  # Enrichissement : garde le modèle courant
+            _current_model=self._current_model,  # Enrichissement : garde le modèle courant
         )
-
 
     def filter(self, *conditions) -> OdooQuery:
         """Applique des filtres Polars."""
@@ -317,7 +321,7 @@ class OdooQuery:
             connector=self.connector,
             lazy_frame=self.lazy_frame.filter(*conditions),
             _field_mappings=self._field_mappings,
-            _current_model=self._current_model
+            _current_model=self._current_model,
         )
 
     def select(self, *columns) -> OdooQuery:
@@ -326,7 +330,7 @@ class OdooQuery:
             connector=self.connector,
             lazy_frame=self.lazy_frame.select(*columns),
             _field_mappings=self._field_mappings,
-            _current_model=self._current_model
+            _current_model=self._current_model,
         )
 
     def rename(self, mapping: dict[str, str]) -> OdooQuery:
@@ -335,7 +339,7 @@ class OdooQuery:
             connector=self.connector,
             lazy_frame=self.lazy_frame.rename(mapping),
             _field_mappings={**self._field_mappings, **mapping},
-            _current_model=self._current_model
+            _current_model=self._current_model,
         )
 
     def lazy(self) -> pl.LazyFrame:

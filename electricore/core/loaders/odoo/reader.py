@@ -31,16 +31,27 @@ class OdooReader:
 
     # Méthodes autorisées en lecture seule
     _ALLOWED_METHODS = {
-        'search', 'search_read', 'read', 'search_count', 'name_search',
-        'name_get', 'fields_get', 'default_get', 'get_metadata',
-        'check_access_rights', 'exists'
+        "search",
+        "search_read",
+        "read",
+        "search_count",
+        "name_search",
+        "name_get",
+        "fields_get",
+        "default_get",
+        "get_metadata",
+        "check_access_rights",
+        "exists",
     }
 
-    def __init__(self, config: dict[str, str],
-                 url: str | None = None,
-                 db: str | None = None,
-                 username: str | None = None,
-                 password: str | None = None):
+    def __init__(
+        self,
+        config: dict[str, str],
+        url: str | None = None,
+        db: str | None = None,
+        username: str | None = None,
+        password: str | None = None,
+    ):
         """
         Initialise le connecteur Odoo avec configuration explicite.
 
@@ -58,10 +69,10 @@ class OdooReader:
         """
         # Créer configuration immutable
         config_dict = {
-            'url': url or config.get('url') or config.get('ODOO_URL'),
-            'db': db or config.get('db') or config.get('ODOO_DB'),
-            'username': username or config.get('username') or config.get('ODOO_USERNAME'),
-            'password': password or config.get('password') or config.get('ODOO_PASSWORD'),
+            "url": url or config.get("url") or config.get("ODOO_URL"),
+            "db": db or config.get("db") or config.get("ODOO_DB"),
+            "username": username or config.get("username") or config.get("ODOO_USERNAME"),
+            "password": password or config.get("password") or config.get("ODOO_PASSWORD"),
         }
         self._config = OdooConfig.from_dict(config_dict)
 
@@ -85,26 +96,28 @@ class OdooReader:
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Déconnexion propre."""
         self.disconnect()
-        logger.info(f'Disconnected from {self._config.db} Odoo db.')
+        logger.info(f"Disconnected from {self._config.db} Odoo db.")
 
     def _ensure_connection(func):
         """Décorateur pour s'assurer que la connexion est active."""
+
         def wrapper(self, *args, **kwargs):
             if not self.is_connected:
                 self.connect()
             return func(self, *args, **kwargs)
+
         return wrapper
 
     def connect(self) -> None:
         """Établit la connexion à Odoo."""
         self._uid = self._get_uid()
-        self._proxy = xmlrpc.client.ServerProxy(f'{self._config.url}/xmlrpc/2/object')
-        logger.info(f'Connected to {self._config.db} Odoo database.')
+        self._proxy = xmlrpc.client.ServerProxy(f"{self._config.url}/xmlrpc/2/object")
+        logger.info(f"Connected to {self._config.db} Odoo database.")
 
     def disconnect(self) -> None:
         """Ferme la connexion à Odoo."""
         if self.is_connected:
-            if hasattr(self._proxy, '_ServerProxy__transport'):
+            if hasattr(self._proxy, "_ServerProxy__transport"):
                 self._proxy._ServerProxy__transport.close()
             self._uid = None
             self._proxy = None
@@ -120,18 +133,13 @@ class OdooReader:
             Exception: Si l'authentification échoue
         """
         common_proxy = xmlrpc.client.ServerProxy(f"{self._config.url}/xmlrpc/2/common")
-        uid = common_proxy.authenticate(
-            self._config.db, self._config.username, self._config.password, {}
-        )
+        uid = common_proxy.authenticate(self._config.db, self._config.username, self._config.password, {})
         if not uid:
-            raise Exception(
-                f"Authentication failed for user {self._config.username} on {self._config.db}"
-            )
+            raise Exception(f"Authentication failed for user {self._config.username} on {self._config.db}")
         return uid
 
     @_ensure_connection
-    def execute(self, model: str, method: str, args: list | None = None,
-                kwargs: dict | None = None) -> Any:
+    def execute(self, model: str, method: str, args: list | None = None, kwargs: dict | None = None) -> Any:
         """
         Exécute une méthode sur le serveur Odoo.
 
@@ -160,12 +168,9 @@ class OdooReader:
         args = args if args is not None else []
         kwargs = kwargs if kwargs is not None else {}
 
-        logger.debug(f'Executing {method} on {model} with args {args} and kwargs {kwargs}')
+        logger.debug(f"Executing {method} on {model} with args {args} and kwargs {kwargs}")
 
-        result = self._proxy.execute_kw(
-            self._config.db, self._uid, self._config.password,
-            model, method, args, kwargs
-        )
+        result = self._proxy.execute_kw(self._config.db, self._uid, self._config.password, model, method, args, kwargs)
 
         return result if isinstance(result, list) else [result]
 
@@ -195,8 +200,7 @@ class OdooReader:
         # qui sont des listes [id, name] - Polars doit scanner plus de lignes
         return pl.DataFrame(response, strict=False, infer_schema_length=None)
 
-    def search_read(self, model: str, domain: list = None,
-                   fields: list[str] | None = None) -> pl.DataFrame:
+    def search_read(self, model: str, domain: list = None, fields: list[str] | None = None) -> pl.DataFrame:
         """
         Recherche et lit des enregistrements, retourne un DataFrame Polars.
 
@@ -214,28 +218,27 @@ class OdooReader:
         """
         domain = domain if domain is not None else []
         filters = [domain] if domain else [[]]
-        kwargs = {'fields': fields} if fields else {}
+        kwargs = {"fields": fields} if fields else {}
 
-        response = self.execute(model, 'search_read', args=filters, kwargs=kwargs)
+        response = self.execute(model, "search_read", args=filters, kwargs=kwargs)
 
         if not response:
             # Retourner un DataFrame vide avec la structure appropriée
             if fields:
                 schema = {field: pl.Utf8 for field in fields}
-                schema['id'] = pl.Int64
+                schema["id"] = pl.Int64
             else:
-                schema = {'id': pl.Int64}
+                schema = {"id": pl.Int64}
             return pl.DataFrame(schema=schema)
 
         df = self._normalize_for(response)
         # Renommer la colonne id pour éviter les conflits
-        if 'id' in df.columns:
-            df = df.rename({'id': f'{model.replace(".", "_")}_id'})
+        if "id" in df.columns:
+            df = df.rename({"id": f"{model.replace('.', '_')}_id"})
 
         return df
 
-    def read(self, model: str, ids: list[int],
-             fields: list[str] | None = None) -> pl.DataFrame:
+    def read(self, model: str, ids: list[int], fields: list[str] | None = None) -> pl.DataFrame:
         """
         Lit des enregistrements par ID, retourne un DataFrame Polars.
 
@@ -253,18 +256,18 @@ class OdooReader:
         if not ids:
             if fields:
                 schema = {field: pl.Utf8 for field in fields}
-                schema['id'] = pl.Int64
+                schema["id"] = pl.Int64
             else:
-                schema = {'id': pl.Int64}
+                schema = {"id": pl.Int64}
             return pl.DataFrame(schema=schema)
 
-        kwargs = {'fields': fields} if fields else {}
-        response = self.execute(model, 'read', [ids], kwargs)
+        kwargs = {"fields": fields} if fields else {}
+        response = self.execute(model, "read", [ids], kwargs)
 
         df = self._normalize_for(response)
         # Renommer la colonne id pour éviter les conflits
-        if 'id' in df.columns:
-            df = df.rename({'id': f'{model.replace(".", "_")}_id'})
+        if "id" in df.columns:
+            df = df.rename({"id": f"{model.replace('.', '_')}_id"})
 
         return df
 
@@ -291,7 +294,7 @@ class OdooReader:
 
         # Récupérer depuis Odoo
         try:
-            result = self.execute(model, 'fields_get', args=[[field_name]])
+            result = self.execute(model, "fields_get", args=[[field_name]])
             fields_info = result[0] if isinstance(result, list) else result
             field_info = fields_info.get(field_name)
             self._fields_cache.set(model, field_name, field_info)
@@ -317,6 +320,6 @@ class OdooReader:
             >>> print(target)  # 'res.partner'
         """
         field_info = self.get_field_info(model, field_name)
-        if field_info and field_info.get('type') in ['many2one', 'one2many', 'many2many']:
-            return field_info.get('relation')
+        if field_info and field_info.get("type") in ["many2one", "one2many", "many2many"]:
+            return field_info.get("relation")
         return None

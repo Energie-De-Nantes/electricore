@@ -12,6 +12,7 @@ from dlt.sources.filesystem import filesystem
 
 logger = logging.getLogger(__name__)
 
+
 def mask_password_in_url(url: str) -> str:
     """
     Masque le mot de passe dans une URL SFTP pour les logs.
@@ -27,8 +28,8 @@ def mask_password_in_url(url: str) -> str:
         "sftp://user:****@host:22/path"
     """
     # Pattern pour capturer: protocol://user:password@host
-    pattern = r'(sftp://[^:]+:)[^@]+(@.+)'
-    replacement = r'\1****\2'
+    pattern = r"(sftp://[^:]+:)[^@]+(@.+)"
+    replacement = r"\1****\2"
     return re.sub(pattern, replacement, url)
 
 
@@ -54,16 +55,16 @@ def create_sftp_resource(flux_type: str, table_name: str, file_pattern: str, sft
         sftp_url: URL du serveur SFTP
         max_files: Nombre max de fichiers à traiter
     """
+
     @dlt.resource(
         name=f"sftp_files_{table_name}",  # Nom unique par table pour état incrémental indépendant
-        write_disposition="append"
+        write_disposition="append",
     )
     def sftp_files_resource():
 
-        files = filesystem(
-            bucket_url=sftp_url,
-            file_glob=file_pattern
-        ).with_name(f"filesystem_{table_name}")  # Nom unique pour état incrémental indépendant
+        files = filesystem(bucket_url=sftp_url, file_glob=file_pattern).with_name(
+            f"filesystem_{table_name}"
+        )  # Nom unique pour état incrémental indépendant
 
         # Appliquer l'incrémental sur la date de modification.
         # modification_date est un pendulum.DateTime dans le filesystem source DLT,
@@ -79,9 +80,7 @@ def create_sftp_resource(flux_type: str, table_name: str, file_pattern: str, sft
 
         files.add_map(_normalize_date)
 
-        files.apply_hints(
-            incremental=dlt.sources.incremental("modification_date")
-        )
+        files.apply_hints(incremental=dlt.sources.incremental("modification_date"))
 
         # Limiter le nombre de fichiers si spécifié
         file_count = 0
@@ -98,17 +97,17 @@ def create_sftp_resource(flux_type: str, table_name: str, file_pattern: str, sft
 def flux_enedis(flux_config: dict, max_files: int = None):
     """
     Source DLT refactorée avec architecture modulaire pour tous les flux Enedis.
-    
+
     Architecture unifiée :
     - XML: SFTP → Decrypt → Unzip → XML Parse → Table
     - CSV: SFTP → Decrypt → Unzip → CSV Parse → Table
-    
+
     Args:
         flux_config: Configuration des flux depuis config/settings.py
     """
     # Configuration SFTP : env var SFTP__URL (chargée depuis .env) ou secrets.toml [sftp] url
-    sftp_url = os.environ.get('SFTP__URL') or dlt.secrets['sftp']['url']
-    
+    sftp_url = os.environ.get("SFTP__URL") or dlt.secrets["sftp"]["url"]
+
     logger.info("SFTP: %s", mask_password_in_url(sftp_url))
 
     # Créer les transformers communs une seule fois (optimisation)
@@ -116,67 +115,58 @@ def flux_enedis(flux_config: dict, max_files: int = None):
 
     # Traiter chaque type de flux
     for flux_type, flux_config_data in flux_config.items():
-        file_pattern = flux_config_data['file_pattern']
+        file_pattern = flux_config_data["file_pattern"]
 
         # === FLUX XML ===
-        if 'xml_configs' in flux_config_data:
-            xml_configs = flux_config_data['xml_configs']
+        if "xml_configs" in flux_config_data:
+            xml_configs = flux_config_data["xml_configs"]
 
             for xml_config in xml_configs:
-                table_name = xml_config['name']
-                file_regex = xml_config.get('file_regex', '*.xml')
+                table_name = xml_config["name"]
+                file_regex = xml_config.get("file_regex", "*.xml")
 
                 # 1. Resource SFTP
                 sftp_resource = create_sftp_resource(flux_type, table_name, file_pattern, sftp_url, max_files)
-                
+
                 # 2. Transformer unzip configuré pour ce flux
-                unzip_transformer = create_unzip_transformer('.xml', file_regex)
-                
+                unzip_transformer = create_unzip_transformer(".xml", file_regex)
+
                 # 3. Transformer XML parser configuré
                 xml_parser = create_xml_parser_transformer(
-                    row_level=xml_config['row_level'],
-                    metadata_fields=xml_config.get('metadata_fields', {}),
-                    data_fields=xml_config.get('data_fields', {}),
-                    nested_fields=xml_config.get('nested_fields', []),
-                    flux_type=flux_type
+                    row_level=xml_config["row_level"],
+                    metadata_fields=xml_config.get("metadata_fields", {}),
+                    data_fields=xml_config.get("data_fields", {}),
+                    nested_fields=xml_config.get("nested_fields", []),
+                    flux_type=flux_type,
                 )
-                
+
                 # 4. 🎯 CHAÎNAGE MODULAIRE
-                xml_pipeline = (
-                    sftp_resource |
-                    decrypt_transformer |
-                    unzip_transformer |
-                    xml_parser
-                ).with_name(table_name)
-                
+                xml_pipeline = (sftp_resource | decrypt_transformer | unzip_transformer | xml_parser).with_name(
+                    table_name
+                )
+
                 xml_pipeline.apply_hints(write_disposition="append")
                 yield xml_pipeline
 
         # === FLUX CSV ===
-        if 'csv_configs' in flux_config_data:
-            for csv_config in flux_config_data['csv_configs']:
-                table_name = csv_config['name']
-                file_regex = csv_config.get('file_regex', '*.csv')
-                delimiter = csv_config.get('delimiter', ',')
-                encoding = csv_config.get('encoding', 'utf-8')
-                primary_key = csv_config.get('primary_key', [])
-                column_mapping = csv_config.get('column_mapping', {})
+        if "csv_configs" in flux_config_data:
+            for csv_config in flux_config_data["csv_configs"]:
+                table_name = csv_config["name"]
+                file_regex = csv_config.get("file_regex", "*.csv")
+                delimiter = csv_config.get("delimiter", ",")
+                encoding = csv_config.get("encoding", "utf-8")
+                primary_key = csv_config.get("primary_key", [])
+                column_mapping = csv_config.get("column_mapping", {})
 
                 sftp_resource = create_sftp_resource(flux_type, table_name, file_pattern, sftp_url, max_files)
-                unzip_transformer = create_unzip_transformer('.csv', file_regex)
+                unzip_transformer = create_unzip_transformer(".csv", file_regex)
                 csv_parser = create_csv_parser_transformer(
-                    delimiter=delimiter,
-                    encoding=encoding,
-                    flux_type=flux_type,
-                    column_mapping=column_mapping
+                    delimiter=delimiter, encoding=encoding, flux_type=flux_type, column_mapping=column_mapping
                 )
 
-                csv_pipeline = (
-                    sftp_resource |
-                    decrypt_transformer |
-                    unzip_transformer |
-                    csv_parser
-                ).with_name(table_name)
+                csv_pipeline = (sftp_resource | decrypt_transformer | unzip_transformer | csv_parser).with_name(
+                    table_name
+                )
 
                 if primary_key:
                     csv_pipeline.apply_hints(primary_key=primary_key, write_disposition="merge")
@@ -186,33 +176,30 @@ def flux_enedis(flux_config: dict, max_files: int = None):
                 yield csv_pipeline
 
         # === FLUX JSON ===
-        if 'json_configs' in flux_config_data:
-            for json_config in flux_config_data['json_configs']:
-                table_name = json_config['name']
-                file_regex = json_config.get('file_regex', '*.json')
-                transformer_type = json_config.get('transformer_type', 'standard')
-                primary_key = json_config.get('primary_key', [])
+        if "json_configs" in flux_config_data:
+            for json_config in flux_config_data["json_configs"]:
+                table_name = json_config["name"]
+                file_regex = json_config.get("file_regex", "*.json")
+                transformer_type = json_config.get("transformer_type", "standard")
+                primary_key = json_config.get("primary_key", [])
 
                 sftp_resource = create_sftp_resource(flux_type, table_name, file_pattern, sftp_url, max_files)
-                unzip_transformer = create_unzip_transformer('.json', file_regex)
+                unzip_transformer = create_unzip_transformer(".json", file_regex)
 
-                if transformer_type == 'r64_timeseries':
+                if transformer_type == "r64_timeseries":
                     json_parser = create_json_r64_transformer(flux_type=flux_type)
                 else:
                     json_parser = create_json_parser_transformer(
-                        record_path=json_config['record_path'],
-                        metadata_fields=json_config.get('metadata_fields', {}),
-                        data_fields=json_config.get('data_fields', {}),
-                        nested_fields=json_config.get('nested_fields', []),
-                        flux_type=flux_type
+                        record_path=json_config["record_path"],
+                        metadata_fields=json_config.get("metadata_fields", {}),
+                        data_fields=json_config.get("data_fields", {}),
+                        nested_fields=json_config.get("nested_fields", []),
+                        flux_type=flux_type,
                     )
 
-                json_pipeline = (
-                    sftp_resource |
-                    decrypt_transformer |
-                    unzip_transformer |
-                    json_parser
-                ).with_name(table_name)
+                json_pipeline = (sftp_resource | decrypt_transformer | unzip_transformer | json_parser).with_name(
+                    table_name
+                )
 
                 if primary_key:
                     json_pipeline.apply_hints(primary_key=primary_key, write_disposition="merge")
@@ -220,5 +207,3 @@ def flux_enedis(flux_config: dict, max_files: int = None):
                     json_pipeline.apply_hints(write_disposition="append")
 
                 yield json_pipeline
-
-

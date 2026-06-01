@@ -6,7 +6,6 @@ fonctionnelle de Polars. Les expressions sont des transformations pures
 qui peuvent être composées entre elles pour générer les périodes d'énergie.
 """
 
-
 import polars as pl
 
 # Import du calcul TURPE variable
@@ -15,6 +14,7 @@ from electricore.core.pipelines.turpe import ajouter_turpe_variable
 # =============================================================================
 # EXPRESSIONS PURES ATOMIQUES POUR LE CALCUL D'ÉNERGIE
 # =============================================================================
+
 
 def expr_bornes_depuis_shift(over: str = "ref_situation_contractuelle") -> list[pl.Expr]:
     """
@@ -39,7 +39,7 @@ def expr_bornes_depuis_shift(over: str = "ref_situation_contractuelle") -> list[
         pl.col("source").alias("source_apres"),
         # Propager le flag releve_manquant pour le début et la fin
         pl.col("releve_manquant").shift(1).over(over).alias("releve_manquant_debut"),
-        pl.col("releve_manquant").alias("releve_manquant_fin")
+        pl.col("releve_manquant").alias("releve_manquant_fin"),
     ]
 
 
@@ -61,10 +61,7 @@ def expr_arrondir_index_kwh(cadrans: list[str]) -> list[pl.Expr]:
         >>> lf = lf.with_columns(expressions)
     """
     return [
-        pl.when(pl.col(cadran).is_not_null())
-        .then(pl.col(cadran).floor())
-        .otherwise(pl.col(cadran))
-        .alias(cadran)
+        pl.when(pl.col(cadran).is_not_null()).then(pl.col(cadran).floor()).otherwise(pl.col(cadran)).alias(cadran)
         for cadran in cadrans
     ]
 
@@ -91,11 +88,7 @@ def expr_calculer_energie_cadran(index_col: str, over: str = "ref_situation_cont
     current = pl.col(index_col)
     previous = current.shift(1).over(over)
 
-    return (
-        pl.when(current.is_not_null() & previous.is_not_null())
-        .then(current - previous)
-        .otherwise(pl.lit(None))
-    )
+    return pl.when(current.is_not_null() & previous.is_not_null()).then(current - previous).otherwise(pl.lit(None))
 
 
 def expr_calculer_energies_tous_cadrans(index_cols: list[str]) -> list[pl.Expr]:
@@ -144,20 +137,25 @@ def expr_enrichir_cadrans_principaux() -> list[pl.Expr]:
     """
     return [
         # Étape 1 : Synthèse hc depuis les sous-cadrans hch et hcb
-        pl.sum_horizontal([pl.col("energie_hc_kwh"), pl.col("energie_hch_kwh"), pl.col("energie_hcb_kwh")])
-        .alias("energie_hc_kwh"),
-
+        pl.sum_horizontal([pl.col("energie_hc_kwh"), pl.col("energie_hch_kwh"), pl.col("energie_hcb_kwh")]).alias(
+            "energie_hc_kwh"
+        ),
         # Étape 2 : Synthèse hp depuis les sous-cadrans hph et hpb
-        pl.sum_horizontal([pl.col("energie_hp_kwh"), pl.col("energie_hph_kwh"), pl.col("energie_hpb_kwh")])
-        .alias("energie_hp_kwh"),
-
+        pl.sum_horizontal([pl.col("energie_hp_kwh"), pl.col("energie_hph_kwh"), pl.col("energie_hpb_kwh")]).alias(
+            "energie_hp_kwh"
+        ),
         # Étape 3 : Synthèse base depuis TOUS les cadrans (évite le problème d'évaluation parallèle)
-        pl.sum_horizontal([
-            pl.col("energie_base_kwh"),
-            pl.col("energie_hp_kwh"), pl.col("energie_hc_kwh"),
-            pl.col("energie_hph_kwh"), pl.col("energie_hpb_kwh"),
-            pl.col("energie_hch_kwh"), pl.col("energie_hcb_kwh")
-        ]).alias("energie_base_kwh")
+        pl.sum_horizontal(
+            [
+                pl.col("energie_base_kwh"),
+                pl.col("energie_hp_kwh"),
+                pl.col("energie_hc_kwh"),
+                pl.col("energie_hph_kwh"),
+                pl.col("energie_hpb_kwh"),
+                pl.col("energie_hch_kwh"),
+                pl.col("energie_hcb_kwh"),
+            ]
+        ).alias("energie_base_kwh"),
     ]
 
 
@@ -188,10 +186,7 @@ def expr_filtrer_periodes_valides() -> pl.Expr:
     Example:
         >>> df.filter(expr_filtrer_periodes_valides())
     """
-    return (
-        pl.col("debut").is_not_null() &
-        (pl.col("nb_jours") > 0)
-    )
+    return pl.col("debut").is_not_null() & (pl.col("nb_jours") > 0)
 
 
 def expr_data_complete() -> pl.Expr:
@@ -208,12 +203,8 @@ def expr_data_complete() -> pl.Expr:
     Example:
         >>> lf = lf.with_columns(expr_data_complete().alias("data_complete"))
     """
-    return (
-        pl.col("releve_manquant_debut").is_null() |
-        ~pl.col("releve_manquant_debut")
-    ) & (
-        pl.col("releve_manquant_fin").is_null() |
-        ~pl.col("releve_manquant_fin")
+    return (pl.col("releve_manquant_debut").is_null() | ~pl.col("releve_manquant_debut")) & (
+        pl.col("releve_manquant_fin").is_null() | ~pl.col("releve_manquant_fin")
     )
 
 
@@ -241,14 +232,11 @@ def expr_selectionner_colonnes_finales():
         pl.col("mois_annee"),
         pl.col("source_avant"),
         pl.col("source_apres"),
-        pl.col("data_complete")
+        pl.col("data_complete"),
     ]
 
     # Ajouter les colonnes contractuelles si présentes
-    selection.extend([
-        pl.col("ref_situation_contractuelle"),
-        pl.col("formule_tarifaire_acheminement")
-    ])
+    selection.extend([pl.col("ref_situation_contractuelle"), pl.col("formule_tarifaire_acheminement")])
 
     # Ajouter toutes les colonnes d'énergie (format: energie_xxx_kwh)
     selection.append(pl.col("^energie_.*_kwh$"))
@@ -286,7 +274,7 @@ def expr_date_formatee_fr(col: str, format_type: str = "complet") -> pl.Expr:
         "September": "septembre",
         "October": "octobre",
         "November": "novembre",
-        "December": "décembre"
+        "December": "décembre",
     }
 
     if format_type == "complet":
@@ -335,72 +323,87 @@ def extraire_releves_evenements(historique: pl.LazyFrame) -> pl.LazyFrame:
         >>> releves = extraire_releves_evenements(evenements_lf)
     """
     # Colonnes d'index numériques et métadonnées (schéma fixe)
-    index_cols = ["index_base_kwh", "index_hp_kwh", "index_hc_kwh", "index_hch_kwh", "index_hph_kwh", "index_hpb_kwh", "index_hcb_kwh"]
+    index_cols = [
+        "index_base_kwh",
+        "index_hp_kwh",
+        "index_hc_kwh",
+        "index_hch_kwh",
+        "index_hph_kwh",
+        "index_hpb_kwh",
+        "index_hcb_kwh",
+    ]
     metadata_cols = ["id_calendrier_distributeur"]
     identifiants = ["pdl", "ref_situation_contractuelle", "formule_tarifaire_acheminement"]
 
     # Relevés "avant" (ordre_index=0)
     releves_avant = (
-        historique
-        .select(
-            identifiants + ["date_evenement"] +
-            [f"avant_{col}" for col in index_cols] +
-            [f"avant_{col}" for col in metadata_cols]
+        historique.select(
+            identifiants
+            + ["date_evenement"]
+            + [f"avant_{col}" for col in index_cols]
+            + [f"avant_{col}" for col in metadata_cols]
         )
-        .rename({
-            "date_evenement": "date_releve",
-            **{f"avant_{col}": col for col in index_cols},
-            **{f"avant_{col}": col for col in metadata_cols}
-        })
-        .with_columns([
-            pl.lit(0, dtype=pl.Int32).alias("ordre_index"),
-            pl.lit("flux_C15").alias("source"),
-            pl.lit("kWh").alias("unite"),
-            pl.lit("kWh").alias("precision"),
-            # Assurer que id_calendrier_distributeur est en String
-            pl.col("id_calendrier_distributeur").cast(pl.Utf8, strict=False)
-        ])
+        .rename(
+            {
+                "date_evenement": "date_releve",
+                **{f"avant_{col}": col for col in index_cols},
+                **{f"avant_{col}": col for col in metadata_cols},
+            }
+        )
+        .with_columns(
+            [
+                pl.lit(0, dtype=pl.Int32).alias("ordre_index"),
+                pl.lit("flux_C15").alias("source"),
+                pl.lit("kWh").alias("unite"),
+                pl.lit("kWh").alias("precision"),
+                # Assurer que id_calendrier_distributeur est en String
+                pl.col("id_calendrier_distributeur").cast(pl.Utf8, strict=False),
+            ]
+        )
     )
 
     # Relevés "après" (ordre_index=1)
     releves_apres = (
-        historique
-        .select(
-            identifiants + ["date_evenement"] +
-            [f"apres_{col}" for col in index_cols] +
-            [f"apres_{col}" for col in metadata_cols]
+        historique.select(
+            identifiants
+            + ["date_evenement"]
+            + [f"apres_{col}" for col in index_cols]
+            + [f"apres_{col}" for col in metadata_cols]
         )
-        .rename({
-            "date_evenement": "date_releve",
-            **{f"apres_{col}": col for col in index_cols},
-            **{f"apres_{col}": col for col in metadata_cols}
-        })
-        .with_columns([
-            pl.lit(1, dtype=pl.Int32).alias("ordre_index"),
-            pl.lit("flux_C15").alias("source"),
-            pl.lit("kWh").alias("unite"),
-            pl.lit("kWh").alias("precision"),
-            # Assurer que id_calendrier_distributeur est en String
-            pl.col("id_calendrier_distributeur").cast(pl.Utf8, strict=False)
-        ])
+        .rename(
+            {
+                "date_evenement": "date_releve",
+                **{f"apres_{col}": col for col in index_cols},
+                **{f"apres_{col}": col for col in metadata_cols},
+            }
+        )
+        .with_columns(
+            [
+                pl.lit(1, dtype=pl.Int32).alias("ordre_index"),
+                pl.lit("flux_C15").alias("source"),
+                pl.lit("kWh").alias("unite"),
+                pl.lit("kWh").alias("precision"),
+                # Assurer que id_calendrier_distributeur est en String
+                pl.col("id_calendrier_distributeur").cast(pl.Utf8, strict=False),
+            ]
+        )
     )
 
     # Combiner et filtrer les lignes avec des index valides
     return (
         pl.concat([releves_avant, releves_apres], how="diagonal")
         # Forcer les types pour éviter les conflits de schéma (edge case : toutes valeurs null → type Null)
-        .with_columns([
-            pl.col(col).cast(pl.Float64) for col in index_cols
-            if col not in ["id_calendrier_distributeur"]  # Traiter l'ID séparément
-        ])
         .with_columns(
-            pl.col("id_calendrier_distributeur").cast(pl.Utf8, strict=False)
+            [
+                pl.col(col).cast(pl.Float64)
+                for col in index_cols
+                if col not in ["id_calendrier_distributeur"]  # Traiter l'ID séparément
+            ]
         )
+        .with_columns(pl.col("id_calendrier_distributeur").cast(pl.Utf8, strict=False))
         .filter(
             # Garder les lignes qui ont au moins un index non-null
-            pl.any_horizontal([
-                pl.col(col).is_not_null() for col in index_cols
-            ])
+            pl.any_horizontal([pl.col(col).is_not_null() for col in index_cols])
         )
     )
 
@@ -424,27 +427,28 @@ def interroger_releves(requete: pl.LazyFrame, releves: pl.LazyFrame) -> pl.LazyF
         >>> releves_avec_manquants = interroger_releves(requete_lf, releves_lf)
     """
     return (
-        requete
-        .sort(["pdl", "date_releve"])
+        requete.sort(["pdl", "date_releve"])
         .set_sorted("pdl")
         .join_asof(
             releves.sort(["pdl", "date_releve"]).set_sorted("pdl"),
             on="date_releve",
             by="pdl",
             strategy="nearest",
-            tolerance="4h"  # Tolérance de 4 heures comme dans le pipeline pandas
+            tolerance="4h",  # Tolérance de 4 heures comme dans le pipeline pandas
         )
-        .with_columns([
-            # Flag pour tracer les relevés manquants
-            pl.col("source").is_null().alias("releve_manquant"),
-            # Ajouter ordre_index par défaut pour les relevés R151 (pour déduplication)
-            pl.when(pl.col("ordre_index").is_null())
-            .then(pl.lit(0, dtype=pl.Int32))
-            .otherwise(pl.col("ordre_index").cast(pl.Int32))
-            .alias("ordre_index"),
-            # Assurer que id_calendrier_distributeur est en String pour cohérence avec C15
-            pl.col("id_calendrier_distributeur").cast(pl.Utf8, strict=False)
-        ])
+        .with_columns(
+            [
+                # Flag pour tracer les relevés manquants
+                pl.col("source").is_null().alias("releve_manquant"),
+                # Ajouter ordre_index par défaut pour les relevés R151 (pour déduplication)
+                pl.when(pl.col("ordre_index").is_null())
+                .then(pl.lit(0, dtype=pl.Int32))
+                .otherwise(pl.col("ordre_index").cast(pl.Int32))
+                .alias("ordre_index"),
+                # Assurer que id_calendrier_distributeur est en String pour cohérence avec C15
+                pl.col("id_calendrier_distributeur").cast(pl.Utf8, strict=False),
+            ]
+        )
     )
 
 
@@ -474,14 +478,13 @@ def reconstituer_chronologie_releves(evenements: pl.LazyFrame, releves: pl.LazyF
     rel_evenements = extraire_releves_evenements(evt_contractuels)
 
     # 3. Pour FACTURATION : construire requête et interroger les relevés existants
-    requete_facturation = (
-        evt_facturation
-        .select([
+    requete_facturation = evt_facturation.select(
+        [
             "pdl",
             pl.col("date_evenement").alias("date_releve"),
             "ref_situation_contractuelle",
-            "formule_tarifaire_acheminement"
-        ])
+            "formule_tarifaire_acheminement",
+        ]
     )
 
     rel_facturation = interroger_releves(requete_facturation, releves)
@@ -496,10 +499,12 @@ def reconstituer_chronologie_releves(evenements: pl.LazyFrame, releves: pl.LazyF
         .sort(["pdl", "date_releve", "ordre_index"])
         .set_sorted("pdl")  # Indiquer explicitement que PDL est trié
         # Propager les références contractuelles avec forward fill par PDL
-        .with_columns([
-            pl.col("ref_situation_contractuelle").fill_null(strategy="forward").over("pdl"),
-            pl.col("formule_tarifaire_acheminement").fill_null(strategy="forward").over("pdl")
-        ])
+        .with_columns(
+            [
+                pl.col("ref_situation_contractuelle").fill_null(strategy="forward").over("pdl"),
+                pl.col("formule_tarifaire_acheminement").fill_null(strategy="forward").over("pdl"),
+            ]
+        )
         # Appliquer priorité des sources (flux_C15 < flux_R151 alphabétiquement)
         .sort(["pdl", "date_releve", "source"])
         .set_sorted("pdl")
@@ -550,43 +555,30 @@ def calculer_periodes_energie(lf: pl.LazyFrame) -> pl.LazyFrame:
         # Tri par contrat et chronologique pour optimiser les .over("ref_situation_contractuelle")
         .sort(["ref_situation_contractuelle", "date_releve", "ordre_index"])
         .set_sorted("ref_situation_contractuelle")  # Indiquer explicitement que ref_situation_contractuelle est trié
-
         # Étape 1 : Bornes temporelles + arrondi index (indépendants)
-        .with_columns([
-            *expr_bornes_depuis_shift(over="ref_situation_contractuelle"),
-            *expr_arrondir_index_kwh(colonnes_index)
-        ])
-
+        .with_columns(
+            [*expr_bornes_depuis_shift(over="ref_situation_contractuelle"), *expr_arrondir_index_kwh(colonnes_index)]
+        )
         # Étape 2 : Calcul énergies + nb_jours (énergies dépendent d'étape 1, nb_jours indépendant)
-        .with_columns([
-            *expr_calculer_energies_tous_cadrans(colonnes_index),
-            expr_nb_jours()
-        ])
-
+        .with_columns([*expr_calculer_energies_tous_cadrans(colonnes_index), expr_nb_jours()])
         # Étape 3 : Flag de complétude des données
-        .with_columns([
-            expr_data_complete().alias("data_complete")
-        ])
-
+        .with_columns([expr_data_complete().alias("data_complete")])
         # Filtrage des périodes valides
         .filter(expr_filtrer_periodes_valides())
-
         # post traitement
-        .with_columns([
-            expr_date_formatee_fr("debut", "complet").alias("debut_lisible"),
-            expr_date_formatee_fr("fin", "complet").alias("fin_lisible"),
-            expr_date_formatee_fr("debut", "mois_annee").alias("mois_annee"),
-            *expr_enrichir_cadrans_principaux()
-        ])
-
+        .with_columns(
+            [
+                expr_date_formatee_fr("debut", "complet").alias("debut_lisible"),
+                expr_date_formatee_fr("fin", "complet").alias("fin_lisible"),
+                expr_date_formatee_fr("debut", "mois_annee").alias("mois_annee"),
+                *expr_enrichir_cadrans_principaux(),
+            ]
+        )
         # Note: La sélection finale des colonnes se fait après l'ajout du TURPE dans pipeline_energie
     )
 
 
-def pipeline_energie(
-    historique: pl.LazyFrame,
-    releves: pl.LazyFrame
-) -> pl.LazyFrame:
+def pipeline_energie(historique: pl.LazyFrame, releves: pl.LazyFrame) -> pl.LazyFrame:
     """
     Pipeline principal pour générer les périodes d'énergie avec TURPE variable.
 
@@ -611,19 +603,20 @@ def pipeline_energie(
     from .perimetre import detecter_points_de_rupture
 
     schema_columns = historique.collect_schema().names()
-    
-    if 'impacte_energie' not in schema_columns:
+
+    if "impacte_energie" not in schema_columns:
         historique = detecter_points_de_rupture(historique)
 
     return (
-        historique
-        .filter(pl.col("impacte_energie"))
+        historique.filter(pl.col("impacte_energie"))
         .pipe(reconstituer_chronologie_releves, releves)
         .pipe(calculer_periodes_energie)
         .pipe(ajouter_turpe_variable)
         # Sélection finale des colonnes (exclut les index bruts BASE, HP, HC, etc.)
-        .select([
-            *expr_selectionner_colonnes_finales(),
-            pl.col("turpe_variable_eur")  # Ajouté par le pipeline TURPE
-        ])
+        .select(
+            [
+                *expr_selectionner_colonnes_finales(),
+                pl.col("turpe_variable_eur"),  # Ajouté par le pipeline TURPE
+            ]
+        )
     )

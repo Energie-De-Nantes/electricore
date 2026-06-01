@@ -49,6 +49,7 @@ def is_etl_available() -> bool:
     """Vérifie que l'extra [etl] est installé (dlt disponible)."""
     try:
         import dlt  # noqa: F401
+
         return True
     except ImportError:
         return False

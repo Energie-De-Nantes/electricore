@@ -22,21 +22,14 @@ class ConsommationMensuelle(pa.DataFrameModel):
 
     # Dates
     mois_consommation: str = pa.Field(
-        description="Mois de consommation réel = mois_facturation - 1 mois (YYYY-MM)",
-        str_matches=r"^\d{4}-\d{2}$"
+        description="Mois de consommation réel = mois_facturation - 1 mois (YYYY-MM)", str_matches=r"^\d{4}-\d{2}$"
     )
 
     # Énergie
-    energie_kwh: float = pa.Field(
-        ge=0,
-        description="Énergie totale en kWh"
-    )
+    energie_kwh: float = pa.Field(ge=0, description="Énergie totale en kWh")
 
     # Métadonnées
-    trimestre: str = pa.Field(
-        description="Trimestre de consommation (YYYY-QX)",
-        str_matches=r"^\d{4}-Q[1-4]$"
-    )
+    trimestre: str = pa.Field(description="Trimestre de consommation (YYYY-QX)", str_matches=r"^\d{4}-Q[1-4]$")
 
     class Config:
         strict = True
