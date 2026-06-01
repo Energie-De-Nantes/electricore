@@ -382,7 +382,7 @@ TELEGRAM_ALLOWED_USERS=123456789  # IDs séparés par virgule
 uv run --group test pytest -q
 
 # Pipeline ETL complet (nécessite --extra etl)
-uv run python electricore/etl/pipeline_production.py all
+uv run python -m electricore.etl.pipeline_production all
 
 # API FastAPI
 uv run uvicorn electricore.api.main:app --reload
@@ -390,6 +390,20 @@ uv run uvicorn electricore.api.main:app --reload
 # Notebooks interactifs (Marimo)
 uv run marimo edit notebooks/
 ```
+
+### Déploiement VPS (Docker)
+
+Pour exécuter ElectriCore en production sur un VPS — ETL planifié, API + bot 24/7, TLS automatique — une stack docker-compose prête à l'emploi est fournie :
+
+```bash
+cd deploy/docker
+cp .env.example .env       # renseigner clés API, AES, SFTP, Telegram
+cp Caddyfile.example Caddyfile  # ajuster le domaine
+cp crontab.example crontab
+docker compose up -d
+```
+
+Guide complet : [`docs/deploiement.md`](docs/deploiement.md) (mode SFTP distant vs fichiers collocés, rotation clés AES, sauvegarde/restauration, dépannage).
 
 ---
 

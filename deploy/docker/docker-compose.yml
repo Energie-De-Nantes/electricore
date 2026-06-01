@@ -1,0 +1,79 @@
+# ElectriCore — stack VPS reproductible.
+# Usage : `cp .env.example .env && docker compose up -d`
+# Documentation complète : docs/deploiement.md
+
+services:
+
+  api:
+    image: ghcr.io/energie-de-nantes/electricore:${ELECTRICORE_VERSION:-latest}
+    container_name: electricore-api
+    command:
+      - uvicorn
+      - electricore.api.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8001"
+    env_file:
+      - ./.env
+    environment:
+      DUCKDB_PATH: /data/flux_enedis_pipeline.duckdb
+    volumes:
+      - duckdb_data:/data
+      # Mode "fichiers collocés" : décommenter et adapter si SFTP__URL=file://... dans .env
+      # - /var/enedis:/var/enedis:ro
+    expose:
+      - "8001"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8001/health',timeout=5).status==200 else 1)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+  etl-scheduler:
+    image: ghcr.io/energie-de-nantes/electricore:${ELECTRICORE_VERSION:-latest}
+    container_name: electricore-etl
+    command:
+      - supercronic
+      - -passthrough-logs
+      - /etc/cron/crontab
+    env_file:
+      - ./.env
+    environment:
+      DUCKDB_PATH: /data/flux_enedis_pipeline.duckdb
+      TZ: Europe/Paris
+    volumes:
+      - duckdb_data:/data
+      - duckdb_backups:/backups
+      - ./crontab:/etc/cron/crontab:ro
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: electricore-caddy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  duckdb_data:
+  duckdb_backups:
+  caddy_data:
+  caddy_config:

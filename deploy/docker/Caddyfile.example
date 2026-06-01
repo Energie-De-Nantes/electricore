@@ -1,0 +1,37 @@
+# Caddyfile pour ElectriCore — TLS automatique (Let's Encrypt) via ACME HTTP-01.
+#
+# Prérequis :
+#   - Un nom de domaine pointant vers l'IP du VPS (A/AAAA records)
+#   - Les ports 80 et 443 ouverts et exposés au public
+#   - Un email valide pour les notifications Let's Encrypt
+#
+# Pour utiliser : copier en `Caddyfile` puis ajuster votre domaine + email.
+
+{
+    email votre-email@example.com
+    # Décommenter pendant les tests pour éviter les rate-limits Let's Encrypt :
+    # acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+}
+
+electricore.exemple.fr {
+    encode zstd gzip
+
+    # Compression côté client + logs d'accès
+    log {
+        output stdout
+        format console
+    }
+
+    # Pas de cache navigateur sur l'API
+    header {
+        -Server
+        Cache-Control "no-store"
+    }
+
+    reverse_proxy api:8001 {
+        # Timeouts plus longs pour les exports xlsx volumineux
+        transport http {
+            response_header_timeout 5m
+        }
+    }
+}

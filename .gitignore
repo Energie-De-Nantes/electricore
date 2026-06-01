@@ -183,3 +183,10 @@ electricore/etl/.dlt/secrets.toml
 perimetre_manquants/
 surveillance_perimetre_manquants.csv
 .serena/
+
+# Artefacts de déploiement Docker générés à partir des fichiers .example
+# (les utilisateurs copient *.example vers la version sans suffixe pour les éditer)
+deploy/docker/Caddyfile
+deploy/docker/crontab
+deploy/docker/docker-compose.*.yml
+!deploy/docker/docker-compose.yml

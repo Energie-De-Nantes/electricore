@@ -1,0 +1,16 @@
+# Cron pour supercronic dans le conteneur etl-scheduler.
+# Syntaxe : minute heure jour mois jour-semaine commande
+#
+# Le fuseau horaire est fixé via la variable d'environnement TZ du conteneur
+# (cf. docker-compose.yml : TZ=Europe/Paris).
+#
+# - Les logs sont redirigés vers le stdout de PID 1 du conteneur, donc visibles
+#   via `docker compose logs -f etl-scheduler`.
+# - `flock` n'est pas utilisé : supercronic empêche déjà la concurrence d'un job
+#   donné, et l'API tracke les jobs via /etl/jobs.
+
+# Lancement quotidien à 02:00 — appelle l'API qui tracke le job dans /etl/jobs
+0 2 * * * curl --fail --silent --show-error --max-time 60 -X POST -H "X-API-Key:${API_KEY}" -H "Content-Type: application/json" -d '{"mode":"all"}' http://api:8001/etl/run
+
+# Sauvegarde quotidienne à 03:30 (après la fenêtre ETL typique)
+30 3 * * * /app/deploy/docker/backup_duckdb.sh

@@ -7,6 +7,41 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
+## [1.4.0] - non publiée
+
+### 🚀 Déployabilité — fondations VPS
+
+Mise en place d'une stack Docker reproductible (`docker compose up -d`) avec ETL planifié et reverse-proxy TLS. La cible : un VPS unique qui exécute l'ETL à intervalle fixe, expose l'API + bot Telegram 24/7, et héberge optionnellement les fichiers Enedis collocés (pas de SFTP redondant). L'accès distant des notebooks via API HTTP est reporté à v1.5.
+
+#### Ajouts
+
+- **Image Docker** ([`deploy/docker/Dockerfile`](deploy/docker/Dockerfile)) — multi-stage avec `uv` au build, runtime minimal (`python:3.13-slim` + libxml2 + supercronic + duckdb CLI), utilisateur non-root, `tini` comme PID 1. Publiée sur `ghcr.io/energie-de-nantes/electricore` à chaque tag `vX.Y.Z`.
+- **Stack docker-compose** ([`deploy/docker/docker-compose.yml`](deploy/docker/docker-compose.yml)) — services `api` (FastAPI + bot), `etl-scheduler` (supercronic), `caddy` (TLS automatique). Volumes nommés pour la base DuckDB et les sauvegardes.
+- **ETL planifié** via supercronic — déclenche `POST /etl/run` toutes les nuits à 02:00. Les jobs scheduled apparaissent dans `/etl/jobs` aux côtés des runs manuels (bot, API), donc l'historique reste unifié.
+- **Mode "fichiers collocés"** — pour le scénario où l'application tourne sur le même VPS qu'un dépôt Enedis. Aucune modification de code : `SFTP__URL=file:///var/enedis/` est nativement supporté par `dlt.sources.filesystem`. Les fichiers restent chiffrés AES sur disque, donc les clés AES restent obligatoires. Voir [`docs/deploiement.md`](docs/deploiement.md).
+- **Sauvegardes DuckDB** ([`deploy/docker/backup_duckdb.sh`](deploy/docker/backup_duckdb.sh)) — `EXPORT DATABASE` + tar.gz quotidien, rétention 14 snapshots. Restauration documentée.
+- **Endpoint `/health` enrichi** ([`electricore/api/main.py`](electricore/api/main.py)) — retourne désormais un payload structuré `{database: {accessible, last_write, tables}, bot: {running}, ...}` au lieu de juste `{status: "ok"}`. Toujours `200` (même base inaccessible), pour qu'ops puisse différencier un verrou ETL transitoire d'une panne réelle.
+- **Retry-on-lock DuckDB** ([`electricore/api/services/duckdb_service.py`](electricore/api/services/duckdb_service.py)) — 3 tentatives × 1s pour absorber les fenêtres de checkpoint pendant que l'ETL écrit.
+- **Documentation déploiement** ([`docs/deploiement.md`](docs/deploiement.md)) — guide complet : prérequis, installation initiale, modes SFTP vs collocé, rotation clés AES, sauvegarde/restauration, dépannage.
+
+#### Modifications
+
+- **Import package-style** ([`electricore/etl/pipeline_production.py:29`](electricore/etl/pipeline_production.py#L29)) — `from electricore.etl.sources.sftp_enedis import flux_enedis`. Permet d'invoquer le pipeline via `python -m electricore.etl.pipeline_production` depuis n'importe quel `cwd`. Service ETL côté API ajusté en conséquence.
+- **Masquage URL généralisé** ([`electricore/etl/sources/sftp_enedis.py`](electricore/etl/sources/sftp_enedis.py)) — `mask_password_in_url()` gère désormais `file://` (no-op) en plus de `sftp://`.
+
+#### Suppressions (breaking)
+
+- **Unit systemd `electricore.service`** supprimée (ainsi que les fichiers `.example` annexes). Les utilisateurs sur déploiement bare-metal doivent rester sur v1.3.x ou migrer vers Docker. La doc Docker couvre tous les cas d'usage de l'ancienne unit.
+
+#### Reportés à v1.5
+
+- Transport HTTP pour `DuckDBQuery` builders — permettra aux notebooks marimo locaux de lire les données depuis l'API distante (sans nécessiter le fichier DuckDB local).
+- Extra `[viz]` optionnel — marimo, altair, vegafusion, vl-convert-python, plotly retirés des dépendances par défaut. L'image production passerait de ~1.2 GB à ~400 MB.
+- Image multi-arch (arm64) — actuellement amd64 uniquement.
+- Observabilité : logging JSON structuré, intégration Sentry.
+
+---
+
 ## [1.3.5] - 2026-06-01
 
 ### 🛠️ Hygiène d'ingénierie

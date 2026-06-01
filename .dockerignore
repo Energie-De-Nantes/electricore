@@ -1,0 +1,52 @@
+# VCS
+.git/
+.gitignore
+.gitattributes
+
+# Build artefacts
+dist/
+build/
+*.egg-info/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Tests et couverture
+tests/
+htmlcov/
+.coverage
+.coverage.*
+.pytest_cache/
+.hypothesis/
+
+# Notebooks et données locales (jamais embarqués dans l'image)
+notebooks/
+*.duckdb
+*.duckdb.wal
+*.csv
+*.parquet
+perimetre_manquants/
+
+# Outils de dev
+.mypy_cache/
+.ruff_cache/
+.serena/
+.sota/
+--context/
+.claude/
+
+# Secrets et environnements locaux
+.env
+.env.*
+!.env.example
+secrets.toml
+
+# Docs au format source (réduisent juste l'image)
+docs/
+
+# Éditeurs
+.vscode/
+.idea/
+*.swp
+*.swo
