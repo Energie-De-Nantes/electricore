@@ -10,6 +10,7 @@ on:
 permissions:
   contents: write   # gh release create
   id-token: write   # OIDC pour PyPI trusted publishing
+  packages: write   # push image Docker sur ghcr.io
 
 jobs:
   release:
@@ -48,3 +49,43 @@ jobs:
             --title "${GITHUB_REF_NAME}" \
             --generate-notes \
             dist/*.tar.gz dist/*.whl
+
+      # ---------------------------------------------------------------
+      # Image Docker → ghcr.io (en parallèle de la publication PyPI)
+      # ---------------------------------------------------------------
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute Docker tags
+        id: docker_tags
+        run: |
+          OWNER="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          V="${GITHUB_REF_NAME#v}"
+          MAJOR_MINOR="${V%.*}"
+          {
+            echo "tags=ghcr.io/${OWNER}/electricore:${V},ghcr.io/${OWNER}/electricore:${MAJOR_MINOR},ghcr.io/${OWNER}/electricore:latest"
+            echo "smoke_tag=ghcr.io/${OWNER}/electricore:${V}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build & push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: ${{ steps.docker_tags.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke-test image
+        run: |
+          docker run --rm "${{ steps.docker_tags.outputs.smoke_tag }}" \
+            python -c "import electricore; import electricore.etl.pipeline_production; print('image OK')"
