@@ -22,6 +22,7 @@ from pathlib import Path
 import polars as pl
 
 from electricore.core.pipelines.facturation import expr_calculer_trimestre
+from electricore.core.pipelines.taux import ajouter_taux_en_vigueur
 
 # =============================================================================
 # CHARGEMENT DES RÈGLES CTA
@@ -30,40 +31,19 @@ from electricore.core.pipelines.facturation import expr_calculer_trimestre
 
 def load_cta_rules() -> pl.LazyFrame:
     """
-    Charge les règles CTA depuis electricore/config/cta_rules.csv.
+    Charge l'historique des taux CTA depuis `electricore/config/cta_rules.csv`.
 
     Returns:
-        LazyFrame avec colonnes : start (datetime Europe/Paris),
-        end (datetime Europe/Paris, nullable), taux_cta_pct (Float64).
+        LazyFrame avec colonnes `start` (datetime Europe/Paris) et
+        `taux_cta_pct` (Float64). Chaque ligne représente l'entrée en vigueur
+        d'un nouveau taux qui remplace le précédent.
     """
     file_path = Path(__file__).parent.parent.parent / "config" / "cta_rules.csv"
 
     return (
         pl.scan_csv(file_path)
-        .with_columns(
-            [
-                pl.col("start").str.to_datetime().dt.replace_time_zone("Europe/Paris"),
-                pl.col("end").str.to_datetime().dt.replace_time_zone("Europe/Paris"),
-            ]
-        )
+        .with_columns(pl.col("start").str.to_datetime().dt.replace_time_zone("Europe/Paris"))
         .with_columns(pl.col("taux_cta_pct").cast(pl.Float64))
-    )
-
-
-# =============================================================================
-# EXPRESSIONS DE FILTRAGE TEMPOREL
-# =============================================================================
-
-
-def expr_filtrer_regles_temporelles() -> pl.Expr:
-    """
-    Filtre les règles CTA applicables pour une ligne de facturation mensuelle.
-
-    Vérifie que `debut` (1er du mois) tombe dans la plage de validité :
-    `start <= debut < end`, où `end=null` est traité comme « sans fin ».
-    """
-    return (pl.col("debut") >= pl.col("start")) & (
-        pl.col("debut") < pl.col("end").fill_null(pl.datetime(2100, 1, 1, time_zone="Europe/Paris"))
     )
 
 
@@ -83,30 +63,24 @@ def ajouter_cta(
         df_facturation_mensuel: LazyFrame contenant au minimum `debut`
             (datetime Europe/Paris, typiquement le 1er du mois) et
             `turpe_fixe_eur`.
-        regles: LazyFrame des règles CTA. Chargé via `load_cta_rules()`
-            si None.
+        regles: Historique des taux CTA. Chargé via `load_cta_rules()` si None.
 
     Returns:
-        LazyFrame identique en entrée, enrichi de `taux_cta_pct` et
-        `cta_eur` (arrondi à 2 décimales).
+        LazyFrame d'entrée enrichi de `taux_cta_pct` et `cta_eur`
+        (arrondi à 2 décimales).
     """
     if regles is None:
         regles = load_cta_rules()
 
     colonnes_originales = df_facturation_mensuel.collect_schema().names()
 
-    facturation_triee = df_facturation_mensuel.sort("debut")
-    regles_triees = regles.collect().sort("start").lazy()
-
     return (
-        facturation_triee.join_asof(
-            regles_triees,
-            left_on="debut",
-            right_on="start",
-            strategy="backward",
+        ajouter_taux_en_vigueur(
+            df_facturation_mensuel,
+            regles,
+            date_col="debut",
+            taux_col="taux_cta_pct",
         )
-        .filter(pl.col("start").is_not_null())
-        .filter(expr_filtrer_regles_temporelles())
         .with_columns((pl.col("turpe_fixe_eur") * pl.col("taux_cta_pct") / 100).round(2).alias("cta_eur"))
         .select([*colonnes_originales, "taux_cta_pct", "cta_eur"])
     )
@@ -167,7 +141,6 @@ def pipeline_cta(
 
 __all__ = [
     "load_cta_rules",
-    "expr_filtrer_regles_temporelles",
     "ajouter_cta",
     "pipeline_cta",
 ]

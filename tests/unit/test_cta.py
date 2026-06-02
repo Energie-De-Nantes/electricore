@@ -1,9 +1,12 @@
 """
 Tests unitaires pour le pipeline CTA.
 
-Couvre le chargement des règles temporelles, l'ajout du taux/montant CTA
-au niveau mensuel, et l'agrégation par PDL avec gestion des changements
-de taux intra-trimestre.
+Couvre le chargement de l'historique des taux, le wire-through Accise-spécifique
+(formule × / 100, arrondi, préservation des colonnes), et l'agrégation par PDL
+avec gestion des changements de taux intra-trimestre.
+
+La sélection du taux en vigueur à la date est testée séparément dans
+`test_taux.py` — ici on vérifie uniquement ce qui est propre à la CTA.
 """
 
 from datetime import datetime
@@ -29,10 +32,10 @@ TZ = ZoneInfo("Europe/Paris")
 @pytest.fixture
 def regles_cta_synthetiques() -> pl.LazyFrame:
     """
-    Règles CTA synthétiques avec un changement de taux mi-2021 et fin 2025.
+    Historique CTA synthétique avec deux changements de taux.
 
     Mimique la structure du CSV de prod pour isoler les tests de la valeur
-    exacte du fichier.
+    exacte du fichier. Chaque ligne = entrée en vigueur d'un nouveau taux.
     """
     return pl.LazyFrame(
         {
@@ -40,11 +43,6 @@ def regles_cta_synthetiques() -> pl.LazyFrame:
                 datetime(2020, 1, 1, tzinfo=TZ),
                 datetime(2021, 8, 1, tzinfo=TZ),
                 datetime(2026, 2, 1, tzinfo=TZ),
-            ],
-            "end": [
-                datetime(2021, 8, 1, tzinfo=TZ),
-                datetime(2026, 2, 1, tzinfo=TZ),
-                None,
             ],
             "taux_cta_pct": [27.04, 21.93, 15.00],
         }
@@ -70,71 +68,13 @@ class TestChargementRegles:
 
     def test_load_cta_rules_colonnes_et_types(self):
         regles = load_cta_rules().collect()
-        assert set(regles.columns) == {"start", "end", "taux_cta_pct"}
+        assert set(regles.columns) == {"start", "taux_cta_pct"}
         assert regles["taux_cta_pct"].dtype == pl.Float64
-        # Les colonnes de dates doivent avoir timezone Europe/Paris
         assert regles["start"].dtype == pl.Datetime(time_unit="us", time_zone="Europe/Paris")
-        assert regles["end"].dtype == pl.Datetime(time_unit="us", time_zone="Europe/Paris")
 
     def test_load_cta_rules_contient_au_moins_une_ligne(self):
         regles = load_cta_rules().collect()
         assert regles.height >= 1
-
-    def test_load_cta_rules_derniere_regle_sans_fin(self):
-        """La règle la plus récente doit avoir end=null (= encore en vigueur)."""
-        regles = load_cta_rules().collect().sort("start")
-        assert regles.tail(1)["end"].item() is None
-
-
-# =============================================================================
-# FILTRAGE TEMPOREL
-# =============================================================================
-
-
-class TestFiltrageTemporel:
-    """Valide expr_filtrer_regles_temporelles et le comportement end=null."""
-
-    def test_filtrage_borne_inferieure_incluse(self, regles_cta_synthetiques):
-        fact = _facturation_mensuelle(
-            [
-                {
-                    "pdl": "A",
-                    "debut": datetime(2021, 8, 1),
-                    "turpe_fixe_eur": 100.0,
-                }
-            ]
-        )
-        result = ajouter_cta(fact, regles_cta_synthetiques).collect()
-        # Le 2021-08-01 doit prendre le taux de la règle qui commence le 2021-08-01
-        assert result["taux_cta_pct"].item() == 21.93
-
-    def test_filtrage_borne_superieure_exclue(self, regles_cta_synthetiques):
-        fact = _facturation_mensuelle(
-            [
-                {
-                    "pdl": "A",
-                    "debut": datetime(2021, 7, 1),
-                    "turpe_fixe_eur": 100.0,
-                }
-            ]
-        )
-        result = ajouter_cta(fact, regles_cta_synthetiques).collect()
-        # Le 2021-07-01 tombe avant la transition du 2021-08-01 → règle précédente
-        assert result["taux_cta_pct"].item() == 27.04
-
-    def test_regle_end_null_couvre_present(self, regles_cta_synthetiques):
-        fact = _facturation_mensuelle(
-            [
-                {
-                    "pdl": "A",
-                    "debut": datetime(2030, 5, 1),
-                    "turpe_fixe_eur": 100.0,
-                }
-            ]
-        )
-        result = ajouter_cta(fact, regles_cta_synthetiques).collect()
-        # Doit matcher la dernière règle (end=null)
-        assert result["taux_cta_pct"].item() == 15.00
 
 
 # =============================================================================
