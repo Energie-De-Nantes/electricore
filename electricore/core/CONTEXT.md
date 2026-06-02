@@ -95,6 +95,10 @@ _Éviter_ : TICFE (renommée Accise), CSPE (fusionnée dans l'accise).
 **CTA** (Contribution Tarifaire d'Acheminement) :
 Taxe assise sur la part fixe du TURPE (puissance), reversée à la CNIEG pour financer les retraites des industries électriques et gazières.
 
+**Taux en vigueur** :
+Valeur d'un taux réglementé (Accise, CTA, TURPE…) applicable à une date donnée. Les taux changent par arrêté ou décret CRE : les fichiers `*_rules.csv` versionnent ces changements en stockant seulement la date d'**entrée en vigueur** (`start`). Chaque ligne remplace la précédente jusqu'à la ligne suivante (ou indéfiniment pour la dernière) — il n'y a pas de colonne `end`, car les taux régulés sont continus dans le temps. La sélection « taux en vigueur à la date X » est implémentée par `ajouter_taux_en_vigueur()` dans `core/pipelines/taux.py`.
+_Éviter_ : barème (gradué par montant, pas par date), grille tarifaire.
+
 **Trimestre fiscal** :
 Unité de déclaration des taxes (Accise, CTA), notée `YYYY-TN` (ex : `2025-T1` pour janvier-mars 2025).
 

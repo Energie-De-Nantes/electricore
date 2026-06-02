@@ -12,6 +12,8 @@ from pathlib import Path
 
 import polars as pl
 
+from electricore.core.pipelines.taux import ajouter_taux_en_vigueur
+
 # =============================================================================
 # CHARGEMENT DES RÈGLES ACCISE
 # =============================================================================
@@ -19,27 +21,18 @@ import polars as pl
 
 def load_accise_rules() -> pl.LazyFrame:
     """
-    Charge les règles tarifaires Accise depuis le fichier CSV.
+    Charge l'historique des taux Accise depuis `electricore/config/accise_rules.csv`.
 
     Returns:
-        LazyFrame Polars contenant toutes les règles Accise avec types correctement définis
-
-    Example:
-        >>> regles = load_accise_rules()
-        >>> regles.collect()
+        LazyFrame avec colonnes `start` (datetime Europe/Paris) et
+        `taux_accise_eur_mwh` (Float64). Chaque ligne représente l'entrée en
+        vigueur d'un nouveau taux qui remplace le précédent.
     """
     file_path = Path(__file__).parent.parent.parent / "config" / "accise_rules.csv"
 
     return (
         pl.scan_csv(file_path)
-        # Conversion des colonnes de dates avec timezone Europe/Paris
-        .with_columns(
-            [
-                pl.col("start").str.to_datetime().dt.replace_time_zone("Europe/Paris"),
-                pl.col("end").str.to_datetime().dt.replace_time_zone("Europe/Paris"),
-            ]
-        )
-        # Conversion du taux en Float64
+        .with_columns(pl.col("start").str.to_datetime().dt.replace_time_zone("Europe/Paris"))
         .with_columns(pl.col("taux_accise_eur_mwh").cast(pl.Float64))
     )
 
@@ -129,95 +122,50 @@ def agreger_consommations_mensuelles(lignes_factures: pl.LazyFrame) -> pl.LazyFr
 
 
 # =============================================================================
-# EXPRESSIONS DE FILTRAGE TEMPOREL
-# =============================================================================
-
-
-def expr_filtrer_regles_temporelles() -> pl.Expr:
-    """
-    Expression pour filtrer les règles Accise applicables temporellement.
-
-    Vérifie que le mois de consommation est compris dans la plage de validité
-    de la règle (start <= mois_consommation < end).
-
-    Returns:
-        Expression booléenne pour filtrer les règles applicables
-
-    Example:
-        >>> df_joint.filter(expr_filtrer_regles_temporelles())
-    """
-    # Convertir mois_consommation string vers date (1er du mois)
-    date_conso = pl.col("mois_consommation").str.to_date("%Y-%m")
-
-    return (date_conso >= pl.col("start")) & (
-        date_conso < pl.col("end").fill_null(pl.datetime(2100, 1, 1, time_zone="Europe/Paris"))
-    )
-
-
-# =============================================================================
 # PIPELINE PRINCIPAL
 # =============================================================================
 
 
 def ajouter_accise(consommations: pl.LazyFrame, regles: pl.LazyFrame | None = None) -> pl.LazyFrame:
     """
-    Ajoute le calcul de l'Accise aux consommations mensuelles.
-
-    Cette fonction joint les consommations avec les règles Accise et calcule
-    le montant de l'Accise pour chaque ligne selon le taux applicable.
+    Ajoute le taux d'Accise en vigueur et le montant calculé aux consommations.
 
     Args:
-        consommations: LazyFrame des consommations mensuelles agrégées
-        regles: LazyFrame des règles Accise (optionnel, sera chargé si None)
+        consommations: LazyFrame avec au moins `mois_consommation` (str "YYYY-MM")
+            et `energie_kwh` (Float64).
+        regles: Historique des taux Accise. Chargé via `load_accise_rules()` si None.
 
     Returns:
-        LazyFrame avec les colonnes Accise ajoutées
-
-    Example:
-        >>> from electricore.core.loaders import commandes_lignes
-        >>> lignes = commandes_lignes(odoo).collect().lazy()
-        >>> consos = agreger_consommations_mensuelles(lignes)
-        >>> consos_avec_accise = ajouter_accise(consos)
-        >>> df = consos_avec_accise.collect()
+        LazyFrame d'entrée enrichi de `taux_accise_eur_mwh`, `energie_mwh`,
+        `accise_eur` (arrondi à 2 décimales).
     """
     if regles is None:
         regles = load_accise_rules()
 
-    # Récupérer la liste des colonnes originales
     colonnes_originales = consommations.collect_schema().names()
 
-    # Convertir mois_consommation en datetime pour la jointure (alignement avec start/end)
-    consommations_avec_date = consommations.with_columns(
+    # `mois_consommation` est une string "YYYY-MM" ; conversion en datetime TZ Paris
+    # pour matcher la précondition de `ajouter_taux_en_vigueur`.
+    consommations_datees = consommations.with_columns(
         pl.col("mois_consommation")
         .str.to_datetime("%Y-%m")
         .dt.replace_time_zone("Europe/Paris")
-        .alias("date_conso_temp")
+        .alias("_date_taux")
     )
 
-    # Trier les consommations par date_conso_temp (requis pour join_asof)
-    consommations_triees = consommations_avec_date.sort("date_conso_temp")
-
-    # Trier les règles par start (requis pour join_asof)
-    regles_triees = regles.collect().sort("start").lazy()
-
     return (
-        consommations_triees
-        # Jointure asof : prend la règle la plus récente avant date_conso
-        .join_asof(regles_triees, left_on="date_conso_temp", right_on="start", strategy="backward")
-        # Validation des règles présentes
-        .filter(pl.col("start").is_not_null())
-        # Filtrage temporel des règles applicables
-        .filter(expr_filtrer_regles_temporelles())
-        # Supprimer les colonnes temporaires et de règles avant calculs
-        .drop("date_conso_temp", "start", "end")
-        # Calcul de l'Accise
+        ajouter_taux_en_vigueur(
+            consommations_datees,
+            regles,
+            date_col="_date_taux",
+            taux_col="taux_accise_eur_mwh",
+        )
         .with_columns(
             [
                 (pl.col("energie_kwh") / 1000).alias("energie_mwh"),
                 ((pl.col("energie_kwh") / 1000) * pl.col("taux_accise_eur_mwh")).round(2).alias("accise_eur"),
             ]
         )
-        # Sélection des colonnes finales
         .select([*colonnes_originales, "taux_accise_eur_mwh", "energie_mwh", "accise_eur"])
     )
 
