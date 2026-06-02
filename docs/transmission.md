@@ -250,7 +250,7 @@ Les pipelines chargent ces règles via `load_turpe_rules()` / `load_accise_rules
 
 ## 9. Domaine : glossaire
 
-Le vocabulaire métier (PDL, FTA, C5/C4, HP/HC, TURPE, accise, flux C15/R151…) est défini dans [CONTEXT.md](../CONTEXT.md) à la racine du dépôt — c'est la source canonique.
+Le vocabulaire métier est éclaté par module : voir [CONTEXT-MAP.md](../CONTEXT-MAP.md) à la racine. L'essentiel (PDL, FTA, C5/C4, HP/HC, TURPE, accise, événements C15, périmètre, abonnement…) vit dans [`electricore/core/CONTEXT.md`](../electricore/core/CONTEXT.md).
 
 ---
 
