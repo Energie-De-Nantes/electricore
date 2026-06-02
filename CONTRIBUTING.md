@@ -69,11 +69,14 @@ La CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) exécute les troi
 
 ## Conventions techniques
 
-- **Polars pur** (pas de pandas) — les pipelines sont écrits en `LazyFrame` chaînés.
+- **Polars uniquement** (pas de pandas) — pipelines en `LazyFrame` chaînés. Voir [ADR-0002](docs/adr/0002-polars-uniquement.md).
 - **Validation Pandera** sur les schémas de DataFrame en entrée/sortie des fonctions publiques (décorateur `@pa.check_types(lazy=True)`).
 - **Timezone `Europe/Paris`** par défaut sur toutes les dates.
-- **Noms de colonnes** au format `grandeur_cadran_unité` (ex: `energie_hp_kwh`, `puissance_souscrite_kva`) — voir [docs/conventions-nommage.md](docs/conventions-nommage.md).
-- **Domaine métier en français** (`périmètre`, `relevés`, `abonnements`, `TURPE`, `accise`) — c'est délibéré.
+- **Noms de colonnes** au format `grandeur_cadran_unité` (ex : `energie_hp_kwh`, `puissance_souscrite_kva`).
+- **Tout en français** : variables, fonctions, classes, colonnes, commentaires. Seules les APIs de bibliothèques tierces restent en anglais (`pl.col`, `.filter`…). Voir [ADR-0004](docs/adr/0004-langue-francaise.md).
+- **Pas d'accents dans les identifiants Python** (variables, fonctions, classes, colonnes). Préférer `energie_consommee` à `énergie_consommée`, `cout_total` à `coût_total`. Les accents restent autorisés dans les docstrings, messages et commentaires.
+- **Fonctions : `verbe_complement_complement`** — verbe à l'infinitif + compléments en snake_case (`calculer_consommation`, `valider_releve`, `recuperer_donnees`).
+- **Vocabulaire métier** : se référer à [CONTEXT.md](CONTEXT.md) pour les définitions canoniques et les synonymes à éviter.
 - **`notebooks/` et `scripts/`** sont exclus de ruff et mypy : conventions différentes (marimo, scripts ad-hoc).
 
 ## Process de release (mainteneurs)
