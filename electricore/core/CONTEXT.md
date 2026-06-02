@@ -1,10 +1,10 @@
-# Contexte — ElectriCore
+# Contexte — core (métier)
 
-ElectriCore traite les flux de données du distributeur Enedis pour le marché français de l'électricité. Ce document est le glossaire canonique : tout terme métier utilisé dans le code, la documentation ou les commits doit avoir sa définition ici.
+Vocabulaire du domaine métier ElectriCore : acteurs, points de livraison, tarification, événements contractuels, calculs, intégration Odoo. C'est le contexte canonique référencé par les autres modules.
 
 ## Langue
 
-Voir [ADR-0004](docs/adr/0004-langue-francaise.md) — l'intégralité du code, des colonnes et de la documentation est en français.
+Voir [ADR-0004](../../docs/adr/0004-langue-francaise.md) — l'intégralité du code, des colonnes et de la documentation est en français.
 
 ---
 
@@ -100,34 +100,9 @@ Unité de déclaration des taxes (Accise, CTA), notée `YYYY-TN` (ex : `2025-T1`
 
 ---
 
-## Flux Enedis
-
-**Flux** :
-Fichier de données émis périodiquement par Enedis aux fournisseurs, au format XML ou CSV. Chaque type a un code (C15, R151…) et un contenu spécifique.
-
-**C15** :
-Flux d'événements contractuels (MES, RES, MCT…). Source de l'historique du périmètre.
-
-**R151** :
-Flux de relevés périodiques mensuels (index Linky par cadran). Source principale du calcul de consommation. Convention de date « fin de journée » — voir [ADR-0003](docs/adr/0003-r151-date-harmonisation.md).
-
-**R15** :
-Flux de relevés à la demande + événements ponctuels (déplacements, contestations).
-
-**R64** :
-Flux de relevés au format JSON, séries temporelles plus granulaires.
-
-**F12** :
-Synthèse mensuelle de facturation distributeur (volumes agrégés).
-
-**F15** :
-Facturation distributeur détaillée, utilisée pour valider les calculs TURPE.
-
----
-
 ## Événements contractuels (codes C15)
 
-Les *entrées* (le PDL devient actif chez nous) sont `PMES`, `MES`, `CFNE`. Les *sorties* (le PDL nous quitte) sont `RES`, `CFNS`. Les modifications en cours de vie utilisent `MCT`.
+Les *entrées* (le PDL devient actif chez nous) sont `PMES`, `MES`, `CFNE`. Les *sorties* (le PDL nous quitte) sont `RES`, `CFNS`. Les modifications en cours de vie utilisent `MCT`. Les flux C15 qui transportent ces événements sont décrits dans `electricore/etl/CONTEXT.md`.
 
 **PMES** (Première Mise En Service) :
 Variante de MES correspondant à une première activation du PDL. Distinction exacte avec MES à préciser (probablement liée à l'absence d'historique contractuel antérieur).
@@ -167,7 +142,7 @@ Limite contractuelle en kVA. Un seul champ en C5 (`puissance_souscrite_kva`), qu
 
 ---
 
-## Concepts pipeline (spécifiques ElectriCore)
+## Concepts pipeline
 
 **Périmètre** :
 Vue chronologique des événements contractuels d'un ou plusieurs PDL, enrichie pour la facturation. Produit par `pipeline_perimetre()` à partir du flux C15.
@@ -185,7 +160,7 @@ Intervalle entre deux relevés d'index, support du calcul de consommation et du 
 Agrégation d'abonnements + périodes d'énergie sur un mois calendaire, unité de la facturation client mensuelle.
 
 **Harmonisation des relevés** :
-Alignement des sources de relevés (R151, R15, R64) sur la convention de date « début de journée ». Implémenté dans `releves_harmonises()` — voir [ADR-0003](docs/adr/0003-r151-date-harmonisation.md).
+Alignement des sources de relevés (R151, R15, R64) sur la convention de date « début de journée ». Implémenté dans `releves_harmonises()` — voir [ADR-0003](../../docs/adr/0003-r151-date-harmonisation.md).
 
 **`date_ajustee`** (champ) :
 Booléen marquant les relevés dont la date a été décalée pendant l'harmonisation (R151 +1 jour).
@@ -201,27 +176,4 @@ Modalité de facturation où le client paie un montant mensuel constant basé su
 Identifiant Enedis d'une situation contractuelle d'un PDL — un PDL peut avoir plusieurs RSC successives. Côté Odoo, portée par `x_ref_situation_contractuelle` sur `sale.order`.
 
 **`x_invoicing_state`** :
-Champ Odoo qui matérialise l'avancement d'un `sale.order` dans le cycle de facturation mensuel. Les vérifications pré-facturation (`/check odoo`) reposent en partie sur sa répartition.
-
----
-
-## Plateforme et opérations
-
-**API** :
-Service REST FastAPI ([electricore/api/](electricore/api/)) qui expose les flux, les pipelines et l'orchestration ETL. Hub central de l'architecture — voir [ADR-0009](docs/adr/0009-architecture-api-centrique.md).
-
-**Bot** (Bot Telegram) :
-Client conversationnel de l'API ([electricore/bot/](electricore/bot/)) pour piloter l'ETL et générer des exports métier depuis Telegram. Voir [ADR-0010](docs/adr/0010-bot-telegram-ui-operationnelle.md).
-
-**Job ETL** :
-Exécution asynchrone du pipeline d'ingestion déclenchée par `POST /etl/run`. Identifié par un UUID, doté d'un statut (`running`, `completed`, `failed`) et d'une sortie (`output` ou `error`).
-
-**Mode ETL** :
-Paramètre du pipeline d'ingestion sélectionnant l'étendue de l'exécution :
-- `test` : 2 fichiers (validation rapide)
-- `r151` : flux R151 complet uniquement
-- `all` : tous les flux
-- `reset` : purge + ré-ingestion complète
-
-**Scheduler** :
-Conteneur Docker qui déclenche l'ETL via cron et appel HTTP à `/etl/run` (pas de logique métier embarquée). Voir [ADR-0011](docs/adr/0011-deploiement-vps-docker.md).
+Champ Odoo qui matérialise l'avancement d'un `sale.order` dans le cycle de facturation mensuel. Les vérifications pré-facturation (`/check odoo` côté bot) reposent en partie sur sa répartition.
