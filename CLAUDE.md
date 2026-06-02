@@ -65,13 +65,19 @@ electricore/
 │   └── writers/               # Data export
 │       └── odoo.py            # OdooWriter
 │
-├── api/                       # 🌐 API - REST Access Layer
-│   ├── services/              # Query services (DuckDB)
+├── api/                       # 🌐 API - REST Access Layer (hub central, voir ADR-0009)
+│   ├── services/              # Query services (DuckDB, ETL jobs, facturation, taxes)
 │   ├── security.py            # API key authentication
 │   └── main.py                # FastAPI application
 │
+├── bot/                       # 🤖 Bot Telegram - UI opérationnelle (voir ADR-0010)
+│   ├── bot.py                 # Handlers commandes (/etl, /taxes, /facturation…)
+│   └── client.py              # Client HTTP async vers l'API
+│
 └── config/                    # ⚙️ Tariff rules (TURPE, Accise CSV files)
 ```
+
+Production deployment: VPS + Docker Compose stack ([deploy/docker/](deploy/docker/), guide [docs/deploiement.md](docs/deploiement.md)), voir [ADR-0011](docs/adr/0011-deploiement-vps-docker.md).
 
 ### Supported Flux Types
 
@@ -121,7 +127,7 @@ SFTP Enedis → ETL (DLT) → DuckDB → Query Builders → Core Pipelines → R
 - **Date convention**: R151 flux uses +1 day adjustment to harmonize with R64/R15/C15 (see [docs/conventions-dates-enedis.md](docs/conventions-dates-enedis.md))
 - **Column naming**: Follows `grandeur_cadran_unité` format
 - **Domain glossary**: see [CONTEXT.md](CONTEXT.md) — canonical definitions of PDL, FTA, TURPE, cadrans, flux, périmètre, abonnement, etc.
-- **Architecture decisions**: see [docs/adr/](docs/adr/) — load-bearing past decisions (monorepo, Polars-only, R151 date adjustment, French language, DuckDB, DLT, query builders, AES rotation)
+- **Architecture decisions**: see [docs/adr/](docs/adr/) — load-bearing past decisions (monorepo, Polars-only, R151 date adjustment, French language, DuckDB, DLT, query builders, AES rotation, API-centric architecture, Telegram bot, VPS Docker deployment)
 
 #### Column Naming Conventions
 
