@@ -321,3 +321,17 @@ uv run --group test pytest --cov=electricore tests/
 - **DuckDB Integration**: [electricore/core/loaders/DUCKDB_INTEGRATION_GUIDE.md](electricore/core/loaders/DUCKDB_INTEGRATION_GUIDE.md)
 - **Odoo Query Builder**: [docs/odoo-query-builder.md](docs/odoo-query-builder.md)
 - **Date Conventions**: [docs/conventions-dates-enedis.md](docs/conventions-dates-enedis.md)
+
+## Agent skills
+
+### Issue tracker
+
+Issues live as GitHub issues on `Energie-De-Nantes/electricore` (via the `gh` CLI). See [docs/agents/issue-tracker.md](docs/agents/issue-tracker.md).
+
+### Triage labels
+
+Canonical label names (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`) used as-is on GitHub. See [docs/agents/triage-labels.md](docs/agents/triage-labels.md).
+
+### Domain docs
+
+Multi-context layout: [CONTEXT-MAP.md](CONTEXT-MAP.md) at root pointing to per-module `CONTEXT.md` (core/etl/api/bot); ADRs are repo-wide in [docs/adr/](docs/adr/). See [docs/agents/domain.md](docs/agents/domain.md).
