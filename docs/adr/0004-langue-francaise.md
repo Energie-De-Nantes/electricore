@@ -1,0 +1,3 @@
+# Code et documentation en français
+
+Tout le code (variables, fonctions, classes, colonnes, commentaires, messages d'erreur) est en français, à l'exception des APIs des bibliothèques tierces (`pl.col`, `.filter`, etc.). ElectriCore est intimement lié à Enedis (gestionnaire du réseau français) et à la CRE (régulateur français) ; les contributions attendues viennent de communautés locales, potentiellement non-anglophones. Renoncer à l'audience internationale est un compromis assumé : la lib sert un marché spécifique où les concepts métier (TURPE, FTA, HPH/HCH, accise) sont intrinsèquement français et non-traduisibles sans perte.
