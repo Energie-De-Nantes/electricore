@@ -248,19 +248,9 @@ Les pipelines chargent ces règles via `load_turpe_rules()` / `load_accise_rules
 
 ---
 
-## 9. Domaine : glossaire minimal
+## 9. Domaine : glossaire
 
-| Terme | Signification |
-|-------|---------------|
-| **PDL** | Point De Livraison — identifiant unique d'un compteur |
-| **FTA** | Formule Tarifaire d'Acheminement — type de contrat réseau (BTINFCUST, BTSUPCU4…) |
-| **C5/C4** | Segments de clientèle : C5 = BT ≤ 36 kVA, C4 = BT > 36 kVA |
-| **HP/HC** | Heures Pleines / Heures Creuses |
-| **HPH/HCH/HPB/HCB** | Saison Haute/Basse × Pleines/Creuses (Tempo/EJP) |
-| **TURPE** | Taxe réseau réglementaire (fixe/puissance + variable/consommation) |
-| **Accise** | Ancienne TICFE, taxe intérieure sur l'électricité |
-| **Flux C15** | Événements contractuels : MES (mise en service), RES (résiliation), MCT (modification)… |
-| **Flux R151** | Relevés périodiques Linky (envoyés tous les mois par Enedis) |
+Le vocabulaire métier (PDL, FTA, C5/C4, HP/HC, TURPE, accise, flux C15/R151…) est défini dans [CONTEXT.md](../CONTEXT.md) à la racine du dépôt — c'est la source canonique.
 
 ---
 

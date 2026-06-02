@@ -479,7 +479,8 @@ uv run --group test pytest --cov=electricore --cov-report=html
 - [Intégration DuckDB](electricore/core/loaders/DUCKDB_INTEGRATION_GUIDE.md) - Query Builder DuckDB
 - [Query Builder Odoo](docs/odoo-query-builder.md) - Intégration Odoo
 - [Conventions Dates](docs/conventions-dates-enedis.md) - Formats temporels Enedis
-- [Vision Architecture](docs/archi/) - Documentation architecture détaillée
+- [CONTEXT.md](CONTEXT.md) — Glossaire métier canonique (PDL, FTA, TURPE, cadrans, flux…)
+- [docs/adr/](docs/adr/) — Décisions architecturales (monorepo, Polars, DuckDB, harmonisation R151…)
 
 ---
 

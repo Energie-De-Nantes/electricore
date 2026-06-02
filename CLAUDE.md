@@ -119,7 +119,9 @@ SFTP Enedis → ETL (DLT) → DuckDB → Query Builders → Core Pipelines → R
 - **Language**: Business domain in French (périmètre, relevés, énergies, abonnements, TURPE)
 - **Timezone**: All dates use `Europe/Paris` timezone
 - **Date convention**: R151 flux uses +1 day adjustment to harmonize with R64/R15/C15 (see [docs/conventions-dates-enedis.md](docs/conventions-dates-enedis.md))
-- **Column naming**: Follows `grandeur_cadran_unité` format (see [docs/conventions-nommage.md](docs/conventions-nommage.md))
+- **Column naming**: Follows `grandeur_cadran_unité` format
+- **Domain glossary**: see [CONTEXT.md](CONTEXT.md) — canonical definitions of PDL, FTA, TURPE, cadrans, flux, périmètre, abonnement, etc.
+- **Architecture decisions**: see [docs/adr/](docs/adr/) — load-bearing past decisions (monorepo, Polars-only, R151 date adjustment, French language, DuckDB, DLT, query builders, AES rotation)
 
 #### Column Naming Conventions
 

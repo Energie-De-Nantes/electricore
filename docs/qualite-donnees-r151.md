@@ -163,7 +163,7 @@ Liste des PDL à exclure de la validation :
 
 ## Références
 
-- Convention de nommage : [docs/conventions-nommage.md](conventions-nommage.md)
+- Glossaire métier : [CONTEXT.md](../CONTEXT.md)
 - Conventions de dates : [docs/conventions-dates-enedis.md](conventions-dates-enedis.md)
 - Calendriers distributeur Enedis :
   - `DI000001` : Base (tarif simple)
