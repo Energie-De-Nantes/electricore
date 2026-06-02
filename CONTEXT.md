@@ -92,6 +92,12 @@ Pénalité TURPE spécifique aux sites C4 dépassant leur puissance souscrite, e
 Taxe intérieure sur la consommation finale d'électricité (TICFE), exprimée en €/MWh. Intègre depuis 2022 l'ancienne CSPE.
 _Éviter_ : TICFE (renommée Accise), CSPE (fusionnée dans l'accise).
 
+**CTA** (Contribution Tarifaire d'Acheminement) :
+Taxe assise sur la part fixe du TURPE (puissance), reversée à la CNIEG pour financer les retraites des industries électriques et gazières.
+
+**Trimestre fiscal** :
+Unité de déclaration des taxes (Accise, CTA), notée `YYYY-TN` (ex : `2025-T1` pour janvier-mars 2025).
+
 ---
 
 ## Flux Enedis
@@ -121,11 +127,22 @@ Facturation distributeur détaillée, utilisée pour valider les calculs TURPE.
 
 ## Événements contractuels (codes C15)
 
+Les *entrées* (le PDL devient actif chez nous) sont `PMES`, `MES`, `CFNE`. Les *sorties* (le PDL nous quitte) sont `RES`, `CFNS`. Les modifications en cours de vie utilisent `MCT`.
+
+**PMES** (Première Mise En Service) :
+Variante de MES correspondant à une première activation du PDL. Distinction exacte avec MES à préciser (probablement liée à l'absence d'historique contractuel antérieur).
+
 **MES** (Mise En Service) :
-Activation initiale d'un PDL.
+Activation d'un PDL chez nous.
+
+**CFNE** (Changement de Fournisseur Nouvelle Entrée) :
+Entrée d'un PDL chez nous en provenance d'un autre fournisseur ; le PDL était déjà actif côté Enedis.
 
 **RES** (Résiliation) :
 Clôture d'un contrat sur un PDL.
+
+**CFNS** (Changement de Fournisseur Sortie) :
+Sortie d'un PDL vers un autre fournisseur ; symétrique de CFNE côté sortant.
 
 **MCT** (Modification Contractuelle Tarifaire) :
 Changement de FTA, de puissance souscrite ou de calendrier sur un PDL actif.
@@ -172,3 +189,39 @@ Alignement des sources de relevés (R151, R15, R64) sur la convention de date «
 
 **`date_ajustee`** (champ) :
 Booléen marquant les relevés dont la date a été décalée pendant l'harmonisation (R151 +1 jour).
+
+**Contrat lissé** :
+Modalité de facturation où le client paie un montant mensuel constant basé sur une estimation annuelle, plutôt qu'au prorata de la consommation réelle du mois. Régularisation annuelle. S'oppose au contrat *réel* (facturation au prorata).
+
+---
+
+## Intégration Odoo
+
+**RSC** (Référence Situation Contractuelle) :
+Identifiant Enedis d'une situation contractuelle d'un PDL — un PDL peut avoir plusieurs RSC successives. Côté Odoo, portée par `x_ref_situation_contractuelle` sur `sale.order`.
+
+**`x_invoicing_state`** :
+Champ Odoo qui matérialise l'avancement d'un `sale.order` dans le cycle de facturation mensuel. Les vérifications pré-facturation (`/check odoo`) reposent en partie sur sa répartition.
+
+---
+
+## Plateforme et opérations
+
+**API** :
+Service REST FastAPI ([electricore/api/](electricore/api/)) qui expose les flux, les pipelines et l'orchestration ETL. Hub central de l'architecture — voir [ADR-0009](docs/adr/0009-architecture-api-centrique.md).
+
+**Bot** (Bot Telegram) :
+Client conversationnel de l'API ([electricore/bot/](electricore/bot/)) pour piloter l'ETL et générer des exports métier depuis Telegram. Voir [ADR-0010](docs/adr/0010-bot-telegram-ui-operationnelle.md).
+
+**Job ETL** :
+Exécution asynchrone du pipeline d'ingestion déclenchée par `POST /etl/run`. Identifié par un UUID, doté d'un statut (`running`, `completed`, `failed`) et d'une sortie (`output` ou `error`).
+
+**Mode ETL** :
+Paramètre du pipeline d'ingestion sélectionnant l'étendue de l'exécution :
+- `test` : 2 fichiers (validation rapide)
+- `r151` : flux R151 complet uniquement
+- `all` : tous les flux
+- `reset` : purge + ré-ingestion complète
+
+**Scheduler** :
+Conteneur Docker qui déclenche l'ETL via cron et appel HTTP à `/etl/run` (pas de logique métier embarquée). Voir [ADR-0011](docs/adr/0011-deploiement-vps-docker.md).
