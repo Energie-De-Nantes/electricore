@@ -82,59 +82,30 @@ def generer_documents_facturation(mois: str | None = None) -> tuple[bytes, str]:
     with OdooReader(config=settings.get_odoo_config()) as odoo:
         lignes_df = lignes_a_facturer(odoo).collect()
 
-    # 2. Pipeline facturation Enedis
+    # 2. Pipeline facturation Enedis (un seul calcul, partagé pour le rapprochement + le filtre F15/C15)
     lf_historique = c15().lazy()
     lf_releves = releves_harmonises().lazy()
     _, _, _, fact = facturation(historique=lf_historique, releves=lf_releves)
 
-    # 3. Mois cible
-    debut_date_mois = pl.col("debut").dt.truncate("1mo").dt.date()
-    if mois is not None:
-        mois_cible = pl.lit(mois).str.to_date()
-        fact_mois = fact.filter(debut_date_mois == mois_cible)
-    else:
-        mois_en_cours = fact.select(debut_date_mois.alias("m"))["m"].max()
-        fact_mois = fact.filter(debut_date_mois == mois_en_cours)
-        mois = str(mois_en_cours)
+    # 3. Résoudre le mois cible (None → dernier mois disponible)
+    debut_mois_expr = pl.col("debut").dt.truncate("1mo").dt.date()
+    if mois is None:
+        mois = str(fact.select(debut_mois_expr.alias("m"))["m"].max())
+    suffix = mois[:7]
+    mois_date = pl.lit(mois).str.to_date()
 
-    suffix = mois[:7]  # YYYY-MM
-
-    # 4. Réconciliation Odoo ↔ Enedis
-    quantite_enedis_expr = pl.coalesce(
-        [
-            pl.when(pl.col("name_product_category") == cat).then(pl.col(col).cast(pl.Float64))
-            for cat, col in MAPPING_CATEGORIE.items()
-        ]
-    ).alias("quantite_enedis")
-
-    reconciliation = (
-        lignes_df.join(
-            fact_mois, left_on="x_ref_situation_contractuelle", right_on="ref_situation_contractuelle", how="left"
-        )
-        .with_columns(quantite_enedis_expr)
-        .select(
-            [
-                "invoice_line_ids",
-                "x_pdl",
-                "x_lisse",
-                "name_account_move",
-                "name_product_category",
-                "name_product_product",
-                "quantity",
-                "quantite_enedis",
-                "memo_puissance",
-            ]
-        )
+    # 4. Rapprochement Odoo ↔ Enedis (même fonction core que XLSX / Arrow)
+    reconciliation = rapprocher_facturation_mensuelle(
+        lignes_odoo=lignes_df, fact_mensuelle=fact.lazy(), mois=mois
     )
     changements_puissance = reconciliation.filter(pl.col("memo_puissance") != "")
 
     # 5. F15 du mois
-    mois_date = pl.lit(mois).str.to_date()
     f15_df = f15().lazy().filter(pl.col("date_facture").dt.truncate("1mo").dt.date() == mois_date).collect()
     f15_prestas = f15_df.filter(pl.col("unite") == "UNITE")
 
     # 6. C15 du mois
-    c15_df = c15().lazy().filter(pl.col("date_evenement").dt.truncate("1mo").dt.date() == mois_date).collect()
+    c15_df = lf_historique.filter(pl.col("date_evenement").dt.truncate("1mo").dt.date() == mois_date).collect()
     c15_sorties = c15_df.filter(pl.col("evenement_declencheur").is_in(["RES", "CFNS"]))
 
     # 7. ZIP
