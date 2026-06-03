@@ -77,6 +77,34 @@ def test_accise_round_trip_via_endpoint(monkeypatch):
     assert_frame_equal(df, df_attendu)
 
 
+def test_cta_round_trip_via_endpoint(monkeypatch):
+    """`client.cta(trimestre)` round-trip un DataFrame servi par /taxes/cta/arrow."""
+    df_attendu = pl.DataFrame(
+        {
+            "pdl": ["12345678901234"],
+            "order_name": ["SO/2025/0001"],
+            "trimestre": ["2025-T1"],
+            "turpe_fixe_eur": [42.50],
+            "cta_eur": [9.18],
+            "taux_cta_pct": [21.61],
+        }
+    )
+    monkeypatch.setattr(
+        "electricore.api.services.taxes_service.calculer_cta_detail",
+        lambda trimestre=None: df_attendu,
+    )
+    app.dependency_overrides[get_current_api_key] = lambda: "test-key"
+    try:
+        client = ElectricoreClient(
+            url="http://testserver", api_key="key", http_client=TestClient(app)
+        )
+        df = client.cta(trimestre="2025-T1")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert_frame_equal(df, df_attendu)
+
+
 def test_facturation_envoie_la_cle_api_dans_le_header():
     """Le header `X-API-Key` est positionné par le client."""
     headers_recus: list[str] = []
