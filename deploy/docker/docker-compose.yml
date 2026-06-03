@@ -1,5 +1,16 @@
 # ElectriCore — stack VPS reproductible.
-# Usage : `cp .env.example .env && docker compose up -d`
+#
+# Layout attendu (sur VPS comme en local) :
+#   <dossier-déploiement>/
+#   ├── .env                           ← secrets (source unique)
+#   └── deploy/docker/
+#       ├── docker-compose.yml         ← ce fichier
+#       ├── Caddyfile
+#       └── crontab
+#
+# Le compose lit le .env via `env_file: ../../.env` (deux niveaux au-dessus).
+# Idem pour les tests locaux depuis le repo Git : on réutilise le .env racine.
+#
 # Documentation complète : docs/deploiement.md
 
 services:
@@ -15,7 +26,7 @@ services:
       - --port
       - "8001"
     env_file:
-      - ./.env
+      - ../../.env
     environment:
       DUCKDB_PATH: /data/flux_enedis_pipeline.duckdb
     volumes:
@@ -44,7 +55,7 @@ services:
       - -passthrough-logs
       - /etc/cron/crontab
     env_file:
-      - ./.env
+      - ../../.env
     environment:
       DUCKDB_PATH: /data/flux_enedis_pipeline.duckdb
       TZ: Europe/Paris
