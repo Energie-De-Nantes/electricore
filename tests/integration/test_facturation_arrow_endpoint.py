@@ -7,8 +7,15 @@ import pytest
 from fastapi.testclient import TestClient
 from polars.testing import assert_frame_equal
 
+from electricore.api.config import settings
 from electricore.api.main import app
 from electricore.api.security import get_current_api_key
+
+
+@pytest.fixture(autouse=True)
+def _mock_odoo_configured(monkeypatch):
+    """Force `settings.is_odoo_configured` à True (sinon les endpoints renvoient 501 en CI)."""
+    monkeypatch.setattr(type(settings), "get_odoo_config", lambda self: {})
 
 
 @pytest.fixture

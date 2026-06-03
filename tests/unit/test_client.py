@@ -11,9 +11,16 @@ import pytest
 from fastapi.testclient import TestClient
 from polars.testing import assert_frame_equal
 
+from electricore.api.config import settings
 from electricore.api.main import app
 from electricore.api.security import get_current_api_key
 from electricore.client import ElectricoreClient
+
+
+@pytest.fixture(autouse=True)
+def _mock_odoo_configured(monkeypatch):
+    """Force `settings.is_odoo_configured` à True (sinon les endpoints renvoient 501 en CI)."""
+    monkeypatch.setattr(type(settings), "get_odoo_config", lambda self: {})
 
 
 @pytest.fixture
@@ -67,9 +74,7 @@ def test_accise_round_trip_via_endpoint(monkeypatch):
     )
     app.dependency_overrides[get_current_api_key] = lambda: "test-key"
     try:
-        client = ElectricoreClient(
-            url="http://testserver", api_key="key", http_client=TestClient(app)
-        )
+        client = ElectricoreClient(url="http://testserver", api_key="key", http_client=TestClient(app))
         df = client.accise(trimestre="2025-T1")
     finally:
         app.dependency_overrides.clear()
@@ -95,9 +100,7 @@ def test_cta_round_trip_via_endpoint(monkeypatch):
     )
     app.dependency_overrides[get_current_api_key] = lambda: "test-key"
     try:
-        client = ElectricoreClient(
-            url="http://testserver", api_key="key", http_client=TestClient(app)
-        )
+        client = ElectricoreClient(url="http://testserver", api_key="key", http_client=TestClient(app))
         df = client.cta(trimestre="2025-T1")
     finally:
         app.dependency_overrides.clear()

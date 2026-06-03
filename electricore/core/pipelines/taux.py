@@ -43,8 +43,7 @@ def ajouter_taux_en_vigueur(
     nb_orphelines = joint.filter(pl.col(taux_col).is_null()).select(pl.len()).collect().item()
     if nb_orphelines > 0:
         raise ValueError(
-            f"{nb_orphelines} ligne(s) sans taux en vigueur — "
-            f"date(s) antérieure(s) au premier start de l'historique"
+            f"{nb_orphelines} ligne(s) sans taux en vigueur — date(s) antérieure(s) au premier start de l'historique"
         )
 
     return joint

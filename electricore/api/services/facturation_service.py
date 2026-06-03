@@ -27,9 +27,7 @@ def calculer_lignes_facture_rapprochees(mois: str | None = None) -> pl.DataFrame
 
     _, _, _, fact = facturation(historique=c15().lazy(), releves=releves_harmonises().lazy())
 
-    return rapprocher_facturation_mensuelle(
-        lignes_odoo=lignes_df, fact_mensuelle=fact.lazy(), mois=mois
-    )
+    return rapprocher_facturation_mensuelle(lignes_odoo=lignes_df, fact_mensuelle=fact.lazy(), mois=mois)
 
 
 def generer_facturation_xlsx(mois: str | None = None) -> bytes:
@@ -95,9 +93,7 @@ def generer_documents_facturation(mois: str | None = None) -> tuple[bytes, str]:
     mois_date = pl.lit(mois).str.to_date()
 
     # 4. Rapprochement Odoo ↔ Enedis (même fonction core que XLSX / Arrow)
-    reconciliation = rapprocher_facturation_mensuelle(
-        lignes_odoo=lignes_df, fact_mensuelle=fact.lazy(), mois=mois
-    )
+    reconciliation = rapprocher_facturation_mensuelle(lignes_odoo=lignes_df, fact_mensuelle=fact.lazy(), mois=mois)
     changements_puissance = reconciliation.filter(pl.col("memo_puissance") != "")
 
     # 5. F15 du mois

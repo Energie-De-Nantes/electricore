@@ -483,9 +483,7 @@ async def export_accise_arrow(
             f"Odoo [{settings.odoo_env}] non configuré. Définissez ODOO_{settings.odoo_env.upper()}_URL/DB/USERNAME/PASSWORD dans .env",
         )
     try:
-        arrow_bytes = await asyncio.get_event_loop().run_in_executor(
-            None, generer_accise_arrow, trimestre
-        )
+        arrow_bytes = await asyncio.get_event_loop().run_in_executor(None, generer_accise_arrow, trimestre)
     except Exception as e:
         logger.exception("Erreur taxes/accise/arrow")
         raise HTTPException(503, f"Erreur lors du calcul de l'accise : {e}")
@@ -556,9 +554,7 @@ async def export_cta_arrow(
             f"Odoo [{settings.odoo_env}] non configuré. Définissez ODOO_{settings.odoo_env.upper()}_URL/DB/USERNAME/PASSWORD dans .env",
         )
     try:
-        arrow_bytes = await asyncio.get_event_loop().run_in_executor(
-            None, generer_cta_arrow, trimestre
-        )
+        arrow_bytes = await asyncio.get_event_loop().run_in_executor(None, generer_cta_arrow, trimestre)
     except Exception as e:
         logger.exception("Erreur taxes/cta/arrow")
         raise HTTPException(503, f"Erreur lors du calcul de la CTA : {e}")
@@ -627,9 +623,7 @@ async def export_facturation_arrow(
             f"Odoo [{settings.odoo_env}] non configuré. Définissez ODOO_{settings.odoo_env.upper()}_URL/DB/USERNAME/PASSWORD dans .env",
         )
     try:
-        arrow_bytes = await asyncio.get_event_loop().run_in_executor(
-            None, generer_facturation_arrow, mois
-        )
+        arrow_bytes = await asyncio.get_event_loop().run_in_executor(None, generer_facturation_arrow, mois)
     except Exception as e:
         logger.exception("Erreur facturation/arrow")
         raise HTTPException(503, f"Erreur lors de la réconciliation facturation : {e}")

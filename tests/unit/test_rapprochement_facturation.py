@@ -66,9 +66,7 @@ class TestMappingCategories:
         lignes = _ligne_odoo(categorie="HP")
         fact = _fact_mensuelle(energie_hp_kwh=123.45)
 
-        resultat = rapprocher_facturation_mensuelle(
-            lignes_odoo=lignes, fact_mensuelle=fact, mois="2025-01-01"
-        )
+        resultat = rapprocher_facturation_mensuelle(lignes_odoo=lignes, fact_mensuelle=fact, mois="2025-01-01")
 
         assert resultat["quantite_enedis"].item() == 123.45
 
@@ -80,15 +78,11 @@ class TestMappingCategories:
             ("Abonnements", {"nb_jours": 31}, 31),
         ],
     )
-    def test_autres_categories_recuperent_colonne_correspondante(
-        self, categorie, kwargs_fact, attendu
-    ):
+    def test_autres_categories_recuperent_colonne_correspondante(self, categorie, kwargs_fact, attendu):
         lignes = _ligne_odoo(categorie=categorie)
         fact = _fact_mensuelle(**kwargs_fact)
 
-        resultat = rapprocher_facturation_mensuelle(
-            lignes_odoo=lignes, fact_mensuelle=fact, mois="2025-01-01"
-        )
+        resultat = rapprocher_facturation_mensuelle(lignes_odoo=lignes, fact_mensuelle=fact, mois="2025-01-01")
 
         assert resultat["quantite_enedis"].item() == attendu
 
@@ -97,9 +91,7 @@ class TestMappingCategories:
         lignes = _ligne_odoo(categorie="CategorieDouteuse")
         fact = _fact_mensuelle(energie_hp_kwh=999.0, energie_hc_kwh=999.0)
 
-        resultat = rapprocher_facturation_mensuelle(
-            lignes_odoo=lignes, fact_mensuelle=fact, mois="2025-01-01"
-        )
+        resultat = rapprocher_facturation_mensuelle(lignes_odoo=lignes, fact_mensuelle=fact, mois="2025-01-01")
 
         assert resultat["quantite_enedis"].item() is None
 
@@ -122,9 +114,7 @@ class TestFiltreMois:
             }
         ).with_columns(pl.col("debut").dt.replace_time_zone("Europe/Paris"))
 
-        resultat = rapprocher_facturation_mensuelle(
-            lignes_odoo=lignes, fact_mensuelle=fact, mois=None
-        )
+        resultat = rapprocher_facturation_mensuelle(lignes_odoo=lignes, fact_mensuelle=fact, mois=None)
 
         assert resultat["quantite_enedis"].item() == 200.0
 
@@ -150,9 +140,7 @@ class TestColonnesSortie:
         lignes = _ligne_odoo(categorie="HP")
         fact = _fact_mensuelle(energie_hp_kwh=10.0)
 
-        resultat = rapprocher_facturation_mensuelle(
-            lignes_odoo=lignes, fact_mensuelle=fact, mois="2025-01-01"
-        )
+        resultat = rapprocher_facturation_mensuelle(lignes_odoo=lignes, fact_mensuelle=fact, mois="2025-01-01")
 
         assert frozenset(resultat.columns) == self.COLONNES_ATTENDUES
 
@@ -166,9 +154,9 @@ class TestLeftJoin:
         lignes = pl.concat([lignes_avec_match, lignes_sans_match])
         fact = _fact_mensuelle(rsc="RSC001", energie_hp_kwh=123.45)
 
-        resultat = rapprocher_facturation_mensuelle(
-            lignes_odoo=lignes, fact_mensuelle=fact, mois="2025-01-01"
-        ).sort("invoice_line_ids")
+        resultat = rapprocher_facturation_mensuelle(lignes_odoo=lignes, fact_mensuelle=fact, mois="2025-01-01").sort(
+            "invoice_line_ids"
+        )
 
         assert len(resultat) == 2
         assert resultat["invoice_line_ids"].to_list() == [101, 102]

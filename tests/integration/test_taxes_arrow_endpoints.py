@@ -7,10 +7,17 @@ import pytest
 from fastapi.testclient import TestClient
 from polars.testing import assert_frame_equal
 
+from electricore.api.config import settings
 from electricore.api.main import app
 from electricore.api.security import get_current_api_key
 
 ARROW_IPC = "application/vnd.apache.arrow.stream"
+
+
+@pytest.fixture(autouse=True)
+def _mock_odoo_configured(monkeypatch):
+    """Force `settings.is_odoo_configured` à True (sinon les endpoints renvoient 501 en CI)."""
+    monkeypatch.setattr(type(settings), "get_odoo_config", lambda self: {})
 
 
 @pytest.fixture
@@ -68,9 +75,7 @@ def test_accise_endpoint_propage_trimestre(monkeypatch, df_accise_detail):
         appels.append(trimestre)
         return df_accise_detail
 
-    monkeypatch.setattr(
-        "electricore.api.services.taxes_service.calculer_accise_detail", fake_calculer
-    )
+    monkeypatch.setattr("electricore.api.services.taxes_service.calculer_accise_detail", fake_calculer)
 
     try:
         response = TestClient(app).get("/taxes/accise/arrow", params={"trimestre": "2025-T1"})
@@ -135,9 +140,7 @@ def test_cta_endpoint_propage_trimestre(monkeypatch, df_cta_detail):
         appels.append(trimestre)
         return df_cta_detail
 
-    monkeypatch.setattr(
-        "electricore.api.services.taxes_service.calculer_cta_detail", fake_calculer
-    )
+    monkeypatch.setattr("electricore.api.services.taxes_service.calculer_cta_detail", fake_calculer)
 
     try:
         response = TestClient(app).get("/taxes/cta/arrow", params={"trimestre": "2025-T2"})

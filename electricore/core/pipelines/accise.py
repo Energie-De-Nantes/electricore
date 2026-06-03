@@ -150,10 +150,7 @@ def ajouter_accise(consommations: pl.LazyFrame, regles: pl.LazyFrame | None = No
     # `mois_consommation` est une string "YYYY-MM" ; conversion en datetime TZ Paris
     # pour matcher la précondition de `ajouter_taux_en_vigueur`.
     consommations_datees = consommations.with_columns(
-        pl.col("mois_consommation")
-        .str.to_datetime("%Y-%m")
-        .dt.replace_time_zone("Europe/Paris")
-        .alias("_date_taux")
+        pl.col("mois_consommation").str.to_datetime("%Y-%m").dt.replace_time_zone("Europe/Paris").alias("_date_taux")
     )
 
     return (

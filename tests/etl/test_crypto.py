@@ -38,7 +38,14 @@ def _isoler_env_aes(monkeypatch):
     Sinon, tout test qui importe l'API en amont pollue os.environ via
     `charger_env()` et fait court-circuiter le mock `dlt.secrets`.
     """
-    for var in ("AES__CURRENT__KEY", "AES__CURRENT__IV", "AES__PREVIOUS__KEY", "AES__PREVIOUS__IV", "AES__KEY", "AES__IV"):
+    for var in (
+        "AES__CURRENT__KEY",
+        "AES__CURRENT__IV",
+        "AES__PREVIOUS__KEY",
+        "AES__PREVIOUS__IV",
+        "AES__KEY",
+        "AES__IV",
+    ):
         monkeypatch.delenv(var, raising=False)
 
 

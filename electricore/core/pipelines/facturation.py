@@ -449,8 +449,7 @@ def rapprocher_facturation_mensuelle(
 
     quantite_enedis_expr = pl.coalesce(
         [
-            pl.when(pl.col("name_product_category") == cat)
-            .then(pl.col(col).cast(pl.Float64))
+            pl.when(pl.col("name_product_category") == cat).then(pl.col(col).cast(pl.Float64))
             for cat, col in MAPPING_CATEGORIE_COLONNE.items()
         ]
     ).alias("quantite_enedis")
