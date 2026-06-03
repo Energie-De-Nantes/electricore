@@ -17,8 +17,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 # Install (uv)
-uv sync              # core + API + marimo + viz
-uv sync --extra etl  # + SFTP ETL pipeline
+uv sync                          # core + API + bot (runtime production)
+uv sync --extra etl              # + SFTP ETL pipeline
+uv sync --extra viz              # + libs notebooks (marimo, altair, plotly…)
+uv sync --extra etl --extra viz  # tout (dev local complet)
 
 # Run tests
 uv run --group test pytest -q

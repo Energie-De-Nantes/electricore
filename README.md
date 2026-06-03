@@ -328,11 +328,17 @@ curl -H "X-API-Key: votre_cle" "http://localhost:8000/flux/r151/info"
 git clone https://github.com/Energie-De-Nantes/electricore.git
 cd electricore
 
-# Installation standard (core + API + marimo + viz)
+# Installation runtime (core + API + bot)
 uv sync
 
 # + pipeline ETL SFTP Enedis (pour serveur de collecte)
 uv sync --extra etl
+
+# + libs notebooks (marimo, altair, plotly, vegafusion, vl-convert)
+uv sync --extra viz
+
+# Tout (dev local complet)
+uv sync --extra etl --extra viz
 ```
 
 ### Configuration initiale
