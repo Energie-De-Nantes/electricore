@@ -190,3 +190,6 @@ deploy/docker/Caddyfile
 deploy/docker/crontab
 deploy/docker/docker-compose.*.yml
 !deploy/docker/docker-compose.yml
+
+# Sortie locale du skill /sota-scan
+.sota/
