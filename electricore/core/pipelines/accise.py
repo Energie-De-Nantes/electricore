@@ -106,6 +106,9 @@ def agreger_consommations_mensuelles(lignes_factures: pl.LazyFrame) -> pl.LazyFr
         lignes_factures
         # Filtrer sur les catégories d'énergie
         .filter(pl.col("name_product_category").is_in(["Base", "HP", "HC"]))
+        # Exclure les lignes de factures non validées (draft sans invoice_date) :
+        # elles ne sont pas encore facturées et donc pas dans l'assiette accise.
+        .filter(pl.col("invoice_date").is_not_null())
         # Calculer mois et trimestre de consommation
         .with_columns(
             [

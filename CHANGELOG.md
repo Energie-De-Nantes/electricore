@@ -30,6 +30,11 @@ Première brique de l'API épaisse v1.5 : extraction du rapprochement Odoo↔Ene
 
 - **`api/services/facturation_service.generer_facturation_xlsx`** consomme désormais `rapprocher_facturation_mensuelle()` — comportement XLSX inchangé, logique métier simplifiée. Le chargement Odoo+Enedis est factorisé dans `calculer_lignes_facture_rapprochees()`, partagé entre les services XLSX et Arrow.
 
+#### Correctifs
+
+- **`generer_documents_facturation` régression #5** ([`electricore/api/services/facturation_service.py`](electricore/api/services/facturation_service.py)) — `MAPPING_CATEGORIE` avait été supprimé du module lors de l'extraction de `rapprocher_facturation_mensuelle`, laissant un `NameError` runtime dans `/facturation/documents` (déclenché par le bot Telegram). Refactor : la fonction consomme désormais `rapprocher_facturation_mensuelle` (single source of truth) + 3 tests smoke ([`tests/integration/test_facturation_service_smoke.py`](tests/integration/test_facturation_service_smoke.py)) qui catchent ce type de bug post-refactor.
+- **Lignes draft incluses dans le calcul Accise** ([`electricore/core/pipelines/accise.py`](electricore/core/pipelines/accise.py)) — `agreger_consommations_mensuelles` agrégeait toutes les lignes énergie, y compris celles dont l'`account.move` est en draft (sans `invoice_date`). Conséquence : `mois_consommation = null` → ValueError "ligne(s) sans taux en vigueur" en sortie de `ajouter_taux_en_vigueur`. Fix : filtrer `invoice_date.is_not_null()` au début de l'agrégation — sémantique « assiette accise = factures validées ». Test unitaire dédié.
+
 #### Tests
 
 - Isolation des tests crypto ETL ([`tests/etl/test_crypto.py`](tests/etl/test_crypto.py)) — autouse fixture qui efface `AES__*` d'`os.environ` avant chaque test `load_key_chain`. Bug pré-existant exposé en important `electricore.api.main` au niveau test (lecture `.env` au chargement de l'API).
