@@ -148,8 +148,13 @@ Limite contractuelle en kVA. Un seul champ en C5 (`puissance_souscrite_kva`), qu
 
 ## Concepts pipeline
 
+**Historique** :
+Séquence temporelle ordonnée des événements contractuels d'un PDL (entrées, sorties, modifications), enrichie pour la facturation : annotation des impacts métier (abonnement, énergie), résumé des modifications, et frontières mensuelles de facturation. Source : flux C15. C'est le concept canonique — la version brute (sortie directe de C15) n'a pas de nom métier autonome.
+_Éviter_ : journal, log contractuel, périmètre (le périmètre est l'état à une date, pas la séquence).
+
 **Périmètre** :
-Vue chronologique des événements contractuels d'un ou plusieurs PDL, enrichie pour la facturation. Produit par `pipeline_perimetre()` à partir du flux C15.
+Ensemble des PDLs actifs (et de leur configuration contractuelle) à une date donnée. Snapshot dérivé de l'Historique par filtrage temporel. Répond à la question « qui était dans notre portefeuille à la date X ? ».
+_Éviter_ : portefeuille (terme commercial), parc.
 
 **Abonnement** :
 Période continue entre deux événements contractuels où la configuration (FTA, puissance, calendrier) ne change pas. Unité de calcul du TURPE fixe.
