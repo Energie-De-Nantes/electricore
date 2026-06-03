@@ -11,6 +11,7 @@ import polars as pl
 from pandera.typing.polars import DataFrame, LazyFrame
 
 from electricore.core.models.aggregates import AbonnementMensuel, EnergieMensuel
+from electricore.core.models.lignes_facture_rapprochees import LignesFactureRapprochees
 from electricore.core.models.periode_abonnement import PeriodeAbonnement
 from electricore.core.models.periode_energie import PeriodeEnergie
 
@@ -423,12 +424,70 @@ def pipeline_facturation(
     return result_lf.collect()
 
 
+MAPPING_CATEGORIE_COLONNE: dict[str, str] = {
+    "HP": "energie_hp_kwh",
+    "HC": "energie_hc_kwh",
+    "Base": "energie_base_kwh",
+    "Abonnements": "nb_jours",
+}
+
+
+@pa.check_types(lazy=True)
+def rapprocher_facturation_mensuelle(
+    lignes_odoo: pl.DataFrame,
+    fact_mensuelle: pl.LazyFrame,
+    mois: str | None = None,
+) -> DataFrame[LignesFactureRapprochees]:
+    """Joint les lignes de facture Odoo (taggées RSC) à la facturation Enedis du mois.
+
+    Calcule `quantite_enedis` selon `name_product_category`. Voir l'entrée
+    *Rapprochement facturation mensuelle* dans `core/CONTEXT.md`.
+    """
+    debut_mois = pl.col("debut").dt.truncate("1mo").dt.date()
+    mois_cible = pl.lit(mois).str.to_date() if mois is not None else debut_mois.max()
+    fact_mois = fact_mensuelle.filter(debut_mois == mois_cible)
+
+    quantite_enedis_expr = pl.coalesce(
+        [
+            pl.when(pl.col("name_product_category") == cat)
+            .then(pl.col(col).cast(pl.Float64))
+            for cat, col in MAPPING_CATEGORIE_COLONNE.items()
+        ]
+    ).alias("quantite_enedis")
+
+    return (
+        lignes_odoo.lazy()
+        .join(
+            fact_mois,
+            left_on="x_ref_situation_contractuelle",
+            right_on="ref_situation_contractuelle",
+            how="left",
+        )
+        .with_columns(quantite_enedis_expr)
+        .select(
+            [
+                "invoice_line_ids",
+                "x_pdl",
+                "x_lisse",
+                "name_account_move",
+                "name_product_category",
+                "name_product_product",
+                "quantity",
+                "quantite_enedis",
+                "memo_puissance",
+            ]
+        )
+        .collect()
+    )
+
+
 # Export des fonctions principales
 __all__ = [
     "pipeline_facturation",
     "agreger_abonnements_mensuel",
     "agreger_energies_mensuel",
     "joindre_meta_periodes",
+    "rapprocher_facturation_mensuelle",
     "expr_puissance_moyenne",
     "expr_memo_puissance_simple",
     "expr_coverage_temporelle",
