@@ -21,7 +21,8 @@ Première brique de l'API épaisse v1.5 : extraction du rapprochement Odoo↔Ene
 - **Glossaire** ([`electricore/core/CONTEXT.md`](electricore/core/CONTEXT.md)) — entrées « Rapprochement PDL ↔ RSC » (étape amont, notebook `injection_rsc.py`) et « Rapprochement facturation mensuelle » (étape aval, exposée par l'API) pour clarifier la distinction.
 
 - **Endpoint `GET /facturation/arrow`** ([`electricore/api/main.py`](electricore/api/main.py)) — sérialise `lignes_facture_rapprochees` en flux Arrow IPC, lisible par `pl.read_ipc_stream`. Query param `mois=YYYY-MM-DD` ; sans paramètre, dernier mois disponible. Authentification API key, comme les autres endpoints data.
-- **Module `electricore.client`** ([`electricore/client/__init__.py`](electricore/client/__init__.py)) — classe `ElectricoreClient(url, api_key)` avec méthode `.facturation(mois)` retournant un `pl.DataFrame`. Extension point pour les futurs endpoints structurés et pour le HTTP transport DuckDBQuery prévu en v1.6.
+- **Endpoint `GET /taxes/accise/arrow`** ([`electricore/api/main.py`](electricore/api/main.py)) — détail Accise TICFE (table par PDL × mois × trimestre) sérialisé en Arrow IPC. Query param `trimestre=YYYY-TX` (sans : tout). Les agrégations « Par taux » et « Résumé » de l'XLSX restent à charge du notebook (group_by trivial).
+- **Module `electricore.client`** ([`electricore/client/__init__.py`](electricore/client/__init__.py)) — classe `ElectricoreClient(url, api_key)` avec méthodes `.facturation(mois)` et `.accise(trimestre)`, retournant un `pl.DataFrame`. Extension point pour les futurs endpoints structurés et pour le HTTP transport DuckDBQuery prévu en v1.6.
 
 #### Modifications
 
