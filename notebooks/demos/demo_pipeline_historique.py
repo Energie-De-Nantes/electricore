@@ -17,12 +17,13 @@ with app.setup:
     # Import des pipelines
     from electricore.core.pipeline_perimetre import (
         detecter_points_de_rupture as detecter_pandas,
-        inserer_evenements_facturation as inserer_evenements_factu_pandas
+        inserer_evenements_facturation as inserer_evenements_factu_pandas,
     )
-    from electricore.core.pipelines.perimetre import (
+    from electricore.core.pipelines.historique import (
         detecter_points_de_rupture as detecter,
-        inserer_evenements_facturation as inserer_evenements_factu
+        inserer_evenements_facturation as inserer_evenements_factu,
     )
+
     # Import des loaders DuckDB
     from electricore.core.loaders import c15
 
@@ -40,13 +41,12 @@ def demo_data():
     # Données d'exemple pour un PDL avec plusieurs événements
     demo_data = {
         "Ref_Situation_Contractuelle": ["PDL001", "PDL001", "PDL001", "PDL001", "PDL001", "PDL001"],
-        "Date_Evenement": pd.to_datetime([
-            "2024-01-15", "2024-02-01", "2024-03-20", "2024-04-01", "2024-05-10", "2024-06-01"
-        ]),
+        "Date_Evenement": pd.to_datetime(
+            ["2024-01-15", "2024-02-01", "2024-03-20", "2024-04-01", "2024-05-10", "2024-06-01"]
+        ),
         "Evenement_Declencheur": ["MES", "FACTURATION", "MCT", "FACTURATION", "MCT", "RES"],
         "Puissance_Souscrite": [6.0, 6.0, 9.0, 9.0, 12.0, 12.0],
         "Formule_Tarifaire_Acheminement": ["BTINFCU4", "BTINFCU4", "BTINFMU4", "BTINFMU4", "BTINFMU4", "BTINFMU4"],
-
         # Colonnes obligatoires du schéma
         "pdl": ["PDL12345", "PDL12345", "PDL12345", "PDL12345", "PDL12345", "PDL12345"],
         "Segment_Clientele": ["C5", "C5", "C5", "C5", "C5", "C5"],
@@ -57,11 +57,23 @@ def demo_data():
         "Num_Compteur": ["12345678", "12345678", "12345678", "12345678", "12345678", "12345678"],
         "Ref_Demandeur": ["REF001", "REF001", "REF001", "REF001", "REF001", "REF001"],
         "Id_Affaire": ["AFF001", "AFF001", "AFF001", "AFF001", "AFF001", "AFF001"],
-
         # Colonnes Avant_/Après_ pour calendrier et index
-        "Avant_Id_Calendrier_Distributeur": ["CAL_HP_HC", "CAL_HP_HC", "CAL_HP_HC", "CAL_TEMPO", "CAL_TEMPO", "CAL_TEMPO"],
-        "Après_Id_Calendrier_Distributeur": ["CAL_HP_HC", "CAL_HP_HC", "CAL_TEMPO", "CAL_TEMPO", "CAL_TEMPO", "CAL_TEMPO"],
-
+        "Avant_Id_Calendrier_Distributeur": [
+            "CAL_HP_HC",
+            "CAL_HP_HC",
+            "CAL_HP_HC",
+            "CAL_TEMPO",
+            "CAL_TEMPO",
+            "CAL_TEMPO",
+        ],
+        "Après_Id_Calendrier_Distributeur": [
+            "CAL_HP_HC",
+            "CAL_HP_HC",
+            "CAL_TEMPO",
+            "CAL_TEMPO",
+            "CAL_TEMPO",
+            "CAL_TEMPO",
+        ],
         # Index avec quelques changements
         "Avant_BASE": [1000, 1250, 1600, 1950, 2400, 2800],
         "Après_BASE": [1000, 1250, 1650, 1950, 2400, 2800],  # Ajustement ligne 3
@@ -100,53 +112,53 @@ def load_data(demo_data):
 
         # Convertir les colonnes pour compatibilité avec le pipeline pandas (majuscules)
         column_mapping = {
-            'date_evenement': 'Date_Evenement',
-            'evenement_declencheur': 'Evenement_Declencheur',
-            'puissance_souscrite_kva': 'Puissance_Souscrite',
-            'formule_tarifaire_acheminement': 'Formule_Tarifaire_Acheminement',
-            'ref_situation_contractuelle': 'Ref_Situation_Contractuelle',
-            'segment_clientele': 'Segment_Clientele',
-            'etat_contractuel': 'Etat_Contractuel',
-            'type_evenement': 'Type_Evenement',
-            'type_compteur': 'Type_Compteur',
-            'num_compteur': 'Num_Compteur',
-            'ref_demandeur': 'Ref_Demandeur',
-            'id_affaire': 'Id_Affaire',
-            'avant_date_releve': 'Avant_Date_Releve',
-            'avant_nature_index': 'Avant_Nature_Index',
-            'avant_id_calendrier_fournisseur': 'Avant_Id_Calendrier_Fournisseur',
-            'avant_id_calendrier_distributeur': 'Avant_Id_Calendrier_Distributeur',
-            'apres_date_releve': 'Après_Date_Releve',
-            'apres_nature_index': 'Après_Nature_Index',
-            'apres_id_calendrier_fournisseur': 'Après_Id_Calendrier_Fournisseur',
-            'apres_id_calendrier_distributeur': 'Après_Id_Calendrier_Distributeur',
+            "date_evenement": "Date_Evenement",
+            "evenement_declencheur": "Evenement_Declencheur",
+            "puissance_souscrite_kva": "Puissance_Souscrite",
+            "formule_tarifaire_acheminement": "Formule_Tarifaire_Acheminement",
+            "ref_situation_contractuelle": "Ref_Situation_Contractuelle",
+            "segment_clientele": "Segment_Clientele",
+            "etat_contractuel": "Etat_Contractuel",
+            "type_evenement": "Type_Evenement",
+            "type_compteur": "Type_Compteur",
+            "num_compteur": "Num_Compteur",
+            "ref_demandeur": "Ref_Demandeur",
+            "id_affaire": "Id_Affaire",
+            "avant_date_releve": "Avant_Date_Releve",
+            "avant_nature_index": "Avant_Nature_Index",
+            "avant_id_calendrier_fournisseur": "Avant_Id_Calendrier_Fournisseur",
+            "avant_id_calendrier_distributeur": "Avant_Id_Calendrier_Distributeur",
+            "apres_date_releve": "Après_Date_Releve",
+            "apres_nature_index": "Après_Nature_Index",
+            "apres_id_calendrier_fournisseur": "Après_Id_Calendrier_Fournisseur",
+            "apres_id_calendrier_distributeur": "Après_Id_Calendrier_Distributeur",
             # Colonnes d'index
-            'avant_BASE': 'Avant_BASE',
-            'avant_HP': 'Avant_HP',
-            'avant_HC': 'Avant_HC',
-            'avant_HCH': 'Avant_HCH',
-            'avant_HPH': 'Avant_HPH',
-            'avant_HPB': 'Avant_HPB',
-            'avant_HCB': 'Avant_HCB',
-            'apres_BASE': 'Après_BASE',
-            'apres_HP': 'Après_HP',
-            'apres_HC': 'Après_HC',
-            'apres_HCH': 'Après_HCH',
-            'apres_HPH': 'Après_HPH',
-            'apres_HPB': 'Après_HPB',
-            'apres_HCB': 'Après_HCB',
+            "avant_BASE": "Avant_BASE",
+            "avant_HP": "Avant_HP",
+            "avant_HC": "Avant_HC",
+            "avant_HCH": "Avant_HCH",
+            "avant_HPH": "Avant_HPH",
+            "avant_HPB": "Avant_HPB",
+            "avant_HCB": "Avant_HCB",
+            "apres_BASE": "Après_BASE",
+            "apres_HP": "Après_HP",
+            "apres_HC": "Après_HC",
+            "apres_HCH": "Après_HCH",
+            "apres_HPH": "Après_HPH",
+            "apres_HPB": "Après_HPB",
+            "apres_HCB": "Après_HCB",
             # Autres
-            'categorie': 'Categorie',
-            'source': 'Source',
-            'unite': 'Unité',
-            'precision': 'Précision'
+            "categorie": "Categorie",
+            "source": "Source",
+            "unite": "Unité",
+            "precision": "Précision",
         }
 
         # Renommer les colonnes
         df_pandas = df_pandas.rename(columns=column_mapping)
 
         # Convertir les colonnes de dates
-        date_cols = ['Date_Evenement', 'Avant_Date_Releve', 'Après_Date_Releve']
+        date_cols = ["Date_Evenement", "Avant_Date_Releve", "Après_Date_Releve"]
         for _col in date_cols:
             if _col in df_pandas.columns:
                 df_pandas[_col] = pd.to_datetime(df_pandas[_col])
@@ -179,7 +191,7 @@ def pipeline_pandas(df_pandas):
     # # Afficher les colonnes clés
     # _colonnes_interessantes = [
     #     "Date_Evenement", "Evenement_Declencheur", "Puissance_Souscrite",
-    #     "Formule_Tarifaire_Acheminement", "impacte_abonnement", "impacte_energie", 
+    #     "Formule_Tarifaire_Acheminement", "impacte_abonnement", "impacte_energie",
     #     "resume_modification"
     # ]
 
@@ -201,7 +213,7 @@ def pipeline(lf):
     # Mêmes colonnes que pandas
     # _colonnes_interessantes = [
     #     "Date_Evenement", "Evenement_Declencheur", "Puissance_Souscrite",
-    #     "Formule_Tarifaire_Acheminement", "impacte_abonnement", "impacte_energie", 
+    #     "Formule_Tarifaire_Acheminement", "impacte_abonnement", "impacte_energie",
     #     "resume_modification"
     # ]
 
@@ -224,7 +236,7 @@ def benchmark_performance(df_pandas, lf):
         _ = detecter_pandas(df_pandas)
     temps_pandas = (time.perf_counter() - start) / 10
 
-    # Benchmark Polars 
+    # Benchmark Polars
     start = time.perf_counter()
     for _ in range(10):
         _ = detecter(lf).collect()
@@ -233,18 +245,18 @@ def benchmark_performance(df_pandas, lf):
     # Résultats
     acceleration = temps_pandas / temps if temps > 0 else 0
 
-    print(f"🐼 Pandas  : {temps_pandas*1000:.1f}ms")
-    print(f"⚡ Polars  : {temps*1000:.1f}ms") 
+    print(f"🐼 Pandas  : {temps_pandas * 1000:.1f}ms")
+    print(f"⚡ Polars  : {temps * 1000:.1f}ms")
     print(f"🚀 Accélération : {acceleration:.1f}x")
 
     if acceleration > 1:
         print(f"✅ Polars est {acceleration:.1f}x plus rapide !")
     elif acceleration < 1:
-        print(f"⚠️ Pandas est {1/acceleration:.1f}x plus rapide")
+        print(f"⚠️ Pandas est {1 / acceleration:.1f}x plus rapide")
     else:
         print("🟰 Performances équivalentes")
 
-    {"pandas_ms": temps_pandas*1000, "polars_ms": temps*1000, "speedup": acceleration}
+    {"pandas_ms": temps_pandas * 1000, "polars_ms": temps * 1000, "speedup": acceleration}
     return
 
 
@@ -323,7 +335,7 @@ def conclusion():
     print("=" * 30)
     print()
     print("Cette démonstration montre :")
-    print("• ✅ Équivalence fonctionnelle pandas ↔ Polars") 
+    print("• ✅ Équivalence fonctionnelle pandas ↔ Polars")
     print("• ⚡ Pipeline Polars avec LazyFrames optimisées")
     print("• 🧩 Expressions composables et réutilisables")
     print("• 📊 Détection d'impacts métier cohérente")
@@ -338,6 +350,7 @@ def conclusion():
 @app.cell
 def _():
     import marimo as mo
+
     return (mo,)
 
 

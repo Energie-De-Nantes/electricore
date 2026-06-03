@@ -20,19 +20,16 @@ with app.setup:
     # Import des pipelines pandas
     from electricore.core.pipeline_energie import (
         reconstituer_chronologie_relevés as reconstituer_pandas,
-        calculer_periodes_energie as calculer_energie_pandas
+        calculer_periodes_energie as calculer_energie_pandas,
     )
 
     # Import des pipelines Polars
     from electricore.core.pipelines.energie import (
         pipeline_energie,
         reconstituer_chronologie_releves,
-        calculer_periodes_energie
+        calculer_periodes_energie,
     )
-    from electricore.core.pipelines.perimetre import (
-        detecter_points_de_rupture,
-        inserer_evenements_facturation
-    )
+    from electricore.core.pipelines.historique import detecter_points_de_rupture, inserer_evenements_facturation
 
     # Import des loaders DuckDB
     from electricore.core.loaders import c15, r151, f15
@@ -59,9 +56,7 @@ def load_data():
 
     # Charger l'historique C15
     _lf_historique = c15().lazy()
-    lf_historique_enrichi = inserer_evenements_facturation(
-        detecter_points_de_rupture(_lf_historique)
-    )
+    lf_historique_enrichi = inserer_evenements_facturation(detecter_points_de_rupture(_lf_historique))
     df_historique = lf_historique_enrichi.collect()
 
     # Charger les relevés R151
@@ -73,40 +68,40 @@ def load_data():
 
     # Conversion pour pandas avec mapping colonnes complet
     _column_mapping = {
-        'ref_situation_contractuelle': 'Ref_Situation_Contractuelle',
-        'date_evenement': 'Date_Evenement',
-        'evenement_declencheur': 'Evenement_Declencheur',
-        'formule_tarifaire_acheminement': 'Formule_Tarifaire_Acheminement',
-        'puissance_souscrite_kva': 'Puissance_Souscrite',
-        'segment_clientele': 'Segment_Clientele',
-        'etat_contractuel': 'Etat_Contractuel',
-        'type_evenement': 'Type_Evenement',
-        'type_compteur': 'Type_Compteur',
-        'num_compteur': 'Num_Compteur',
-        'ref_demandeur': 'Ref_Demandeur',
-        'id_affaire': 'Id_Affaire',
-        'categorie': 'Categorie',
-        'impacte_energie': 'impacte_energie',
-        'impacte_abonnement': 'impacte_abonnement',
-        'resume_modification': 'resume_modification',
+        "ref_situation_contractuelle": "Ref_Situation_Contractuelle",
+        "date_evenement": "Date_Evenement",
+        "evenement_declencheur": "Evenement_Declencheur",
+        "formule_tarifaire_acheminement": "Formule_Tarifaire_Acheminement",
+        "puissance_souscrite_kva": "Puissance_Souscrite",
+        "segment_clientele": "Segment_Clientele",
+        "etat_contractuel": "Etat_Contractuel",
+        "type_evenement": "Type_Evenement",
+        "type_compteur": "Type_Compteur",
+        "num_compteur": "Num_Compteur",
+        "ref_demandeur": "Ref_Demandeur",
+        "id_affaire": "Id_Affaire",
+        "categorie": "Categorie",
+        "impacte_energie": "impacte_energie",
+        "impacte_abonnement": "impacte_abonnement",
+        "resume_modification": "resume_modification",
         # Index avant (noms exacts des colonnes)
-        'avant_base': 'Avant_BASE',
-        'avant_hp': 'Avant_HP',
-        'avant_hc': 'Avant_HC',
-        'avant_hch': 'Avant_HCH',
-        'avant_hph': 'Avant_HPH',
-        'avant_hpb': 'Avant_HPB',
-        'avant_hcb': 'Avant_HCB',
-        'avant_id_calendrier_distributeur': 'Avant_Id_Calendrier_Distributeur',
+        "avant_base": "Avant_BASE",
+        "avant_hp": "Avant_HP",
+        "avant_hc": "Avant_HC",
+        "avant_hch": "Avant_HCH",
+        "avant_hph": "Avant_HPH",
+        "avant_hpb": "Avant_HPB",
+        "avant_hcb": "Avant_HCB",
+        "avant_id_calendrier_distributeur": "Avant_Id_Calendrier_Distributeur",
         # Index après (noms exacts des colonnes avec accent)
-        'apres_base': 'Après_BASE',
-        'apres_hp': 'Après_HP',
-        'apres_hc': 'Après_HC',
-        'apres_hch': 'Après_HCH',
-        'apres_hph': 'Après_HPH',
-        'apres_hpb': 'Après_HPB',
-        'apres_hcb': 'Après_HCB',
-        'apres_id_calendrier_distributeur': 'Après_Id_Calendrier_Distributeur'
+        "apres_base": "Après_BASE",
+        "apres_hp": "Après_HP",
+        "apres_hc": "Après_HC",
+        "apres_hch": "Après_HCH",
+        "apres_hph": "Après_HPH",
+        "apres_hpb": "Après_HPB",
+        "apres_hcb": "Après_HCB",
+        "apres_id_calendrier_distributeur": "Après_Id_Calendrier_Distributeur",
     }
 
     # Filtrer le mapping pour les colonnes qui existent
@@ -115,33 +110,33 @@ def load_data():
 
     # Conversion relevés pour pandas (noms polars → noms pandas avec accents)
     _releves_mapping = {
-        'pdl': 'pdl',  # Garder pdl en minuscule comme attendu par pandas
-        'date_releve': 'Date_Releve',  # polars: date_releve → pandas: Date_Releve
-        'base': 'BASE',
-        'hp': 'HP',
-        'hc': 'HC',
-        'hch': 'HCH',
-        'hph': 'HPH',
-        'hpb': 'HPB',
-        'hcb': 'HCB',
-        'ref_situation_contractuelle': 'Ref_Situation_Contractuelle',
-        'formule_tarifaire_acheminement': 'Formule_Tarifaire_Acheminement',
-        'id_calendrier_distributeur': 'Id_Calendrier_Distributeur',
-        'source': 'Source',
-        'unite': 'Unité',  # polars: unite → pandas: Unité (avec accent)
-        'precision': 'Précision',  # polars: precision → pandas: Précision (avec accent)
-        'ordre_index': 'ordre_index',
-        'id_affaire': 'id_affaire',
-        'id_calendrier_fournisseur': 'id_calendrier_fournisseur'
+        "pdl": "pdl",  # Garder pdl en minuscule comme attendu par pandas
+        "date_releve": "Date_Releve",  # polars: date_releve → pandas: Date_Releve
+        "base": "BASE",
+        "hp": "HP",
+        "hc": "HC",
+        "hch": "HCH",
+        "hph": "HPH",
+        "hpb": "HPB",
+        "hcb": "HCB",
+        "ref_situation_contractuelle": "Ref_Situation_Contractuelle",
+        "formule_tarifaire_acheminement": "Formule_Tarifaire_Acheminement",
+        "id_calendrier_distributeur": "Id_Calendrier_Distributeur",
+        "source": "Source",
+        "unite": "Unité",  # polars: unite → pandas: Unité (avec accent)
+        "precision": "Précision",  # polars: precision → pandas: Précision (avec accent)
+        "ordre_index": "ordre_index",
+        "id_affaire": "id_affaire",
+        "id_calendrier_fournisseur": "id_calendrier_fournisseur",
     }
     _releves_mapping_filtered = {k: v for k, v in _releves_mapping.items() if k in df_releves.columns}
     df_releves_pandas = df_releves.to_pandas().rename(columns=_releves_mapping_filtered)
 
     # Filtrer les calendriers invalides pour le pipeline pandas
-    if 'Id_Calendrier_Distributeur' in df_releves_pandas.columns:
+    if "Id_Calendrier_Distributeur" in df_releves_pandas.columns:
         _before_filter = len(df_releves_pandas)
         df_releves_pandas = df_releves_pandas[
-            df_releves_pandas['Id_Calendrier_Distributeur'].isin(['DI000001', 'DI000002', 'DI000003'])
+            df_releves_pandas["Id_Calendrier_Distributeur"].isin(["DI000001", "DI000002", "DI000003"])
         ]
         _after_filter = len(df_releves_pandas)
         print(f"🔧 Filtrage calendriers: {_before_filter} → {_after_filter} relevés")
@@ -169,8 +164,13 @@ def _():
 @app.cell
 def _():
     colonnes_interessantes = [
-        "ref_situation_contractuelle", "debut_lisible", "fin_lisible",
-        "energie_base_kwh", "energie_hp_kwh", "energie_hc_kwh", "nb_jours"
+        "ref_situation_contractuelle",
+        "debut_lisible",
+        "fin_lisible",
+        "energie_base_kwh",
+        "energie_hp_kwh",
+        "energie_hc_kwh",
+        "nb_jours",
     ]
     return (colonnes_interessantes,)
 
@@ -191,8 +191,8 @@ def pipeline_pandas_energie(
         print(f"📋 Colonnes relevés: {sorted(df_releves_pandas.columns.tolist())}")
 
         # Filtrer les événements qui impactent l'énergie
-        if 'impacte_energie' in df_historique_pandas.columns:
-            _evt_energie = df_historique_pandas[df_historique_pandas['impacte_energie'] == True]
+        if "impacte_energie" in df_historique_pandas.columns:
+            _evt_energie = df_historique_pandas[df_historique_pandas["impacte_energie"] == True]
             print(f"📊 Événements énergie: {len(_evt_energie)}")
         else:
             print("⚠️ Colonne impacte_energie manquante, utilisation de tous les événements")
@@ -257,7 +257,7 @@ def _(periodes_collect):
 
 @app.cell
 def _(periodes_collect):
-    periodes_collect.filter(pl.col('pdl') == '14287988313383')
+    periodes_collect.filter(pl.col("pdl") == "14287988313383")
     return
 
 
@@ -277,7 +277,7 @@ def benchmark_performance(
     start = time.perf_counter()
     iterations = 5
     for _ in range(iterations):
-        _evt_energie = df_historique_pandas[df_historique_pandas['impacte_energie'] == True]
+        _evt_energie = df_historique_pandas[df_historique_pandas["impacte_energie"] == True]
         _chronologie = reconstituer_pandas(df_releves_pandas, _evt_energie)
         _ = calculer_energie_pandas(_chronologie)
     temps_pandas = (time.perf_counter() - start) / iterations
@@ -291,14 +291,14 @@ def benchmark_performance(
     # Résultats
     acceleration = temps_pandas / temps if temps > 0 else 0
 
-    print(f"🐼 Pandas  : {temps_pandas*1000:.1f}ms")
-    print(f"⚡ Polars  : {temps*1000:.1f}ms")
+    print(f"🐼 Pandas  : {temps_pandas * 1000:.1f}ms")
+    print(f"⚡ Polars  : {temps * 1000:.1f}ms")
     print(f"🚀 Accélération : {acceleration:.1f}x")
 
     if acceleration > 1:
         print(f"✅ Polars est {acceleration:.1f}x plus rapide !")
     elif acceleration < 1:
-        print(f"⚠️ Pandas est {1/acceleration:.1f}x plus rapide")
+        print(f"⚠️ Pandas est {1 / acceleration:.1f}x plus rapide")
     else:
         print("🟰 Performances équivalentes")
     return
@@ -349,8 +349,12 @@ def comparaison_periodes(periodes_pandas, periodes_lf):
                 polars_count = len(polars_non_null)
 
                 print(f"\n📈 {cadran.upper().replace('_', ' ')}:")
-                print(f"  🐼 Pandas  : {pandas_count:,} périodes, somme={pandas_sum:,.0f} kWh, moyenne={pandas_mean:.1f} kWh")
-                print(f"  ⚡ Polars  : {polars_count:,} périodes, somme={polars_sum:,.0f} kWh, moyenne={polars_mean:.1f} kWh")
+                print(
+                    f"  🐼 Pandas  : {pandas_count:,} périodes, somme={pandas_sum:,.0f} kWh, moyenne={pandas_mean:.1f} kWh"
+                )
+                print(
+                    f"  ⚡ Polars  : {polars_count:,} périodes, somme={polars_sum:,.0f} kWh, moyenne={polars_mean:.1f} kWh"
+                )
 
                 if pandas_sum > 0:
                     _diff_relative = abs(pandas_sum - polars_sum) / pandas_sum * 100
@@ -414,25 +418,25 @@ def calcul_turpe_pandas(periodes_pandas):
             _data = periodes_pandas.copy()
 
             # Mapping colonnes essentielles
-            if 'formule_tarifaire_acheminement' in _data.columns:
-                _data = _data.rename(columns={'formule_tarifaire_acheminement': 'Formule_Tarifaire_Acheminement'})
+            if "formule_tarifaire_acheminement" in _data.columns:
+                _data = _data.rename(columns={"formule_tarifaire_acheminement": "Formule_Tarifaire_Acheminement"})
 
             # Colonnes énergie
             for old, new in [
-                ('energie_base_kwh', 'BASE_energie'),
-                ('energie_hp_kwh', 'HP_energie'),
-                ('energie_hc_kwh', 'HC_energie'),
-                ('energie_hph_kwh', 'HPH_energie'),
-                ('energie_hpb_kwh', 'HPB_energie'),
-                ('energie_hch_kwh', 'HCH_energie'),
-                ('energie_hcb_kwh', 'HCB_energie')
+                ("energie_base_kwh", "BASE_energie"),
+                ("energie_hp_kwh", "HP_energie"),
+                ("energie_hc_kwh", "HC_energie"),
+                ("energie_hph_kwh", "HPH_energie"),
+                ("energie_hpb_kwh", "HPB_energie"),
+                ("energie_hch_kwh", "HCH_energie"),
+                ("energie_hcb_kwh", "HCB_energie"),
             ]:
                 if old in _data.columns:
                     _data = _data.rename(columns={old: new})
 
             # Créer colonne debut si manquante
-            if 'debut' not in _data.columns and 'debut_lisible' in _data.columns:
-                _data['debut'] = pd.to_datetime(_data['debut_lisible']).dt.tz_localize('Europe/Paris')
+            if "debut" not in _data.columns and "debut_lisible" in _data.columns:
+                _data["debut"] = pd.to_datetime(_data["debut_lisible"]).dt.tz_localize("Europe/Paris")
 
             # Calculer TURPE variable
             turpe_variable_pandas = calculer_turpe_variable(regles_turpe, _data)
@@ -455,14 +459,12 @@ def calcul_turpe(periodes_lf):
     periodes_avec_turpe = periodes_lf.collect()
 
     if "turpe_variable_eur" in periodes_avec_turpe.columns:
-        _stats_turpe = (
-            periodes_avec_turpe
-            .select([
+        _stats_turpe = periodes_avec_turpe.select(
+            [
                 pl.col("turpe_variable_eur").sum().alias("total"),
                 pl.col("turpe_variable_eur").mean().alias("moyen"),
-            ])
-            .to_dicts()[0]
-        )
+            ]
+        ).to_dicts()[0]
 
         total_turpe = _stats_turpe["total"]
         turpe_moyen = _stats_turpe["moyen"]

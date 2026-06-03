@@ -1,5 +1,5 @@
 """
-Tests unitaires paramétrés pour les expressions Polars du pipeline périmètre.
+Tests unitaires paramétrés pour les expressions Polars du pipeline historique.
 
 Ce module démontre l'usage de @pytest.mark.parametrize pour réduire
 la duplication de code et améliorer la couverture des edge cases.
@@ -8,7 +8,7 @@ la duplication de code et améliorer la couverture des edge cases.
 import polars as pl
 import pytest
 
-from electricore.core.pipelines.perimetre import (
+from electricore.core.pipelines.historique import (
     expr_changement,
     expr_evenement_structurant,
     expr_impacte_abonnement,

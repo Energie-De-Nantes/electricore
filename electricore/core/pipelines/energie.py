@@ -600,7 +600,7 @@ def pipeline_energie(historique: pl.LazyFrame, releves: pl.LazyFrame) -> pl.Lazy
         >>> periodes_energie = pipeline_energie(historique_lf, releves_lf)
         >>> df = periodes_energie.collect()
     """
-    from .perimetre import detecter_points_de_rupture
+    from .historique import detecter_points_de_rupture
 
     schema_columns = historique.collect_schema().names()
 

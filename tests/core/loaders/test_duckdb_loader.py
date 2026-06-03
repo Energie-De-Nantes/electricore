@@ -19,14 +19,14 @@ from electricore.core.loaders.duckdb import (
     duckdb_connection,
     execute_custom_query,
     get_available_tables,
-    load_historique_perimetre,
+    load_historique,
     load_releves,
     releves,
 )
 
 # Import des transformations depuis le module interne
 from electricore.core.loaders.duckdb.transforms import (
-    transform_historique_perimetre as _transform_historique_perimetre,
+    transform_historique as _transform_historique,
 )
 from electricore.core.loaders.duckdb.transforms import (
     transform_releves as _transform_releves,
@@ -52,11 +52,11 @@ class TestDuckDBConfig:
         config = DuckDBConfig()
 
         # Vérifier que les mappings essentiels existent
-        assert "historique_perimetre" in config.table_mappings
+        assert "historique" in config.table_mappings
         assert "releves" in config.table_mappings
 
         # Vérifier la structure des mappings
-        hist_mapping = config.table_mappings["historique_perimetre"]
+        hist_mapping = config.table_mappings["historique"]
         assert "source_tables" in hist_mapping
         assert "description" in hist_mapping
 
@@ -95,7 +95,7 @@ class TestDuckDBConnection:
 class TestTransformationFunctions:
     """Tests pour les fonctions de transformation."""
 
-    def test_transform_historique_perimetre(self):
+    def test_transform_historique(self):
         """Test de transformation des données d'historique."""
         from datetime import datetime
 
@@ -110,7 +110,7 @@ class TestTransformationFunctions:
         ).lazy()
 
         # Appliquer la transformation
-        result = _transform_historique_perimetre(test_data)
+        result = _transform_historique(test_data)
 
         # Vérifier que c'est toujours un LazyFrame
         assert isinstance(result, pl.LazyFrame)
@@ -274,7 +274,7 @@ class TestTransformationFunctions:
 class TestLoadFunctions:
     """Tests pour les fonctions de chargement de données."""
 
-    def test_load_historique_perimetre_basic(self):
+    def test_load_historique_basic(self):
         """Test de base du chargement d'historique."""
         # Test simplifié : vérifier que la fonction retourne un LazyFrame
         # lorsque la base existe
@@ -287,14 +287,14 @@ class TestLoadFunctions:
         query_filtered = query.filter({"pdl": ["PDL123"]}).limit(100)
         assert isinstance(query_filtered, DuckDBQuery)
 
-        # Vérifier load_historique_perimetre avec base inexistante échoue correctement
+        # Vérifier load_historique avec base inexistante échoue correctement
         with pytest.raises(FileNotFoundError):
-            load_historique_perimetre(database_path="nonexistent_test.duckdb").collect()
+            load_historique(database_path="nonexistent_test.duckdb").collect()
 
-    def test_load_historique_perimetre_database_not_found(self):
+    def test_load_historique_database_not_found(self):
         """Test avec base de données inexistante."""
         with pytest.raises(FileNotFoundError):
-            load_historique_perimetre(database_path="nonexistent.duckdb")
+            load_historique(database_path="nonexistent.duckdb")
 
     def test_load_releves_basic(self):
         """Test de base du chargement de relevés."""
@@ -389,7 +389,7 @@ class TestIntegrationWithRealData:
         """Test avec la vraie base DuckDB si disponible."""
         try:
             # Charger un petit échantillon
-            result = load_historique_perimetre(
+            result = load_historique(
                 database_path="electricore/etl/flux_enedis_pipeline.duckdb", limit=5, valider=False
             )
 

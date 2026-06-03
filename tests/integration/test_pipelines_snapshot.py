@@ -16,7 +16,7 @@ from syrupy.assertion import SnapshotAssertion
 
 from electricore.core.pipelines.abonnements import pipeline_abonnements
 from electricore.core.pipelines.energie import pipeline_energie
-from electricore.core.pipelines.perimetre import pipeline_perimetre
+from electricore.core.pipelines.historique import pipeline_historique
 
 # =========================================================================
 # FIXTURES SNAPSHOT - DONNÉES DE TEST
@@ -158,14 +158,14 @@ def releves_snapshot_test() -> pl.LazyFrame:
 @pytest.mark.skip(reason="Needs snapshot generation")
 @pytest.mark.integration
 @pytest.mark.smoke
-def test_pipeline_perimetre_snapshot(historique_snapshot_test: pl.LazyFrame, snapshot: SnapshotAssertion):
+def test_pipeline_historique_snapshot(historique_snapshot_test: pl.LazyFrame, snapshot: SnapshotAssertion):
     """
     Test snapshot du pipeline périmètre.
 
     Ce test capture le résultat complet du pipeline. Toute modification
     de la logique métier déclenchera une alerte nécessitant review.
     """
-    result = pipeline_perimetre(historique_snapshot_test).collect()
+    result = pipeline_historique(historique_snapshot_test).collect()
 
     # Convertir en dict pour snapshot
     result_dict = result.to_dicts()
@@ -176,13 +176,13 @@ def test_pipeline_perimetre_snapshot(historique_snapshot_test: pl.LazyFrame, sna
 
 @pytest.mark.skip(reason="Needs snapshot generation")
 @pytest.mark.integration
-def test_pipeline_perimetre_structure_snapshot(historique_snapshot_test: pl.LazyFrame, snapshot: SnapshotAssertion):
+def test_pipeline_historique_structure_snapshot(historique_snapshot_test: pl.LazyFrame, snapshot: SnapshotAssertion):
     """
     Test snapshot de la structure de sortie du pipeline périmètre.
 
     Capture uniquement les colonnes et types, pas les valeurs.
     """
-    result = pipeline_perimetre(historique_snapshot_test).collect()
+    result = pipeline_historique(historique_snapshot_test).collect()
 
     structure = {
         "columns": result.columns,
@@ -308,7 +308,7 @@ def test_pipeline_energie_aggrege_snapshot(
 
 @pytest.mark.skip(reason="Needs snapshot generation")
 @pytest.mark.integration
-def test_pipeline_perimetre_pdl_unique_snapshot(snapshot: SnapshotAssertion):
+def test_pipeline_historique_pdl_unique_snapshot(snapshot: SnapshotAssertion):
     """Test snapshot avec un seul PDL et événement."""
     historique_minimal = pl.LazyFrame(
         {
@@ -323,7 +323,7 @@ def test_pipeline_perimetre_pdl_unique_snapshot(snapshot: SnapshotAssertion):
         }
     )
 
-    result = pipeline_perimetre(historique_minimal).collect()
+    result = pipeline_historique(historique_minimal).collect()
 
     assert result.to_dicts() == snapshot
 

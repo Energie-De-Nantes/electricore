@@ -30,7 +30,7 @@ class DuckDBConfig:
 
         # Mapping des tables DuckDB vers schémas métier
         self.table_mappings = {
-            "historique_perimetre": {
+            "historique": {
                 "source_tables": ["flux_enedis.flux_c15"],
                 "description": "Historique des événements contractuels avec relevés avant/après",
             },

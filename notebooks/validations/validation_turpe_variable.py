@@ -23,23 +23,10 @@ with app.setup(hide_code=True):
     from electricore.core.loaders import f15, c15, r151, execute_custom_query
 
     # Imports des pipelines Polars
-    from electricore.core.pipelines.energie import (
-        pipeline_energie,
-        calculer_periodes_energie
-    )
-    from electricore.core.pipelines.abonnements import (
-        pipeline_abonnements,
-        calculer_periodes_abonnement
-    )
-    from electricore.core.pipelines.turpe import (
-        load_turpe_rules,
-        ajouter_turpe_fixe,
-        ajouter_turpe_variable
-    )
-    from electricore.core.pipelines.perimetre import (
-        detecter_points_de_rupture,
-        inserer_evenements_facturation
-    )
+    from electricore.core.pipelines.energie import pipeline_energie, calculer_periodes_energie
+    from electricore.core.pipelines.abonnements import pipeline_abonnements, calculer_periodes_abonnement
+    from electricore.core.pipelines.turpe import load_turpe_rules, ajouter_turpe_fixe, ajouter_turpe_variable
+    from electricore.core.pipelines.historique import detecter_points_de_rupture, inserer_evenements_facturation
 
     # Import connecteur Odoo
     from electricore.core.loaders import OdooReader, query
@@ -54,7 +41,9 @@ def _():
     try:
         config = charger_config_odoo()
         _env = os.getenv("ODOO_ENV", "test")
-        _msg = mo.md(f"**Configuration Odoo chargée** (env: `{_env}`)\n\n- URL: `{config['url']}`\n- Base: `{config['db']}`\n- Utilisateur: `{config['username']}`\n- Mot de passe: `***`")
+        _msg = mo.md(
+            f"**Configuration Odoo chargée** (env: `{_env}`)\n\n- URL: `{config['url']}`\n- Base: `{config['db']}`\n- Utilisateur: `{config['username']}`\n- Mot de passe: `***`"
+        )
     except ValueError as e:
         config = {}
         _msg = mo.md(f"⚠️ **Configuration Odoo manquante**\n\n{e}\n\nDéfinissez les variables `ODOO_*` dans `.env`.")
@@ -176,10 +165,7 @@ def _():
 @app.cell(hide_code=True)
 def _(df_f15_turpe):
     # Extraction du TURPE variable depuis F15
-    df_f15_variable = (
-        df_f15_turpe
-        .filter(pl.col("part_turpe") == "Variable")
-    )
+    df_f15_variable = df_f15_turpe.filter(pl.col("part_turpe") == "Variable")
 
     # Statistiques de base
     _total_montant = df_f15_variable.select(pl.col("montant_ht").sum()).item()
@@ -195,14 +181,15 @@ def _(df_f15_turpe):
 
     # Agrégation par PDL pour comparaison
     df_f15_variable_par_pdl = (
-        df_f15_variable
-        .group_by("pdl")
-        .agg([
-            pl.col("montant_ht").sum().alias("turpe_variable_f15"),
-            pl.col("date_debut").min().alias("premiere_periode_f15"),
-            pl.col("date_fin").max().alias("derniere_periode_f15"),
-            pl.len().alias("nb_lignes_f15")
-        ])
+        df_f15_variable.group_by("pdl")
+        .agg(
+            [
+                pl.col("montant_ht").sum().alias("turpe_variable_f15"),
+                pl.col("date_debut").min().alias("premiere_periode_f15"),
+                pl.col("date_fin").max().alias("derniere_periode_f15"),
+                pl.len().alias("nb_lignes_f15"),
+            ]
+        )
         .sort("turpe_variable_f15", descending=True)
     )
 
@@ -226,16 +213,11 @@ def load_odoo_perimeter(config):
         print("🔄 Connexion à Odoo...")
         with OdooReader(config=config) as odoo:
             df_pdl_odoo = (
-                query(odoo, 'sale.order',
-                    domain=[('x_pdl', '!=', False)],
-                    fields=['name', 'x_pdl', 'partner_id'])
-                .filter(pl.col('x_pdl').is_not_null())
-                .select([
-                    pl.col('x_pdl').str.strip_chars().alias('pdl'),
-                    pl.col('name').alias('order_name')
-                ])
+                query(odoo, "sale.order", domain=[("x_pdl", "!=", False)], fields=["name", "x_pdl", "partner_id"])
+                .filter(pl.col("x_pdl").is_not_null())
+                .select([pl.col("x_pdl").str.strip_chars().alias("pdl"), pl.col("name").alias("order_name")])
                 .collect()
-                .unique('pdl')
+                .unique("pdl")
             )
 
         nb_pdl_odoo = len(df_pdl_odoo)
@@ -247,7 +229,7 @@ def load_odoo_perimeter(config):
     except Exception as e:
         print(f"⚠️ Erreur connexion Odoo: {e}")
         print("📄 Continuons sans filtre Odoo (tous les PDL F15 seront analysés)")
-        df_pdl_odoo = pl.DataFrame({'pdl': [], 'order_name': []}, schema={'pdl': pl.Utf8, 'order_name': pl.Utf8})
+        df_pdl_odoo = pl.DataFrame({"pdl": [], "order_name": []}, schema={"pdl": pl.Utf8, "order_name": pl.Utf8})
     return
 
 
@@ -269,15 +251,14 @@ def load_pipeline_data():
     # Charger l'historique C15 enrichi
     print("📄 Chargement historique C15...")
     lf_historique = c15().lazy()
-    lf_historique_enrichi = inserer_evenements_facturation(
-        detecter_points_de_rupture(lf_historique)
-    )
+    lf_historique_enrichi = inserer_evenements_facturation(detecter_points_de_rupture(lf_historique))
     df_historique = lf_historique_enrichi.collect()
 
     # Charger les relevés R151
     # print("📄 Chargement relevés R151...")
     # lf_releves = r151().lazy()
     from electricore.core.loaders import releves_harmonises
+
     lf_releves = releves_harmonises().lazy()
     df_releves = lf_releves.collect()
 
@@ -294,7 +275,7 @@ def load_pipeline_data():
     _taux_couverture = len(_pdl_communs) / len(_pdl_historique) * 100 if _pdl_historique else 0
 
     print(f"🎯 Couverture R151: {len(_pdl_communs)}/{len(_pdl_historique)} PDL ({_taux_couverture:.1f}%)")
-    print(f"⚠️ PDL sans R151: {len(_pdl_historique) - len(_pdl_communs)} ({100-_taux_couverture:.1f}%)")
+    print(f"⚠️ PDL sans R151: {len(_pdl_historique) - len(_pdl_communs)} ({100 - _taux_couverture:.1f}%)")
     return df_historique, df_releves
 
 
@@ -314,22 +295,20 @@ def calculate_turpe_variable(df_historique, df_releves):
     _start_time_variable = time.time()
 
     # Pipeline énergie complet (inclut chronologie + calcul + TURPE variable)
-    lf_periodes_energie = pipeline_energie(
-        pl.LazyFrame(df_historique),
-        pl.LazyFrame(df_releves)
-    )
+    lf_periodes_energie = pipeline_energie(pl.LazyFrame(df_historique), pl.LazyFrame(df_releves))
     df_periodes_energie = lf_periodes_energie.collect()
 
     # Agrégation du TURPE variable par PDL
     df_turpe_variable_pdl = (
-        df_periodes_energie
-        .group_by("pdl")
-        .agg([
-            pl.col("turpe_variable_eur").sum().alias("turpe_variable_calcule"),
-            pl.col("debut").min().alias("date_debut_calcule"),
-            pl.col("fin").max().alias("date_fin_calcule"),
-            pl.len().alias("nb_periodes_calcule")
-        ])
+        df_periodes_energie.group_by("pdl")
+        .agg(
+            [
+                pl.col("turpe_variable_eur").sum().alias("turpe_variable_calcule"),
+                pl.col("debut").min().alias("date_debut_calcule"),
+                pl.col("fin").max().alias("date_fin_calcule"),
+                pl.len().alias("nb_periodes_calcule"),
+            ]
+        )
         .sort("turpe_variable_calcule", descending=True)
     )
 
@@ -359,52 +338,53 @@ def analyze_pdl_coverage(df_f15_variable_par_pdl, df_turpe_variable_pdl):
 
     # Jointure complète F15 vs Calculé
     df_coverage_analysis = (
-        df_f15_variable_par_pdl
-        .join(df_turpe_variable_pdl, on="pdl", how="outer")
-        .with_columns([
-            pl.col("turpe_variable_f15").fill_null(0.0),
-            pl.col("turpe_variable_calcule").fill_null(0.0)
-        ])
-        .with_columns([
-            # Classification des PDL selon leur présence
-            pl.when((pl.col("turpe_variable_f15") > 0) & (pl.col("turpe_variable_calcule") > 0))
-            .then(pl.lit("✅ Présent des 2 côtés"))
-            .when((pl.col("turpe_variable_f15") > 0) & (pl.col("turpe_variable_calcule") == 0))
-            .then(pl.lit("❌ Manquant côté calcul"))
-            .when((pl.col("turpe_variable_f15") == 0) & (pl.col("turpe_variable_calcule") > 0))
-            .then(pl.lit("⚠️ En trop côté calcul"))
-            .otherwise(pl.lit("⭕ Vide des 2 côtés"))
-            .alias("statut_couverture")
-        ])
+        df_f15_variable_par_pdl.join(df_turpe_variable_pdl, on="pdl", how="outer")
+        .with_columns([pl.col("turpe_variable_f15").fill_null(0.0), pl.col("turpe_variable_calcule").fill_null(0.0)])
+        .with_columns(
+            [
+                # Classification des PDL selon leur présence
+                pl.when((pl.col("turpe_variable_f15") > 0) & (pl.col("turpe_variable_calcule") > 0))
+                .then(pl.lit("✅ Présent des 2 côtés"))
+                .when((pl.col("turpe_variable_f15") > 0) & (pl.col("turpe_variable_calcule") == 0))
+                .then(pl.lit("❌ Manquant côté calcul"))
+                .when((pl.col("turpe_variable_f15") == 0) & (pl.col("turpe_variable_calcule") > 0))
+                .then(pl.lit("⚠️ En trop côté calcul"))
+                .otherwise(pl.lit("⭕ Vide des 2 côtés"))
+                .alias("statut_couverture")
+            ]
+        )
     )
 
     # Statistiques de couverture
     coverage_stats = (
-        df_coverage_analysis
-        .group_by("statut_couverture")
-        .agg([
-            pl.len().alias("nb_pdl"),
-            pl.col("turpe_variable_f15").sum().alias("montant_f15"),
-            pl.col("turpe_variable_calcule").sum().alias("montant_calcule")
-        ])
+        df_coverage_analysis.group_by("statut_couverture")
+        .agg(
+            [
+                pl.len().alias("nb_pdl"),
+                pl.col("turpe_variable_f15").sum().alias("montant_f15"),
+                pl.col("turpe_variable_calcule").sum().alias("montant_calcule"),
+            ]
+        )
         .sort("nb_pdl", descending=True)
     )
 
     print("\n📊 STATISTIQUES DE COUVERTURE PDL:")
     for _row_cov in coverage_stats.iter_rows(named=True):
-        _statut = _row_cov['statut_couverture']
-        _nb_pdl_cov = _row_cov['nb_pdl']
-        _montant_f15 = _row_cov['montant_f15']
-        _montant_calcule = _row_cov['montant_calcule']
+        _statut = _row_cov["statut_couverture"]
+        _nb_pdl_cov = _row_cov["nb_pdl"]
+        _montant_f15 = _row_cov["montant_f15"]
+        _montant_calcule = _row_cov["montant_calcule"]
         print(f"   {_statut}: {_nb_pdl_cov} PDL")
         print(f"      F15: {_montant_f15:,.2f} € | Calculé: {_montant_calcule:,.2f} €")
 
     # Taux de couverture principal
     _nb_f15_total_cov = df_coverage_analysis.filter(pl.col("turpe_variable_f15") > 0).select(pl.len()).item()
     _nb_calcule_total_cov = df_coverage_analysis.filter(pl.col("turpe_variable_calcule") > 0).select(pl.len()).item()
-    _nb_communs_cov = df_coverage_analysis.filter(
-        (pl.col("turpe_variable_f15") > 0) & (pl.col("turpe_variable_calcule") > 0)
-    ).select(pl.len()).item()
+    _nb_communs_cov = (
+        df_coverage_analysis.filter((pl.col("turpe_variable_f15") > 0) & (pl.col("turpe_variable_calcule") > 0))
+        .select(pl.len())
+        .item()
+    )
 
     _taux_couverture = (_nb_communs_cov / _nb_f15_total_cov) * 100 if _nb_f15_total_cov > 0 else 0
 
@@ -445,43 +425,67 @@ def temporal_transformation_variable(df_f15_variable):
     print(f"📅 Date de coupure pour transformation temporelle: {_date_coupure}")
 
     # Calcul du prorata temporel pour chaque ligne F15 Variable
-    df_f15_variable_prorata = df_f15_variable.with_columns([
-        # Conversion des dates
-        pl.date(_date_coupure.year, _date_coupure.month, _date_coupure.day).alias("date_coupure_dt")
-    ]).with_columns([
-        # Calcul des durées
-        (pl.col("date_fin") - pl.col("date_debut") + pl.duration(days=1)).dt.total_days().alias("duree_totale_jours"),
-        # Fin effective (min entre fin période et date coupure)
-        pl.min_horizontal(pl.col("date_fin"), pl.col("date_coupure_dt")).alias("fin_effective"),
-    ]).with_columns([
-        # Jours avant coupure
-        pl.max_horizontal(
-            pl.lit(0),
-            (pl.col("fin_effective") - pl.col("date_debut") + pl.duration(days=1)).dt.total_days()
-        ).alias("jours_avant_coupure")
-    ]).with_columns([
-        # Ratio et montant proratisé
-        (pl.col("jours_avant_coupure") / pl.col("duree_totale_jours")).alias("ratio_prorata"),
-        (pl.col("montant_ht") * pl.col("jours_avant_coupure") / pl.col("duree_totale_jours")).alias("montant_proratise")
-    ])
+    df_f15_variable_prorata = (
+        df_f15_variable.with_columns(
+            [
+                # Conversion des dates
+                pl.date(_date_coupure.year, _date_coupure.month, _date_coupure.day).alias("date_coupure_dt")
+            ]
+        )
+        .with_columns(
+            [
+                # Calcul des durées
+                (pl.col("date_fin") - pl.col("date_debut") + pl.duration(days=1))
+                .dt.total_days()
+                .alias("duree_totale_jours"),
+                # Fin effective (min entre fin période et date coupure)
+                pl.min_horizontal(pl.col("date_fin"), pl.col("date_coupure_dt")).alias("fin_effective"),
+            ]
+        )
+        .with_columns(
+            [
+                # Jours avant coupure
+                pl.max_horizontal(
+                    pl.lit(0), (pl.col("fin_effective") - pl.col("date_debut") + pl.duration(days=1)).dt.total_days()
+                ).alias("jours_avant_coupure")
+            ]
+        )
+        .with_columns(
+            [
+                # Ratio et montant proratisé
+                (pl.col("jours_avant_coupure") / pl.col("duree_totale_jours")).alias("ratio_prorata"),
+                (pl.col("montant_ht") * pl.col("jours_avant_coupure") / pl.col("duree_totale_jours")).alias(
+                    "montant_proratise"
+                ),
+            ]
+        )
+    )
 
     # Classification temporelle
-    df_temporal_analysis = df_f15_variable_prorata.with_columns([
-        pl.when(pl.col("date_debut") > pl.col("date_coupure_dt"))
-        .then(pl.lit("Entièrement après coupure"))
-        .when(pl.col("date_fin") <= pl.col("date_coupure_dt"))
-        .then(pl.lit("Entièrement avant coupure"))
-        .otherwise(pl.lit("Partiellement après coupure"))
-        .alias("classification_temporelle")
-    ])
+    df_temporal_analysis = df_f15_variable_prorata.with_columns(
+        [
+            pl.when(pl.col("date_debut") > pl.col("date_coupure_dt"))
+            .then(pl.lit("Entièrement après coupure"))
+            .when(pl.col("date_fin") <= pl.col("date_coupure_dt"))
+            .then(pl.lit("Entièrement avant coupure"))
+            .otherwise(pl.lit("Partiellement après coupure"))
+            .alias("classification_temporelle")
+        ]
+    )
 
     # Statistiques de transformation temporelle
-    temporal_stats = df_temporal_analysis.group_by("classification_temporelle").agg([
-        pl.len().alias("nb_lignes"),
-        pl.col("montant_ht").sum().alias("montant_original"),
-        pl.col("montant_proratise").sum().alias("montant_proratise"),
-        pl.col("ratio_prorata").mean().alias("ratio_moyen")
-    ]).sort("montant_original", descending=True)
+    temporal_stats = (
+        df_temporal_analysis.group_by("classification_temporelle")
+        .agg(
+            [
+                pl.len().alias("nb_lignes"),
+                pl.col("montant_ht").sum().alias("montant_original"),
+                pl.col("montant_proratise").sum().alias("montant_proratise"),
+                pl.col("ratio_prorata").mean().alias("ratio_moyen"),
+            ]
+        )
+        .sort("montant_original", descending=True)
+    )
 
     print(f"\n📊 STATISTIQUES TRANSFORMATION TEMPORELLE:")
     print(temporal_stats.to_pandas().to_string(index=False, float_format="%.2f"))
@@ -494,12 +498,12 @@ def temporal_transformation_variable(df_f15_variable):
     print(f"\n💰 IMPACT TRANSFORMATION TEMPORELLE:")
     print(f"   Montant original F15: {total_original:,.2f} €")
     print(f"   Montant après prorata: {total_proratise:,.2f} €")
-    print(f"   Différence (à échoir): {difference:,.2f} € ({difference/total_original*100:.1f}%)")
+    print(f"   Différence (à échoir): {difference:,.2f} € ({difference / total_original * 100:.1f}%)")
 
     # Agrégation par PDL des montants proratisés
-    df_f15_variable_prorata_pdl = df_temporal_analysis.group_by("pdl").agg([
-        pl.col("montant_proratise").sum().alias("turpe_variable_f15_prorata")
-    ])
+    df_f15_variable_prorata_pdl = df_temporal_analysis.group_by("pdl").agg(
+        [pl.col("montant_proratise").sum().alias("turpe_variable_f15_prorata")]
+    )
     return df_f15_variable_prorata_pdl, temporal_stats
 
 
@@ -520,14 +524,21 @@ def compare_with_transformations(
 
     # Jointure des PDL communs avec calculs réels uniquement
     df_comparison = (
-        df_f15_variable_prorata_pdl
-        .join(df_turpe_variable_pdl, on="pdl", how="inner")
+        df_f15_variable_prorata_pdl.join(df_turpe_variable_pdl, on="pdl", how="inner")
         .filter(pl.col("turpe_variable_calcule") > 0)  # Garder uniquement les PDL avec calcul réel
-        .with_columns([
-            # Calcul des écarts
-            (pl.col("turpe_variable_calcule") - pl.col("turpe_variable_f15_prorata")).alias("ecart_absolu"),
-            (((pl.col("turpe_variable_calcule") - pl.col("turpe_variable_f15_prorata")) / pl.col("turpe_variable_f15_prorata")) * 100).alias("ecart_relatif_pct")
-        ])
+        .with_columns(
+            [
+                # Calcul des écarts
+                (pl.col("turpe_variable_calcule") - pl.col("turpe_variable_f15_prorata")).alias("ecart_absolu"),
+                (
+                    (
+                        (pl.col("turpe_variable_calcule") - pl.col("turpe_variable_f15_prorata"))
+                        / pl.col("turpe_variable_f15_prorata")
+                    )
+                    * 100
+                ).alias("ecart_relatif_pct"),
+            ]
+        )
         .sort(pl.col("ecart_absolu").abs(), descending=True)
     )
 
@@ -540,7 +551,7 @@ def compare_with_transformations(
     print(f"\n💰 COMPARAISON APRÈS TRANSFORMATIONS:")
     print(f"   F15 (prorata): {total_f15_prorata:,.2f} € ({nb_pdl_communs} PDL)")
     print(f"   Calculé: {_total_calcule_comp:,.2f} €")
-    print(f"   Écart global: {_ecart_global:+,.2f} € ({_ecart_global/total_f15_prorata*100:+.1f}%)")
+    print(f"   Écart global: {_ecart_global:+,.2f} € ({_ecart_global / total_f15_prorata * 100:+.1f}%)")
 
     # Métriques de précision
     if nb_pdl_communs > 0:
@@ -586,16 +597,13 @@ def attribution_funnel_simple(
     print(f"📊 NIVEAU 0 - Comparaison brute (avant correction):")
     print(f"   F15 total (tous PDL): {_total_f15_brut:,.2f} €")
     print(f"   Calculé total: {_total_calcule_funnel:,.2f} €")
-    print(f"   Écart brut: {_ecart_brut:+,.2f} € ({_ecart_brut/_total_f15_brut*100:+.1f}%)")
+    print(f"   Écart brut: {_ecart_brut:+,.2f} € ({_ecart_brut / _total_f15_brut * 100:+.1f}%)")
 
     # 1. CORRECTION : Exclure les PDL sans R151 du F15
     _pdl_avec_r151 = df_releves.select("pdl").unique().to_series().to_list()
 
     # F15 filtré sur les PDL ayant des données R151 uniquement
-    df_f15_variable_filtre = (
-        df_f15_variable_par_pdl
-        .filter(pl.col("pdl").is_in(_pdl_avec_r151))
-    )
+    df_f15_variable_filtre = df_f15_variable_par_pdl.filter(pl.col("pdl").is_in(_pdl_avec_r151))
 
     _total_f15_filtre = df_f15_variable_filtre.select(pl.col("turpe_variable_f15").sum()).item()
     _nb_pdl_f15_total = len(df_f15_variable_par_pdl)
@@ -606,7 +614,7 @@ def attribution_funnel_simple(
     print(f"\n📊 NIVEAU 1 - Exclusion PDL sans R151:")
     print(f"   PDL F15 total: {_nb_pdl_f15_total}")
     print(f"   PDL F15 avec données R151: {_nb_pdl_f15_filtre}")
-    print(f"   PDL exclus (sans R151): {_nb_pdl_exclus} ({_nb_pdl_exclus/_nb_pdl_f15_total*100:.1f}%)")
+    print(f"   PDL exclus (sans R151): {_nb_pdl_exclus} ({_nb_pdl_exclus / _nb_pdl_f15_total * 100:.1f}%)")
     print(f"   F15 filtré (PDL avec R151): {_total_f15_filtre:,.2f} €")
     print(f"   Montant PDL exclus: {_montant_pdl_exclus:,.2f} € (compteurs non-communicants)")
 
@@ -616,15 +624,16 @@ def attribution_funnel_simple(
     print(f"\n📊 NIVEAU 2 - Comparaison sur périmètre commun:")
     print(f"   F15 filtré (PDL avec R151): {_total_f15_filtre:,.2f} €")
     print(f"   Calculé (PDL avec R151): {_total_calcule_funnel:,.2f} €")
-    print(f"   Écart après exclusion: {_ecart_apres_exclusion:+,.2f} € ({_ecart_apres_exclusion/_total_f15_filtre*100:+.1f}%)")
+    print(
+        f"   Écart après exclusion: {_ecart_apres_exclusion:+,.2f} € ({_ecart_apres_exclusion / _total_f15_filtre * 100:+.1f}%)"
+    )
 
     # 3. Impact des transformations temporelles (prorata)
     # Recalculer les montants F15 filtrés mais uniquement sur les PDL avec calculs réels
     _pdl_avec_calculs = set(df_comparison.select("pdl").to_series().to_list())
 
     _montant_f15_filtre_calculs_reels = (
-        df_f15_variable_filtre
-        .filter(pl.col("pdl").is_in(list(_pdl_avec_calculs)))
+        df_f15_variable_filtre.filter(pl.col("pdl").is_in(list(_pdl_avec_calculs)))
         .select(pl.col("turpe_variable_f15").sum())
         .item()
     )
@@ -639,7 +648,7 @@ def attribution_funnel_simple(
     print(f"   F15 filtré après prorata: {_montant_f15_prorata:,.2f} €")
     print(f"   Impact prorata temporel: {-_impact_prorata:+,.2f} €")
     print(f"   Calculé (PDL avec calculs): {_montant_calcule_communs:,.2f} €")
-    print(f"   Écart final: {_ecart_final:+,.2f} € ({_ecart_final/_montant_f15_prorata*100:+.1f}%)")
+    print(f"   Écart final: {_ecart_final:+,.2f} € ({_ecart_final / _montant_f15_prorata * 100:+.1f}%)")
 
     # 4. Synthèse finale simplifiée avec cohérence des montants
     _ecart_calculs_reels = _montant_calcule_communs - _montant_f15_filtre_calculs_reels
@@ -674,36 +683,35 @@ def _():
 def _(coverage_stats, df_comparison, temporal_stats):
     """Affichage des résultats principaux"""
 
-    mo.vstack([
-        mo.md("## 📊 Statistiques de couverture PDL"),
-        coverage_stats,
-
-        mo.md("## ⏰ Impact transformation temporelle"),
-        temporal_stats,
-
-        mo.md("## 🔝 Top 10 écarts après transformations"),
-        df_comparison.head(10).select([
-            "pdl", "turpe_variable_f15_prorata", "turpe_variable_calcule",
-            "ecart_absolu", "ecart_relatif_pct"
-        ]),
-
-        mo.md("## 📈 Distribution des écarts"),
-        df_comparison.select([
-            pl.col("ecart_absolu").abs().alias("ecart_abs")
-        ]).with_columns([
-            pl.when(pl.col("ecart_abs") <= 1.0)
-            .then(pl.lit("≤ 1€"))
-            .when(pl.col("ecart_abs") <= 5.0)
-            .then(pl.lit("1-5€"))
-            .when(pl.col("ecart_abs") <= 10.0)
-            .then(pl.lit("5-10€"))
-            .otherwise(pl.lit("> 10€"))
-            .alias("tranche_ecart")
-        ]).group_by("tranche_ecart").agg([
-            pl.len().alias("nb_pdl"),
-            (pl.len() / len(df_comparison) * 100).alias("pourcentage")
-        ]).sort("nb_pdl", descending=True)
-    ])
+    mo.vstack(
+        [
+            mo.md("## 📊 Statistiques de couverture PDL"),
+            coverage_stats,
+            mo.md("## ⏰ Impact transformation temporelle"),
+            temporal_stats,
+            mo.md("## 🔝 Top 10 écarts après transformations"),
+            df_comparison.head(10).select(
+                ["pdl", "turpe_variable_f15_prorata", "turpe_variable_calcule", "ecart_absolu", "ecart_relatif_pct"]
+            ),
+            mo.md("## 📈 Distribution des écarts"),
+            df_comparison.select([pl.col("ecart_absolu").abs().alias("ecart_abs")])
+            .with_columns(
+                [
+                    pl.when(pl.col("ecart_abs") <= 1.0)
+                    .then(pl.lit("≤ 1€"))
+                    .when(pl.col("ecart_abs") <= 5.0)
+                    .then(pl.lit("1-5€"))
+                    .when(pl.col("ecart_abs") <= 10.0)
+                    .then(pl.lit("5-10€"))
+                    .otherwise(pl.lit("> 10€"))
+                    .alias("tranche_ecart")
+                ]
+            )
+            .group_by("tranche_ecart")
+            .agg([pl.len().alias("nb_pdl"), (pl.len() / len(df_comparison) * 100).alias("pourcentage")])
+            .sort("nb_pdl", descending=True),
+        ]
+    )
     return
 
 
@@ -732,89 +740,93 @@ def analyser_periodes_manquantes(df_f15_variable, df_periodes_energie):
     print("🔍 Analyse des périodes manquantes par PDL...")
 
     # 1. Calculer les statistiques par PDL pour les périodes calculées
-    stats_calcules = (
-        df_periodes_energie
-        .group_by("pdl")
-        .agg([
+    stats_calcules = df_periodes_energie.group_by("pdl").agg(
+        [
             pl.col("debut").min().alias("premiere_periode_calculee"),
             pl.col("fin").max().alias("derniere_periode_calculee"),
             pl.len().alias("nb_periodes_calculees"),
             pl.col("nb_jours").filter(pl.col("data_complete")).sum().alias("total_jours"),
-            pl.col("turpe_variable_eur").sum().alias("turpe_variable_total")
-        ])
+            pl.col("turpe_variable_eur").sum().alias("turpe_variable_total"),
+        ]
     )
 
     # 2. Calculer les statistiques par PDL pour les périodes F15
-    stats_f15 = (
-        df_f15_variable
-        .group_by("pdl")
-        .agg([
+    stats_f15 = df_f15_variable.group_by("pdl").agg(
+        [
             pl.col("date_debut").min().alias("premiere_periode_f15"),
             pl.col("date_fin").max().alias("derniere_periode_f15"),
             pl.len().alias("nb_periodes_f15"),
-            (pl.col("date_fin").max()- pl.col("date_debut").min()).dt.total_days().cast(pl.Int32).alias("total_jours_f15"),
-            pl.col("montant_ht").sum().alias("turpe_f15_total")
-        ])
+            (pl.col("date_fin").max() - pl.col("date_debut").min())
+            .dt.total_days()
+            .cast(pl.Int32)
+            .alias("total_jours_f15"),
+            pl.col("montant_ht").sum().alias("turpe_f15_total"),
+        ]
     )
 
     # 3. Jointure pour comparer les deux sources
     comparaison_periodes = (
-        stats_f15
-        .join(stats_calcules, on="pdl", how="inner")
-        .with_columns([
-            # Calcul des jours de décalage en début/fin
-            (pl.col("premiere_periode_calculee") - pl.col("premiere_periode_f15")).dt.total_days().alias("decalage_debut_jours"),
-            (pl.col("derniere_periode_f15") - pl.col("derniere_periode_calculee")).dt.total_days().alias("decalage_fin_jours"),
-            # Ratio de périodes
-            (pl.col("total_jours") / pl.col("total_jours_f15")).alias("taux_couverture")
-        ])
-        .with_columns([
-            # Classification des PDL par taux de couverture
-            pl.when(pl.col("taux_couverture") >= .95)
-            .then(pl.lit("Couverture complète (≥95%)"))
-            .when(pl.col("taux_couverture") >= .80)
-            .then(pl.lit("Couverture élevée (80-94%)"))
-            .when(pl.col("taux_couverture") >= .50)
-            .then(pl.lit("Couverture partielle (50-79%)"))
-            .otherwise(pl.lit("Couverture faible (<50%)"))
-            .alias("categorie_couverture"),
-
-            (pl.col("turpe_f15_total") * pl.col("taux_couverture")).alias("f15_proratise_couverture")
-        ])
-        .with_columns([
-            (pl.col("turpe_variable_total") - pl.col("f15_proratise_couverture")).alias("erreur_prorata")
-        ])
+        stats_f15.join(stats_calcules, on="pdl", how="inner")
+        .with_columns(
+            [
+                # Calcul des jours de décalage en début/fin
+                (pl.col("premiere_periode_calculee") - pl.col("premiere_periode_f15"))
+                .dt.total_days()
+                .alias("decalage_debut_jours"),
+                (pl.col("derniere_periode_f15") - pl.col("derniere_periode_calculee"))
+                .dt.total_days()
+                .alias("decalage_fin_jours"),
+                # Ratio de périodes
+                (pl.col("total_jours") / pl.col("total_jours_f15")).alias("taux_couverture"),
+            ]
+        )
+        .with_columns(
+            [
+                # Classification des PDL par taux de couverture
+                pl.when(pl.col("taux_couverture") >= 0.95)
+                .then(pl.lit("Couverture complète (≥95%)"))
+                .when(pl.col("taux_couverture") >= 0.80)
+                .then(pl.lit("Couverture élevée (80-94%)"))
+                .when(pl.col("taux_couverture") >= 0.50)
+                .then(pl.lit("Couverture partielle (50-79%)"))
+                .otherwise(pl.lit("Couverture faible (<50%)"))
+                .alias("categorie_couverture"),
+                (pl.col("turpe_f15_total") * pl.col("taux_couverture")).alias("f15_proratise_couverture"),
+            ]
+        )
+        .with_columns([(pl.col("turpe_variable_total") - pl.col("f15_proratise_couverture")).alias("erreur_prorata")])
     )
 
     # FILTRE TEMPORAIRE : Exclure PDL avec données aberrantes
     # TODO: Implémenter détection automatique de qualité (voir docs/qualite-donnees-r151.md)
     PDL_ABERRANTS = ["14290738060355"]  # Index aberrants sept 2025 (962 MWh/mois)
-    comparaison_periodes = comparaison_periodes.filter(
-        ~pl.col("pdl").is_in(PDL_ABERRANTS)
-    )
+    comparaison_periodes = comparaison_periodes.filter(~pl.col("pdl").is_in(PDL_ABERRANTS))
 
     print(f"⚠️  PDL exclus de la validation : {len(PDL_ABERRANTS)} (données aberrantes)")
 
     # 4. Statistiques globales
     nb_pdl_total = len(comparaison_periodes)
     stats_par_categorie = (
-        comparaison_periodes
-        .group_by("categorie_couverture")
-        .agg([
-            pl.len().alias("nb_pdl"),
-            pl.col("taux_couverture").mean().alias("taux_moyen"),
-            pl.col("nb_periodes_calculees").sum().alias("periodes_calculees"),
-            pl.col("nb_periodes_f15").sum().alias("periodes_f15"),
-            pl.col("turpe_variable_total").sum().alias("montant_calcule"),
-            pl.col("turpe_f15_total").sum().alias("montant_f15"),
-            pl.col("f15_proratise_couverture").sum().alias("montant_f15_proratise")
-        ])
-        .with_columns([
-            (pl.col("nb_pdl") / nb_pdl_total * 100).alias("proportion_pdl_pct"),
-            (pl.col("montant_calcule") - pl.col("montant_f15")).alias("ecart_montant"),
-            ((pl.col("montant_calcule") - pl.col("montant_f15")) / pl.col("montant_f15") * 100).alias("ecart_pct"),
-            (pl.col("montant_calcule") - pl.col("montant_f15_proratise")).alias("ecart_montant_prorata"),
-        ])
+        comparaison_periodes.group_by("categorie_couverture")
+        .agg(
+            [
+                pl.len().alias("nb_pdl"),
+                pl.col("taux_couverture").mean().alias("taux_moyen"),
+                pl.col("nb_periodes_calculees").sum().alias("periodes_calculees"),
+                pl.col("nb_periodes_f15").sum().alias("periodes_f15"),
+                pl.col("turpe_variable_total").sum().alias("montant_calcule"),
+                pl.col("turpe_f15_total").sum().alias("montant_f15"),
+                pl.col("f15_proratise_couverture").sum().alias("montant_f15_proratise"),
+            ]
+        )
+        .with_columns(
+            [
+                (pl.col("nb_pdl") / nb_pdl_total * 100).alias("proportion_pdl_pct"),
+                (pl.col("montant_calcule") - pl.col("montant_f15")).alias("ecart_montant"),
+                ((pl.col("montant_calcule") - pl.col("montant_f15")) / pl.col("montant_f15") * 100).alias("ecart_pct"),
+                (pl.col("montant_calcule") - pl.col("montant_f15_proratise")).alias("ecart_montant_prorata"),
+            ]
+        )
         .sort("taux_moyen", descending=True)
     )
 
@@ -822,11 +834,11 @@ def analyser_periodes_manquantes(df_f15_variable, df_periodes_energie):
     print(f"   Total PDL analysés: {nb_pdl_total}")
 
     for _row in stats_par_categorie.iter_rows(named=True):
-        _cat = _row['categorie_couverture']
-        _nb_pdl = _row['nb_pdl']
-        _prop_pct = _row['proportion_pdl_pct']
-        _taux_moyen = _row['taux_moyen']
-        _ecart_pct = _row['ecart_pct']
+        _cat = _row["categorie_couverture"]
+        _nb_pdl = _row["nb_pdl"]
+        _prop_pct = _row["proportion_pdl_pct"]
+        _taux_moyen = _row["taux_moyen"]
+        _ecart_pct = _row["ecart_pct"]
 
         print(f"   📋 {_cat}:")
         print(f"      {_nb_pdl} PDL ({_prop_pct:.1f}%) - Couverture moyenne: {_taux_moyen:.1f}%")
@@ -864,61 +876,55 @@ def analyse_erreurs_prorata(comparaison_periodes, stats_par_categorie):
     print(f"   Calculé total: {_total_calcule:,.2f} €")
     print(f"   F15 brut: {_total_f15_brut:,.2f} €")
     print(f"   F15 proratisé: {_total_f15_prorata:,.2f} €")
-    print(f"   Erreur brute: {_erreur_brute:+,.2f} € ({_erreur_brute/_total_f15_brut*100:+.2f}%)")
-    print(f"   Erreur proratisée: {_erreur_prorata:+,.2f} € ({_erreur_prorata/_total_f15_prorata*100:+.2f}%)")
+    print(f"   Erreur brute: {_erreur_brute:+,.2f} € ({_erreur_brute / _total_f15_brut * 100:+.2f}%)")
+    print(f"   Erreur proratisée: {_erreur_prorata:+,.2f} € ({_erreur_prorata / _total_f15_prorata * 100:+.2f}%)")
 
     # 2. Impact du prorata par catégorie de couverture
     print(f"\n📈 IMPACT DU PRORATA PAR CATÉGORIE:")
 
-    stats_erreurs = (
-        stats_par_categorie
-        .with_columns([
+    stats_erreurs = stats_par_categorie.with_columns(
+        [
             (pl.col("montant_calcule") - pl.col("montant_f15_proratise")).alias("erreur_prorata_categorie"),
-            ((pl.col("montant_calcule") - pl.col("montant_f15_proratise")) / pl.col("montant_f15_proratise") * 100).alias("erreur_prorata_pct")
-        ])
-        .select([
-            "categorie_couverture",
-            "nb_pdl",
-            "taux_moyen",
-            "ecart_pct",
-            "erreur_prorata_pct"
-        ])
-    )
+            (
+                (pl.col("montant_calcule") - pl.col("montant_f15_proratise")) / pl.col("montant_f15_proratise") * 100
+            ).alias("erreur_prorata_pct"),
+        ]
+    ).select(["categorie_couverture", "nb_pdl", "taux_moyen", "ecart_pct", "erreur_prorata_pct"])
 
     for _row in stats_erreurs.iter_rows(named=True):
-        _cat = _row['categorie_couverture']
-        _nb_pdl = _row['nb_pdl']
-        _taux = _row['taux_moyen']
-        _erreur_brute = _row['ecart_pct']
-        _erreur_prorata = _row['erreur_prorata_pct']
+        _cat = _row["categorie_couverture"]
+        _nb_pdl = _row["nb_pdl"]
+        _taux = _row["taux_moyen"]
+        _erreur_brute = _row["ecart_pct"]
+        _erreur_prorata = _row["erreur_prorata_pct"]
 
         print(f"   📋 {_cat}:")
-        print(f"      {_nb_pdl} PDL - Couverture: {_taux*100:.1f}%")
+        print(f"      {_nb_pdl} PDL - Couverture: {_taux * 100:.1f}%")
         print(f"      Erreur brute: {_erreur_brute:+.2f}% → Erreur proratisée: {_erreur_prorata:+.2f}%")
 
     # 3. Distribution des erreurs individuelles
     print(f"\n🎯 DISTRIBUTION DES ERREURS INDIVIDUELLES:")
 
     # Analyse des erreurs par PDL
-    erreurs_stats = (
-        comparaison_periodes
-        .with_columns([
+    erreurs_stats = comparaison_periodes.with_columns(
+        [
             (pl.col("erreur_prorata").abs()).alias("erreur_abs"),
-            (pl.col("erreur_prorata") / pl.col("f15_proratise_couverture") * 100).alias("erreur_pct")
-        ])
-        .select([
+            (pl.col("erreur_prorata") / pl.col("f15_proratise_couverture") * 100).alias("erreur_pct"),
+        ]
+    ).select(
+        [
             pl.col("erreur_abs").mean().alias("erreur_moyenne"),
             pl.col("erreur_abs").median().alias("erreur_mediane"),
             pl.col("erreur_abs").std().alias("erreur_ecart_type"),
             pl.col("erreur_pct").abs().lt(5.0).sum().alias("nb_pdl_erreur_5pct"),
             pl.col("erreur_pct").abs().lt(10.0).sum().alias("nb_pdl_erreur_10pct"),
-            pl.len().alias("nb_pdl_total")
-        ])
+            pl.len().alias("nb_pdl_total"),
+        ]
     )
 
     _stats = erreurs_stats.row(0, named=True)
-    _precision_5pct = (_stats['nb_pdl_erreur_5pct'] / _stats['nb_pdl_total']) * 100
-    _precision_10pct = (_stats['nb_pdl_erreur_10pct'] / _stats['nb_pdl_total']) * 100
+    _precision_5pct = (_stats["nb_pdl_erreur_5pct"] / _stats["nb_pdl_total"]) * 100
+    _precision_10pct = (_stats["nb_pdl_erreur_10pct"] / _stats["nb_pdl_total"]) * 100
 
     print(f"   Erreur moyenne: {_stats['erreur_moyenne']:.2f} €")
     print(f"   Erreur médiane: {_stats['erreur_mediane']:.2f} €")
@@ -930,21 +936,22 @@ def analyse_erreurs_prorata(comparaison_periodes, stats_par_categorie):
     print(f"\n🔍 TOP 10 ÉCARTS APRÈS PRORATA:")
 
     top_ecarts = (
-        comparaison_periodes
-        .with_columns([
-            (pl.col("erreur_prorata") / pl.col("f15_proratise_couverture") * 100).alias("erreur_pct")
-        ])
+        comparaison_periodes.with_columns(
+            [(pl.col("erreur_prorata") / pl.col("f15_proratise_couverture") * 100).alias("erreur_pct")]
+        )
         .filter(pl.col("erreur_pct").abs() > 0.1)
         .sort("erreur_prorata", descending=True)
-        .select([
-            "pdl",
-            "taux_couverture",
-            "categorie_couverture",
-            "turpe_variable_total",
-            "f15_proratise_couverture",
-            "erreur_prorata",
-            "erreur_pct"
-        ])
+        .select(
+            [
+                "pdl",
+                "taux_couverture",
+                "categorie_couverture",
+                "turpe_variable_total",
+                "f15_proratise_couverture",
+                "erreur_prorata",
+                "erreur_pct",
+            ]
+        )
         .head(10)
     )
     return (top_ecarts,)
@@ -990,7 +997,9 @@ def validation_hypothese_final(comparaison_periodes):
         _explication = "L'ajustement par couverture ramène l'erreur à <1%. Les périodes manquantes expliquent bien l'écart initial."
     elif abs(_erreur_prorata_pct) < 2.0 and _amelioration > 1.0:
         _resultat = "⚠️ HYPOTHÈSE PARTIELLEMENT VALIDÉE"
-        _explication = "L'ajustement améliore significativement la précision. Les périodes manquantes sont un facteur important."
+        _explication = (
+            "L'ajustement améliore significativement la précision. Les périodes manquantes sont un facteur important."
+        )
     elif _amelioration > 0.5:
         _resultat = "🟡 HYPOTHÈSE PARTIELLEMENT SUPPORTÉE"
         _explication = "L'ajustement améliore la précision mais des écarts résiduels subsistent."

@@ -174,8 +174,8 @@ def compose(*transforms: Callable[[pl.LazyFrame], pl.LazyFrame]) -> Callable[[pl
 # PIPELINES PRÉDÉFINIS (Compositions pures)
 # =============================================================================
 
-# Pipeline pour historique périmètre (flux C15)
-transform_historique_perimetre = compose(
+# Pipeline pour historique (flux C15)
+transform_historique = compose(
     transform_dates(DATE_COLS_HISTORIQUE), transform_add_defaults(unite="kWh", precision="kWh")
 )
 

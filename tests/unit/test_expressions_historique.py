@@ -1,8 +1,8 @@
-"""Tests unitaires pour les expressions Polars du pipeline périmètre."""
+"""Tests unitaires pour les expressions Polars du pipeline historique."""
 
 import polars as pl
 
-from electricore.core.pipelines.perimetre import (
+from electricore.core.pipelines.historique import (
     colonnes_evenement_facturation,
     detecter_points_de_rupture,
     expr_changement,
