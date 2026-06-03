@@ -94,9 +94,7 @@ def service_loaders_mockes(monkeypatch, df_lignes_odoo_minimal, lf_fact_mensuell
             return _QueryMock(self.lazy().filter(*args, **kwargs))
 
     monkeypatch.setattr(facturation_service, "OdooReader", _OdooReaderMock)
-    monkeypatch.setattr(
-        facturation_service, "lignes_a_facturer", lambda odoo: _QueryMock(df_lignes_odoo_minimal)
-    )
+    monkeypatch.setattr(facturation_service, "lignes_a_facturer", lambda odoo: _QueryMock(df_lignes_odoo_minimal))
     monkeypatch.setattr(facturation_service, "c15", lambda: _QueryMock(df_flux_vide))
     monkeypatch.setattr(facturation_service, "f15", lambda: _QueryMock(df_flux_vide))
     monkeypatch.setattr(facturation_service, "releves_harmonises", lambda: _QueryMock(df_flux_vide))

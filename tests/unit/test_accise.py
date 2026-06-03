@@ -66,9 +66,7 @@ class TestAjouterAccise:
     """Wire-through Accise : conversion du mois, formule, arrondi."""
 
     def test_colonnes_ajoutees(self, regles_accise_synthetiques):
-        consos = _consommations(
-            [{"pdl": "A", "mois_consommation": "2024-06", "energie_kwh": 1000.0}]
-        )
+        consos = _consommations([{"pdl": "A", "mois_consommation": "2024-06", "energie_kwh": 1000.0}])
         result = ajouter_accise(consos, regles_accise_synthetiques).collect()
         assert "taux_accise_eur_mwh" in result.columns
         assert "energie_mwh" in result.columns
@@ -76,25 +74,19 @@ class TestAjouterAccise:
 
     def test_conversion_mwh(self, regles_accise_synthetiques):
         """energie_kwh doit être converti en MWh (÷ 1000)."""
-        consos = _consommations(
-            [{"pdl": "A", "mois_consommation": "2024-06", "energie_kwh": 2500.0}]
-        )
+        consos = _consommations([{"pdl": "A", "mois_consommation": "2024-06", "energie_kwh": 2500.0}])
         result = ajouter_accise(consos, regles_accise_synthetiques).collect()
         assert result["energie_mwh"].item() == 2.5
 
     def test_calcul_accise_eur(self, regles_accise_synthetiques):
         """1 MWh × 21 €/MWh = 21.00 €."""
-        consos = _consommations(
-            [{"pdl": "A", "mois_consommation": "2024-06", "energie_kwh": 1000.0}]
-        )
+        consos = _consommations([{"pdl": "A", "mois_consommation": "2024-06", "energie_kwh": 1000.0}])
         result = ajouter_accise(consos, regles_accise_synthetiques).collect()
         assert result["accise_eur"].item() == 21.0
 
     def test_arrondi_2_decimales(self, regles_accise_synthetiques):
         """1234 kWh × 33.7 €/MWh = 41.5858 € → arrondi 41.59 €."""
-        consos = _consommations(
-            [{"pdl": "A", "mois_consommation": "2025-09", "energie_kwh": 1234.0}]
-        )
+        consos = _consommations([{"pdl": "A", "mois_consommation": "2025-09", "energie_kwh": 1234.0}])
         result = ajouter_accise(consos, regles_accise_synthetiques).collect()
         assert result["accise_eur"].item() == pytest.approx(41.59, abs=1e-9)
 
@@ -125,11 +117,7 @@ class TestAjouterAccise:
                 {"pdl": "A", "mois_consommation": "2025-08", "energie_kwh": 1000.0},
             ]
         )
-        result = (
-            ajouter_accise(consos, regles_accise_synthetiques)
-            .collect()
-            .sort("mois_consommation")
-        )
+        result = ajouter_accise(consos, regles_accise_synthetiques).collect().sort("mois_consommation")
         assert result["taux_accise_eur_mwh"].to_list() == [21.0, 33.7, 33.7]
         assert result["accise_eur"].to_list() == [21.0, 33.7, 33.7]
 
@@ -197,9 +185,21 @@ class TestPipelineAccise:
         """
         lignes = pl.LazyFrame(
             [
-                {"x_pdl": "B", "name": "SO-B", "invoice_date": "2024-07-15", "name_product_category": "Base", "quantity": 500.0},
+                {
+                    "x_pdl": "B",
+                    "name": "SO-B",
+                    "invoice_date": "2024-07-15",
+                    "name_product_category": "Base",
+                    "quantity": 500.0,
+                },
                 # Ligne draft sans invoice_date : doit être ignorée
-                {"x_pdl": "B", "name": "SO-B", "invoice_date": None, "name_product_category": "Base", "quantity": 999.0},
+                {
+                    "x_pdl": "B",
+                    "name": "SO-B",
+                    "invoice_date": None,
+                    "name_product_category": "Base",
+                    "quantity": 999.0,
+                },
             ]
         )
 

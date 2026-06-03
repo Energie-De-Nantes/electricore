@@ -56,16 +56,12 @@ class TestAttacheTaux:
         df = _df(
             [
                 datetime(2024, 3, 15),  # avant changement
-                datetime(2024, 6, 1),   # jour du changement (borne inclusive)
-                datetime(2024, 8, 1),   # après changement
+                datetime(2024, 6, 1),  # jour du changement (borne inclusive)
+                datetime(2024, 8, 1),  # après changement
             ]
         )
 
-        result = (
-            ajouter_taux_en_vigueur(df, historique, date_col="date", taux_col="taux")
-            .collect()
-            .sort("date")
-        )
+        result = ajouter_taux_en_vigueur(df, historique, date_col="date", taux_col="taux").collect().sort("date")
 
         assert result["taux"].to_list() == [10.0, 20.0, 20.0]
 
