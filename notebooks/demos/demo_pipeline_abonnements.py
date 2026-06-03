@@ -20,15 +20,15 @@ with app.setup:
     # Import des pipelines pandas
     from electricore.core.pipeline_abonnements import (
         pipeline_abonnement as pipeline_pandas,
-        generer_periodes_abonnement as genererperiodes_pandas
+        generer_periodes_abonnement as genererperiodes_pandas,
     )
 
     # Import des pipelines Polars
     from electricore.core.pipelines.abonnements import (
         pipeline_abonnements as pipeline,
-        generer_periodes_abonnement as generer_periodes
+        generer_periodes_abonnement as generer_periodes,
     )
-    from electricore.core.pipelines.perimetre import detecter_points_de_rupture, inserer_evenements_facturation
+    from electricore.core.pipelines.historique import detecter_points_de_rupture, inserer_evenements_facturation
 
     # Import des loaders DuckDB
     from electricore.core.loaders import c15
@@ -65,22 +65,22 @@ def load_data():
 
         # Mapping snake_case → majuscules pour pandas
         column_mapping = {
-            'ref_situation_contractuelle': 'Ref_Situation_Contractuelle',
-            'date_evenement': 'Date_Evenement',
-            'evenement_declencheur': 'Evenement_Declencheur',
-            'formule_tarifaire_acheminement': 'Formule_Tarifaire_Acheminement',
-            'puissance_souscrite_kva': 'Puissance_Souscrite',
-            'segment_clientele': 'Segment_Clientele',
-            'etat_contractuel': 'Etat_Contractuel',
-            'type_evenement': 'Type_Evenement',
-            'type_compteur': 'Type_Compteur',
-            'num_compteur': 'Num_Compteur',
-            'ref_demandeur': 'Ref_Demandeur',
-            'id_affaire': 'Id_Affaire',
-            'categorie': 'Categorie',
-            'impacte_abonnement': 'impacte_abonnement',
-            'impacte_energie': 'impacte_energie',
-            'resume_modification': 'resume_modification',
+            "ref_situation_contractuelle": "Ref_Situation_Contractuelle",
+            "date_evenement": "Date_Evenement",
+            "evenement_declencheur": "Evenement_Declencheur",
+            "formule_tarifaire_acheminement": "Formule_Tarifaire_Acheminement",
+            "puissance_souscrite_kva": "Puissance_Souscrite",
+            "segment_clientele": "Segment_Clientele",
+            "etat_contractuel": "Etat_Contractuel",
+            "type_evenement": "Type_Evenement",
+            "type_compteur": "Type_Compteur",
+            "num_compteur": "Num_Compteur",
+            "ref_demandeur": "Ref_Demandeur",
+            "id_affaire": "Id_Affaire",
+            "categorie": "Categorie",
+            "impacte_abonnement": "impacte_abonnement",
+            "impacte_energie": "impacte_energie",
+            "resume_modification": "resume_modification",
         }
 
         # Filtrer le mapping pour les colonnes qui existent
@@ -106,8 +106,13 @@ def _():
 @app.cell
 def _():
     colonnes_interessantes = [
-        "Ref_Situation_Contractuelle", "mois_annee", "debut_lisible", "fin_lisible",
-        "Formule_Tarifaire_Acheminement", "Puissance_Souscrite", "nb_jours"
+        "Ref_Situation_Contractuelle",
+        "mois_annee",
+        "debut_lisible",
+        "fin_lisible",
+        "Formule_Tarifaire_Acheminement",
+        "Puissance_Souscrite",
+        "nb_jours",
     ]
     return (colonnes_interessantes,)
 
@@ -181,18 +186,18 @@ def benchmark_performance(df_pandas, lf):
     # Résultats
     acceleration = temps_pandas / temps if temps > 0 else 0
 
-    print(f"🐼 Pandas  : {temps_pandas*1000:.1f}ms")
-    print(f"⚡ Polars  : {temps*1000:.1f}ms")
+    print(f"🐼 Pandas  : {temps_pandas * 1000:.1f}ms")
+    print(f"⚡ Polars  : {temps * 1000:.1f}ms")
     print(f"🚀 Accélération : {acceleration:.1f}x")
 
     if acceleration > 1:
         print(f"✅ Polars est {acceleration:.1f}x plus rapide !")
     elif acceleration < 1:
-        print(f"⚠️ Pandas est {1/acceleration:.1f}x plus rapide")
+        print(f"⚠️ Pandas est {1 / acceleration:.1f}x plus rapide")
     else:
         print("🟰 Performances équivalentes")
 
-    benchmark_results = {"pandas_ms": temps_pandas*1000, "polars_ms": temps*1000, "speedup": acceleration}
+    benchmark_results = {"pandas_ms": temps_pandas * 1000, "polars_ms": temps * 1000, "speedup": acceleration}
     return
 
 
@@ -221,11 +226,13 @@ def comparaison_periodes(periodes_pandas, periodes_lf):
 
     # Statistiques des périodes Polars
     if nb > 0:
-        stats = periodes.select([
-            pl.col("nb_jours").sum().alias("total_jours"),
-            pl.col("nb_jours").mean().alias("jours_moyen"),
-            pl.col("puissance_souscrite_kva").mean().alias("puissance_moyenne"),
-        ]).to_dicts()[0]
+        stats = periodes.select(
+            [
+                pl.col("nb_jours").sum().alias("total_jours"),
+                pl.col("nb_jours").mean().alias("jours_moyen"),
+                pl.col("puissance_souscrite_kva").mean().alias("puissance_moyenne"),
+            ]
+        ).to_dicts()[0]
 
         print(f"\n📈 Statistiques des périodes (Polars) :")
         print(f"- Total jours    : {stats['total_jours']}")
@@ -235,8 +242,7 @@ def comparaison_periodes(periodes_pandas, periodes_lf):
     # Répartition par FTA
     if nb > 0:
         fta_stats = (
-            periodes
-            .group_by("formule_tarifaire_acheminement")
+            periodes.group_by("formule_tarifaire_acheminement")
             .agg(pl.len().alias("count"))
             .sort("count", descending=True)
         )
@@ -261,7 +267,6 @@ def turpe_pandas(periodes_pandas):
 
     print("🐼 Calcul TURPE avec PANDAS...")
 
-
     # Appliquer le TURPE complet avec pandas
     from electricore.core.taxes.turpe import load_turpe_rules, ajouter_turpe_fixe as ajouter_turpe_fixe_pandas
 
@@ -273,8 +278,8 @@ def turpe_pandas(periodes_pandas):
         turpe_moyen_pandas = periodes_avec_turpe_pandas["turpe_fixe_eur"].mean()
 
         print(f"✅ TURPE calculé pour {len(periodes_avec_turpe_pandas)} périodes")
-        print(f"💰 Total TURPE : {total_turpe_pandas :.2f}€")
-        print(f"📊 TURPE moyen : {turpe_moyen_pandas :.2f}€")
+        print(f"💰 Total TURPE : {total_turpe_pandas:.2f}€")
+        print(f"📊 TURPE moyen : {turpe_moyen_pandas:.2f}€")
     else:
         print("⚠️ Colonne turpe_fixe_eur non trouvée")
         total_turpe_pandas = turpe_moyen_pandas = 0
@@ -295,14 +300,12 @@ def turpe(periodes_lf):
         periodes_avec_turpe = periodes_avec_turpe_lf.collect()
 
         if "turpe_fixe_eur" in periodes_avec_turpe.columns:
-            stats_turpe = (
-                periodes_avec_turpe
-                .select([
+            stats_turpe = periodes_avec_turpe.select(
+                [
                     pl.col("turpe_fixe_eur").sum().alias("total"),
                     pl.col("turpe_fixe_eur").mean().alias("moyen"),
-                ])
-                .to_dicts()[0]
-            )
+                ]
+            ).to_dicts()[0]
 
             total_turpe = stats_turpe["total"]
             turpe_moyen = stats_turpe["moyen"]

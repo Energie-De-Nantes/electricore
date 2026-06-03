@@ -189,14 +189,14 @@ def releves_harmonises(database_path: str | Path | None = None) -> DuckDBQuery:
 # =============================================================================
 
 
-def load_historique_perimetre(
+def load_historique(
     database_path: str | Path | None = None,
     filters: dict[str, Any] | None = None,
     limit: int | None = None,
     valider: bool = True,
 ) -> pl.LazyFrame:
     """
-    Charge l'historique de périmètre depuis DuckDB.
+    Charge l'historique des événements contractuels depuis DuckDB.
 
     .. deprecated::
         Utilisez `c15()` avec l'API fluide à la place.
@@ -211,7 +211,7 @@ def load_historique_perimetre(
         LazyFrame Polars contenant l'historique de périmètre
 
     Example:
-        >>> lf = load_historique_perimetre(
+        >>> lf = load_historique(
         ...     filters={"Date_Evenement": ">= '2024-01-01'"},
         ...     limit=1000
         ... )

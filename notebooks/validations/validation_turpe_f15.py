@@ -22,23 +22,10 @@ with app.setup:
     from electricore.core.loaders import f15, c15, r151, execute_custom_query
 
     # Imports des pipelines Polars
-    from electricore.core.pipelines.energie import (
-        pipeline_energie,
-        calculer_periodes_energie
-    )
-    from electricore.core.pipelines.abonnements import (
-        pipeline_abonnements,
-        calculer_periodes_abonnement
-    )
-    from electricore.core.pipelines.turpe import (
-        load_turpe_rules,
-        ajouter_turpe_fixe,
-        ajouter_turpe_variable
-    )
-    from electricore.core.pipelines.perimetre import (
-        detecter_points_de_rupture,
-        inserer_evenements_facturation
-    )
+    from electricore.core.pipelines.energie import pipeline_energie, calculer_periodes_energie
+    from electricore.core.pipelines.abonnements import pipeline_abonnements, calculer_periodes_abonnement
+    from electricore.core.pipelines.turpe import load_turpe_rules, ajouter_turpe_fixe, ajouter_turpe_variable
+    from electricore.core.pipelines.historique import detecter_points_de_rupture, inserer_evenements_facturation
 
     # Import connecteur Odoo
     from electricore.core.loaders import OdooReader
@@ -53,7 +40,9 @@ def _():
     try:
         config = charger_config_odoo()
         _env = os.getenv("ODOO_ENV", "test")
-        _msg = mo.md(f"**Configuration Odoo chargée** (env: `{_env}`)\n\n- URL: `{config['url']}`\n- Base: `{config['db']}`\n- Utilisateur: `{config['username']}`\n- Mot de passe: `***`")
+        _msg = mo.md(
+            f"**Configuration Odoo chargée** (env: `{_env}`)\n\n- URL: `{config['url']}`\n- Base: `{config['db']}`\n- Utilisateur: `{config['username']}`\n- Mot de passe: `***`"
+        )
     except ValueError as e:
         config = {}
         _msg = mo.md(f"⚠️ **Configuration Odoo manquante**\n\n{e}\n\nDéfinissez les variables `ODOO_*` dans `.env`.")
@@ -167,41 +156,41 @@ def aggregations_f15(df_f15_turpe):
 
     # Agrégation par PDL
     df_f15_par_pdl = (
-        df_f15_turpe
-        .group_by("pdl")
-        .agg([
-            pl.col("montant_ht").sum().alias("montant_total_f15"),
-            pl.col("date_debut").min().alias("premiere_periode"),
-            pl.col("date_fin").max().alias("derniere_periode"),
-            pl.col("type_composante").n_unique().alias("nb_composantes")
-        ])
+        df_f15_turpe.group_by("pdl")
+        .agg(
+            [
+                pl.col("montant_ht").sum().alias("montant_total_f15"),
+                pl.col("date_debut").min().alias("premiere_periode"),
+                pl.col("date_fin").max().alias("derniere_periode"),
+                pl.col("type_composante").n_unique().alias("nb_composantes"),
+            ]
+        )
         .sort("montant_total_f15", descending=True)
     )
 
     # Agrégation par mois
     df_f15_par_mois = (
-        df_f15_turpe
-        .with_columns([
-            # Convertir en timezone naive pour éviter les conflits de join
-            pl.col("date_debut").str.to_datetime().dt.truncate("1mo").dt.replace_time_zone(None).alias("mois")
-        ])
+        df_f15_turpe.with_columns(
+            [
+                # Convertir en timezone naive pour éviter les conflits de join
+                pl.col("date_debut").str.to_datetime().dt.truncate("1mo").dt.replace_time_zone(None).alias("mois")
+            ]
+        )
         .group_by("mois")
-        .agg([
-            pl.col("montant_ht").sum().alias("montant_f15"),
-            pl.col("pdl").n_unique().alias("nb_pdl"),
-            pl.len().alias("nb_lignes")
-        ])
+        .agg(
+            [
+                pl.col("montant_ht").sum().alias("montant_f15"),
+                pl.col("pdl").n_unique().alias("nb_pdl"),
+                pl.len().alias("nb_lignes"),
+            ]
+        )
         .sort("mois")
     )
 
     # Agrégation par type de composante
     df_f15_par_composante = (
-        df_f15_turpe
-        .group_by(["type_composante", "part_turpe"])
-        .agg([
-            pl.col("montant_ht").sum().alias("montant_f15"),
-            pl.len().alias("nb_lignes")
-        ])
+        df_f15_turpe.group_by(["type_composante", "part_turpe"])
+        .agg([pl.col("montant_ht").sum().alias("montant_f15"), pl.len().alias("nb_lignes")])
         .sort("montant_f15", descending=True)
     )
     return df_f15_par_composante, df_f15_par_mois, df_f15_par_pdl
@@ -210,11 +199,13 @@ def aggregations_f15(df_f15_turpe):
 @app.cell(hide_code=True)
 def show_f15_summary(df_f15_par_composante, df_f15_par_mois, df_f15_par_pdl):
     """Affichage des résumés F15"""
-    mo.accordion(items={
-        'f15 par pdl':df_f15_par_pdl,
-        'f15 par mois':df_f15_par_mois,
-        'f15 par composante':df_f15_par_composante,
-    })
+    mo.accordion(
+        items={
+            "f15 par pdl": df_f15_par_pdl,
+            "f15 par mois": df_f15_par_mois,
+            "f15 par composante": df_f15_par_composante,
+        }
+    )
     return
 
 
@@ -228,8 +219,7 @@ def _():
 def _(df_f15_turpe):
     # Extraction du TURPE fixe depuis F15
     _df_f15_fixe = (
-        df_f15_turpe
-        .filter(pl.col("part_turpe") == "Fixe")
+        df_f15_turpe.filter(pl.col("part_turpe") == "Fixe")
         # .group_by("pdl")
         # .agg([
         #     pl.col("montant_ht").sum().alias("turpe_fixe_f15")
@@ -255,8 +245,7 @@ def _(df_f15_turpe):
 def _(df_f15_turpe):
     # Extraction du TURPE var depuis F15
     df_f15_variable = (
-        df_f15_turpe
-        .filter(pl.col("part_turpe") == "Variable")
+        df_f15_turpe.filter(pl.col("part_turpe") == "Variable")
         # .group_by("pdl")
         # .agg([
         #     pl.col("montant_ht").sum().alias("turpe_variable_f15")
@@ -295,16 +284,15 @@ def load_odoo_perimeter(config):
         with OdooReader(config=config) as odoo:
             # Récupération des PDL depuis les commandes Odoo, focus sur C5
             df_pdl_odoo = (
-                odoo.query('sale.order',
-                    domain=[('x_pdl', '!=', False)],  # Uniquement les commandes avec PDL
-                    fields=['name', 'x_pdl', 'partner_id'])
-                .filter(pl.col('x_pdl').is_not_null())
-                .select([
-                    pl.col('x_pdl').str.strip_chars().alias('pdl'),
-                    pl.col('name').alias('order_name')
-                ])
+                odoo.query(
+                    "sale.order",
+                    domain=[("x_pdl", "!=", False)],  # Uniquement les commandes avec PDL
+                    fields=["name", "x_pdl", "partner_id"],
+                )
+                .filter(pl.col("x_pdl").is_not_null())
+                .select([pl.col("x_pdl").str.strip_chars().alias("pdl"), pl.col("name").alias("order_name")])
                 .collect()
-                .unique('pdl')
+                .unique("pdl")
             )
 
         nb_pdl_odoo = len(df_pdl_odoo)
@@ -321,7 +309,7 @@ def load_odoo_perimeter(config):
         print("📄 Continuons sans filtre Odoo (tous les PDL F15 seront analysés)")
 
         # DataFrame vide si pas de connexion Odoo
-        df_pdl_odoo = pl.DataFrame({'pdl': [], 'order_name': []}, schema={'pdl': pl.Utf8, 'order_name': pl.Utf8})
+        df_pdl_odoo = pl.DataFrame({"pdl": [], "order_name": []}, schema={"pdl": pl.Utf8, "order_name": pl.Utf8})
     return
 
 
@@ -343,9 +331,7 @@ def load_pipeline_data():
     # Charger l'historique C15 enrichi
     print("📄 Chargement historique C15...")
     lf_historique = c15().lazy()
-    lf_historique_enrichi = inserer_evenements_facturation(
-        detecter_points_de_rupture(lf_historique)
-    )
+    lf_historique_enrichi = inserer_evenements_facturation(detecter_points_de_rupture(lf_historique))
     df_historique = lf_historique_enrichi.collect()
 
     # Charger les relevés R151
@@ -393,14 +379,12 @@ def calculate_turpe_fixe(df_historique):
     df_periodes_abonnement = lf_periodes_abonnement.collect()
 
     # Agrégation du TURPE fixe par PDL
-    df_turpe_fixe_pdl = (
-        df_periodes_abonnement
-        .group_by("pdl")
-        .agg([
+    df_turpe_fixe_pdl = df_periodes_abonnement.group_by("pdl").agg(
+        [
             pl.col("turpe_fixe_eur").sum().alias("turpe_fixe_total"),
             pl.col("debut").min().alias("date_debut_periode"),
-            pl.col("fin").max().alias("date_fin_periode")
-        ])
+            pl.col("fin").max().alias("date_fin_periode"),
+        ]
     )
 
     calc_time_fixe = time.time() - _start_time_fixe
@@ -429,41 +413,40 @@ def compare_turpe_fixe(df_f15_turpe, df_turpe_fixe_pdl):
 
     # Agrégation du TURPE fixe F15 par PDL
     df_f15_fixe_par_pdl = (
-        df_f15_turpe
-        .filter(pl.col("part_turpe") == "Fixe")
+        df_f15_turpe.filter(pl.col("part_turpe") == "Fixe")
         .group_by("pdl")
-        .agg([
-            pl.col("montant_ht").sum().alias("turpe_fixe_f15"),
-            pl.col("date_debut").min().alias("premiere_periode_f15"),
-            pl.col("date_fin").max().alias("derniere_periode_f15"),
-            pl.len().alias("nb_lignes_f15")
-        ])
+        .agg(
+            [
+                pl.col("montant_ht").sum().alias("turpe_fixe_f15"),
+                pl.col("date_debut").min().alias("premiere_periode_f15"),
+                pl.col("date_fin").max().alias("derniere_periode_f15"),
+                pl.len().alias("nb_lignes_f15"),
+            ]
+        )
     )
 
     # Jointure complète F15 vs Calculé
     df_comparison_fixe = (
-        df_f15_fixe_par_pdl
-        .join(df_turpe_fixe_pdl, on="pdl", how="full")
-        .with_columns([
-            pl.col("turpe_fixe_f15").fill_null(0.0),
-            pl.col("turpe_fixe_total").fill_null(0.0)
-        ])
-        .with_columns([
-            (pl.col("turpe_fixe_total") - pl.col("turpe_fixe_f15")).alias("ecart_absolu"),
-            pl.when(pl.col("turpe_fixe_f15") != 0.0)
-            .then(((pl.col("turpe_fixe_total") - pl.col("turpe_fixe_f15")) / pl.col("turpe_fixe_f15") * 100))
-            .otherwise(pl.lit(None))
-            .alias("ecart_relatif_pct"),
-            # Classification des PDL
-            pl.when((pl.col("turpe_fixe_f15") > 0) & (pl.col("turpe_fixe_total") > 0))
-            .then(pl.lit("Présent des 2 côtés"))
-            .when((pl.col("turpe_fixe_f15") > 0) & (pl.col("turpe_fixe_total") == 0))
-            .then(pl.lit("Manquant côté calcul"))
-            .when((pl.col("turpe_fixe_f15") == 0) & (pl.col("turpe_fixe_total") > 0))
-            .then(pl.lit("En trop côté calcul"))
-            .otherwise(pl.lit("Vide des 2 côtés"))
-            .alias("statut_pdl")
-        ])
+        df_f15_fixe_par_pdl.join(df_turpe_fixe_pdl, on="pdl", how="full")
+        .with_columns([pl.col("turpe_fixe_f15").fill_null(0.0), pl.col("turpe_fixe_total").fill_null(0.0)])
+        .with_columns(
+            [
+                (pl.col("turpe_fixe_total") - pl.col("turpe_fixe_f15")).alias("ecart_absolu"),
+                pl.when(pl.col("turpe_fixe_f15") != 0.0)
+                .then(((pl.col("turpe_fixe_total") - pl.col("turpe_fixe_f15")) / pl.col("turpe_fixe_f15") * 100))
+                .otherwise(pl.lit(None))
+                .alias("ecart_relatif_pct"),
+                # Classification des PDL
+                pl.when((pl.col("turpe_fixe_f15") > 0) & (pl.col("turpe_fixe_total") > 0))
+                .then(pl.lit("Présent des 2 côtés"))
+                .when((pl.col("turpe_fixe_f15") > 0) & (pl.col("turpe_fixe_total") == 0))
+                .then(pl.lit("Manquant côté calcul"))
+                .when((pl.col("turpe_fixe_f15") == 0) & (pl.col("turpe_fixe_total") > 0))
+                .then(pl.lit("En trop côté calcul"))
+                .otherwise(pl.lit("Vide des 2 côtés"))
+                .alias("statut_pdl"),
+            ]
+        )
         .sort(pl.col("ecart_absolu").abs(), descending=True)
     )
 
@@ -475,9 +458,11 @@ def compare_turpe_fixe(df_f15_turpe, df_turpe_fixe_pdl):
 
     nb_pdl_f15 = df_comparison_fixe.filter(pl.col("turpe_fixe_f15") > 0).select(pl.len()).item()
     nb_pdl_calcule = df_comparison_fixe.filter(pl.col("turpe_fixe_total") > 0).select(pl.len()).item()
-    nb_pdl_communs = df_comparison_fixe.filter(
-        (pl.col("turpe_fixe_f15") > 0) & (pl.col("turpe_fixe_total") > 0)
-    ).select(pl.len()).item()
+    nb_pdl_communs = (
+        df_comparison_fixe.filter((pl.col("turpe_fixe_f15") > 0) & (pl.col("turpe_fixe_total") > 0))
+        .select(pl.len())
+        .item()
+    )
 
     taux_couverture = (nb_pdl_calcule / nb_pdl_f15) * 100 if nb_pdl_f15 > 0 else 0
 
@@ -502,6 +487,7 @@ def calcul_prorata_temporel(df_f15_turpe):
     # Date de coupure = fin du mois dernier révolu
     from datetime import date
     import calendar
+
     _today = date.today()
     if _today.month == 1:
         _date_coupure = date(_today.year - 1, 12, 31)
@@ -518,46 +504,70 @@ def calcul_prorata_temporel(df_f15_turpe):
     df_f15_fixe = df_f15_turpe.filter(pl.col("part_turpe") == "Fixe")
 
     # Calcul du prorata pour chaque ligne
-    df_prorata = df_f15_fixe.with_columns([
-        # Conversion des dates
-        pl.col("date_debut").str.to_date().alias("debut_dt"),
-        pl.col("date_fin").str.to_date().alias("fin_dt"),
-        pl.date(_date_coupure.year, _date_coupure.month, _date_coupure.day).alias("date_coupure_dt")
-    ]).with_columns([
-        # Calcul des durées
-        (pl.col("fin_dt") - pl.col("debut_dt") + pl.duration(days=1)).dt.total_days().alias("duree_totale_jours"),
-        # Calcul de la fin effective (min entre fin période et date coupure)
-        pl.min_horizontal(pl.col("fin_dt"), pl.col("date_coupure_dt")).alias("fin_effective"),
-    ]).with_columns([
-        # Calcul des jours avant coupure
-        pl.max_horizontal(
-            pl.lit(0),
-            (pl.col("fin_effective") - pl.col("debut_dt") + pl.duration(days=1)).dt.total_days()
-        ).alias("jours_avant_coupure")
-    ]).with_columns([
-        # Calcul du ratio de prorata
-        (pl.col("jours_avant_coupure") / pl.col("duree_totale_jours")).alias("ratio_prorata"),
-        # Montant proratisé
-        (pl.col("montant_ht") * pl.col("jours_avant_coupure") / pl.col("duree_totale_jours")).alias("montant_proratise")
-    ])
+    df_prorata = (
+        df_f15_fixe.with_columns(
+            [
+                # Conversion des dates
+                pl.col("date_debut").str.to_date().alias("debut_dt"),
+                pl.col("date_fin").str.to_date().alias("fin_dt"),
+                pl.date(_date_coupure.year, _date_coupure.month, _date_coupure.day).alias("date_coupure_dt"),
+            ]
+        )
+        .with_columns(
+            [
+                # Calcul des durées
+                (pl.col("fin_dt") - pl.col("debut_dt") + pl.duration(days=1))
+                .dt.total_days()
+                .alias("duree_totale_jours"),
+                # Calcul de la fin effective (min entre fin période et date coupure)
+                pl.min_horizontal(pl.col("fin_dt"), pl.col("date_coupure_dt")).alias("fin_effective"),
+            ]
+        )
+        .with_columns(
+            [
+                # Calcul des jours avant coupure
+                pl.max_horizontal(
+                    pl.lit(0), (pl.col("fin_effective") - pl.col("debut_dt") + pl.duration(days=1)).dt.total_days()
+                ).alias("jours_avant_coupure")
+            ]
+        )
+        .with_columns(
+            [
+                # Calcul du ratio de prorata
+                (pl.col("jours_avant_coupure") / pl.col("duree_totale_jours")).alias("ratio_prorata"),
+                # Montant proratisé
+                (pl.col("montant_ht") * pl.col("jours_avant_coupure") / pl.col("duree_totale_jours")).alias(
+                    "montant_proratise"
+                ),
+            ]
+        )
+    )
 
     # Classification des périodes
-    df_classification = df_prorata.with_columns([
-        pl.when(pl.col("debut_dt") > pl.col("date_coupure_dt"))
-        .then(pl.lit("Entièrement après coupure"))
-        .when(pl.col("fin_dt") <= pl.col("date_coupure_dt"))
-        .then(pl.lit("Entièrement avant coupure"))
-        .otherwise(pl.lit("Partiellement après coupure"))
-        .alias("classification_temporelle")
-    ])
+    df_classification = df_prorata.with_columns(
+        [
+            pl.when(pl.col("debut_dt") > pl.col("date_coupure_dt"))
+            .then(pl.lit("Entièrement après coupure"))
+            .when(pl.col("fin_dt") <= pl.col("date_coupure_dt"))
+            .then(pl.lit("Entièrement avant coupure"))
+            .otherwise(pl.lit("Partiellement après coupure"))
+            .alias("classification_temporelle")
+        ]
+    )
 
     # Statistiques globales
-    stats = df_classification.group_by("classification_temporelle").agg([
-        pl.len().alias("nb_lignes"),
-        pl.col("montant_ht").sum().alias("montant_original"),
-        pl.col("montant_proratise").sum().alias("montant_proratise"),
-        pl.col("ratio_prorata").mean().alias("ratio_moyen")
-    ]).sort("montant_original", descending=True)
+    stats = (
+        df_classification.group_by("classification_temporelle")
+        .agg(
+            [
+                pl.len().alias("nb_lignes"),
+                pl.col("montant_ht").sum().alias("montant_original"),
+                pl.col("montant_proratise").sum().alias("montant_proratise"),
+                pl.col("ratio_prorata").mean().alias("ratio_moyen"),
+            ]
+        )
+        .sort("montant_original", descending=True)
+    )
 
     print(f"\n📊 STATISTIQUES DE PRORATA TEMPOREL:")
     print(stats.to_pandas().to_string(index=False, float_format="%.2f"))
@@ -570,16 +580,16 @@ def calcul_prorata_temporel(df_f15_turpe):
     print(f"\n💰 RÉSUMÉ FINANCIER:")
     print(f"   Montant original (F15 fixe): {total_original:,.2f} €")
     print(f"   Montant proratisé: {total_proratise:,.2f} €")
-    print(f"   Différence (à échoir): {difference:,.2f} € ({difference/total_original*100:.1f}%)")
+    print(f"   Différence (à échoir): {difference:,.2f} € ({difference / total_original * 100:.1f}%)")
     return (df_classification,)
 
 
 @app.cell
 def _(df_classification):
     # Agrégation des montants F15 proratisés par PDL
-    df_f15_prorata_pdl = df_classification.group_by("pdl").agg([
-        pl.col("montant_proratise").sum().alias("turpe_fixe_f15_prorata")
-    ])
+    df_f15_prorata_pdl = df_classification.group_by("pdl").agg(
+        [pl.col("montant_proratise").sum().alias("turpe_fixe_f15_prorata")]
+    )
     return (df_f15_prorata_pdl,)
 
 
@@ -589,18 +599,17 @@ def turpe_fixe_quality_metrics_prorata(df_f15_prorata_pdl, df_turpe_fixe_pdl):
 
     print(f"\n🎯 MÉTRIQUES DE QUALITÉ AVEC PRORATA TEMPOREL")
 
-
-
     # Jointure avec les montants calculés
-    df_comparison_prorata = df_f15_prorata_pdl.join(
-        df_turpe_fixe_pdl,
-        on="pdl",
-        how="inner"
-    ).with_columns([
-        # Calcul des écarts avec prorata
-        (pl.col("turpe_fixe_total") - pl.col("turpe_fixe_f15_prorata")).alias("ecart_absolu_prorata"),
-        (((pl.col("turpe_fixe_total") - pl.col("turpe_fixe_f15_prorata")) / pl.col("turpe_fixe_f15_prorata")) * 100).alias("ecart_relatif_pct_prorata")
-    ])
+    df_comparison_prorata = df_f15_prorata_pdl.join(df_turpe_fixe_pdl, on="pdl", how="inner").with_columns(
+        [
+            # Calcul des écarts avec prorata
+            (pl.col("turpe_fixe_total") - pl.col("turpe_fixe_f15_prorata")).alias("ecart_absolu_prorata"),
+            (
+                ((pl.col("turpe_fixe_total") - pl.col("turpe_fixe_f15_prorata")) / pl.col("turpe_fixe_f15_prorata"))
+                * 100
+            ).alias("ecart_relatif_pct_prorata"),
+        ]
+    )
 
     # Statistiques globales avec prorata
     total_calcule = df_comparison_prorata.select(pl.col("turpe_fixe_total").sum()).item()
@@ -611,12 +620,16 @@ def turpe_fixe_quality_metrics_prorata(df_f15_prorata_pdl, df_turpe_fixe_pdl):
     print(f"\n💰 COMPARAISON AVEC PRORATA:")
     print(f"   F15 proratisé: {total_f15_prorata:,.2f} € ({_nb_pdl_communs_prorata} PDL)")
     print(f"   Calculé: {total_calcule:,.2f} €")
-    print(f"   Écart global: {ecart_global_prorata:+,.2f} € ({ecart_global_prorata/total_f15_prorata*100:+.1f}%)")
+    print(f"   Écart global: {ecart_global_prorata:+,.2f} € ({ecart_global_prorata / total_f15_prorata * 100:+.1f}%)")
 
     # Métriques de précision avec prorata
     if _nb_pdl_communs_prorata > 0:
-        _nb_precise_1eur_prorata = df_comparison_prorata.filter(pl.col("ecart_absolu_prorata").abs() <= 1.0).select(pl.len()).item()
-        _nb_precise_5pct_prorata = df_comparison_prorata.filter(pl.col("ecart_relatif_pct_prorata").abs() <= 5.0).select(pl.len()).item()
+        _nb_precise_1eur_prorata = (
+            df_comparison_prorata.filter(pl.col("ecart_absolu_prorata").abs() <= 1.0).select(pl.len()).item()
+        )
+        _nb_precise_5pct_prorata = (
+            df_comparison_prorata.filter(pl.col("ecart_relatif_pct_prorata").abs() <= 5.0).select(pl.len()).item()
+        )
 
         _precision_1eur_prorata = (_nb_precise_1eur_prorata / _nb_pdl_communs_prorata) * 100
         _precision_5pct_prorata = (_nb_precise_5pct_prorata / _nb_pdl_communs_prorata) * 100
@@ -641,8 +654,12 @@ def turpe_fixe_quality_metrics_prorata(df_f15_prorata_pdl, df_turpe_fixe_pdl):
             _recommandation = "Problèmes majeurs dans le calcul"
 
         print(f"\n📊 MÉTRIQUES DE PRÉCISION (PRORATA):")
-        print(f"   Précision ±1€: {_precision_1eur_prorata:.1f}% ({_nb_precise_1eur_prorata}/{_nb_pdl_communs_prorata} PDL)")
-        print(f"   Précision ±5%: {_precision_5pct_prorata:.1f}% ({_nb_precise_5pct_prorata}/{_nb_pdl_communs_prorata} PDL)")
+        print(
+            f"   Précision ±1€: {_precision_1eur_prorata:.1f}% ({_nb_precise_1eur_prorata}/{_nb_pdl_communs_prorata} PDL)"
+        )
+        print(
+            f"   Précision ±5%: {_precision_5pct_prorata:.1f}% ({_nb_precise_5pct_prorata}/{_nb_pdl_communs_prorata} PDL)"
+        )
         print(f"   Écart moyen: {_ecart_moyen_prorata:+.2f} € | Écart médian: {_ecart_median_prorata:+.2f} €")
         print(f"   🎯 Évaluation: {_evaluation}")
         print(f"   💡 Recommandation: {_recommandation}")
@@ -667,81 +684,100 @@ def analyze_turpe_fixe_gaps_prorata(
     print("\n🔍 ANALYSE DES ÉCARTS PAR CATÉGORIE (PRORATA):")
 
     # Agrégation des montants F15 proratisés par PDL
-    df_f15_prorata_base = df_classification.group_by("pdl").agg([
-        pl.col("montant_proratise").sum().alias("turpe_fixe_f15_prorata"),
-        pl.col("date_debut").min().alias("date_arrivee_pdl")  # Première date de facturation
-    ])
+    df_f15_prorata_base = df_classification.group_by("pdl").agg(
+        [
+            pl.col("montant_proratise").sum().alias("turpe_fixe_f15_prorata"),
+            pl.col("date_debut").min().alias("date_arrivee_pdl"),  # Première date de facturation
+        ]
+    )
 
     # Récupération des métadonnées métier depuis les périodes d'abonnement
-    df_metadonnees_pdl = df_periodes_abonnement.group_by("pdl").agg([
-        pl.col("formule_tarifaire_acheminement").cast(pl.String).first(),  # FTA du PDL
-        pl.col("puissance_souscrite_kva").first()  # Puissance souscrite en kVA
-    ])
+    df_metadonnees_pdl = df_periodes_abonnement.group_by("pdl").agg(
+        [
+            pl.col("formule_tarifaire_acheminement").cast(pl.String).first(),  # FTA du PDL
+            pl.col("puissance_souscrite_kva").first(),  # Puissance souscrite en kVA
+        ]
+    )
 
     # Jointure des montants proratisés avec les métadonnées
     df_f15_prorata_avec_metadonnees = df_f15_prorata_base.join(
         df_metadonnees_pdl,
         on="pdl",
-        how="left"  # Garder tous les PDL même sans métadonnées
+        how="left",  # Garder tous les PDL même sans métadonnées
     )
 
     # Jointure complète pour analyser tous les PDL
-    df_comparison_prorata_full = df_f15_prorata_avec_metadonnees.join(
-        df_turpe_fixe_pdl,
-        on="pdl",
-        how="outer"
-    ).with_columns([
-        # Gestion des valeurs nulles et statut PDL
-        pl.col("turpe_fixe_f15_prorata").fill_null(0),
-        pl.col("turpe_fixe_total").fill_null(0),
-        pl.when(pl.col("turpe_fixe_f15_prorata").is_null())
-        .then(pl.lit("Seulement dans calculé"))
-        .when(pl.col("turpe_fixe_total").is_null())
-        .then(pl.lit("Seulement dans F15 prorata"))
-        .otherwise(pl.lit("Présent des 2 côtés"))
-        .alias("statut_pdl")
-    ]).with_columns([
-        # Calcul des écarts avec prorata
-        (pl.col("turpe_fixe_total") - pl.col("turpe_fixe_f15_prorata")).alias("ecart_absolu_prorata"),
-        (((pl.col("turpe_fixe_total") - pl.col("turpe_fixe_f15_prorata")) / pl.col("turpe_fixe_f15_prorata")) * 100).alias("ecart_relatif_pct_prorata")
-    ])
+    df_comparison_prorata_full = (
+        df_f15_prorata_avec_metadonnees.join(df_turpe_fixe_pdl, on="pdl", how="outer")
+        .with_columns(
+            [
+                # Gestion des valeurs nulles et statut PDL
+                pl.col("turpe_fixe_f15_prorata").fill_null(0),
+                pl.col("turpe_fixe_total").fill_null(0),
+                pl.when(pl.col("turpe_fixe_f15_prorata").is_null())
+                .then(pl.lit("Seulement dans calculé"))
+                .when(pl.col("turpe_fixe_total").is_null())
+                .then(pl.lit("Seulement dans F15 prorata"))
+                .otherwise(pl.lit("Présent des 2 côtés"))
+                .alias("statut_pdl"),
+            ]
+        )
+        .with_columns(
+            [
+                # Calcul des écarts avec prorata
+                (pl.col("turpe_fixe_total") - pl.col("turpe_fixe_f15_prorata")).alias("ecart_absolu_prorata"),
+                (
+                    ((pl.col("turpe_fixe_total") - pl.col("turpe_fixe_f15_prorata")) / pl.col("turpe_fixe_f15_prorata"))
+                    * 100
+                ).alias("ecart_relatif_pct_prorata"),
+            ]
+        )
+    )
 
     # Statistiques par statut PDL avec prorata
     _stats_par_statut_prorata = (
-        df_comparison_prorata_full
-        .group_by("statut_pdl")
-        .agg([
-            pl.len().alias("nb_pdl"),
-            pl.col("turpe_fixe_f15_prorata").sum().alias("montant_f15_prorata"),
-            pl.col("turpe_fixe_total").sum().alias("montant_calcule"),
-            pl.col("ecart_absolu_prorata").sum().alias("ecart_total_prorata")
-        ])
+        df_comparison_prorata_full.group_by("statut_pdl")
+        .agg(
+            [
+                pl.len().alias("nb_pdl"),
+                pl.col("turpe_fixe_f15_prorata").sum().alias("montant_f15_prorata"),
+                pl.col("turpe_fixe_total").sum().alias("montant_calcule"),
+                pl.col("ecart_absolu_prorata").sum().alias("ecart_total_prorata"),
+            ]
+        )
         .sort("ecart_total_prorata", descending=True)
     )
 
     for row in _stats_par_statut_prorata.iter_rows(named=True):
-        statut = row['statut_pdl']
-        nb_pdl = row['nb_pdl']
-        montant_f15_prorata = row['montant_f15_prorata']
-        montant_calcule = row['montant_calcule']
-        ecart = row['ecart_total_prorata']
+        statut = row["statut_pdl"]
+        nb_pdl = row["nb_pdl"]
+        montant_f15_prorata = row["montant_f15_prorata"]
+        montant_calcule = row["montant_calcule"]
+        ecart = row["ecart_total_prorata"]
 
         print(f"   📋 {statut}: {nb_pdl} PDL")
-        print(f"      F15 prorata: {montant_f15_prorata:,.2f} € | Calculé: {montant_calcule:,.2f} € | Écart: {ecart:+,.2f} €")
+        print(
+            f"      F15 prorata: {montant_f15_prorata:,.2f} € | Calculé: {montant_calcule:,.2f} € | Écart: {ecart:+,.2f} €"
+        )
 
     # Top 10 des écarts les plus importants avec prorata (PDL communs seulement)
     _top_ecarts_prorata = (
-        df_comparison_prorata_full
-        .filter(pl.col("statut_pdl") == "Présent des 2 côtés")
+        df_comparison_prorata_full.filter(pl.col("statut_pdl") == "Présent des 2 côtés")
         .filter(pl.col("ecart_relatif_pct_prorata").abs() > 0.1)  # Écarts > 0.1%
         .sort("ecart_absolu_prorata", descending=True)
-        .select([
-            "pdl", "date_arrivee_pdl", "formule_tarifaire_acheminement", "puissance_souscrite_kva",
-            "turpe_fixe_f15_prorata", "turpe_fixe_total",
-            "ecart_absolu_prorata", "ecart_relatif_pct_prorata"
-        ])
+        .select(
+            [
+                "pdl",
+                "date_arrivee_pdl",
+                "formule_tarifaire_acheminement",
+                "puissance_souscrite_kva",
+                "turpe_fixe_f15_prorata",
+                "turpe_fixe_total",
+                "ecart_absolu_prorata",
+                "ecart_relatif_pct_prorata",
+            ]
+        )
     )
-
 
     mo.vstack([mo.md(f"\n📈 ÉCARTS SIGNIFICATIFS (PDL communs - PRORATA):"), _top_ecarts_prorata])
     return

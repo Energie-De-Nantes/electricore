@@ -14,7 +14,7 @@ from .duckdb import (
     # Utilitaires
     get_available_tables,
     # API legacy (compatibilité)
-    load_historique_perimetre,
+    load_historique,
     load_releves,
     r15,
     r64,
@@ -56,7 +56,7 @@ __all__ = [
     "releves_harmonises",
     "DuckDBQuery",
     # API legacy DuckDB (compatibilité)
-    "load_historique_perimetre",
+    "load_historique",
     "load_releves",
     # Utilitaires DuckDB
     "get_available_tables",

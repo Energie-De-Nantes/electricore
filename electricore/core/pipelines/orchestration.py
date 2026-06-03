@@ -5,7 +5,7 @@ Fournit des fonctions d'orchestration qui composent les pipelines purs Polars
 et retournent des ResultatFacturationPolars immutables.
 
 Ce module centralise l'orchestration de tous les pipelines Polars, garantissant
-que pipeline_perimetre n'est appelé qu'une seule fois et que les résultats
+que pipeline_historique n'est appelé qu'une seule fois et que les résultats
 intermédiaires sont accessibles via le container ResultatFacturationPolars.
 """
 
@@ -16,7 +16,7 @@ import polars as pl
 from electricore.core.pipelines.abonnements import pipeline_abonnements
 from electricore.core.pipelines.energie import pipeline_energie
 from electricore.core.pipelines.facturation import pipeline_facturation
-from electricore.core.pipelines.perimetre import pipeline_perimetre
+from electricore.core.pipelines.historique import pipeline_historique
 
 
 class ResultatFacturationPolars(NamedTuple):
@@ -69,7 +69,7 @@ def calculer_historique_enrichi(
     Returns:
         ResultatFacturationPolars avec historique_enrichi seulement
     """
-    historique_enrichi = pipeline_perimetre(historique, date_limite=date_limite)
+    historique_enrichi = pipeline_historique(historique, date_limite=date_limite)
     return ResultatFacturationPolars(historique_enrichi=historique_enrichi)
 
 
@@ -77,7 +77,7 @@ def calculer_abonnements(historique: pl.LazyFrame, date_limite: pl.Expr | None =
     """
     Calcule les abonnements avec leur contexte (historique enrichi) - Version Polars.
 
-    Orchestre pipeline_perimetre + pipeline_abonnements pour obtenir
+    Orchestre pipeline_historique + pipeline_abonnements pour obtenir
     les périodes d'abonnement avec TURPE fixe.
 
     Args:
@@ -88,7 +88,7 @@ def calculer_abonnements(historique: pl.LazyFrame, date_limite: pl.Expr | None =
     Returns:
         ResultatFacturationPolars avec historique_enrichi + abonnements
     """
-    historique_enrichi = pipeline_perimetre(historique, date_limite=date_limite)
+    historique_enrichi = pipeline_historique(historique, date_limite=date_limite)
     abonnements = pipeline_abonnements(historique_enrichi)
 
     return ResultatFacturationPolars(historique_enrichi=historique_enrichi, abonnements=abonnements)
@@ -100,7 +100,7 @@ def calculer_energie(
     """
     Calcule l'énergie avec son contexte (historique enrichi) - Version Polars.
 
-    Orchestre pipeline_perimetre + pipeline_energie pour obtenir
+    Orchestre pipeline_historique + pipeline_energie pour obtenir
     les périodes d'énergie avec TURPE variable.
 
     Args:
@@ -112,7 +112,7 @@ def calculer_energie(
     Returns:
         ResultatFacturationPolars avec historique_enrichi + energie
     """
-    historique_enrichi = pipeline_perimetre(historique, date_limite=date_limite)
+    historique_enrichi = pipeline_historique(historique, date_limite=date_limite)
     energie = pipeline_energie(historique_enrichi, releves)
 
     return ResultatFacturationPolars(historique_enrichi=historique_enrichi, energie=energie)
@@ -124,7 +124,7 @@ def facturation(
     """
     Pipeline complet de facturation avec méta-périodes mensuelles - Version Polars.
 
-    Orchestre toute la chaîne de traitement en appelant pipeline_perimetre
+    Orchestre toute la chaîne de traitement en appelant pipeline_historique
     une seule fois puis en composant tous les autres pipelines :
     1. Détection des points de rupture et événements de facturation
     2. Génération des périodes d'abonnement avec TURPE fixe
@@ -158,8 +158,8 @@ def facturation(
         # Unpacking
         hist, abo, ener, fact = result
     """
-    # Une seule fois pipeline_perimetre - évite la duplication
-    historique_enrichi = pipeline_perimetre(historique, date_limite=date_limite)
+    # Une seule fois pipeline_historique - évite la duplication
+    historique_enrichi = pipeline_historique(historique, date_limite=date_limite)
 
     # Calculs en parallèle possibles (même historique enrichi)
     abonnements = pipeline_abonnements(historique_enrichi)

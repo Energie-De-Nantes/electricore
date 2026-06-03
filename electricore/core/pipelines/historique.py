@@ -1,12 +1,20 @@
 """
-Expressions Polars pour le pipeline périmètre.
+Expressions Polars pour le pipeline historique.
 
 Ce module contient des expressions composables suivant la philosophie
 fonctionnelle de Polars. Les expressions sont des transformations pures
 qui peuvent être composées entre elles.
+
+Le pipeline `pipeline_historique` produit l'Historique enrichi au sens du
+glossaire (cf. `electricore/core/CONTEXT.md` et ADR-0013) : événements C15
++ détection des points de rupture + événements FACTURATION artificiels.
 """
 
+import pandera.polars as pa
 import polars as pl
+from pandera.typing.polars import LazyFrame
+
+from electricore.core.models.historique import Historique
 
 
 def expr_changement(col_name: str, over: str = "ref_situation_contractuelle") -> pl.Expr:
@@ -602,33 +610,34 @@ def inserer_evenements_facturation(lf: pl.LazyFrame) -> pl.LazyFrame:
     )
 
 
-def pipeline_perimetre(historique: pl.LazyFrame, date_limite: pl.Expr | None = None) -> pl.LazyFrame:
+@pa.check_types(lazy=True)
+def pipeline_historique(historique: pl.LazyFrame, date_limite: pl.Expr | None = None) -> LazyFrame[Historique]:
     """
-    Pipeline complet de traitement du périmètre - Version Polars.
+    Pipeline complet de production de l'Historique enrichi.
 
     Ce pipeline orchestre :
     1. La détection des points de rupture
-    2. L'insertion des événements de facturation
+    2. L'insertion des événements FACTURATION artificiels
     3. Le filtrage optionnel par date limite
 
     Args:
-        historique: LazyFrame contenant l'historique des événements contractuels
+        historique: LazyFrame contenant les événements contractuels bruts (sortie de `c15()`)
         date_limite: Expression Polars pour filtrer les événements après cette date
                     (défaut: 1er du mois courant si None)
 
     Returns:
-        LazyFrame enrichi avec détection des ruptures et événements de facturation
+        LazyFrame validé par le modèle `Historique`
 
     Example:
         >>> from datetime import datetime
         >>> import polars as pl
         >>>
         >>> # Pipeline complet
-        >>> enrichi = pipeline_perimetre(historique_lf)
+        >>> enrichi = pipeline_historique(historique_lf)
         >>>
         >>> # Avec date limite
         >>> date_limite = pl.lit(datetime(2024, 1, 1))
-        >>> enrichi = pipeline_perimetre(historique_lf, date_limite)
+        >>> enrichi = pipeline_historique(historique_lf, date_limite)
     """
     # Appliquer le filtrage par date si spécifié
     if date_limite is not None:
