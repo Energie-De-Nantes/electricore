@@ -188,3 +188,23 @@ class TestPipelineAccise:
         assert row["mois_consommation"] == "2024-06"
         assert row["energie_mwh"] == 1.0
         assert row["accise_eur"] == 21.0
+
+    def test_lignes_sans_invoice_date_sont_exclues(self, regles_accise_synthetiques):
+        """Les lignes de factures draft (sans invoice_date) ne sont pas dans l'assiette.
+
+        Sinon, leur `mois_consommation` est null et le pipeline lève une ValueError
+        sur la sélection du taux en vigueur (date null < tout start de l'historique).
+        """
+        lignes = pl.LazyFrame(
+            [
+                {"x_pdl": "B", "name": "SO-B", "invoice_date": "2024-07-15", "name_product_category": "Base", "quantity": 500.0},
+                # Ligne draft sans invoice_date : doit être ignorée
+                {"x_pdl": "B", "name": "SO-B", "invoice_date": None, "name_product_category": "Base", "quantity": 999.0},
+            ]
+        )
+
+        result = pipeline_accise(lignes, regles_accise_synthetiques)
+
+        assert len(result) == 1
+        row = result.row(0, named=True)
+        assert row["energie_kwh"] == 500.0  # 999 exclu
