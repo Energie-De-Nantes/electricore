@@ -15,7 +15,11 @@ from electricore.api.models import ETLJobResponse, ETLRunRequest
 from electricore.api.security import APIKeyInfo, get_api_key_info, get_current_api_key
 from electricore.api.services import duckdb_service, etl_service
 from electricore.api.services.check_facturation_service import verifier_odoo
-from electricore.api.services.facturation_service import generer_documents_facturation, generer_facturation_xlsx
+from electricore.api.services.facturation_service import (
+    generer_documents_facturation,
+    generer_facturation_arrow,
+    generer_facturation_xlsx,
+)
 from electricore.api.services.taxes_service import generer_accise_xlsx, generer_cta_xlsx
 
 logger = logging.getLogger(__name__)
@@ -525,6 +529,41 @@ async def export_facturation_xlsx(
         media_type=_XLSX_MEDIA,
         headers={"Content-Disposition": f"attachment; filename=facturation{suffix}.xlsx"},
     )
+
+
+_ARROW_IPC_MEDIA = "application/vnd.apache.arrow.stream"
+
+
+@app.get("/facturation/arrow", tags=["facturation"])
+async def export_facturation_arrow(
+    mois: str | None = Query(
+        default=None,
+        examples=["2025-01-01"],
+        description="Mois au format YYYY-MM-DD (défaut : dernier mois disponible dans les données)",
+    ),
+    api_key: str = Depends(get_current_api_key),
+):
+    """
+    Réconciliation Odoo↔Enedis sérialisée en Arrow IPC stream.
+
+    **Authentification requise. Nécessite Odoo (ODOO_*) et DuckDB configurés.**
+
+    Sortie : flux Arrow IPC contenant `lignes_facture_rapprochees` (cf. core/CONTEXT.md).
+    À consommer côté client par `pl.read_ipc_stream(BytesIO(content))`.
+    """
+    if not settings.is_odoo_configured:
+        raise HTTPException(
+            501,
+            f"Odoo [{settings.odoo_env}] non configuré. Définissez ODOO_{settings.odoo_env.upper()}_URL/DB/USERNAME/PASSWORD dans .env",
+        )
+    try:
+        arrow_bytes = await asyncio.get_event_loop().run_in_executor(
+            None, generer_facturation_arrow, mois
+        )
+    except Exception as e:
+        logger.exception("Erreur facturation/arrow")
+        raise HTTPException(503, f"Erreur lors de la réconciliation facturation : {e}")
+    return Response(content=arrow_bytes, media_type=_ARROW_IPC_MEDIA)
 
 
 @app.get("/facturation/check/odoo", tags=["facturation"])

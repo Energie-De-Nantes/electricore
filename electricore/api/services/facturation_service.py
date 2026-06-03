@@ -16,6 +16,22 @@ from electricore.core.pipelines.facturation import rapprocher_facturation_mensue
 from electricore.core.pipelines.orchestration import facturation
 
 
+def calculer_lignes_facture_rapprochees(mois: str | None = None) -> pl.DataFrame:
+    """Charge Odoo + Enedis et applique `rapprocher_facturation_mensuelle`.
+
+    Args:
+        mois: format "YYYY-MM-DD" (premier jour du mois). None = dernier mois des données.
+    """
+    with OdooReader(config=settings.get_odoo_config()) as odoo:
+        lignes_df = lignes_a_facturer(odoo).collect()
+
+    _, _, _, fact = facturation(historique=c15().lazy(), releves=releves_harmonises().lazy())
+
+    return rapprocher_facturation_mensuelle(
+        lignes_odoo=lignes_df, fact_mensuelle=fact.lazy(), mois=mois
+    )
+
+
 def generer_facturation_xlsx(mois: str | None = None) -> bytes:
     """Réconciliation Odoo ↔ Enedis du mois (défaut : dernier mois disponible).
 
@@ -25,14 +41,7 @@ def generer_facturation_xlsx(mois: str | None = None) -> bytes:
     Returns:
         XLSX bytes — 2 onglets : "Lignes fusionnées" et "Changements puissance".
     """
-    with OdooReader(config=settings.get_odoo_config()) as odoo:
-        lignes_df = lignes_a_facturer(odoo).collect()
-
-    _, _, _, fact = facturation(historique=c15().lazy(), releves=releves_harmonises().lazy())
-
-    lignes_rapprochees = rapprocher_facturation_mensuelle(
-        lignes_odoo=lignes_df, fact_mensuelle=fact.lazy(), mois=mois
-    )
+    lignes_rapprochees = calculer_lignes_facture_rapprochees(mois)
     changements_puissance = lignes_rapprochees.filter(pl.col("memo_puissance") != "")
 
     buf = io.BytesIO()
@@ -40,6 +49,14 @@ def generer_facturation_xlsx(mois: str | None = None) -> bytes:
     lignes_rapprochees.write_excel(workbook=wb, worksheet="Lignes fusionnées")
     changements_puissance.write_excel(workbook=wb, worksheet="Changements puissance")
     wb.close()
+    return buf.getvalue()
+
+
+def generer_facturation_arrow(mois: str | None = None) -> bytes:
+    """Sérialise `lignes_facture_rapprochees` en flux Arrow IPC."""
+    lignes_rapprochees = calculer_lignes_facture_rapprochees(mois)
+    buf = io.BytesIO()
+    lignes_rapprochees.write_ipc_stream(buf)
     return buf.getvalue()
 
 
