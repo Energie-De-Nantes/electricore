@@ -7,6 +7,25 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
+## [Unreleased]
+
+### 🧮 Facturation — API épaisse (en cours)
+
+Première brique de l'API épaisse v1.5 : extraction du rapprochement Odoo↔Enedis vers le domaine `core`, prérequis pour exposer les résultats structurés en Arrow IPC aux notebooks distants.
+
+#### Ajouts
+
+- **`rapprocher_facturation_mensuelle()`** ([`electricore/core/pipelines/facturation.py`](electricore/core/pipelines/facturation.py)) — fonction métier pure qui joint les lignes de facture Odoo (taggées `x_ref_situation_contractuelle`) avec la facturation Enedis mensuelle et calcule `quantite_enedis` selon la catégorie produit (HP/HC/Base/Abonnements).
+- **Schéma Pandera `LignesFactureRapprochees`** ([`electricore/core/models/lignes_facture_rapprochees.py`](electricore/core/models/lignes_facture_rapprochees.py)) — validation stricte en sortie via `@pa.check_types(lazy=True)`.
+- **ADR-0012** ([`docs/adr/0012-api-read-only-odoo.md`](docs/adr/0012-api-read-only-odoo.md)) — politique « API read-only sur Odoo ; écritures via notebook humain-dans-la-boucle » + règle nuancée pour OdooReader en notebook (autorisé pour enrichissement, interdit en amont d'une pipeline).
+- **Glossaire** ([`electricore/core/CONTEXT.md`](electricore/core/CONTEXT.md)) — entrées « Rapprochement PDL ↔ RSC » (étape amont, notebook `injection_rsc.py`) et « Rapprochement facturation mensuelle » (étape aval, exposée par l'API) pour clarifier la distinction.
+
+#### Modifications
+
+- **`api/services/facturation_service.generer_facturation_xlsx`** consomme désormais `rapprocher_facturation_mensuelle()` — comportement XLSX inchangé, logique métier simplifiée.
+
+---
+
 ## [1.4.0] - 2026-06-02
 
 ### 🚀 Déployabilité — fondations VPS
