@@ -31,6 +31,17 @@ from electricore.etl.transformers.crypto import (
 # =============================================================================
 
 
+@pytest.fixture(autouse=True)
+def _isoler_env_aes(monkeypatch):
+    """Efface les vars AES__* d'os.environ pour isoler les tests crypto.
+
+    Sinon, tout test qui importe l'API en amont pollue os.environ via
+    `charger_env()` et fait court-circuiter le mock `dlt.secrets`.
+    """
+    for var in ("AES__CURRENT__KEY", "AES__CURRENT__IV", "AES__PREVIOUS__KEY", "AES__PREVIOUS__IV", "AES__KEY", "AES__IV"):
+        monkeypatch.delenv(var, raising=False)
+
+
 @pytest.fixture
 def zip_bytes() -> bytes:
     """Contenu d'un fichier ZIP valide minimal (commence par PK\\x03\\x04)."""
