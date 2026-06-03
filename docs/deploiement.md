@@ -29,47 +29,60 @@ Guide opérationnel pour déployer ElectriCore sur un VPS via la stack Docker
 
 ## Installation initiale
 
-### 1. Cloner le dépôt
+### Layout de déploiement
 
-```bash
-cd /opt
-git clone https://github.com/Energie-De-Nantes/electricore.git
-cd electricore/deploy/docker
+Sur le VPS, créer le dossier de déploiement et reproduire la structure suivante (pas besoin de cloner le dépôt — on n'utilise que l'image GHCR et 4 fichiers de configuration) :
+
+```
+/opt/electricore/
+├── .env                          ← secrets (source unique, ../../.env depuis le compose)
+└── deploy/docker/
+    ├── docker-compose.yml
+    ├── Caddyfile
+    └── crontab
 ```
 
-### 2. Créer le fichier `.env`
+### 1. Préparer le dossier et récupérer les fichiers de config
 
 ```bash
-cp .env.example .env
+mkdir -p /opt/electricore/deploy/docker
+cd /opt/electricore/deploy/docker
+
+# Télécharger les fichiers (depuis le tag souhaité, ex: v1.4.0)
+BASE=https://raw.githubusercontent.com/Energie-De-Nantes/electricore/v1.4.0/deploy/docker
+curl -fsSL -o docker-compose.yml "$BASE/docker-compose.yml"
+curl -fsSL -o Caddyfile          "$BASE/Caddyfile.example"
+curl -fsSL -o crontab            "$BASE/crontab.example"
+curl -fsSL -o /opt/electricore/.env "$BASE/.env.example"
 ```
 
-Éditer `.env` (voir [`.env.example`](../deploy/docker/.env.example) pour la liste complète des variables) :
+(Variante : si tu as cloné le dépôt par confort, tu pars de `<repo>/deploy/docker/`, et le `.env` racine du repo est utilisé tel quel.)
 
+### 2. Remplir le fichier `.env`
+
+Éditer `/opt/electricore/.env` :
+
+- `ELECTRICORE_VERSION` : tag de l'image GHCR à déployer (ex : `1.4.0`).
 - `API_KEY` : générer une clé sécurisée (`python -c "import secrets; print(secrets.token_urlsafe(32))"`).
 - `SFTP__URL` : URL SFTP distante ou `file:///var/enedis/` selon le mode.
 - `AES__CURRENT__KEY` / `AES__CURRENT__IV` : clés Enedis en hexadécimal.
 - `TELEGRAM_BOT_TOKEN` et `TELEGRAM_ALLOWED_USERS` si vous activez le bot.
 - `ODOO_*` si vous utilisez les endpoints `/taxes/*` et `/facturation/check/odoo`.
 
+Le compose lit ce fichier via `env_file: ../../.env` (deux niveaux au-dessus de `deploy/docker/`).
+
 ### 3. Configurer Caddy (TLS)
 
-```bash
-cp Caddyfile.example Caddyfile
-```
+Le fichier `Caddyfile` téléchargé est l'exemple Let's Encrypt. Remplacer `electricore.exemple.fr` par votre domaine et `votre-email@example.com` par votre email.
 
-Remplacer `electricore.exemple.fr` par votre domaine et `votre-email@example.com` par votre email pour les notifications Let's Encrypt.
+### 4. Ajuster le crontab (planning ETL)
 
-### 4. Préparer le crontab (planning ETL)
-
-```bash
-cp crontab.example crontab
-```
-
-Ajuster les horaires si nécessaire (par défaut : ETL à 02:00, sauvegarde à 03:30 Europe/Paris).
+Par défaut : ETL à 02:00, sauvegarde à 03:30 Europe/Paris. Modifier si nécessaire.
 
 ### 5. Démarrer la stack
 
 ```bash
+cd /opt/electricore/deploy/docker
 docker compose up -d
 ```
 
