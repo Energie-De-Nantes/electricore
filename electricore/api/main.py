@@ -23,6 +23,7 @@ from electricore.api.services.facturation_service import (
 from electricore.api.services.taxes_service import (
     generer_accise_arrow,
     generer_accise_xlsx,
+    generer_cta_arrow,
     generer_cta_xlsx,
 )
 
@@ -529,6 +530,39 @@ async def export_cta_xlsx(
         media_type=_XLSX_MEDIA,
         headers={"Content-Disposition": f"attachment; filename=cta{suffix}.xlsx"},
     )
+
+
+@app.get("/taxes/cta/arrow", tags=["taxes"])
+async def export_cta_arrow(
+    trimestre: str | None = Query(
+        default=None,
+        examples=["2025-T1"],
+        description="Filtre par trimestre au format YYYY-TX. Sans filtre : toutes les données.",
+    ),
+    api_key: str = Depends(get_current_api_key),
+):
+    """
+    Détail CTA mensuel sérialisé en Arrow IPC stream.
+
+    **Authentification requise. Nécessite Odoo (ODOO_*) et DuckDB configurés.**
+
+    Sortie : flux Arrow IPC (table mensuelle pdl × mois avec `cta_eur`,
+    `taux_cta_pct`, `turpe_fixe_eur`, `trimestre`). Les agrégations
+    « Par taux » et « Résumé » sont à charge du notebook.
+    """
+    if not settings.is_odoo_configured:
+        raise HTTPException(
+            501,
+            f"Odoo [{settings.odoo_env}] non configuré. Définissez ODOO_{settings.odoo_env.upper()}_URL/DB/USERNAME/PASSWORD dans .env",
+        )
+    try:
+        arrow_bytes = await asyncio.get_event_loop().run_in_executor(
+            None, generer_cta_arrow, trimestre
+        )
+    except Exception as e:
+        logger.exception("Erreur taxes/cta/arrow")
+        raise HTTPException(503, f"Erreur lors du calcul de la CTA : {e}")
+    return Response(content=arrow_bytes, media_type=_ARROW_IPC_MEDIA)
 
 
 @app.get("/facturation/xlsx", tags=["facturation"])

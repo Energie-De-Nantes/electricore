@@ -89,6 +89,49 @@ def generer_accise_xlsx(trimestre: str | None = None) -> bytes:
     )
 
 
+def calculer_cta_detail(trimestre: str | None = None) -> pl.DataFrame:
+    """Charge Odoo + flux, applique la pipeline CTA mensuelle (+ filtre trimestre).
+
+    Sortie : un DataFrame mensuel (pdl × mois) enrichi de `cta_eur`,
+    `taux_cta_pct`, `trimestre`, `order_name`. Les agrégations « par taux » /
+    « résumé » sont à charge du caller (ou du notebook).
+    """
+    odoo_config = settings.get_odoo_config()
+    with OdooReader(config=odoo_config) as odoo:
+        df_pdl = (
+            query(odoo, "sale.order", domain=[("x_pdl", "!=", False)], fields=["name", "x_pdl"])
+            .filter(pl.col("x_pdl").is_not_null())
+            .select(
+                [
+                    pl.col("x_pdl").str.strip_chars().alias("pdl"),
+                    pl.col("name").alias("order_name"),
+                ]
+            )
+            .collect()
+            .unique("pdl")
+        )
+
+    _, _, _, df_facturation = facturation(historique=c15().lazy(), releves=releves_harmonises().lazy())
+
+    df_mensuel = (
+        ajouter_cta(df_facturation.join(df_pdl.select(["pdl", "order_name"]), on="pdl", how="inner").lazy())
+        .with_columns(expr_calculer_trimestre().alias("trimestre"))
+        .collect()
+    )
+
+    if trimestre is not None:
+        df_mensuel = df_mensuel.filter(pl.col("trimestre") == trimestre)
+    return df_mensuel
+
+
+def generer_cta_arrow(trimestre: str | None = None) -> bytes:
+    """Sérialise le détail CTA mensuel en flux Arrow IPC."""
+    df = calculer_cta_detail(trimestre)
+    buf = io.BytesIO()
+    df.write_ipc_stream(buf)
+    return buf.getvalue()
+
+
 def generer_cta_xlsx(trimestre: str | None = None) -> bytes:
     """
     Calcule la CTA et retourne un fichier XLSX multi-onglets.
@@ -104,34 +147,7 @@ def generer_cta_xlsx(trimestre: str | None = None) -> bytes:
     Returns:
         Contenu XLSX en bytes avec 3 onglets : Résumé, Par taux, Détail.
     """
-    odoo_config = settings.get_odoo_config()
-
-    with OdooReader(config=odoo_config) as odoo:
-        df_pdl = (
-            query(odoo, "sale.order", domain=[("x_pdl", "!=", False)], fields=["name", "x_pdl"])
-            .filter(pl.col("x_pdl").is_not_null())
-            .select(
-                [
-                    pl.col("x_pdl").str.strip_chars().alias("pdl"),
-                    pl.col("name").alias("order_name"),
-                ]
-            )
-            .collect()
-            .unique("pdl")
-        )
-
-    lf_historique = c15().lazy()
-    lf_releves = releves_harmonises().lazy()
-    _, _, _, df_facturation = facturation(historique=lf_historique, releves=lf_releves)
-
-    df_mensuel = (
-        ajouter_cta(df_facturation.join(df_pdl.select(["pdl", "order_name"]), on="pdl", how="inner").lazy())
-        .with_columns(expr_calculer_trimestre().alias("trimestre"))
-        .collect()
-    )
-
-    if trimestre is not None:
-        df_mensuel = df_mensuel.filter(pl.col("trimestre") == trimestre)
+    df_mensuel = calculer_cta_detail(trimestre)
 
     df_detail_cta = (
         df_mensuel.lazy()

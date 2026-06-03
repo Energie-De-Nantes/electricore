@@ -51,5 +51,13 @@ class ElectricoreClient:
         """
         return self._get_arrow("/taxes/accise/arrow", {"trimestre": trimestre} if trimestre else {})
 
+    def cta(self, trimestre: str | None = None) -> pl.DataFrame:
+        """Récupère le détail CTA mensuel pour le trimestre donné.
+
+        Args:
+            trimestre: "YYYY-TX" (ex: "2025-T1") — défaut : tous les trimestres.
+        """
+        return self._get_arrow("/taxes/cta/arrow", {"trimestre": trimestre} if trimestre else {})
+
 
 __all__ = ["ElectricoreClient"]
