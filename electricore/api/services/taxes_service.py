@@ -24,6 +24,25 @@ from electricore.core.pipelines.facturation import expr_calculer_trimestre
 from electricore.core.pipelines.orchestration import facturation
 
 
+def calculer_accise_detail(trimestre: str | None = None) -> pl.DataFrame:
+    """Charge les lignes Odoo et applique `pipeline_accise` (+ filtre trimestre)."""
+    with OdooReader(config=settings.get_odoo_config()) as odoo:
+        df_lignes = commandes_lignes(odoo).collect()
+
+    df_accise = pipeline_accise(df_lignes.lazy())
+    if trimestre is not None:
+        df_accise = df_accise.filter(pl.col("trimestre") == trimestre)
+    return df_accise
+
+
+def generer_accise_arrow(trimestre: str | None = None) -> bytes:
+    """Sérialise le détail accise en flux Arrow IPC."""
+    df = calculer_accise_detail(trimestre)
+    buf = io.BytesIO()
+    df.write_ipc_stream(buf)
+    return buf.getvalue()
+
+
 def generer_accise_xlsx(trimestre: str | None = None) -> bytes:
     """
     Calcule l'accise TICFE et retourne un fichier XLSX multi-onglets.
@@ -35,13 +54,7 @@ def generer_accise_xlsx(trimestre: str | None = None) -> bytes:
     Returns:
         Contenu XLSX en bytes avec 3 onglets : Résumé, Par taux, Détail.
     """
-    with OdooReader(config=settings.get_odoo_config()) as odoo:
-        df_lignes = commandes_lignes(odoo).collect()
-
-    df_accise = pipeline_accise(df_lignes.lazy())
-
-    if trimestre is not None:
-        df_accise = df_accise.filter(pl.col("trimestre") == trimestre)
+    df_accise = calculer_accise_detail(trimestre)
 
     df_par_taux = (
         df_accise.group_by("taux_accise_eur_mwh")

@@ -51,6 +51,32 @@ def test_facturation_retourne_le_dataframe_servi_par_endpoint(client_electricore
     assert_frame_equal(df, df_attendu)
 
 
+def test_accise_round_trip_via_endpoint(monkeypatch):
+    """`client.accise(trimestre)` round-trip un DataFrame servi par /taxes/accise/arrow."""
+    df_attendu = pl.DataFrame(
+        {
+            "pdl": ["12345678901234"],
+            "trimestre": ["2025-T1"],
+            "energie_mwh": [1.5],
+            "accise_eur": [33.75],
+        }
+    )
+    monkeypatch.setattr(
+        "electricore.api.services.taxes_service.calculer_accise_detail",
+        lambda trimestre=None: df_attendu,
+    )
+    app.dependency_overrides[get_current_api_key] = lambda: "test-key"
+    try:
+        client = ElectricoreClient(
+            url="http://testserver", api_key="key", http_client=TestClient(app)
+        )
+        df = client.accise(trimestre="2025-T1")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert_frame_equal(df, df_attendu)
+
+
 def test_facturation_envoie_la_cle_api_dans_le_header():
     """Le header `X-API-Key` est positionné par le client."""
     headers_recus: list[str] = []

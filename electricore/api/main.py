@@ -20,7 +20,11 @@ from electricore.api.services.facturation_service import (
     generer_facturation_arrow,
     generer_facturation_xlsx,
 )
-from electricore.api.services.taxes_service import generer_accise_xlsx, generer_cta_xlsx
+from electricore.api.services.taxes_service import (
+    generer_accise_arrow,
+    generer_accise_xlsx,
+    generer_cta_xlsx,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -453,6 +457,38 @@ async def export_accise_xlsx(
         media_type=_XLSX_MEDIA,
         headers={"Content-Disposition": f"attachment; filename=accise{suffix}.xlsx"},
     )
+
+
+@app.get("/taxes/accise/arrow", tags=["taxes"])
+async def export_accise_arrow(
+    trimestre: str | None = Query(
+        default=None,
+        examples=["2025-T1"],
+        description="Filtre par trimestre au format YYYY-TX. Sans filtre : toutes les données.",
+    ),
+    api_key: str = Depends(get_current_api_key),
+):
+    """
+    Détail Accise TICFE sérialisé en Arrow IPC stream.
+
+    **Authentification requise. Nécessite la configuration Odoo (ODOO_* dans .env).**
+
+    Sortie : flux Arrow IPC (table de détail par PDL × mois). Les agrégations
+    « Par taux » et « Résumé » sont à charge du notebook (group_by trivial).
+    """
+    if not settings.is_odoo_configured:
+        raise HTTPException(
+            501,
+            f"Odoo [{settings.odoo_env}] non configuré. Définissez ODOO_{settings.odoo_env.upper()}_URL/DB/USERNAME/PASSWORD dans .env",
+        )
+    try:
+        arrow_bytes = await asyncio.get_event_loop().run_in_executor(
+            None, generer_accise_arrow, trimestre
+        )
+    except Exception as e:
+        logger.exception("Erreur taxes/accise/arrow")
+        raise HTTPException(503, f"Erreur lors du calcul de l'accise : {e}")
+    return Response(content=arrow_bytes, media_type=_ARROW_IPC_MEDIA)
 
 
 @app.get("/taxes/cta/xlsx", tags=["taxes"])
