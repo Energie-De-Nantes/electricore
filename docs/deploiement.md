@@ -7,12 +7,13 @@ Guide opérationnel pour déployer ElectriCore sur un VPS via la stack Docker
 
 1. [Prérequis](#prérequis)
 2. [Installation initiale](#installation-initiale)
-3. [Mode SFTP distant vs fichiers collocés](#mode-sftp-distant-vs-fichiers-collocés)
-4. [Rotation des clés AES](#rotation-des-clés-aes)
-5. [Sauvegarde et restauration](#sauvegarde-et-restauration)
-6. [Mise à jour de version](#mise-à-jour-de-version)
-7. [Fenêtre ETL et concurrence DuckDB](#fenêtre-etl-et-concurrence-duckdb)
-8. [Dépannage](#dépannage)
+3. [Accès distant depuis un notebook Python](#accès-distant-depuis-un-notebook-python)
+4. [Mode SFTP distant vs fichiers collocés](#mode-sftp-distant-vs-fichiers-collocés)
+5. [Rotation des clés AES](#rotation-des-clés-aes)
+6. [Sauvegarde et restauration](#sauvegarde-et-restauration)
+7. [Mise à jour de version](#mise-à-jour-de-version)
+8. [Fenêtre ETL et concurrence DuckDB](#fenêtre-etl-et-concurrence-duckdb)
+9. [Dépannage](#dépannage)
 
 ---
 
@@ -126,6 +127,62 @@ docker compose exec etl-scheduler curl -X POST \
     -H "Content-Type: application/json" \
     -d '{"mode":"test"}' \
     http://api:8001/etl/run
+```
+
+## Accès distant depuis un notebook Python
+
+Depuis la v1.5, l'API expose les résultats des pipelines opérationnels en flux **Arrow IPC**, consommables sans rapatrier la base DuckDB. Un notebook local peut ainsi piloter le calcul côté serveur tout en restant maître de la chaîne d'écriture vers Odoo (cf. [ADR-0012](adr/0012-api-read-only-odoo.md)).
+
+### Endpoints Arrow IPC
+
+| Endpoint | Sortie | Paramètre |
+|---|---|---|
+| `GET /facturation/arrow` | `lignes_facture_rapprochees` (rapprochement Odoo ↔ Enedis du mois) | `mois=YYYY-MM-DD` (défaut : dernier mois disponible) |
+| `GET /taxes/accise/arrow` | Détail Accise TICFE (table par PDL × mois × trimestre) | `trimestre=YYYY-TX` (sans : tout) |
+| `GET /taxes/cta/arrow` | Détail CTA mensuel (PDL × mois, avec `cta_eur`, `taux_cta_pct`, `turpe_fixe_eur`) | idem |
+
+Les endpoints `xlsx` existants restent inchangés (générés depuis la même source).
+
+### Client Python
+
+Le package `electricore` expose une classe `ElectricoreClient` synchrone basée sur `httpx`. Installation côté notebook :
+
+```bash
+uv add electricore --extra viz   # core + libs notebooks (marimo, altair, plotly…)
+```
+
+Usage :
+
+```python
+from electricore.client import ElectricoreClient
+
+client = ElectricoreClient(
+    url="https://electricore.votredomaine.fr",
+    api_key="votre_cle_api",
+)
+
+# Lignes de facture rapprochées du dernier mois
+df = client.facturation()                       # mois=None → dernier mois
+
+# Détail Accise du Q1 2025
+df_accise = client.accise(trimestre="2025-T1")
+
+# Détail CTA du Q1 2025
+df_cta = client.cta(trimestre="2025-T1")
+```
+
+Les méthodes retournent un `polars.DataFrame` typé (types préservés via Arrow IPC). Le pipeline tourne **côté serveur** — le notebook orchestre, analyse, et écrit le cas échéant vers Odoo via `OdooWriter`.
+
+### TLS local (cert auto-signé)
+
+Pour tester en local (`https://electricore.localhost` avec Caddy en `tls internal`), passer un client `httpx` qui désactive la vérif TLS :
+
+```python
+import httpx
+from electricore.client import ElectricoreClient
+
+http = httpx.Client(verify=False, timeout=httpx.Timeout(30.0, read=120.0))
+client = ElectricoreClient(url="https://electricore.localhost", api_key="…", http_client=http)
 ```
 
 ## Mode SFTP distant vs fichiers collocés
