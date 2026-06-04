@@ -7,6 +7,36 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
+## [1.6.1] - 2026-06-05
+
+### 🔒 Sécurité + multi-instance + ContexteFacturation
+
+Release patch combinant la résolution de 28 alertes Dependabot, la mise en place du déploiement multi-instance (ADR-0015) et la refonte interne de `facturation_service` autour de `ContexteFacturation`. Aucune API publique cassée.
+
+#### Sécurité
+
+- **28 alertes Dependabot résolues** ([`.github/dependabot.yml`](.github/dependabot.yml)) — bump `marimo>=0.23.0` (CVE-2026-39987, pre-auth RCE WebSocket, **critical**) et `lxml>=6.1.0` (CVE-2026-41066, XXE, **high**) ; `uv lock --upgrade` propage les correctifs aux transitives (aiohttp 3.14.0, urllib3 2.7.0, gitpython 3.1.50, cryptography 48.0.0, idna 3.18, pymdown-extensions 10.21.3, pytest 9.0.3, pygments 2.20.0, requests 2.34.2). Ajout de `.github/dependabot.yml` (pip + github-actions, hebdo, PRs minor/patch groupées) pour prévenir la dérive. Alerte #34 paramiko ≤ 4.0.0 (SHA-1, low) laissée ouverte — pas de correctif amont.
+
+#### Ajouts
+
+- **ADR-0015** ([`docs/adr/0015-deploiement-multi-instance.md`](docs/adr/0015-deploiement-multi-instance.md)) — modèle multi-instance : une instance Electricore par fournisseur/client final, identifiée par `INSTANCE_SLUG`. Isolation données, secrets et URL ; même codebase.
+- **`INSTANCE_SLUG` exposé** ([`electricore/api/main.py`](electricore/api/main.py)) — visible dans `/health`, dans le titre OpenAPI et dans le log de boot pour identifier sans ambiguïté l'instance courante.
+- **Préfixage des backups DuckDB** ([`deploy/docker/`](deploy/docker/)) — backups nommés `{INSTANCE_SLUG}-flux_enedis-YYYYMMDD.duckdb` pour éviter les collisions multi-instances dans un même bucket S3.
+- **Guide de provisioning** ([`docs/deploiement.md`](docs/deploiement.md)) — procédure pas-à-pas pour démarrer une nouvelle instance sur le VPS Docker (DNS, secrets, .env, premier déploiement).
+- **`ContexteFacturation`** ([`electricore/core/pipelines/facturation.py`](electricore/core/pipelines/facturation.py)) — objet immuable portant `(historique, abonnements, energies, accise)` partagés entre `rapprocher_facturation_mensuelle` et `calculer_cta_detail`. Évite le rechargement double dans `facturation_service`.
+- **Décorateurs `@xlsx_endpoint` / `@arrow_endpoint` / `@zip_endpoint`** ([`electricore/api/decorators.py`](electricore/api/decorators.py)) — factorise headers, content-type et streaming des réponses binaires de l'API. Suite de tests d'intégration ([`tests/integration/test_decorators.py`](tests/integration/test_decorators.py)).
+
+#### Modifications
+
+- **`facturation_service`** ([`electricore/api/services/facturation_service.py`](electricore/api/services/facturation_service.py)) — consomme `ContexteFacturation` au lieu de recharger Odoo+Enedis dans chaque sous-fonction. Migration de `calculer_cta_detail` en conséquence.
+- **Suppression des helpers d'orchestration morts** ([`electricore/core/pipelines/orchestration.py`](electricore/core/pipelines/orchestration.py)) — code mort depuis la migration Polars de v1.4, nettoyé.
+
+#### Tests
+
+- 285 passed, 35 skipped. Nouveaux tests d'intégration `test_decorators.py` et `test_health_endpoint.py`.
+
+---
+
 ## [1.6.0] - 2026-06-04
 
 ### 🧮 Facturation — flags d'état + glossaire Historique
