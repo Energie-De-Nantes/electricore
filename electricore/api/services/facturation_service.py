@@ -11,10 +11,10 @@ import polars as pl
 import xlsxwriter
 
 from electricore.api.config import settings
-from electricore.core.loaders import OdooReader, c15, f15, releves_harmonises
+from electricore.core.loaders import OdooReader, c15, f15
+from electricore.core.loaders.contexte_mensuel import charger_contexte_facturation
 from electricore.core.loaders.odoo import lignes_factures_du_mois
 from electricore.core.pipelines.facturation import rapprocher_facturation_mensuelle
-from electricore.core.pipelines.orchestration import facturation
 
 
 def calculer_lignes_facture_rapprochees(mois: str | None = None) -> pl.DataFrame:
@@ -23,18 +23,16 @@ def calculer_lignes_facture_rapprochees(mois: str | None = None) -> pl.DataFrame
     Args:
         mois: format "YYYY-MM-DD" (premier jour du mois). None = dernier mois des données.
     """
-    hist_enrichi, _, _, fact = facturation(historique=c15().lazy(), releves=releves_harmonises().lazy())
-
-    # Résoudre le mois si non fourni avant d'interroger Odoo (cf. ADR-0014).
-    if mois is None:
-        debut_mois_expr = pl.col("debut").dt.truncate("1mo").dt.date()
-        mois = str(fact.select(debut_mois_expr.alias("m"))["m"].max())
+    contexte = charger_contexte_facturation(mois)
 
     with OdooReader(config=settings.get_odoo_config()) as odoo:
-        lignes_df = lignes_factures_du_mois(odoo, mois).collect()
+        lignes_df = lignes_factures_du_mois(odoo, contexte.mois).collect()
 
     return rapprocher_facturation_mensuelle(
-        lignes_odoo=lignes_df, fact_mensuelle=fact.lazy(), historique=hist_enrichi, mois=mois
+        lignes_odoo=lignes_df,
+        fact_mensuelle=contexte.facturation_mensuelle.lazy(),
+        historique=contexte.historique_enrichi,
+        mois=contexte.mois,
     )
 
 
@@ -84,34 +82,31 @@ def generer_documents_facturation(mois: str | None = None) -> tuple[bytes, str]:
     - reconciliation.csv
     - changements_puissance.csv
     """
-    # 1. Pipeline facturation Enedis (un seul calcul, partagé pour le rapprochement + le filtre F15/C15)
-    lf_historique = c15().lazy()
-    lf_releves = releves_harmonises().lazy()
-    hist_enrichi, _, _, fact = facturation(historique=lf_historique, releves=lf_releves)
+    # 1. Contexte mensuel (mois résolu + facturation Enedis exécutée une fois)
+    contexte = charger_contexte_facturation(mois)
+    suffix = contexte.mois[:7]
+    mois_date = pl.lit(contexte.mois).str.to_date()
 
-    # 2. Résoudre le mois cible (None → dernier mois disponible) AVANT d'interroger Odoo (ADR-0014)
-    debut_mois_expr = pl.col("debut").dt.truncate("1mo").dt.date()
-    if mois is None:
-        mois = str(fact.select(debut_mois_expr.alias("m"))["m"].max())
-    suffix = mois[:7]
-    mois_date = pl.lit(mois).str.to_date()
-
-    # 3. Lignes Odoo du mois cible (toutes, avec flags a_facturer / a_supprimer)
+    # 2. Lignes Odoo du mois cible (toutes, avec flags a_facturer / a_supprimer)
     with OdooReader(config=settings.get_odoo_config()) as odoo:
-        lignes_df = lignes_factures_du_mois(odoo, mois).collect()
+        lignes_df = lignes_factures_du_mois(odoo, contexte.mois).collect()
 
-    # 4. Rapprochement Odoo ↔ Enedis (même fonction core que XLSX / Arrow)
+    # 3. Rapprochement Odoo ↔ Enedis (même fonction core que XLSX / Arrow)
     reconciliation = rapprocher_facturation_mensuelle(
-        lignes_odoo=lignes_df, fact_mensuelle=fact.lazy(), historique=hist_enrichi, mois=mois
+        lignes_odoo=lignes_df,
+        fact_mensuelle=contexte.facturation_mensuelle.lazy(),
+        historique=contexte.historique_enrichi,
+        mois=contexte.mois,
     )
     changements_puissance = reconciliation.filter(pl.col("memo_puissance") != "")
 
-    # 5. F15 du mois
+    # 4. F15 du mois (CSV brut, indépendant du contexte de facturation)
     f15_df = f15().lazy().filter(pl.col("date_facture").dt.truncate("1mo").dt.date() == mois_date).collect()
     f15_prestas = f15_df.filter(pl.col("unite") == "UNITE")
 
-    # 6. C15 du mois
-    c15_df = lf_historique.filter(pl.col("date_evenement").dt.truncate("1mo").dt.date() == mois_date).collect()
+    # 5. C15 du mois (CSV brut — la version enrichie est dans le contexte mais
+    #    on veut ici le flux non transformé pour audit)
+    c15_df = c15().lazy().filter(pl.col("date_evenement").dt.truncate("1mo").dt.date() == mois_date).collect()
     c15_sorties = c15_df.filter(pl.col("evenement_declencheur").is_in(["RES", "CFNS"]))
 
     # 7. ZIP

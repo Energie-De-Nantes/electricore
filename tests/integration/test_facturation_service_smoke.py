@@ -13,6 +13,7 @@ import polars as pl
 import pytest
 
 from electricore.api.services import facturation_service
+from electricore.core.loaders.contexte_mensuel import ContexteFacturation
 
 
 @pytest.fixture
@@ -121,14 +122,21 @@ def service_loaders_mockes(
     monkeypatch.setattr(
         facturation_service, "lignes_factures_du_mois", lambda odoo, mois: _QueryMock(df_lignes_odoo_minimal)
     )
+    # `generer_documents_facturation` lit encore les flux bruts pour les CSV du ZIP.
     monkeypatch.setattr(facturation_service, "c15", lambda: _QueryMock(df_flux_vide))
     monkeypatch.setattr(facturation_service, "f15", lambda: _QueryMock(df_flux_vide))
-    monkeypatch.setattr(facturation_service, "releves_harmonises", lambda: _QueryMock(df_flux_vide))
 
-    def _fake_facturation(historique, releves):
-        return (lf_historique_minimal, None, None, lf_fact_mensuelle_minimal.collect())
+    # Migration #17 : les deux fonctions du service consomment désormais
+    # `charger_contexte_facturation` au lieu de reconstruire la trio
+    # c15 + releves_harmonises + facturation().
+    def _fake_charger_contexte(mois):
+        return ContexteFacturation(
+            mois=mois or "2025-01-01",
+            historique_enrichi=lf_historique_minimal,
+            facturation_mensuelle=lf_fact_mensuelle_minimal.collect(),
+        )
 
-    monkeypatch.setattr(facturation_service, "facturation", _fake_facturation)
+    monkeypatch.setattr(facturation_service, "charger_contexte_facturation", _fake_charger_contexte)
 
     # pydantic Settings interdit setattr — on patche la méthode sur la classe.
     settings_cls = type(facturation_service.settings)
@@ -169,3 +177,80 @@ def test_generer_facturation_arrow_smoke(service_loaders_mockes):
     df = pl.read_ipc_stream(io.BytesIO(arrow_bytes))
     assert len(df) == 1  # une ligne du fixture
     assert df["quantite_enedis"].item() == 123.45
+
+
+def test_calculer_lignes_facture_rapprochees_delegue_a_charger_contexte_facturation(
+    monkeypatch, df_lignes_odoo_minimal, lf_fact_mensuelle_minimal, lf_historique_minimal
+):
+    """`calculer_lignes_facture_rapprochees` consomme `ContexteFacturation` (issue #17).
+
+    Vérifie que le service ne reconstruit plus la trio `c15 + releves + facturation()`
+    mais délègue à `charger_contexte_facturation`, qui produit le bundle mensuel.
+    """
+    contexte_prefab = ContexteFacturation(
+        mois="2025-01-01",
+        historique_enrichi=lf_historique_minimal,
+        facturation_mensuelle=lf_fact_mensuelle_minimal.collect(),
+    )
+    appels_charger = []
+
+    def _capture_charger(mois):
+        appels_charger.append(mois)
+        return contexte_prefab
+
+    monkeypatch.setattr(facturation_service, "charger_contexte_facturation", _capture_charger)
+
+    class _OdooReaderMock:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    class _QueryMock:
+        def __init__(self, df):
+            self._df = df
+
+        def collect(self):
+            return self._df
+
+    monkeypatch.setattr(facturation_service, "OdooReader", _OdooReaderMock)
+    monkeypatch.setattr(
+        facturation_service, "lignes_factures_du_mois", lambda odoo, mois: _QueryMock(df_lignes_odoo_minimal)
+    )
+    settings_cls = type(facturation_service.settings)
+    monkeypatch.setattr(settings_cls, "get_odoo_config", lambda self: {})
+
+    result = facturation_service.calculer_lignes_facture_rapprochees(mois="2025-01-01")
+
+    assert appels_charger == ["2025-01-01"], "charger_contexte_facturation doit être appelé avec le mois fourni"
+    assert isinstance(result, pl.DataFrame)
+
+
+def test_generer_documents_facturation_delegue_a_charger_contexte_facturation(
+    service_loaders_mockes, monkeypatch, lf_historique_minimal, lf_fact_mensuelle_minimal
+):
+    """`generer_documents_facturation` consomme aussi `ContexteFacturation` (issue #17).
+
+    La fonction conserve ses responsabilités spécifiques (F15/C15 du mois)
+    mais ne reconstruit plus la trio `c15 + releves + facturation()`.
+    """
+    contexte_prefab = ContexteFacturation(
+        mois="2025-01-01",
+        historique_enrichi=lf_historique_minimal,
+        facturation_mensuelle=lf_fact_mensuelle_minimal.collect(),
+    )
+    appels_charger = []
+
+    def _capture_charger(mois):
+        appels_charger.append(mois)
+        return contexte_prefab
+
+    monkeypatch.setattr(facturation_service, "charger_contexte_facturation", _capture_charger)
+
+    facturation_service.generer_documents_facturation(mois="2025-01-01")
+
+    assert appels_charger == ["2025-01-01"], "charger_contexte_facturation doit être appelé avec le mois fourni"
