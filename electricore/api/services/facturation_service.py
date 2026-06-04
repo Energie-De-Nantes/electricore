@@ -11,7 +11,8 @@ import polars as pl
 import xlsxwriter
 
 from electricore.api.config import settings
-from electricore.core.loaders import OdooReader, c15, f15, lignes_a_facturer, releves_harmonises
+from electricore.core.loaders import OdooReader, c15, f15, releves_harmonises
+from electricore.core.loaders.odoo import lignes_factures_du_mois
 from electricore.core.pipelines.facturation import rapprocher_facturation_mensuelle
 from electricore.core.pipelines.orchestration import facturation
 
@@ -22,10 +23,15 @@ def calculer_lignes_facture_rapprochees(mois: str | None = None) -> pl.DataFrame
     Args:
         mois: format "YYYY-MM-DD" (premier jour du mois). None = dernier mois des données.
     """
-    with OdooReader(config=settings.get_odoo_config()) as odoo:
-        lignes_df = lignes_a_facturer(odoo).collect()
-
     hist_enrichi, _, _, fact = facturation(historique=c15().lazy(), releves=releves_harmonises().lazy())
+
+    # Résoudre le mois si non fourni avant d'interroger Odoo (cf. ADR-0014).
+    if mois is None:
+        debut_mois_expr = pl.col("debut").dt.truncate("1mo").dt.date()
+        mois = str(fact.select(debut_mois_expr.alias("m"))["m"].max())
+
+    with OdooReader(config=settings.get_odoo_config()) as odoo:
+        lignes_df = lignes_factures_du_mois(odoo, mois).collect()
 
     return rapprocher_facturation_mensuelle(
         lignes_odoo=lignes_df, fact_mensuelle=fact.lazy(), historique=hist_enrichi, mois=mois
@@ -78,21 +84,21 @@ def generer_documents_facturation(mois: str | None = None) -> tuple[bytes, str]:
     - reconciliation.csv
     - changements_puissance.csv
     """
-    # 1. Lignes Odoo en brouillon
-    with OdooReader(config=settings.get_odoo_config()) as odoo:
-        lignes_df = lignes_a_facturer(odoo).collect()
-
-    # 2. Pipeline facturation Enedis (un seul calcul, partagé pour le rapprochement + le filtre F15/C15)
+    # 1. Pipeline facturation Enedis (un seul calcul, partagé pour le rapprochement + le filtre F15/C15)
     lf_historique = c15().lazy()
     lf_releves = releves_harmonises().lazy()
     hist_enrichi, _, _, fact = facturation(historique=lf_historique, releves=lf_releves)
 
-    # 3. Résoudre le mois cible (None → dernier mois disponible)
+    # 2. Résoudre le mois cible (None → dernier mois disponible) AVANT d'interroger Odoo (ADR-0014)
     debut_mois_expr = pl.col("debut").dt.truncate("1mo").dt.date()
     if mois is None:
         mois = str(fact.select(debut_mois_expr.alias("m"))["m"].max())
     suffix = mois[:7]
     mois_date = pl.lit(mois).str.to_date()
+
+    # 3. Lignes Odoo du mois cible (toutes, avec flags a_facturer / a_supprimer)
+    with OdooReader(config=settings.get_odoo_config()) as odoo:
+        lignes_df = lignes_factures_du_mois(odoo, mois).collect()
 
     # 4. Rapprochement Odoo ↔ Enedis (même fonction core que XLSX / Arrow)
     reconciliation = rapprocher_facturation_mensuelle(

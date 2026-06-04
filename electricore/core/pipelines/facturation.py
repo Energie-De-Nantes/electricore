@@ -498,6 +498,9 @@ def rapprocher_facturation_mensuelle(
                 # Identifiants compteur
                 "num_compteur",
                 "type_compteur",
+                # Flags d'état de facturation (ADR-0014)
+                "a_facturer",
+                "a_supprimer",
             ]
         )
         .collect()

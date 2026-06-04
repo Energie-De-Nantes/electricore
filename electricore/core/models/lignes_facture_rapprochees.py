@@ -38,6 +38,10 @@ class LignesFactureRapprochees(pa.DataFrameModel):
     num_compteur: pl.Utf8 | None = pa.Field(nullable=True)
     type_compteur: pl.Utf8 | None = pa.Field(nullable=True)
 
+    # Flags d'état de facturation (cf. ADR-0014, mutuellement exclusifs sur sous-ensemble draft)
+    a_facturer: pl.Boolean | None = pa.Field(nullable=True)
+    a_supprimer: pl.Boolean | None = pa.Field(nullable=True)
+
     class Config:
         strict = True
         coerce = True
