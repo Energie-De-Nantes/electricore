@@ -3,15 +3,20 @@
 # Exécuté par supercronic dans le conteneur etl-scheduler.
 #
 # Variables d'environnement attendues :
-#   DUCKDB_PATH  — chemin de la base (par défaut /data/flux_enedis_pipeline.duckdb)
-#   BACKUP_DIR   — répertoire des snapshots (par défaut /backups)
-#   RETAIN_DAYS  — nombre de snapshots à conserver (par défaut 14)
+#   DUCKDB_PATH    — chemin de la base (par défaut /data/flux_enedis_pipeline.duckdb)
+#   BACKUP_DIR     — répertoire des snapshots (par défaut /backups)
+#   RETAIN_DAYS    — nombre de snapshots à conserver (par défaut 14)
+#   INSTANCE_SLUG  — identifiant de l'instance (ADR-0015). Si défini, les snapshots
+#                    sont nommés snapshot_<slug>_<TS>.tar.gz pour éviter les
+#                    collisions cross-instance lorsque les backups sont poussés
+#                    vers un store central. Sinon : snapshot_<TS>.tar.gz.
 
 set -eu
 
 DUCKDB_PATH="${DUCKDB_PATH:-/data/flux_enedis_pipeline.duckdb}"
 BACKUP_DIR="${BACKUP_DIR:-/backups}"
 RETAIN_DAYS="${RETAIN_DAYS:-14}"
+INSTANCE_SLUG="${INSTANCE_SLUG:-}"
 
 if [ ! -f "$DUCKDB_PATH" ]; then
     echo "[backup_duckdb] Aucune base à sauvegarder ($DUCKDB_PATH absent), rien à faire." >&2
@@ -19,8 +24,13 @@ if [ ! -f "$DUCKDB_PATH" ]; then
 fi
 
 TS=$(date -u +%Y%m%dT%H%M%SZ)
-SNAPSHOT_DIR="${BACKUP_DIR}/snapshot_${TS}"
-ARCHIVE="${BACKUP_DIR}/snapshot_${TS}.tar.gz"
+if [ -n "$INSTANCE_SLUG" ]; then
+    NAME="snapshot_${INSTANCE_SLUG}_${TS}"
+else
+    NAME="snapshot_${TS}"
+fi
+SNAPSHOT_DIR="${BACKUP_DIR}/${NAME}"
+ARCHIVE="${BACKUP_DIR}/${NAME}.tar.gz"
 
 mkdir -p "$BACKUP_DIR"
 
@@ -30,7 +40,7 @@ echo "[backup_duckdb] Snapshot vers $SNAPSHOT_DIR"
 duckdb -readonly "$DUCKDB_PATH" "EXPORT DATABASE '$SNAPSHOT_DIR' (FORMAT PARQUET)"
 
 echo "[backup_duckdb] Compression vers $ARCHIVE"
-tar -C "$BACKUP_DIR" -czf "$ARCHIVE" "snapshot_${TS}"
+tar -C "$BACKUP_DIR" -czf "$ARCHIVE" "$NAME"
 rm -rf "$SNAPSHOT_DIR"
 
 # Rétention : on garde les N plus récents
