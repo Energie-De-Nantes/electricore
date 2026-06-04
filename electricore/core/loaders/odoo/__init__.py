@@ -26,9 +26,9 @@ from .helpers import (
     commandes_lignes,
     consommations_mensuelles,
     factures,
-    lignes_a_facturer,
+    flags_etat_facturation,
     lignes_factures,
-    lignes_quantite_zero,
+    lignes_factures_du_mois,
     partenaires,
     query,
 )
@@ -65,8 +65,8 @@ __all__ = [
     "commandes_factures",
     "commandes_lignes",
     "consommations_mensuelles",
-    "lignes_a_facturer",
-    "lignes_quantite_zero",
+    "lignes_factures_du_mois",
+    "flags_etat_facturation",
     # Transformations
     "normalize_many2one_fields",
     "convert_odoo_dates",

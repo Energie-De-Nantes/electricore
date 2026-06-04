@@ -27,6 +27,8 @@ def df_lignes_odoo_minimal() -> pl.DataFrame:
             "name_product_category": ["HP"],
             "name_product_product": ["Énergie HP"],
             "quantity": [100.0],
+            "a_facturer": [True],
+            "a_supprimer": [False],
         }
     )
 
@@ -116,7 +118,9 @@ def service_loaders_mockes(
             return _QueryMock(self.lazy().filter(*args, **kwargs))
 
     monkeypatch.setattr(facturation_service, "OdooReader", _OdooReaderMock)
-    monkeypatch.setattr(facturation_service, "lignes_a_facturer", lambda odoo: _QueryMock(df_lignes_odoo_minimal))
+    monkeypatch.setattr(
+        facturation_service, "lignes_factures_du_mois", lambda odoo, mois: _QueryMock(df_lignes_odoo_minimal)
+    )
     monkeypatch.setattr(facturation_service, "c15", lambda: _QueryMock(df_flux_vide))
     monkeypatch.setattr(facturation_service, "f15", lambda: _QueryMock(df_flux_vide))
     monkeypatch.setattr(facturation_service, "releves_harmonises", lambda: _QueryMock(df_flux_vide))

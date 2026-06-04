@@ -8,6 +8,10 @@ Toutes les fonctions sont pures : elles prennent un OdooReader en paramètre
 et retournent un OdooQuery chainable.
 """
 
+from datetime import date
+
+import polars as pl
+
 from .query import OdooQuery
 from .reader import OdooReader
 
@@ -262,84 +266,73 @@ def consommations_mensuelles(odoo: OdooReader, domain: list | None = None) -> Od
     return commandes_lignes(odoo, domain=domain)
 
 
-def lignes_a_facturer(odoo: OdooReader, domain: list | None = None) -> OdooQuery:
-    """
-    Query builder pour les lignes de factures brouillon à facturer.
+def flags_etat_facturation(lf: pl.LazyFrame) -> pl.LazyFrame:
+    """Ajoute les colonnes booléennes `a_facturer` et `a_supprimer` (cf. ADR-0014).
 
-    Navigation : sale.order (state=sale) → account.move (state=draft)
-                 → account.move.line (qty > 0) → product.product → product.category
+    Les deux flags sont mutuellement exclusifs sur le sous-ensemble draft :
 
-    Filtre côté Odoo (XML-RPC) :
-    - sale.order : state = 'sale' ET au moins une facture draft
-    - account.move : state = 'draft' uniquement
-    - account.move.line : quantity > 0 (exclut lignes vides/notes)
-
-    Les sale.order sans facture draft sont exclus dès la requête initiale.
+    - `a_facturer` : ligne en attente d'injection de quantité Enedis
+      (x_invoicing_state == 'draft' AND state_account_move == 'draft' AND quantity > 0).
+    - `a_supprimer` : ligne brouillon à quantité nulle, candidate à `unlink`
+      (mêmes conditions avec quantity == 0).
 
     Args:
-        odoo: Instance OdooReader connectée
-        domain: Filtres additionnels sur sale.order (ex: [('x_pdl', '!=', False)])
+        lf: LazyFrame contenant les colonnes `x_invoicing_state`, `state_account_move`,
+            `quantity`.
 
     Returns:
-        OdooQuery chainable retournant les lignes à facturer
-
-    Example:
-        >>> with OdooReader(config) as odoo:
-        ...     df = (lignes_a_facturer(odoo)
-        ...         .filter(pl.col('name_product_category').is_in(['Abonnements', 'HP', 'HC', 'Base']))
-        ...         .select(['name', 'x_pdl', 'invoice_date', 'quantity', 'price_total',
-        ...                  'name_product_product', 'name_product_category'])
-        ...         .collect())
+        LazyFrame enrichi des deux colonnes booléennes.
     """
-    base_domain = [("state", "=", "sale"), ("x_invoicing_state", "=", "draft")] + (domain or [])
-    return (
+    drafts = (pl.col("x_invoicing_state") == "draft") & (pl.col("state_account_move") == "draft")
+    return lf.with_columns(
+        [
+            (drafts & (pl.col("quantity") > 0)).alias("a_facturer"),
+            (drafts & (pl.col("quantity") == 0)).alias("a_supprimer"),
+        ]
+    )
+
+
+def lignes_factures_du_mois(odoo: OdooReader, mois: str, domain: list | None = None) -> pl.LazyFrame:
+    """Toutes les lignes de factures Odoo dont `invoice_date` tombe dans le mois cible.
+
+    Aucun filtre sur `x_invoicing_state` ni `account.move.state` côté Odoo : les
+    distinctions métier sont matérialisées par les flags `a_facturer` et `a_supprimer`
+    ajoutés en sortie (cf. ADR-0014). Remplace `lignes_a_facturer` et `lignes_quantite_zero`.
+
+    Args:
+        odoo: Instance OdooReader connectée.
+        mois: Premier jour du mois cible au format "YYYY-MM-DD".
+        domain: Filtres additionnels sur `sale.order`.
+
+    Returns:
+        LazyFrame Polars avec une ligne par `account.move.line` du mois cible
+        et les colonnes `a_facturer`, `a_supprimer`.
+    """
+    d = date.fromisoformat(mois)
+    mois_suivant = (date(d.year + 1, 1, 1) if d.month == 12 else date(d.year, d.month + 1, 1)).isoformat()
+    base_domain = [("state", "=", "sale")] + (domain or [])
+
+    return flags_etat_facturation(
         query(
             odoo,
             "sale.order",
             domain=base_domain,
-            fields=["name", "x_pdl", "x_ref_situation_contractuelle", "x_lisse", "invoice_ids"],
+            fields=[
+                "name",
+                "x_pdl",
+                "x_ref_situation_contractuelle",
+                "x_lisse",
+                "x_invoicing_state",
+                "invoice_ids",
+            ],
         )
-        .follow("invoice_ids", domain=[("state", "=", "draft")], fields=["name", "invoice_date", "invoice_line_ids"])
-        .follow("invoice_line_ids", domain=[("quantity", ">", 0)], fields=["name", "product_id", "quantity"])
+        .follow(
+            "invoice_ids",
+            domain=[("invoice_date", ">=", mois), ("invoice_date", "<", mois_suivant)],
+            fields=["name", "invoice_date", "state", "invoice_line_ids"],
+        )
+        .follow("invoice_line_ids", fields=["name", "product_id", "quantity"])
         .follow("product_id", fields=["name", "categ_id"])
         .enrich("categ_id", fields=["name"])
-    )
-
-
-def lignes_quantite_zero(odoo: OdooReader, domain: list | None = None) -> OdooQuery:
-    """
-    Query builder pour les lignes de factures brouillon avec quantité nulle.
-
-    Identifie les account.move.line avec quantity = 0 dans les factures draft,
-    candidates à la suppression avant validation (via OdooWriter.unlink).
-
-    Navigation : sale.order (state=sale) → account.move (state=draft)
-                 → account.move.line (quantity = 0) → product.product
-
-    Filtre côté Odoo (XML-RPC) :
-    - sale.order : state = 'sale' ET au moins une facture draft
-    - account.move : state = 'draft' uniquement
-    - account.move.line : quantity = 0
-
-    Args:
-        odoo: Instance OdooReader connectée
-        domain: Filtres additionnels sur sale.order (ex: [('x_pdl', '!=', False)])
-
-    Returns:
-        OdooQuery chainable — colonne `invoice_line_ids` contient les IDs
-        des account.move.line à supprimer
-
-    Example:
-        >>> with OdooReader(config) as odoo:
-        ...     df = lignes_quantite_zero(odoo).collect()
-        ...     ids_a_supprimer = df['invoice_line_ids'].drop_nulls().to_list()
-    """
-    base_domain = [("state", "=", "sale"), ("x_invoicing_state", "=", "draft")] + (domain or [])
-    return (
-        query(odoo, "sale.order", domain=base_domain, fields=["name", "state", "x_pdl", "x_lisse", "invoice_ids"])
-        .follow("invoice_ids", domain=[("state", "=", "draft")], fields=["name", "invoice_date", "invoice_line_ids"])
-        .follow(
-            "invoice_line_ids", domain=[("quantity", "=", 0)], fields=["name", "product_id", "quantity", "price_unit"]
-        )
-        .follow("product_id", fields=["name"])
+        .lazy()
     )

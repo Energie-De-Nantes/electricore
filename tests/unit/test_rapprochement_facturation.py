@@ -23,6 +23,8 @@ def _ligne_odoo(
     invoice_line_ids: int = 101,
     quantity: float = 0.0,
     memo_puissance: str = "",
+    a_facturer: bool = True,
+    a_supprimer: bool = False,
 ) -> pl.DataFrame:
     return pl.DataFrame(
         {
@@ -34,6 +36,8 @@ def _ligne_odoo(
             "name_product_category": [categorie],
             "name_product_product": [f"Énergie {categorie}"],
             "quantity": [quantity],
+            "a_facturer": [a_facturer],
+            "a_supprimer": [a_supprimer],
         }
     )
 
@@ -179,6 +183,9 @@ class TestColonnesSortie:
             # Identifiants compteur
             "num_compteur",
             "type_compteur",
+            # Flags d'état de facturation (ADR-0014)
+            "a_facturer",
+            "a_supprimer",
         ]
     )
 
@@ -192,6 +199,26 @@ class TestColonnesSortie:
         )
 
         assert frozenset(resultat.columns) == self.COLONNES_ATTENDUES
+
+
+class TestPropagationFlags:
+    """`a_facturer` et `a_supprimer` venant de lignes_odoo doivent traverser le rapprochement."""
+
+    def test_propage_a_facturer_et_a_supprimer(self):
+        lignes = _ligne_odoo(categorie="HP").with_columns(
+            [
+                pl.lit(True).alias("a_facturer"),
+                pl.lit(False).alias("a_supprimer"),
+            ]
+        )
+        fact = _fact_mensuelle(energie_hp_kwh=10.0)
+
+        resultat = rapprocher_facturation_mensuelle(
+            lignes_odoo=lignes, fact_mensuelle=fact, historique=_historique(), mois="2025-01-01"
+        )
+
+        assert resultat["a_facturer"].item() is True
+        assert resultat["a_supprimer"].item() is False
 
 
 class TestJoinHistorique:
@@ -226,7 +253,7 @@ class TestSchemaLignesFactureRapprochees:
     """Le modèle Pandera transporte aussi les méta-données Enedis et compteur."""
 
     def test_modele_accepte_les_colonnes_etendues(self):
-        """Le modèle accepte les 9 colonnes Odoo originales + 9 colonnes Enedis/compteur."""
+        """Le modèle accepte 9 colonnes Odoo + 9 méta Enedis/compteur + 2 flags."""
         df = pl.DataFrame(
             {
                 # 9 colonnes existantes (Odoo + quantité Enedis)
@@ -239,7 +266,7 @@ class TestSchemaLignesFactureRapprochees:
                 "quantity": [100.0],
                 "quantite_enedis": [123.45],
                 "memo_puissance": [""],
-                # 9 colonnes nouvelles (méta Enedis + identifiants compteur)
+                # 9 colonnes méta Enedis + identifiants compteur
                 "ref_situation_contractuelle": ["RSC001"],
                 "pdl": ["12345678901234"],
                 "data_complete": [True],
@@ -249,6 +276,9 @@ class TestSchemaLignesFactureRapprochees:
                 "turpe_variable_eur": [56.78],
                 "num_compteur": ["12345678"],
                 "type_compteur": ["LINKY"],
+                # 2 flags (cf. ADR-0014)
+                "a_facturer": [True],
+                "a_supprimer": [False],
             }
         )
 

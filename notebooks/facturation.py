@@ -18,9 +18,11 @@ with app.setup:
     if str(project_root) not in sys.path:
         sys.path.append(str(project_root))
 
+    from datetime import date
+
     from electricore.client import ElectricoreClient
     from electricore.core.loaders import OdooReader
-    from electricore.core.loaders.odoo import lignes_a_facturer, lignes_quantite_zero
+    from electricore.core.loaders.odoo import lignes_factures_du_mois
 
     # Configuration du logging
     logging.basicConfig(level=logging.INFO)
@@ -61,20 +63,40 @@ def _():
 @app.cell(hide_code=True)
 def _():
     mo.md(r"""
-    # Récupération des données Odoo
+    # Mois cible
 
-    `OdooReader` reste utilisé en notebook pour la lecture des lignes Odoo et
-    la persistance via `OdooWriter` (cf. ADR-0012). Les flux Enedis et le
-    rapprochement passent par l'API.
+    Toutes les requêtes (Odoo + Enedis) portent sur ce mois (cf. ADR-0014 :
+    `lignes_factures_du_mois` retourne toutes les lignes du mois avec les flags
+    `a_facturer` / `a_supprimer`, sans dépendre de l'état de facturation actuel).
     """)
     return
 
 
 @app.cell
 def _():
+    _today = date.today().replace(day=1)
+    mois_input = mo.ui.text(label="Mois (YYYY-MM-DD)", value=_today.isoformat())
+    mois_input
+    return (mois_input,)
+
+
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
+    # Récupération des données Odoo
+
+    `OdooReader` reste utilisé en notebook pour les colonnes non exposées par
+    l'API (sale_order_id, invoice_ids) et la persistance via `OdooWriter`
+    (cf. ADR-0012).
+    """)
+    return
+
+
+@app.cell
+def _(mois_input):
     with OdooReader(config=config) as _odoo:
-        lignes_a_facturer_df = (
-            lignes_a_facturer(_odoo)
+        lignes_odoo_df = (
+            lignes_factures_du_mois(_odoo, mois=mois_input.value)
             .filter(pl.col("name_product_category").is_in(["Abonnements", "HP", "HC", "Base"]))
             .collect()
             .select(
@@ -90,19 +112,24 @@ def _():
                     "name_product_product",
                     "name_account_move",
                     "name_product_category",
+                    "a_facturer",
+                    "a_supprimer",
                 ]
             )
         )
-    lignes_a_facturer_df
-    return (lignes_a_facturer_df,)
-
-
-@app.cell
-def _():
-    with OdooReader(config=config) as _odoo:
-        lignes_a_supprimer = lignes_quantite_zero(_odoo).collect()
-    lignes_a_supprimer
-    return
+    lignes_a_facturer_df = lignes_odoo_df.filter(pl.col("a_facturer"))
+    lignes_a_supprimer = lignes_odoo_df.filter(pl.col("a_supprimer"))
+    mo.vstack(
+        [
+            mo.md(
+                f"**{len(lignes_odoo_df)}** lignes du mois · "
+                f"**{len(lignes_a_facturer_df)}** à facturer · "
+                f"**{len(lignes_a_supprimer)}** à supprimer"
+            ),
+            mo.ui.table(lignes_a_facturer_df),
+        ]
+    )
+    return lignes_a_facturer_df, lignes_a_supprimer
 
 
 @app.cell(hide_code=True)
@@ -110,26 +137,21 @@ def _():
     mo.md(r"""
     # Récupération des données Enedis
 
-    Un seul appel à `client.facturation(mois)` qui retourne déjà
-    `lignes_facture_rapprochees` (Odoo × Enedis × compteur) calculé côté serveur.
-
-    Sélectionne le mois (laisser vide → dernier mois disponible côté serveur).
+    `client.facturation(mois)` retourne `lignes_facture_rapprochees` (Odoo × Enedis × compteur)
+    calculé côté serveur, incluant les flags `a_facturer` / `a_supprimer`. Le notebook filtre
+    côté client en prod via `.filter(pl.col("a_facturer"))`.
     """)
     return
 
 
 @app.cell
-def _():
-    mois_input = mo.ui.text(label="Mois (YYYY-MM-DD)", placeholder="vide = dernier mois disponible")
-    mois_input
-    return (mois_input,)
-
-
-@app.cell
 def _(mois_input):
-    _mois = mois_input.value or None
-    fact_mois = client.facturation(mois=_mois)
-    mo.md(f"**{len(fact_mois)}** lignes récupérées · mois demandé: `{_mois or 'dernier disponible'}`")
+    fact_mois_brut = client.facturation(mois=mois_input.value)
+    fact_mois = fact_mois_brut.filter(pl.col("a_facturer"))
+    mo.md(
+        f"**{len(fact_mois_brut)}** lignes du mois côté serveur · "
+        f"**{len(fact_mois)}** à facturer (a_facturer=True)"
+    )
     return (fact_mois,)
 
 
