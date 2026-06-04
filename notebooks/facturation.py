@@ -45,7 +45,8 @@ with app.setup:
 
     # Client API electricore (cf. ADR-0009 + ADR-0012)
     _api_url = os.getenv("ELECTRICORE_API_URL", "https://electricore.localhost")
-    _api_key = os.getenv("ELECTRICORE_API_KEY", "")
+    # Fallback : 1re clé de la liste API_KEYS (format serveur : "key1,key2,...")
+    _api_key = os.getenv("ELECTRICORE_API_KEY") or os.getenv("API_KEYS", "").split(",")[0].strip()
     # verify=False : Caddy local TLS auto-signé (cf. docs/deploiement.md)
     _http_client = httpx.Client(verify=False, timeout=httpx.Timeout(30.0, read=120.0))
     client = ElectricoreClient(url=_api_url, api_key=_api_key, http_client=_http_client)
