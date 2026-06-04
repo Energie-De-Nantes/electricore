@@ -193,7 +193,7 @@ Opération **aval** qui relie les lignes de facture Odoo (déjà tagguées avec 
 _Éviter_ : réconciliation (anglicisme), jointure facturation, `updates_rsc` (ancien nom de variable).
 
 **`lignes_facture_rapprochees`** :
-DataFrame résultat du *Rapprochement facturation mensuelle*. Une ligne par ligne de facture Odoo en brouillon, enrichie de la quantité calculée à partir des flux Enedis (`quantite_enedis`). Sert de proposition de mise à jour : la décision d'écriture dans Odoo est prise par l'opérateur depuis un notebook (cf. [ADR-0012](../../docs/adr/0012-api-read-only-odoo.md)).
+DataFrame résultat du *Rapprochement facturation mensuelle*. Une ligne par ligne de facture Odoo du mois cible (tous états confondus), enrichie de la quantité calculée à partir des flux Enedis (`quantite_enedis`) et de deux flags : `a_facturer` (ligne en attente d'injection de quantité) et `a_supprimer` (ligne brouillon à quantité nulle, candidate à `unlink`). Sert de proposition de mise à jour : la décision d'écriture dans Odoo est prise par l'opérateur depuis un notebook (cf. [ADR-0012](../../docs/adr/0012-api-read-only-odoo.md)).
 
 **`x_invoicing_state`** :
 Champ Odoo qui matérialise l'avancement d'un `sale.order` dans le cycle de facturation mensuel. Les vérifications pré-facturation (`/check odoo` côté bot) reposent en partie sur sa répartition.
