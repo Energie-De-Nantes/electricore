@@ -28,6 +28,9 @@ class APISettings(BaseModel):
     api_version: str = Field(default="0.1.0")
     api_description: str = Field(default="API sécurisée pour accéder aux données flux Enedis")
 
+    # Identité de l'instance (cf. ADR-0015 — déploiement multi-instance)
+    instance_slug: str = Field(default="")
+
     # Configuration des clés API
     api_key: str = Field(default="")
     api_keys: str = Field(default="")
@@ -67,6 +70,7 @@ class APISettings(BaseModel):
             "api_title": os.getenv("API_TITLE", "ElectriCore API"),
             "api_version": os.getenv("API_VERSION", "0.1.0"),
             "api_description": os.getenv("API_DESCRIPTION", "API sécurisée pour accéder aux données flux Enedis"),
+            "instance_slug": os.getenv("INSTANCE_SLUG", ""),
             "api_key": os.getenv("API_KEY", ""),
             "api_keys": os.getenv("API_KEYS", ""),
             "enable_api_key_header": os.getenv("ENABLE_API_KEY_HEADER", "true").lower() == "true",

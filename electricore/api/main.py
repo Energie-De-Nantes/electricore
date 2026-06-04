@@ -5,7 +5,9 @@ Expose les données Enedis via endpoints génériques avec authentification par 
 
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
+from urllib.parse import urlparse
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.responses import Response
@@ -32,9 +34,30 @@ logger = logging.getLogger(__name__)
 _tg_app = None
 
 
+def _format_sftp_source() -> str:
+    """Identifiant lisible de la source SFTP, sans secret (cf. ADR-0015)."""
+    raw = os.getenv("SFTP__URL", "")
+    if not raw:
+        return "(unset)"
+    parsed = urlparse(raw)
+    if parsed.scheme == "file":
+        return raw
+    if parsed.hostname:
+        return f"{parsed.scheme}://{parsed.hostname}"
+    return parsed.scheme or "(unset)"
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _tg_app
+    odoo_db = os.getenv(f"ODOO_{settings.odoo_env.upper()}_DB", "(unset)")
+    logger.info(
+        "Instance=%s, odoo_env=%s, odoo_db=%s, sftp=%s",
+        settings.instance_slug or "(unset)",
+        settings.odoo_env,
+        odoo_db,
+        _format_sftp_source(),
+    )
     if settings.telegram_bot_token:
         from electricore.bot.bot import build_application
 
@@ -57,10 +80,12 @@ async def lifespan(app: FastAPI):
         logger.info("Bot Telegram arrêté.")
 
 
+_instance_suffix = f" — {settings.instance_slug.upper()}" if settings.instance_slug else ""
+
 # Configuration de l'application avec métadonnées de sécurité
 app = FastAPI(
     lifespan=lifespan,
-    title=settings.api_title,
+    title=f"{settings.api_title}{_instance_suffix}",
     version=settings.api_version,
     description=f"{settings.api_description}\n\n"
     "**Authentification requise** : Utilisez une clé API valide via :\n"
@@ -293,6 +318,7 @@ async def health():
     freshness = duckdb_service.get_freshness()
     return {
         "status": "ok",
+        "instance": settings.instance_slug,
         "api_version": settings.api_version,
         "database": freshness,
         "bot": {"running": _tg_app is not None},
