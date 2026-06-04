@@ -7,13 +7,14 @@ Guide opérationnel pour déployer ElectriCore sur un VPS via la stack Docker
 
 1. [Prérequis](#prérequis)
 2. [Installation initiale](#installation-initiale)
-3. [Accès distant depuis un notebook Python](#accès-distant-depuis-un-notebook-python)
-4. [Mode SFTP distant vs fichiers collocés](#mode-sftp-distant-vs-fichiers-collocés)
-5. [Rotation des clés AES](#rotation-des-clés-aes)
-6. [Sauvegarde et restauration](#sauvegarde-et-restauration)
-7. [Mise à jour de version](#mise-à-jour-de-version)
-8. [Fenêtre ETL et concurrence DuckDB](#fenêtre-etl-et-concurrence-duckdb)
-9. [Dépannage](#dépannage)
+3. [Provisionner une nouvelle instance](#provisionner-une-nouvelle-instance)
+4. [Accès distant depuis un notebook Python](#accès-distant-depuis-un-notebook-python)
+5. [Mode SFTP distant vs fichiers collocés](#mode-sftp-distant-vs-fichiers-collocés)
+6. [Rotation des clés AES](#rotation-des-clés-aes)
+7. [Sauvegarde et restauration](#sauvegarde-et-restauration)
+8. [Mise à jour de version](#mise-à-jour-de-version)
+9. [Fenêtre ETL et concurrence DuckDB](#fenêtre-etl-et-concurrence-duckdb)
+10. [Dépannage](#dépannage)
 
 ---
 
@@ -63,6 +64,7 @@ curl -fsSL -o /opt/electricore/.env "$BASE/.env.example"
 
 Éditer `/opt/electricore/.env` :
 
+- `INSTANCE_SLUG` : identifiant court de l'instance (ex : `edn`, `enargia`). Voir [ADR-0015](adr/0015-deploiement-multi-instance.md). Apparaît dans `/health`, dans le titre `/docs`, et préfixe le nom des backups DuckDB.
 - `ELECTRICORE_VERSION` : tag de l'image GHCR à déployer (ex : `1.4.0`).
 - `API_KEY` : générer une clé sécurisée (`python -c "import secrets; print(secrets.token_urlsafe(32))"`).
 - `SFTP__URL` : URL SFTP distante ou `file:///var/enedis/` selon le mode.
@@ -128,6 +130,134 @@ docker compose exec etl-scheduler curl -X POST \
     -d '{"mode":"test"}' \
     http://api:8001/etl/run
 ```
+
+## Provisionner une nouvelle instance
+
+ElectriCore est déployé en **multi-instance** : un VPS dédié par fournisseur (EDN, Enargia, …), chacun avec sa propre stack, sa base DuckDB, ses clés AES, sa config Odoo, sa source SFTP, son bot Telegram, et son sous-domaine sur `electricore.fr`. Le rationale et les alternatives écartées sont consignés dans [ADR-0015](adr/0015-deploiement-multi-instance.md).
+
+Cette section décrit la procédure complète pour monter `<slug>.electricore.fr` de zéro. Elle suit la même trame que l'[Installation initiale](#installation-initiale), en insistant sur les points spécifiques au multi-instance.
+
+### 1. Choisir le slug
+
+Le slug est l'identifiant court de l'instance, en minuscules sans accent (ex : `edn`, `enargia`). Il sert à la fois de sous-domaine, de valeur `INSTANCE_SLUG`, et de préfixe de backup. Une fois choisi, il est difficile à changer sans casser les références DNS et les noms de fichiers de sauvegarde — choisir soigneusement.
+
+### 2. Provisionner le VPS
+
+Spécifications minimales : 2 vCPU, 4 Go RAM, 40 Go SSD, Ubuntu 22.04+ ou Debian 12+. Installer Docker Engine ≥ 24 et le plugin Compose. Ouvrir les ports 80 et 443 au pare-feu.
+
+### 3. Créer le A-record DNS
+
+Dans la zone `electricore.fr`, ajouter un enregistrement :
+
+```
+<slug>.electricore.fr.   A   <IP-VPS>
+```
+
+Vérifier la propagation avant de continuer :
+
+```bash
+dig +short <slug>.electricore.fr
+```
+
+Pas de wildcard (`*.electricore.fr`) — chaque VPS gère son propre certificat via HTTP-01 (cf. ADR-0015).
+
+### 4. Récupérer les fichiers de configuration
+
+Suivre l'étape [§1 de l'installation initiale](#1-préparer-le-dossier-et-récupérer-les-fichiers-de-config) (téléchargement de `docker-compose.yml`, `Caddyfile`, `crontab`, `.env.example`).
+
+### 5. Configurer le `.env` (variables par catégorie)
+
+Le `.env` est **la source de vérité de l'identité de l'instance**. Toutes les variables ci-dessous sont **spécifiques par instance** — ne jamais partager un `.env` entre deux instances.
+
+**Identité de l'instance**
+
+| Variable | Exemple | Notes |
+|---|---|---|
+| `INSTANCE_SLUG` | `edn` | Identifiant court, minuscule. Doit matcher le sous-domaine. |
+| `ELECTRICORE_VERSION` | `1.6.0` | Tag de l'image GHCR. Pin explicite — chaque instance contrôle sa version. |
+
+**API**
+
+| Variable | Notes |
+|---|---|
+| `API_KEY` | Générer une clé dédiée (`python -c "import secrets; print(secrets.token_urlsafe(32))"`). Ne pas réutiliser une clé d'une autre instance. |
+| `API_KEYS` | Optionnel, clés multiples séparées par virgule. |
+
+**Odoo**
+
+| Variable | Notes |
+|---|---|
+| `ODOO_ENV` | `prod` (ou `test` pour une instance d'essai). |
+| `ODOO_PROD_URL` | URL de l'instance Odoo du fournisseur (ex : `https://edn.odoo.com`). |
+| `ODOO_PROD_DB` | Nom de la base Odoo. Vérifier que ce nom apparaîtra dans le log de boot (cf. §8). |
+| `ODOO_PROD_USERNAME` | Compte utilisateur Odoo dédié à ElectriCore. |
+| `ODOO_PROD_PASSWORD` | Mot de passe ou clé API Odoo. |
+
+**SFTP Enedis**
+
+| Variable | Notes |
+|---|---|
+| `SFTP__URL` | `sftp://utilisateur:motdepasse@hote:22/chemin` ou `file:///var/enedis/` en mode collocé. Chaque fournisseur a son propre compte SFTP Enedis. |
+
+**Clés AES Enedis**
+
+| Variable | Notes |
+|---|---|
+| `AES__CURRENT__KEY` | Clé en hexadécimal, fournie par Enedis au fournisseur. **Distincte par fournisseur.** |
+| `AES__CURRENT__IV` | IV en hexadécimal. |
+| `AES__PREVIOUS__*` | Optionnel pendant ~4 semaines après une rotation (cf. [Rotation des clés AES](#rotation-des-clés-aes)). |
+
+**Bot Telegram**
+
+| Variable | Notes |
+|---|---|
+| `TELEGRAM_BOT_TOKEN` | Créer un bot dédié via [@BotFather](https://t.me/BotFather) (commande `/newbot`). Convention de nommage : `<slug>_electricore_bot`. |
+| `TELEGRAM_ALLOWED_USERS` | IDs Telegram autorisés (allowlist propre à l'équipe du fournisseur). |
+
+### 6. Configurer le Caddyfile
+
+Dans le `Caddyfile`, substituer :
+
+- `electricore.exemple.fr` → `<slug>.electricore.fr`
+- `votre-email@example.com` → email valide (notifications Let's Encrypt).
+
+### 7. Ajuster le crontab
+
+Vérifier l'horaire ETL (`0 2 * * *` par défaut, 02:00 Europe/Paris). Si plusieurs instances tournent sur le même VPS Enedis source (rare), décaler les fenêtres pour éviter les pics simultanés.
+
+### 8. Démarrer la stack et vérifier
+
+```bash
+cd /opt/electricore/deploy/docker
+docker compose up -d
+docker compose logs -f api
+```
+
+**Checklist de vérification post-déploiement** :
+
+- [ ] Les logs au boot de l'API contiennent une ligne `Instance=<slug>, odoo_db=<db>, sftp=<host>` — vérifier que le slug, la DB Odoo et le SFTP correspondent bien à l'instance attendue (garde-fou contre un `.env` copié à tort depuis une autre instance).
+- [ ] `curl https://<slug>.electricore.fr/health` retourne `{"status": "ok", "instance": "<slug>", ...}`.
+- [ ] `https://<slug>.electricore.fr/docs` s'ouvre et affiche un titre incluant le slug (ex : `ElectriCore API — EDN`).
+- [ ] Le certificat Let's Encrypt est valide (badge cadenas dans le navigateur, pas d'avertissement).
+- [ ] Le bot Telegram répond à `/start` pour un user listé dans `TELEGRAM_ALLOWED_USERS`.
+- [ ] Premier ETL test :
+  ```bash
+  docker compose exec etl-scheduler curl -X POST \
+      -H "X-API-Key:$(grep ^API_KEY= .env | cut -d= -f2)" \
+      -H "Content-Type: application/json" \
+      -d '{"mode":"test"}' \
+      http://api:8001/etl/run
+  ```
+  Vérifier dans les logs `etl-scheduler` que les fichiers sont déchiffrés (clés AES correctes) et ingérés.
+- [ ] Premier backup nocturne : après la fenêtre 03:30, vérifier `docker compose exec etl-scheduler ls -lh /backups/` — le fichier produit doit être préfixé par le slug (ex : `backup_edn_<date>.duckdb`).
+
+### 9. Documenter et archiver
+
+- Noter les coordonnées de l'instance (slug, IP VPS, contacts du fournisseur, registrar DNS) dans un endroit sûr.
+- Sauvegarder le `.env` dans un gestionnaire de secrets (1Password, Bitwarden, Vaultwarden auto-hébergé…).
+- Ajouter le sous-domaine à votre monitoring distant (ping `/health` régulier).
+
+---
 
 ## Accès distant depuis un notebook Python
 
