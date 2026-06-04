@@ -7,6 +7,44 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
+## [1.6.0] - 2026-06-04
+
+### 🧮 Facturation — flags d'état + glossaire Historique
+
+Deuxième brique de l'API épaisse : refonte du chargement Odoo pour exposer toutes les lignes de factures du mois (avec flags), résolvant la douleur de test hors période de facturation. Renommage terminologique acté par ADR-0013 pour aligner code et glossaire.
+
+#### Ajouts
+
+- **ADR-0013** ([`docs/adr/0013-renommage-perimetre-historique.md`](docs/adr/0013-renommage-perimetre-historique.md)) — Renommage *Périmètre* → *Historique* dans le code et le glossaire. Deux concepts distincts : `Historique` (séquence temporelle enrichie produite par `pipeline_historique`) ; `Périmètre` (snapshot à une date, conservé au glossaire sans implémentation).
+- **ADR-0014** ([`docs/adr/0014-lignes-factures-du-mois-avec-flags.md`](docs/adr/0014-lignes-factures-du-mois-avec-flags.md)) — `lignes_factures_du_mois` qui ne filtre Odoo que par `sale.order.state == 'sale'` et `invoice_date` du mois ; flags `a_facturer` / `a_supprimer` matérialisent les sous-ensembles métier. Résout : tester le notebook hors période, audit a posteriori, debug.
+- **`lignes_factures_du_mois(odoo, mois)`** ([`electricore/core/loaders/odoo/helpers.py`](electricore/core/loaders/odoo/helpers.py)) — LazyFrame de toutes les lignes de factures du mois cible avec les colonnes `a_facturer` (drafts + qty > 0) et `a_supprimer` (drafts + qty == 0).
+- **`flags_etat_facturation(lf)`** — helper pur testable séparément (`x_invoicing_state`, `state_account_move`, `quantity` → flags).
+- **Modèle Pandera `Historique`** ([`electricore/core/models/historique.py`](electricore/core/models/historique.py)) — valide la sortie enrichie de `pipeline_historique` (impacte_*, resume_modification, événements FACTURATION).
+
+#### Modifications
+
+- **`LignesFactureRapprochees`** ([`electricore/core/models/lignes_facture_rapprochees.py`](electricore/core/models/lignes_facture_rapprochees.py)) — 9 → 20 colonnes nullable : méta-période Enedis (`debut`, `fin`, `data_complete`, `turpe_fixe_eur`, `turpe_variable_eur`, `ref_situation_contractuelle`, `pdl`), identifiants compteur (`num_compteur`, `type_compteur`) joints depuis l'Historique, flags d'état (`a_facturer`, `a_supprimer`). `x_lisse`, `x_pdl`, `name_product_category`, `name_product_product` rendus nullable.
+- **`rapprocher_facturation_mensuelle`** ([`electricore/core/pipelines/facturation.py`](electricore/core/pipelines/facturation.py)) — nouveau paramètre `historique` (LazyFrame), join `.unique(keep='last')` sur `ref_situation_contractuelle` pour récupérer les identifiants compteur ; propage les flags ; ne projette plus aucune colonne méta.
+- **`pipeline_perimetre`** → **`pipeline_historique`** ([`electricore/core/pipelines/historique.py`](electricore/core/pipelines/historique.py)) — décoré `@pa.check_types` validant le modèle `Historique`.
+- **`facturation_service`** ([`electricore/api/services/facturation_service.py`](electricore/api/services/facturation_service.py)) — utilise `lignes_factures_du_mois`, résout le mois avant l'appel Odoo.
+- **`notebooks/facturation.py`** — un seul call `client.facturation(mois)` côté Enedis + `lignes_factures_du_mois(odoo, mois)` côté Odoo. `lignes_a_facturer_df` et `lignes_a_supprimer` dérivés par `.filter()` sur les flags côté client. UI `mois_input` par défaut au 1er du mois courant. `sim_mode=True` + `run_button` gate préservés.
+
+#### Suppressions (breaking)
+
+- **`lignes_a_facturer`** et **`lignes_quantite_zero`** ([`electricore/core/loaders/odoo/helpers.py`](electricore/core/loaders/odoo/helpers.py)) — remplacés par `lignes_factures_du_mois(odoo, mois)` + filtre client `.filter(pl.col("a_facturer"))` ou `.filter(pl.col("a_supprimer"))`.
+- **`pipeline_perimetre`** → renommée `pipeline_historique` (cf. ADR-0013).
+- **`HistoriquePérimètre`** (modèle Pandera) supprimé — le brut C15 n'a plus de nom métier autonome, validation déplacée à la sortie de `pipeline_historique`.
+- **`transform_historique_perimetre`** → renommée `transform_historique`.
+- **`load_historique_perimetre`** → renommée `load_historique`.
+- **`registry.py`** : `validator=None` pour C15 (validation maintenant à la sortie du pipeline).
+
+#### Tests
+
+- TDD complet : 4 cycles RED→GREEN sur `flags_etat_facturation` (table tests), 1 cycle sur la propagation des flags par `rapprocher_facturation_mensuelle`, fixtures unit+smoke adaptées.
+- Adaptation `test_facturation_service_smoke.py` pour la nouvelle signature de `lignes_factures_du_mois` et les nouvelles colonnes.
+
+---
+
 ## [1.5.0] - 2026-06-04
 
 ### 🧮 Facturation — API épaisse
