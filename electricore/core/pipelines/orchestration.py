@@ -47,75 +47,9 @@ class ResultatFacturationPolars(NamedTuple):
     """
 
     historique_enrichi: pl.LazyFrame
-    abonnements: pl.LazyFrame | None = None
-    energie: pl.LazyFrame | None = None
-    facturation: pl.DataFrame | None = None  # Collecté pour l'agrégation finale
-
-
-def calculer_historique_enrichi(
-    historique: pl.LazyFrame, date_limite: pl.Expr | None = None
-) -> ResultatFacturationPolars:
-    """
-    Calcule uniquement l'historique enrichi (pipeline périmètre) - Version Polars.
-
-    Utile quand on veut juste préparer l'historique avec la détection
-    des ruptures et l'insertion des événements de facturation.
-
-    Args:
-        historique: LazyFrame contenant l'historique des événements contractuels
-        date_limite: Expression Polars pour filtrer les événements après cette date
-                    (défaut: 1er du mois courant)
-
-    Returns:
-        ResultatFacturationPolars avec historique_enrichi seulement
-    """
-    historique_enrichi = pipeline_historique(historique, date_limite=date_limite)
-    return ResultatFacturationPolars(historique_enrichi=historique_enrichi)
-
-
-def calculer_abonnements(historique: pl.LazyFrame, date_limite: pl.Expr | None = None) -> ResultatFacturationPolars:
-    """
-    Calcule les abonnements avec leur contexte (historique enrichi) - Version Polars.
-
-    Orchestre pipeline_historique + pipeline_abonnements pour obtenir
-    les périodes d'abonnement avec TURPE fixe.
-
-    Args:
-        historique: LazyFrame contenant l'historique des événements contractuels
-        date_limite: Expression Polars pour filtrer les événements après cette date
-                    (défaut: 1er du mois courant)
-
-    Returns:
-        ResultatFacturationPolars avec historique_enrichi + abonnements
-    """
-    historique_enrichi = pipeline_historique(historique, date_limite=date_limite)
-    abonnements = pipeline_abonnements(historique_enrichi)
-
-    return ResultatFacturationPolars(historique_enrichi=historique_enrichi, abonnements=abonnements)
-
-
-def calculer_energie(
-    historique: pl.LazyFrame, releves: pl.LazyFrame, date_limite: pl.Expr | None = None
-) -> ResultatFacturationPolars:
-    """
-    Calcule l'énergie avec son contexte (historique enrichi) - Version Polars.
-
-    Orchestre pipeline_historique + pipeline_energie pour obtenir
-    les périodes d'énergie avec TURPE variable.
-
-    Args:
-        historique: LazyFrame contenant l'historique des événements contractuels
-        releves: LazyFrame contenant les relevés d'index R151
-        date_limite: Expression Polars pour filtrer les événements après cette date
-                    (défaut: 1er du mois courant)
-
-    Returns:
-        ResultatFacturationPolars avec historique_enrichi + energie
-    """
-    historique_enrichi = pipeline_historique(historique, date_limite=date_limite)
-    energie = pipeline_energie(historique_enrichi, releves)
-
-    return ResultatFacturationPolars(historique_enrichi=historique_enrichi, energie=energie)
+    abonnements: pl.LazyFrame
+    energie: pl.LazyFrame
+    facturation: pl.DataFrame  # Collecté pour l'agrégation finale
 
 
 def facturation(
@@ -181,8 +115,5 @@ def facturation(
 # Export des fonctions principales
 __all__ = [
     "ResultatFacturationPolars",
-    "calculer_historique_enrichi",
-    "calculer_abonnements",
-    "calculer_energie",
     "facturation",
 ]

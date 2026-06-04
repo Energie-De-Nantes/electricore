@@ -10,9 +10,6 @@ de traitement de données énergétiques utilisant les expressions Polars.
 
 __all__ = [
     "ResultatFacturationPolars",
-    "calculer_historique_enrichi",
-    "calculer_abonnements",
-    "calculer_energie",
     "facturation",
     # Pipeline Accise
     "pipeline_accise",
@@ -42,19 +39,10 @@ def __getattr__(name: str):
 
     # Pipeline orchestration/facturation (avec Pandera)
     if name in __all__:
-        from .orchestration import (
-            ResultatFacturationPolars,
-            calculer_abonnements,
-            calculer_energie,
-            calculer_historique_enrichi,
-            facturation,
-        )
+        from .orchestration import ResultatFacturationPolars, facturation
 
         return {
             "ResultatFacturationPolars": ResultatFacturationPolars,
-            "calculer_historique_enrichi": calculer_historique_enrichi,
-            "calculer_abonnements": calculer_abonnements,
-            "calculer_energie": calculer_energie,
             "facturation": facturation,
         }[name]
 
