@@ -319,6 +319,7 @@ def lignes_factures_du_mois(odoo: OdooReader, mois: str, domain: list | None = N
             domain=base_domain,
             fields=[
                 "name",
+                "state",  # nécessaire pour forcer le rename de account.move.state → state_account_move
                 "x_pdl",
                 "x_ref_situation_contractuelle",
                 "x_lisse",
