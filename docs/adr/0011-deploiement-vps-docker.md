@@ -6,4 +6,4 @@ ElectriCore tourne en production sur un VPS unique avec une stack `docker-compos
 
 - **VPS unique** : pas de haute dispo, pas de réplication. Une panne du VPS = indisponibilité totale jusqu'au redémarrage.
 - **Volume DuckDB local** : la base vit sur le disque du VPS. Sauvegardes nocturnes via `EXPORT DATABASE` (voir [docs/deploiement.md](../deploiement.md)) ; restauration manuelle.
-- **Mono-tenant** : la stack est conçue pour un fournisseur d'énergie à la fois. Multi-tenant nécessiterait des changements significatifs (segmentation des clés API, isolation des bases).
+- **Mono-tenant par stack** : un déploiement = un fournisseur. Multi-tenant applicatif (1 stack, plusieurs fournisseurs en isolation logique) n'est pas l'approche retenue — cf. [ADR-0015](0015-deploiement-multi-instance.md), qui acte le modèle « un VPS par instance » pour servir plusieurs fournisseurs.

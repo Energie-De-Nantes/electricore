@@ -19,6 +19,11 @@ Régulateur français qui fixe les tarifs d'acheminement (TURPE) et arbitre les 
 **Fournisseur** :
 Acteur commercial qui vend l'électricité au consommateur final. Utilise les flux Enedis pour facturer ses clients.
 _Éviter_ : vendeur, opérateur (ambigus).
+_Note_ : « Fournisseur » est générique — il désigne aussi bien le fournisseur opérant une *instance* ElectriCore (ex : EDN, Enargia) que les autres fournisseurs cités dans les événements C15 (CFNE/CFNS). Préférer *instance* quand on parle du fournisseur opérant.
+
+**Instance** :
+Déploiement ElectriCore dédié à un *fournisseur* particulier (EDN, Enargia…). Chaque instance a sa propre base DuckDB, ses clés AES, sa config Odoo, sa source SFTP, son sous-domaine. Identifiée par un slug court (`edn`, `enargia`).
+_Éviter_ : tenant (anglicisme), déploiement (confus avec l'opération de release).
 
 **Gestionnaire de réseau** :
 Synonyme métier d'Enedis dans la majeure partie du territoire. À distinguer du *transporteur* (RTE, haute tension).
