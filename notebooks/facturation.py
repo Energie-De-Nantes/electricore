@@ -126,10 +126,10 @@ def _(mois_input):
                 f"**{len(lignes_a_facturer_df)}** à facturer · "
                 f"**{len(lignes_a_supprimer)}** à supprimer"
             ),
-            mo.ui.table(lignes_a_facturer_df),
+            mo.ui.table(lignes_odoo_df),
         ]
     )
-    return lignes_a_facturer_df, lignes_a_supprimer
+    return (lignes_a_facturer_df,)
 
 
 @app.cell(hide_code=True)
@@ -345,7 +345,9 @@ def _(fact_mois, lignes_a_facturer_df, taux_verification):
         .to_dicts()
     )
 
-    _preview = pl.DataFrame(orders_records)
+    # Schéma explicite : préserve les colonnes même si la liste est vide
+    # (cas légitime hors période de facturation, cf. ADR-0014).
+    _preview = pl.DataFrame(orders_records, schema={"id": pl.Int64, "x_invoicing_state": pl.Utf8})
     mo.vstack(
         [
             mo.md(
