@@ -1,0 +1,155 @@
+"""Décorateurs pour routes binaires (XLSX / Arrow / ZIP).
+
+Encapsule le squelette répété autour de chaque endpoint binaire :
+- dépendance d'authentification (`Depends(get_current_api_key)`)
+- garde Odoo optionnelle (`requires_odoo=True` → 501 si non configuré)
+- dispatch sync (run_in_executor) vs coroutine (await as-is)
+- conversion d'exception métier en `HTTPException(503)` avec `logger.exception`
+- emballage `Response` avec media type + `Content-Disposition` optionnel
+  (placeholders du `filename` résolus depuis les arguments de la fonction décorée)
+
+Voir issue #18.
+"""
+
+import asyncio
+import inspect
+import logging
+
+from fastapi import Depends, FastAPI, HTTPException, Response
+
+from electricore.api.config import settings
+from electricore.api.security import get_current_api_key
+
+logger = logging.getLogger(__name__)
+
+XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+ARROW_MEDIA_TYPE = "application/vnd.apache.arrow.stream"
+ZIP_MEDIA_TYPE = "application/zip"
+
+
+def _resoudre_filename(template: str, args: dict[str, object]) -> str:
+    """Résout les placeholders `{nom_arg}` dans le template depuis les args.
+
+    Un arg `None` produit une chaîne vide pour son placeholder
+    (cas typique : filtre optionnel non fourni → `accise{trimestre}.xlsx`
+    devient `accise.xlsx`).
+    """
+    valeurs = {k: ("" if v is None else str(v)) for k, v in args.items()}
+    return template.format_map(_DefaultEmpty(valeurs))
+
+
+class _DefaultEmpty(dict):
+    """Mapping qui renvoie `""` pour les clés absentes — évite KeyError sur
+    les placeholders inutilisés par le handler.
+    """
+
+    def __missing__(self, key):  # type: ignore[override]
+        return ""
+
+
+def binary_endpoint(
+    app: FastAPI,
+    path: str,
+    *,
+    media_type: str,
+    filename: str | None = None,
+    requires_odoo: bool = False,
+    error_status: int = 503,
+    tags: list[str] | None = None,
+):
+    """Enregistre un handler retournant `bytes` comme endpoint binaire générique.
+
+    Args:
+        app: instance FastAPI sur laquelle enregistrer la route.
+        path: chemin HTTP de l'endpoint (`GET`).
+        media_type: type MIME de la réponse (XLSX, Arrow stream, ZIP…).
+        filename: template du `Content-Disposition` (placeholders `{nom_arg}`
+            résolus depuis les arguments du handler). Si `None`, pas de
+            header `Content-Disposition` (cas Arrow streaming).
+        requires_odoo: si `True`, retourne `501` quand Odoo n'est pas configuré.
+        tags: tags OpenAPI optionnels.
+    """
+
+    def decorator(handler):
+        async def wrapper(**kwargs) -> Response:
+            if requires_odoo and not settings.is_odoo_configured:
+                raise HTTPException(
+                    501,
+                    f"Odoo [{settings.odoo_env}] non configuré. Définissez "
+                    f"ODOO_{settings.odoo_env.upper()}_URL/DB/USERNAME/PASSWORD dans .env",
+                )
+            try:
+                if asyncio.iscoroutinefunction(handler):
+                    content = await handler(**kwargs)
+                else:
+                    content = await asyncio.get_event_loop().run_in_executor(None, lambda: handler(**kwargs))
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.exception("Erreur %s", path)
+                raise HTTPException(error_status, f"Erreur lors du traitement : {e}")
+
+            headers: dict[str, str] = {}
+            if filename is not None:
+                resolved = _resoudre_filename(filename, kwargs)
+                headers["Content-Disposition"] = f"attachment; filename={resolved}"
+            return Response(content=content, media_type=media_type, headers=headers)
+
+        wrapper.__signature__ = inspect.signature(handler)  # type: ignore[attr-defined]
+        wrapper.__name__ = handler.__name__
+
+        app.get(path, tags=tags, dependencies=[Depends(get_current_api_key)])(wrapper)
+        return wrapper
+
+    return decorator
+
+
+def xlsx_endpoint(
+    app: FastAPI,
+    path: str,
+    *,
+    filename: str,
+    requires_odoo: bool = False,
+    error_status: int = 503,
+    tags: list[str] | None = None,
+):
+    """Wrapper convenance de `binary_endpoint` pour les exports XLSX."""
+    return binary_endpoint(
+        app,
+        path,
+        media_type=XLSX_MEDIA_TYPE,
+        filename=filename,
+        requires_odoo=requires_odoo,
+        error_status=error_status,
+        tags=tags,
+    )
+
+
+def arrow_endpoint(
+    app: FastAPI,
+    path: str,
+    *,
+    requires_odoo: bool = False,
+    tags: list[str] | None = None,
+):
+    """Wrapper convenance de `binary_endpoint` pour les flux Arrow IPC.
+
+    Pas de `Content-Disposition` — le flux est consommé en mémoire par le client.
+    """
+    return binary_endpoint(
+        app, path, media_type=ARROW_MEDIA_TYPE, filename=None, requires_odoo=requires_odoo, tags=tags
+    )
+
+
+def zip_endpoint(
+    app: FastAPI,
+    path: str,
+    *,
+    filename: str,
+    requires_odoo: bool = False,
+    tags: list[str] | None = None,
+):
+    """Wrapper convenance de `binary_endpoint` pour les archives ZIP."""
+    return binary_endpoint(
+        app, path, media_type=ZIP_MEDIA_TYPE, filename=filename, requires_odoo=requires_odoo, tags=tags
+    )

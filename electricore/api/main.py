@@ -13,6 +13,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.responses import Response
 
 from electricore.api.config import settings
+from electricore.api.decorators import arrow_endpoint, xlsx_endpoint
 from electricore.api.models import ETLJobResponse, ETLRunRequest
 from electricore.api.security import APIKeyInfo, get_api_key_info, get_current_api_key
 from electricore.api.services import duckdb_service, etl_service
@@ -139,46 +140,20 @@ async def root():
     }
 
 
-@app.get("/flux/c15/entrees/xlsx", tags=["flux"])
-async def get_entrees_xlsx(
+@xlsx_endpoint(app, "/flux/c15/entrees/xlsx", filename="entrees_c15.xlsx", error_status=500, tags=["flux"])
+def get_entrees_xlsx(
     limit: int = Query(10000, le=100000, description="Nombre maximum de lignes"),
-    api_key: str = Depends(get_current_api_key),
-):
-    """
-    Exporte les **entrées** C15 au format XLSX (PMES, MES, CFNE).
-
-    **Authentification requise.**
-    """
-    try:
-        content = duckdb_service.query_entrees_xlsx(limit)
-    except Exception as e:
-        raise HTTPException(500, f"Erreur lors de la génération du fichier XLSX: {e}")
-    return Response(
-        content=content,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename=entrees_c15.xlsx"},
-    )
+) -> bytes:
+    """Exporte les **entrées** C15 au format XLSX (PMES, MES, CFNE)."""
+    return duckdb_service.query_entrees_xlsx(limit)
 
 
-@app.get("/flux/c15/sorties/xlsx", tags=["flux"])
-async def get_sorties_xlsx(
+@xlsx_endpoint(app, "/flux/c15/sorties/xlsx", filename="sorties_c15.xlsx", error_status=500, tags=["flux"])
+def get_sorties_xlsx(
     limit: int = Query(10000, le=100000, description="Nombre maximum de lignes"),
-    api_key: str = Depends(get_current_api_key),
-):
-    """
-    Exporte les **sorties** C15 au format XLSX (RES, CFNS).
-
-    **Authentification requise.**
-    """
-    try:
-        content = duckdb_service.query_sorties_xlsx(limit)
-    except Exception as e:
-        raise HTTPException(500, f"Erreur lors de la génération du fichier XLSX: {e}")
-    return Response(
-        content=content,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename=sorties_c15.xlsx"},
-    )
+) -> bytes:
+    """Exporte les **sorties** C15 au format XLSX (RES, CFNS)."""
+    return duckdb_service.query_sorties_xlsx(limit)
 
 
 @app.get("/flux/{table_name}", tags=["flux"])
@@ -239,20 +214,15 @@ async def get_flux(
         raise HTTPException(500, f"Erreur lors de la lecture des données: {e}")
 
 
-@app.get("/flux/{table_name}/xlsx", tags=["flux"])
-async def get_flux_xlsx(
+@xlsx_endpoint(app, "/flux/{table_name}/xlsx", filename="flux_{table_name}.xlsx", error_status=500, tags=["flux"])
+def get_flux_xlsx(
     table_name: str,
     prm: str | None = Query(None, description="Filtrer par pdl (Point de Livraison)"),
     limit: int = Query(10000, le=100000, description="Nombre maximum de lignes"),
-    api_key: str = Depends(get_current_api_key),
-):
-    """
-    Exporte les données d'un flux Enedis au format XLSX (Excel).
+) -> bytes:
+    """Exporte les données d'un flux Enedis au format XLSX (max 100 000 lignes).
 
-    **Authentification requise.**
-
-    Retourne un fichier téléchargeable directement ouvrables dans Excel/LibreOffice.
-    Limite par défaut : 10 000 lignes (max 100 000).
+    Vérifie l'existence de la table — renvoie 404 si inconnue, 500 sinon.
     """
     try:
         available_tables = duckdb_service.list_tables()
@@ -263,18 +233,7 @@ async def get_flux_xlsx(
         raise HTTPException(404, f"Table '{table_name}' non trouvée. Tables disponibles: {available_tables}")
 
     filters = {"pdl": prm} if prm else {}
-
-    try:
-        content = duckdb_service.query_table_xlsx(table_name, filters, limit)
-    except Exception as e:
-        raise HTTPException(500, f"Erreur lors de la génération du fichier XLSX: {e}")
-
-    filename = f"flux_{table_name}.xlsx"
-    return Response(
-        content=content,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
-    )
+    return duckdb_service.query_table_xlsx(table_name, filters, limit)
 
 
 @app.get("/flux/{table_name}/info", tags=["flux"])
@@ -447,213 +406,76 @@ async def list_api_keys(api_key: str = Depends(get_current_api_key), key_info: A
     }
 
 
-_XLSX_MEDIA = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-
-
-@app.get("/taxes/accise/xlsx", tags=["taxes"])
-async def export_accise_xlsx(
+@xlsx_endpoint(app, "/taxes/accise/xlsx", filename="accise{trimestre}.xlsx", requires_odoo=True, tags=["taxes"])
+def export_accise_xlsx(
     trimestre: str | None = Query(
         default=None,
         examples=["2025-T1"],
         description="Filtre par trimestre au format YYYY-TX. Sans filtre : toutes les données.",
     ),
-    api_key: str = Depends(get_current_api_key),
-):
-    """
-    Calcule l'Accise TICFE et retourne un fichier XLSX.
-
-    **Authentification requise. Nécessite la configuration Odoo (ODOO_* dans .env).**
-
-    Le fichier contient 3 onglets :
-    - **Résumé** : totaux (PDL, énergie MWh, accise €)
-    - **Par taux** : répartition par taux réglementaire
-    - **Détail** : détail ligne par ligne (PDL, mois, énergie, accise)
-    """
-    if not settings.is_odoo_configured:
-        raise HTTPException(
-            501,
-            f"Odoo [{settings.odoo_env}] non configuré. Définissez ODOO_{settings.odoo_env.upper()}_URL/DB/USERNAME/PASSWORD dans .env",
-        )
-    try:
-        xlsx = generer_accise_xlsx(trimestre)
-    except Exception as e:
-        raise HTTPException(503, f"Erreur lors du calcul de l'accise : {e}")
-    suffix = f"_{trimestre}" if trimestre else ""
-    return Response(
-        content=xlsx,
-        media_type=_XLSX_MEDIA,
-        headers={"Content-Disposition": f"attachment; filename=accise{suffix}.xlsx"},
-    )
+) -> bytes:
+    """Calcule l'Accise TICFE et retourne un fichier XLSX (3 onglets : Résumé, Par taux, Détail)."""
+    return generer_accise_xlsx(trimestre)
 
 
-@app.get("/taxes/accise/arrow", tags=["taxes"])
-async def export_accise_arrow(
+@arrow_endpoint(app, "/taxes/accise/arrow", requires_odoo=True, tags=["taxes"])
+def export_accise_arrow(
     trimestre: str | None = Query(
         default=None,
         examples=["2025-T1"],
         description="Filtre par trimestre au format YYYY-TX. Sans filtre : toutes les données.",
     ),
-    api_key: str = Depends(get_current_api_key),
-):
-    """
-    Détail Accise TICFE sérialisé en Arrow IPC stream.
-
-    **Authentification requise. Nécessite la configuration Odoo (ODOO_* dans .env).**
-
-    Sortie : flux Arrow IPC (table de détail par PDL × mois). Les agrégations
-    « Par taux » et « Résumé » sont à charge du notebook (group_by trivial).
-    """
-    if not settings.is_odoo_configured:
-        raise HTTPException(
-            501,
-            f"Odoo [{settings.odoo_env}] non configuré. Définissez ODOO_{settings.odoo_env.upper()}_URL/DB/USERNAME/PASSWORD dans .env",
-        )
-    try:
-        arrow_bytes = await asyncio.get_event_loop().run_in_executor(None, generer_accise_arrow, trimestre)
-    except Exception as e:
-        logger.exception("Erreur taxes/accise/arrow")
-        raise HTTPException(503, f"Erreur lors du calcul de l'accise : {e}")
-    return Response(content=arrow_bytes, media_type=_ARROW_IPC_MEDIA)
+) -> bytes:
+    """Détail Accise TICFE sérialisé en Arrow IPC stream (table PDL × mois)."""
+    return generer_accise_arrow(trimestre)
 
 
-@app.get("/taxes/cta/xlsx", tags=["taxes"])
-async def export_cta_xlsx(
+@xlsx_endpoint(app, "/taxes/cta/xlsx", filename="cta{trimestre}.xlsx", requires_odoo=True, tags=["taxes"])
+def export_cta_xlsx(
     trimestre: str | None = Query(
         default=None,
         examples=["2025-T1"],
         description="Filtre par trimestre au format YYYY-TX. Sans filtre : toutes les données.",
     ),
-    api_key: str = Depends(get_current_api_key),
-):
-    """
-    Calcule la CTA (Contribution Tarifaire d'Acheminement) et retourne un fichier XLSX.
-
-    **Authentification requise. Nécessite Odoo (ODOO_*) et DuckDB configurés.**
-
-    Les taux CTA sont chargés depuis electricore/config/cta_rules.csv et
-    appliqués au niveau mensuel. Un changement de taux en cours de trimestre
-    est géré automatiquement.
-
-    Le fichier contient 3 onglets :
-    - **Résumé** : totaux par trimestre (PDL, TURPE fixe €, CTA €)
-    - **Par taux** : détail par (trimestre, taux CTA)
-    - **Détail** : détail par PDL (pdl, order_name, turpe_fixe_total, cta, taux_cta_appliques)
-    """
-    if not settings.is_odoo_configured:
-        raise HTTPException(
-            501,
-            f"Odoo [{settings.odoo_env}] non configuré. Définissez ODOO_{settings.odoo_env.upper()}_URL/DB/USERNAME/PASSWORD dans .env",
-        )
-    try:
-        xlsx = generer_cta_xlsx(trimestre)
-    except Exception as e:
-        raise HTTPException(503, f"Erreur lors du calcul de la CTA : {e}")
-    suffix = f"_{trimestre}" if trimestre else ""
-    return Response(
-        content=xlsx,
-        media_type=_XLSX_MEDIA,
-        headers={"Content-Disposition": f"attachment; filename=cta{suffix}.xlsx"},
-    )
+) -> bytes:
+    """Calcule la CTA et retourne un fichier XLSX (3 onglets : Résumé, Par taux, Détail)."""
+    return generer_cta_xlsx(trimestre)
 
 
-@app.get("/taxes/cta/arrow", tags=["taxes"])
-async def export_cta_arrow(
+@arrow_endpoint(app, "/taxes/cta/arrow", requires_odoo=True, tags=["taxes"])
+def export_cta_arrow(
     trimestre: str | None = Query(
         default=None,
         examples=["2025-T1"],
         description="Filtre par trimestre au format YYYY-TX. Sans filtre : toutes les données.",
     ),
-    api_key: str = Depends(get_current_api_key),
-):
-    """
-    Détail CTA mensuel sérialisé en Arrow IPC stream.
-
-    **Authentification requise. Nécessite Odoo (ODOO_*) et DuckDB configurés.**
-
-    Sortie : flux Arrow IPC (table mensuelle pdl × mois avec `cta_eur`,
-    `taux_cta_pct`, `turpe_fixe_eur`, `trimestre`). Les agrégations
-    « Par taux » et « Résumé » sont à charge du notebook.
-    """
-    if not settings.is_odoo_configured:
-        raise HTTPException(
-            501,
-            f"Odoo [{settings.odoo_env}] non configuré. Définissez ODOO_{settings.odoo_env.upper()}_URL/DB/USERNAME/PASSWORD dans .env",
-        )
-    try:
-        arrow_bytes = await asyncio.get_event_loop().run_in_executor(None, generer_cta_arrow, trimestre)
-    except Exception as e:
-        logger.exception("Erreur taxes/cta/arrow")
-        raise HTTPException(503, f"Erreur lors du calcul de la CTA : {e}")
-    return Response(content=arrow_bytes, media_type=_ARROW_IPC_MEDIA)
+) -> bytes:
+    """Détail CTA mensuel sérialisé en Arrow IPC stream (pdl × mois avec cta_eur, taux_cta_pct)."""
+    return generer_cta_arrow(trimestre)
 
 
-@app.get("/facturation/xlsx", tags=["facturation"])
-async def export_facturation_xlsx(
+@xlsx_endpoint(app, "/facturation/xlsx", filename="facturation{mois}.xlsx", requires_odoo=True, tags=["facturation"])
+def export_facturation_xlsx(
     mois: str | None = Query(
         default=None,
         examples=["2025-01-01"],
         description="Mois au format YYYY-MM-DD (défaut : dernier mois disponible dans les données)",
     ),
-    api_key: str = Depends(get_current_api_key),
-):
-    """
-    Réconciliation des lignes Odoo à facturer avec les données Enedis.
-
-    **Authentification requise. Nécessite Odoo (ODOO_*) et DuckDB configurés.**
-
-    Le fichier contient 2 onglets :
-    - **Lignes fusionnées** : toutes les lignes (`updates_rsc`) avec `quantite_enedis` calculée
-    - **Changements puissance** : lignes où `memo_puissance` est renseigné
-    """
-    if not settings.is_odoo_configured:
-        raise HTTPException(
-            501,
-            f"Odoo [{settings.odoo_env}] non configuré. Définissez ODOO_{settings.odoo_env.upper()}_URL/DB/USERNAME/PASSWORD dans .env",
-        )
-    try:
-        xlsx = await asyncio.get_event_loop().run_in_executor(None, generer_facturation_xlsx, mois)
-    except Exception as e:
-        logger.exception("Erreur facturation/xlsx")
-        raise HTTPException(503, f"Erreur lors de la réconciliation facturation : {e}")
-    suffix = f"_{mois}" if mois else ""
-    return Response(
-        content=xlsx,
-        media_type=_XLSX_MEDIA,
-        headers={"Content-Disposition": f"attachment; filename=facturation{suffix}.xlsx"},
-    )
+) -> bytes:
+    """Réconciliation des lignes Odoo à facturer avec les données Enedis (2 onglets XLSX)."""
+    return generer_facturation_xlsx(mois)
 
 
-_ARROW_IPC_MEDIA = "application/vnd.apache.arrow.stream"
-
-
-@app.get("/facturation/arrow", tags=["facturation"])
-async def export_facturation_arrow(
+@arrow_endpoint(app, "/facturation/arrow", requires_odoo=True, tags=["facturation"])
+def export_facturation_arrow(
     mois: str | None = Query(
         default=None,
         examples=["2025-01-01"],
         description="Mois au format YYYY-MM-DD (défaut : dernier mois disponible dans les données)",
     ),
-    api_key: str = Depends(get_current_api_key),
-):
-    """
-    Réconciliation Odoo↔Enedis sérialisée en Arrow IPC stream.
-
-    **Authentification requise. Nécessite Odoo (ODOO_*) et DuckDB configurés.**
-
-    Sortie : flux Arrow IPC contenant `lignes_facture_rapprochees` (cf. core/CONTEXT.md).
-    À consommer côté client par `pl.read_ipc_stream(BytesIO(content))`.
-    """
-    if not settings.is_odoo_configured:
-        raise HTTPException(
-            501,
-            f"Odoo [{settings.odoo_env}] non configuré. Définissez ODOO_{settings.odoo_env.upper()}_URL/DB/USERNAME/PASSWORD dans .env",
-        )
-    try:
-        arrow_bytes = await asyncio.get_event_loop().run_in_executor(None, generer_facturation_arrow, mois)
-    except Exception as e:
-        logger.exception("Erreur facturation/arrow")
-        raise HTTPException(503, f"Erreur lors de la réconciliation facturation : {e}")
-    return Response(content=arrow_bytes, media_type=_ARROW_IPC_MEDIA)
+) -> bytes:
+    """Réconciliation Odoo↔Enedis sérialisée en Arrow IPC stream (`lignes_facture_rapprochees`)."""
+    return generer_facturation_arrow(mois)
 
 
 @app.get("/facturation/check/odoo", tags=["facturation"])
