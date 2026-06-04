@@ -7,9 +7,9 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
-## [Unreleased]
+## [1.5.0] - 2026-06-04
 
-### 🧮 Facturation — API épaisse (en cours)
+### 🧮 Facturation — API épaisse
 
 Première brique de l'API épaisse v1.5 : extraction du rapprochement Odoo↔Enedis vers le domaine `core`, prérequis pour exposer les résultats structurés en Arrow IPC aux notebooks distants.
 
