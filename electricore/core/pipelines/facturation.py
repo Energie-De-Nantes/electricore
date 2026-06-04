@@ -436,16 +436,24 @@ MAPPING_CATEGORIE_COLONNE: dict[str, str] = {
 def rapprocher_facturation_mensuelle(
     lignes_odoo: pl.DataFrame,
     fact_mensuelle: pl.LazyFrame,
+    historique: pl.LazyFrame,
     mois: str | None = None,
 ) -> DataFrame[LignesFactureRapprochees]:
     """Joint les lignes de facture Odoo (taggées RSC) à la facturation Enedis du mois.
 
-    Calcule `quantite_enedis` selon `name_product_category`. Voir l'entrée
+    Calcule `quantite_enedis` selon `name_product_category` et préserve les méta-données
+    Enedis (debut, fin, turpe_*, data_complete) ainsi que les identifiants compteur
+    (num_compteur, type_compteur) joints depuis l'Historique. Voir l'entrée
     *Rapprochement facturation mensuelle* dans `core/CONTEXT.md`.
     """
     debut_mois = pl.col("debut").dt.truncate("1mo").dt.date()
     mois_cible = pl.lit(mois).str.to_date() if mois is not None else debut_mois.max()
     fact_mois = fact_mensuelle.filter(debut_mois == mois_cible)
+
+    # Identifiants compteur projetés par RSC (dernier connu si plusieurs événements)
+    compteur_par_rsc = historique.select(["ref_situation_contractuelle", "num_compteur", "type_compteur"]).unique(
+        subset=["ref_situation_contractuelle"], keep="last"
+    )
 
     quantite_enedis_expr = pl.coalesce(
         [
@@ -462,9 +470,14 @@ def rapprocher_facturation_mensuelle(
             right_on="ref_situation_contractuelle",
             how="left",
         )
+        # Le join consomme `ref_situation_contractuelle` côté droit ; on le ré-expose
+        # depuis la clé Odoo (valeur identique par construction).
+        .with_columns(pl.col("x_ref_situation_contractuelle").alias("ref_situation_contractuelle"))
+        .join(compteur_par_rsc, on="ref_situation_contractuelle", how="left")
         .with_columns(quantite_enedis_expr)
         .select(
             [
+                # Identifiants Odoo + quantité
                 "invoice_line_ids",
                 "x_pdl",
                 "x_lisse",
@@ -474,6 +487,17 @@ def rapprocher_facturation_mensuelle(
                 "quantity",
                 "quantite_enedis",
                 "memo_puissance",
+                # Méta-période Enedis
+                "ref_situation_contractuelle",
+                "pdl",
+                "debut",
+                "fin",
+                "data_complete",
+                "turpe_fixe_eur",
+                "turpe_variable_eur",
+                # Identifiants compteur
+                "num_compteur",
+                "type_compteur",
             ]
         )
         .collect()

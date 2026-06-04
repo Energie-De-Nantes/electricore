@@ -36,14 +36,34 @@ def lf_fact_mensuelle_minimal() -> pl.LazyFrame:
     return pl.LazyFrame(
         {
             "ref_situation_contractuelle": ["RSC001"],
+            "pdl": ["12345678901234"],
             "debut": [datetime(2025, 1, 1)],
+            "fin": [datetime(2025, 2, 1)],
             "energie_hp_kwh": [123.45],
             "energie_hc_kwh": [0.0],
             "energie_base_kwh": [0.0],
             "nb_jours": [31],
+            "turpe_fixe_eur": [12.34],
+            "turpe_variable_eur": [56.78],
+            "data_complete": [True],
             "memo_puissance": [""],
         }
-    ).with_columns(pl.col("debut").dt.replace_time_zone("Europe/Paris"))
+    ).with_columns(
+        pl.col("debut").dt.replace_time_zone("Europe/Paris"),
+        pl.col("fin").dt.replace_time_zone("Europe/Paris"),
+    )
+
+
+@pytest.fixture
+def lf_historique_minimal() -> pl.LazyFrame:
+    """Historique mock minimal pour rapprocher_facturation_mensuelle."""
+    return pl.LazyFrame(
+        {
+            "ref_situation_contractuelle": ["RSC001"],
+            "num_compteur": ["12345678"],
+            "type_compteur": ["LINKY"],
+        }
+    )
 
 
 @pytest.fixture
@@ -61,7 +81,9 @@ def df_flux_vide() -> pl.DataFrame:
 
 
 @pytest.fixture
-def service_loaders_mockes(monkeypatch, df_lignes_odoo_minimal, lf_fact_mensuelle_minimal, df_flux_vide):
+def service_loaders_mockes(
+    monkeypatch, df_lignes_odoo_minimal, lf_fact_mensuelle_minimal, lf_historique_minimal, df_flux_vide
+):
     """Patch tous les loaders et l'orchestration utilisés par le service.
 
     `generer_facturation_xlsx` et `generer_documents_facturation` chargent
@@ -100,7 +122,7 @@ def service_loaders_mockes(monkeypatch, df_lignes_odoo_minimal, lf_fact_mensuell
     monkeypatch.setattr(facturation_service, "releves_harmonises", lambda: _QueryMock(df_flux_vide))
 
     def _fake_facturation(historique, releves):
-        return (None, None, None, lf_fact_mensuelle_minimal.collect())
+        return (lf_historique_minimal, None, None, lf_fact_mensuelle_minimal.collect())
 
     monkeypatch.setattr(facturation_service, "facturation", _fake_facturation)
 
