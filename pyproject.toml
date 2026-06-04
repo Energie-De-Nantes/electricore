@@ -51,13 +51,13 @@ etl = [
     "dlt[filesystem]>=1.16.0,<2.0.0",
     "pycryptodome>=3.23.0,<4.0.0",
     "paramiko>=4.0.0,<5.0.0",
-    "lxml>=6.0.2,<7.0.0",
+    "lxml>=6.1.0,<7.0.0",  # XXE fix (CVE-2026-41066)
 ]
 viz = [
     "altair>=5.5.0,<6.0.0",
     "vegafusion>=2.0.3,<3.0.0",
     "vl-convert-python>=1.8.0,<2.0.0",
-    "marimo>=0.16.4",
+    "marimo>=0.23.0",  # pre-auth RCE fix (CVE-2026-39987)
     "plotly[express]>=6.2.0",
 ]
 
