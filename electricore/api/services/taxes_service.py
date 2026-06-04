@@ -13,15 +13,13 @@ import xlsxwriter
 from electricore.api.config import settings
 from electricore.core.loaders import (
     OdooReader,
-    c15,
     commandes_lignes,
     query,
-    releves_harmonises,
 )
+from electricore.core.loaders.contexte_mensuel import charger_contexte_facturation
 from electricore.core.pipelines.accise import pipeline_accise
 from electricore.core.pipelines.cta import ajouter_cta
 from electricore.core.pipelines.facturation import expr_calculer_trimestre
-from electricore.core.pipelines.orchestration import facturation
 
 
 def calculer_accise_detail(trimestre: str | None = None) -> pl.DataFrame:
@@ -111,10 +109,14 @@ def calculer_cta_detail(trimestre: str | None = None) -> pl.DataFrame:
             .unique("pdl")
         )
 
-    _, _, _, df_facturation = facturation(historique=c15().lazy(), releves=releves_harmonises().lazy())
+    # CTA opère sur tous les mois (filtrage par trimestre en aval) — `mois=None`
+    # déclenche la résolution interne mais le champ `contexte.mois` n'est pas utilisé ici.
+    contexte = charger_contexte_facturation(None)
 
     df_mensuel = (
-        ajouter_cta(df_facturation.join(df_pdl.select(["pdl", "order_name"]), on="pdl", how="inner").lazy())
+        ajouter_cta(
+            contexte.facturation_mensuelle.join(df_pdl.select(["pdl", "order_name"]), on="pdl", how="inner").lazy()
+        )
         .with_columns(expr_calculer_trimestre().alias("trimestre"))
         .collect()
     )
