@@ -5,6 +5,10 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    # Garde les bornes upper de pyproject.toml intactes ; ne rafraîchit que uv.lock
+    # dans les contraintes existantes. Évite le bruit des PRs qui élargissent
+    # les ranges pour autoriser des majors non testées (cf. ADR « patch v1.6.1 »).
+    versioning-strategy: "lockfile-only"
     groups:
       python-minor-patch:
         update-types: ["minor", "patch"]

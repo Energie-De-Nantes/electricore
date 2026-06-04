@@ -15,7 +15,7 @@ Release patch combinant la résolution de 28 alertes Dependabot, la mise en plac
 
 #### Sécurité
 
-- **28 alertes Dependabot résolues** ([`.github/dependabot.yml`](.github/dependabot.yml)) — bump `marimo>=0.23.0` (CVE-2026-39987, pre-auth RCE WebSocket, **critical**) et `lxml>=6.1.0` (CVE-2026-41066, XXE, **high**) ; `uv lock --upgrade` propage les correctifs aux transitives (aiohttp 3.14.0, urllib3 2.7.0, gitpython 3.1.50, cryptography 48.0.0, idna 3.18, pymdown-extensions 10.21.3, pytest 9.0.3, pygments 2.20.0, requests 2.34.2). Ajout de `.github/dependabot.yml` (pip + github-actions, hebdo, PRs minor/patch groupées) pour prévenir la dérive. Alerte #34 paramiko ≤ 4.0.0 (SHA-1, low) laissée ouverte — pas de correctif amont.
+- **28 alertes Dependabot résolues** ([`.github/dependabot.yml`](.github/dependabot.yml)) — bump `marimo>=0.23.0` (CVE-2026-39987, pre-auth RCE WebSocket, **critical**) et `lxml>=6.1.0` (CVE-2026-41066, XXE, **high**) ; `uv lock --upgrade` propage les correctifs aux transitives (aiohttp 3.14.0, urllib3 2.7.0, gitpython 3.1.50, cryptography 48.0.0, idna 3.18, pymdown-extensions 10.21.3, pytest 9.0.3, pygments 2.20.0, requests 2.34.2). Ajout de `.github/dependabot.yml` (pip + github-actions, hebdo, PRs minor/patch groupées, `versioning-strategy: lockfile-only` côté pip pour ne pas élargir les bornes upper de `pyproject.toml`) pour prévenir la dérive. Alerte #34 paramiko ≤ 4.0.0 (SHA-1, low) laissée ouverte — pas de correctif amont.
 
 #### Ajouts
 
