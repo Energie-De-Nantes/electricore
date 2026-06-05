@@ -74,7 +74,33 @@ jobs:
             echo "smoke_tag=ghcr.io/${OWNER}/electricore:${V}"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Build & push Docker image
+      - name: Build Docker image (load locally for scan)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/docker/Dockerfile
+          push: false
+          load: true
+          platforms: linux/amd64
+          tags: ${{ steps.docker_tags.outputs.smoke_tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Scan image for verified secrets (TruffleHog)
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            trufflesecurity/trufflehog:latest \
+            docker --image ${{ steps.docker_tags.outputs.smoke_tag }} \
+            --only-verified \
+            --fail
+
+      - name: Smoke-test image
+        run: |
+          docker run --rm "${{ steps.docker_tags.outputs.smoke_tag }}" \
+            python -c "import electricore; import electricore.etl.pipeline_production; print('image OK')"
+
+      - name: Push Docker image to GHCR
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -83,9 +109,3 @@ jobs:
           platforms: linux/amd64
           tags: ${{ steps.docker_tags.outputs.tags }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Smoke-test image
-        run: |
-          docker run --rm "${{ steps.docker_tags.outputs.smoke_tag }}" \
-            python -c "import electricore; import electricore.etl.pipeline_production; print('image OK')"
