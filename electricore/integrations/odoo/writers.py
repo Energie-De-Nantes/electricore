@@ -9,7 +9,7 @@ import logging
 from collections.abc import Hashable
 from typing import Any
 
-from electricore.core.loaders.odoo.reader import OdooReader
+from .reader import OdooReader
 
 logger = logging.getLogger(__name__)
 

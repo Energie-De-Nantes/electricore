@@ -187,7 +187,7 @@ def commandes_lignes(odoo: OdooReader, domain: list | None = None) -> OdooQuery:
         OdooQuery chainable avec navigation pré-configurée
 
     Example:
-        >>> from electricore.core.loaders import commandes_lignes, expr_calculer_trimestre_facturation
+        >>> from electricore.integrations.odoo import commandes_lignes, expr_calculer_trimestre_facturation
         >>>
         >>> with OdooReader(config) as odoo:
         ...     # Utilisation simple
@@ -246,7 +246,7 @@ def consommations_mensuelles(odoo: OdooReader, domain: list | None = None) -> Od
         OdooQuery chainable retournant les lignes de factures
 
     Example:
-        >>> from electricore.core.loaders import consommations_mensuelles
+        >>> from electricore.integrations.odoo import consommations_mensuelles
         >>> from electricore.core.pipelines.accise import pipeline_accise
         >>>
         >>> with OdooReader(config) as odoo:

@@ -98,7 +98,7 @@ def agreger_consommations_mensuelles(lignes_factures: pl.LazyFrame) -> pl.LazyFr
         trimestre, energie_kwh
 
     Example:
-        >>> from electricore.core.loaders import commandes_lignes
+        >>> from electricore.integrations.odoo import commandes_lignes
         >>> lignes = commandes_lignes(odoo).collect().lazy()
         >>> consos = agreger_consommations_mensuelles(lignes)
     """
@@ -188,7 +188,7 @@ def pipeline_accise(lignes_factures: pl.LazyFrame, regles: pl.LazyFrame | None =
         DataFrame avec toutes les consommations et leur Accise calculée
 
     Example:
-        >>> from electricore.core.loaders import OdooReader, commandes_lignes
+        >>> from electricore.integrations.odoo import OdooReader, commandes_lignes
         >>> from electricore.core.pipelines.accise import pipeline_accise
         >>>
         >>> with OdooReader(config) as odoo:

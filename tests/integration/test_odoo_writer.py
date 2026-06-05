@@ -21,7 +21,7 @@ try:
 except ImportError:
     import tomli as tomllib  # type: ignore[no-reattr]
 
-from electricore.core.writers import OdooWriter
+from electricore.integrations.odoo import OdooWriter
 
 # =============================================================================
 # FIXTURES

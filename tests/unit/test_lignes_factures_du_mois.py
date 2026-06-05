@@ -6,7 +6,7 @@ Cf. ADR-0014 — la fonction expose toutes les lignes de factures du mois
 
 import polars as pl
 
-from electricore.core.loaders.odoo.helpers import flags_etat_facturation
+from electricore.integrations.odoo import flags_etat_facturation
 
 
 class TestFlagsEtatFacturation:

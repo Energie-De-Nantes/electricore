@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 import polars as pl
 
 if TYPE_CHECKING:
-    from electricore.core.loaders.odoo.reader import OdooReader
+    from .reader import OdooReader
 
 
 def normalize_many2one_fields(lf: pl.LazyFrame, fields: list[str]) -> pl.LazyFrame:

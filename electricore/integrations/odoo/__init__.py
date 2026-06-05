@@ -1,27 +1,11 @@
-"""
-Chargeur Odoo pour ElectriCore - Architecture fonctionnelle.
+"""Adaptateur Odoo (issue #35, ADR-0016).
 
-Ce module fournit une API fluide et fonctionnelle pour charger les données
-depuis Odoo vers Polars avec query builder immutable.
-
-Architecture :
-- config.py : Configuration et cache (immutable)
-- reader.py : OdooReader (connexion XML-RPC + métadonnées)
-- query.py : OdooQuery (builder immutable avec follow/enrich)
-- helpers.py : Fonctions helpers pour modèles courants
-- transforms.py : Transformations Polars composables
-
-API publique :
-- OdooReader, OdooQuery : Classes principales
-- query(), factures(), commandes(), partenaires() : Fonctions helpers
-- OdooConfig : Configuration immutable
+Adaptateur ERP pour Odoo. Voir [ADR-0016](../../../docs/adr/0016-core-erp-agnostique.md).
 """
 
-# Imports internes
 from .config import FieldsCache, OdooConfig
 from .helpers import (
     commandes,
-    # Helpers avec navigation multi-niveaux
     commandes_factures,
     commandes_lignes,
     consommations_mensuelles,
@@ -43,31 +27,24 @@ from .transforms import (
     filter_active_records,
     normalize_many2one_fields,
 )
-
-# =============================================================================
-# EXPORTS PUBLICS
-# =============================================================================
+from .writers import OdooWriter
 
 __all__ = [
-    # Configuration
     "OdooConfig",
     "FieldsCache",
-    # Connecteur et query builder
     "OdooReader",
     "OdooQuery",
-    # API fonctionnelle - Helpers simples
+    "OdooWriter",
     "query",
     "factures",
     "lignes_factures",
     "commandes",
     "partenaires",
-    # API fonctionnelle - Helpers avec navigation multi-niveaux
     "commandes_factures",
     "commandes_lignes",
     "consommations_mensuelles",
     "lignes_factures_du_mois",
     "flags_etat_facturation",
-    # Transformations
     "normalize_many2one_fields",
     "convert_odoo_dates",
     "add_computed_columns",
