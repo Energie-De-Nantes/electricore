@@ -32,7 +32,16 @@ Bash uniquement, pas de framework. Pour ajouter un test : éditer `unit.sh` (voi
 ./deploy/tests/e2e/multipass.sh down      # cleanup
 ```
 
-**Prérequis :** [Multipass](https://multipass.run/install) installé (`sudo snap install multipass` sur Ubuntu).
+**Prérequis : [Multipass](https://multipass.run/install) installé.**
+
+| OS | Commande |
+|---|---|
+| **Ubuntu / Debian** | `sudo snap install multipass` |
+| **macOS** | `brew install --cask multipass` |
+| **Arch / CachyOS** | ⚠️ `paru -S canonical-multipass` (AUR) actuellement cassé avec gcc 15 (link error sur `Scrt1.o`). Alternative : tester sur un vrai VPS Hetzner (CX21 ~5€/mois) — plus représentatif de toute façon. |
+| **Windows** | Installeur sur multipass.run/install |
+
+**Fallback si pas de Multipass :** test direct sur un VPS frais (Hetzner / Scaleway / OVH). Workflow identique, juste plus lent à itérer.
 
 Le harnais monte le repo sur `/repo` dans la VM, injecte une clé SSH root bidon, et lance `install.sh` en `sudo`. Snapshot/restore permettent d'itérer sans relancer un `up` complet.
 

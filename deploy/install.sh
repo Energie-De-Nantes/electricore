@@ -3,18 +3,24 @@
 # Cf. ADR-0017 (layout /srv/<slug>/), ADR-0011 (stack docker compose),
 #     ADR-0015 (multi-instance par VPS).
 #
-# Étapes implémentées (chemin nominal, issue #48) :
+# Étapes (chemin nominal + reconfigure, issues #48 et #49) :
 #   1. Détection OS + check root
-#   2. apt packages + Docker via get-docker.com
-#   3. UFW : OpenSSH + 80 + 443
-#   4. Création user système <slug> + SSH key
-#   5. Téléchargement config tag-pinné
-#   6. Substitutions (slug, domaine, email)
-#   7. Édition .env + validation (loop)
-#   8. DNS check bloquant
-#   9. docker compose up + wait_for_health
+#   2. apt packages
+#   3. Docker (idempotent)
+#   4. UFW : OpenSSH + 80 + 443
+#   5. Création user système <slug> + SSH key
+#   6. Téléchargement config tag-pinné
+#   7. Substitutions (slug, domaine, email)
+#   8. Édition .env + validation (loop)
+#   9. DNS check bloquant
+#  10. docker compose up + wait_for_health
+#  11. ETL test (mode test, ~3s)
+#  12. Récap final
 #
-# ETL test + mode reconfigure + récap final : issue #49.
+# Mode reconfigure : si /srv/<slug>/.env existe déjà, on backup le .env,
+# on saute la création user/Docker/UFW (idempotents de toute façon), on
+# ne télécharge pas le .env (mais on rafraîchit compose/Caddy/crontab pour
+# bump de version), et on ne touche jamais à la DB DuckDB.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -38,8 +44,26 @@ source "${SCRIPT_DIR}/lib/env_validate.sh"
 source "${SCRIPT_DIR}/lib/dns.sh"
 # shellcheck source=lib/stack.sh
 source "${SCRIPT_DIR}/lib/stack.sh"
+# shellcheck source=lib/etl.sh
+source "${SCRIPT_DIR}/lib/etl.sh"
 
-LOG_TOTAL_STEPS=9
+LOG_TOTAL_STEPS=12
+
+# Trap propre : Ctrl+C, kill, exit non-zero. Nettoie le script get-docker.sh
+# temporaire et signale clairement l'abandon. Ne touche jamais à la DB ni au .env.
+cleanup() {
+    local rc=$?
+    [[ -f /tmp/get-docker.sh ]] && rm -f /tmp/get-docker.sh
+    if [[ $rc -ne 0 ]] && [[ "${_CLEAN_EXIT:-0}" -ne 1 ]]; then
+        echo
+        printf '%s\n' "Script interrompu (exit $rc). Aucune modification destructive faite." >&2
+        if [[ -n "${OPT_SLUG:-}" && -n "${OPT_DOMAIN:-}" ]]; then
+            printf '%s\n' "Pour relancer (mode reconfigure si déjà partiellement installé) :" >&2
+            printf '   sudo bash %s --slug %s --domain %s\n' "$0" "$OPT_SLUG" "$OPT_DOMAIN" >&2
+        fi
+    fi
+}
+trap cleanup EXIT INT TERM
 
 parse_args "$@" || { usage; exit 2; }
 
@@ -53,34 +77,51 @@ ENV_FILE="${HOME_DIR}/.env"
 DOCKER_DIR="${HOME_DIR}/deploy/docker"
 CADDYFILE="${DOCKER_DIR}/Caddyfile"
 
+# ─── Détection mode reconfigure ─────────────────────────────────────────
+MODE_RECONFIGURE=0
+if [[ -f "$ENV_FILE" ]]; then
+    MODE_RECONFIGURE=1
+fi
+# Garde-fou ADR-0017 : si /srv/<slug> existe sans .env, on est dans un état
+# inconnu (peut-être un user système qui s'appelle aussi <slug>). Refus poli.
+if [[ -d "$HOME_DIR" && "$MODE_RECONFIGURE" -eq 0 ]]; then
+    die "Le dossier ${HOME_DIR} existe mais ne contient pas de .env." \
+        "État ambigu — choisir un autre slug ou supprimer ${HOME_DIR} à la main."
+fi
+
 # ─── Étape 1 : OS + root ────────────────────────────────────────────────
 log_step "Détection OS + privilèges"
 [[ $EUID -eq 0 ]] || die "Le script doit être lancé en root (sudo bash $0 ...)"
 is_supported_os || die "OS non supporté : $(detect_os)" \
     "Supporté : Ubuntu 22.04+/24.04+ ou Debian 12+."
 log_ok "OS : $(detect_os)"
+if [[ "$MODE_RECONFIGURE" -eq 1 ]]; then
+    log_info "Instance ${OPT_SLUG} déjà installée — MODE RECONFIGURE activé."
+fi
 
 # ─── Étape 2 : paquets ──────────────────────────────────────────────────
 log_step "Paquets système"
 ensure_packages curl jq cron dnsutils
 
-# ─── Étape 3 : Docker + UFW ─────────────────────────────────────────────
+# ─── Étape 3 : Docker ───────────────────────────────────────────────────
 log_step "Docker"
 install_docker_if_missing
+
+# ─── Étape 4 : UFW ──────────────────────────────────────────────────────
 log_step "UFW (ports 80/443 + SSH)"
 setup_ufw
 
-# ─── Étape 4 : user système + SSH ───────────────────────────────────────
+# ─── Étape 5 : user système + SSH ───────────────────────────────────────
 log_step "User système ${OPT_SLUG} (home ${HOME_DIR})"
 create_instance_user "$OPT_SLUG"
 setup_ssh_authorized_keys "$OPT_SLUG" "$OPT_SSH_PUBKEY"
 
-# ─── Étape 5 : config files ─────────────────────────────────────────────
+# ─── Étape 6 : config files ─────────────────────────────────────────────
 log_step "Téléchargement config (tag ${OPT_VERSION})"
 download_config_files "$OPT_VERSION" "$HOME_DIR"
 chown_instance_home "$OPT_SLUG"
 
-# ─── Étape 6 : substitutions ────────────────────────────────────────────
+# ─── Étape 7 : substitutions ────────────────────────────────────────────
 log_step "Patch des templates (slug + domaine + email)"
 substitute_env "$ENV_FILE" "$OPT_SLUG"
 substitute_caddyfile "$CADDYFILE" "$OPT_DOMAIN" "$OPT_EMAIL"
@@ -89,8 +130,14 @@ if [[ -z "$OPT_EMAIL" ]]; then
              "Éditer à la main avant de mettre en prod."
 fi
 
-# ─── Étape 7 : édition .env + validation ────────────────────────────────
+# ─── Étape 8 : édition .env + validation ────────────────────────────────
 log_step "Configuration .env (édition + validation)"
+if [[ "$MODE_RECONFIGURE" -eq 1 ]]; then
+    backup="${ENV_FILE}.bak.$(date +%Y%m%dT%H%M%SZ)"
+    cp -p "$ENV_FILE" "$backup"
+    chown "$OPT_SLUG:$OPT_SLUG" "$backup"
+    log_info "backup du .env existant → ${backup}"
+fi
 if [[ -n "$OPT_ENV_FROM" ]]; then
     [[ -r "$OPT_ENV_FROM" ]] || die "--env-from : fichier illisible : $OPT_ENV_FROM"
     cp "$OPT_ENV_FROM" "$ENV_FILE"
@@ -119,7 +166,7 @@ while true; do
     sleep 2
 done
 
-# ─── Étape 8 : DNS ──────────────────────────────────────────────────────
+# ─── Étape 9 : DNS ──────────────────────────────────────────────────────
 log_step "Vérification DNS"
 if [[ "$OPT_SKIP_DNS" -eq 1 ]]; then
     log_skip "DNS check ignoré (--skip-dns)"
@@ -132,7 +179,7 @@ else
         "Vérifier le A-record de ${OPT_DOMAIN}. Relancer le script quand c'est propre."
 fi
 
-# ─── Étape 9 : stack ────────────────────────────────────────────────────
+# ─── Étape 10 : stack ───────────────────────────────────────────────────
 log_step "Démarrage de la stack docker compose"
 compose_up "$OPT_SLUG"
 log_info "Attente du healthcheck API (jusqu'à 60s)…"
@@ -140,8 +187,38 @@ wait_for_health "$OPT_SLUG" || die \
     "API non healthy après 60s." \
     "Voir les logs : sudo -u $OPT_SLUG docker compose -f $DOCKER_DIR/docker-compose.yml logs"
 
-log_ok "Instance ${OPT_SLUG} opérationnelle."
-log_info "URL : https://${OPT_DOMAIN}"
-log_info "SSH : ssh ${OPT_SLUG}@${OPT_DOMAIN}"
-log_info ""
-log_info "Étapes suivantes (issue #49) : ETL test + mode reconfigure + récap détaillé."
+# ─── Étape 11 : ETL test ────────────────────────────────────────────────
+log_step "ETL test (mode test, ~3s)"
+if run_etl_test "$OPT_SLUG"; then
+    log_ok "ETL test réussi — clés AES OK, SFTP accessible, DuckDB écrit."
+else
+    log_err "ETL test échoué — la stack tourne mais la chaîne ETL ne valide pas."
+    show_etl_failure_hints "$OPT_SLUG"
+    log_warn "Stack laissée en place. Corrige .env et réessaye (commande ci-dessus)."
+fi
+
+# ─── Étape 12 : récap ───────────────────────────────────────────────────
+log_step "Récapitulatif"
+cat <<EOF
+
+  ${_C_GREEN}${_C_BOLD}✓ Instance ${OPT_SLUG} opérationnelle.${_C_RESET}
+
+  URL              https://${OPT_DOMAIN}
+  /health          curl https://${OPT_DOMAIN}/health
+  SSH              ssh ${OPT_SLUG}@${OPT_DOMAIN}
+  Logs             sudo -u ${OPT_SLUG} docker compose -f ${DOCKER_DIR}/docker-compose.yml logs -f
+  Stop/Start       sudo -u ${OPT_SLUG} docker compose -f ${DOCKER_DIR}/docker-compose.yml {down,up -d}
+  Backups          ${HOME_DIR}/backups/ (rotation 14 snapshots, cron 03:30 Europe/Paris)
+  ETL nocturne     02:00 Europe/Paris (cf. ${DOCKER_DIR}/crontab)
+
+  Étapes suivantes recommandées :
+    - Configurer un offsite des backups (rclone vers un cloud — cf. docs/deploiement.md)
+    - Ajouter https://${OPT_DOMAIN}/health à votre monitoring distant
+    - Sauvegarder ${ENV_FILE} dans un gestionnaire de secrets
+
+  Pour reconfigurer plus tard (rotation clés AES, bump version, etc.) :
+    sudo bash $0 --slug ${OPT_SLUG} --domain ${OPT_DOMAIN}
+
+EOF
+
+_CLEAN_EXIT=1
