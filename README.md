@@ -357,7 +357,7 @@ API_KEY=votre_cle_api_secrete
 # Chemin vers le fichier DuckDB produit par l'ETL
 # Par défaut : electricore/etl/flux_enedis_pipeline.duckdb (relatif au cwd)
 # En production, utiliser un chemin absolu :
-# DUCKDB_PATH=/opt/electricore/data/flux_enedis_pipeline.duckdb
+# DUCKDB_PATH=/srv/<slug>/data/flux_enedis_pipeline.duckdb
 
 # === ETL ENEDIS — obligatoire pour le pipeline ETL ===
 SFTP__URL=sftp://utilisateur:mot_de_passe@hote:22/chemin
