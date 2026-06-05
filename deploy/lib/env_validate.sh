@@ -77,17 +77,24 @@ prepend_errors_to_env() {
     local errors="$2"
     local tmp
     tmp=$(mktemp)
+    # Markers uniques (improbables dans un .env utilisateur) pour pouvoir
+    # supprimer un bloc précédent sans toucher aux séparateurs `# ===` de
+    # sections, présents naturellement dans .env.example.
+    local start='# >>>VALIDATION-ERROR-BLOCK-BEGIN<<<'
+    local end='# >>>VALIDATION-ERROR-BLOCK-END<<<'
     {
-        echo "# ============================================================"
+        echo "$start"
         echo "# VALIDATION ÉCHOUÉE — corrige ces points puis ferme l'éditeur"
-        echo "# ============================================================"
         while IFS= read -r line; do
-            [[ -n "$line" ]] && echo "#  ✗ $line"
+            [[ -n "$line" ]] && echo "#  x $line"
         done <<< "$errors"
-        echo "# ============================================================"
+        echo "$end"
         echo
-        # Supprime un éventuel bloc d'erreurs précédent (idempotence des relances)
-        sed '/^# ====/,/^# ====$/d; /^#  ✗ /d' "$env_file"
+        # Supprime un éventuel bloc d'erreurs précédent (idempotence des relances).
+        sed "/${start}/,/${end}/d" "$env_file"
     } > "$tmp"
     mv "$tmp" "$env_file"
+    # Conserve l'ownership précédent (sed -i / mktemp peut le casser).
+    [[ -n "${ENV_OWNER:-}" ]] && chown "$ENV_OWNER" "$env_file" 2>/dev/null || true
+    chmod 600 "$env_file"
 }

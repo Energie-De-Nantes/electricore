@@ -117,11 +117,26 @@ assert_fail "validate_env_file (fichier absent)"   validate_env_file "/nonexiste
 tmp_env=$(mktemp); cp "${FIXTURES_DIR}/env-template" "$tmp_env"
 prepend_errors_to_env "$tmp_env" $'erreur A\nerreur B'
 grep -q "VALIDATION ÉCHOUÉE" "$tmp_env" && ok "prepend_errors_to_env: insère le header" || ko "header absent"
-grep -q "✗ erreur A" "$tmp_env" && ok "prepend_errors_to_env: liste les erreurs" || ko "erreurs absentes"
+grep -q "x erreur A" "$tmp_env" && ok "prepend_errors_to_env: liste les erreurs" || ko "erreurs absentes"
 # Rejouer doit remplacer le bloc précédent, pas l'empiler
 prepend_errors_to_env "$tmp_env" $'erreur C'
 header_count=$(grep -c "VALIDATION ÉCHOUÉE" "$tmp_env" || true)
 assert_eq "$header_count" "1" "prepend_errors_to_env: idempotent (1 seul bloc après 2 appels)"
+rm -f "$tmp_env"
+
+# Régression : prepend_errors_to_env ne doit JAMAIS effacer les vraies données,
+# même si le .env contient des séparateurs `# ===` (comme dans .env.example).
+tmp_env=$(mktemp); cp "${FIXTURES_DIR}/env-with-section-headers" "$tmp_env"
+prepend_errors_to_env "$tmp_env" "erreur quelconque"
+grep -q "^INSTANCE_SLUG=edn$" "$tmp_env" && ok "prepend: INSTANCE_SLUG survit aux séparateurs # ===" || ko "INSTANCE_SLUG effacé"
+grep -q "^API_KEY=should-survive" "$tmp_env" && ok "prepend: API_KEY survit" || ko "API_KEY effacé"
+grep -c "^# ===" "$tmp_env" >/dev/null
+sep_count=$(grep -c "^# ===" "$tmp_env" || true)
+[[ "$sep_count" -ge 4 ]] && ok "prepend: séparateurs de section préservés ($sep_count présents)" \
+    || ko "séparateurs # === effacés ($sep_count restants)"
+# Rejouer doit toujours préserver les données
+prepend_errors_to_env "$tmp_env" "erreur 2"
+grep -q "^INSTANCE_SLUG=edn$" "$tmp_env" && ok "prepend: INSTANCE_SLUG survit au 2e appel" || ko "INSTANCE_SLUG effacé après 2e prepend"
 rm -f "$tmp_env"
 
 echo
