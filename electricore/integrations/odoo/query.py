@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Literal
 import polars as pl
 
 if TYPE_CHECKING:
-    from electricore.core.loaders.odoo.reader import OdooReader
+    from .reader import OdooReader
 
 logger = logging.getLogger(__name__)
 

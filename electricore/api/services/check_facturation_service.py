@@ -9,8 +9,7 @@ import polars as pl
 import xlsxwriter
 
 from electricore.api.config import settings
-from electricore.core.loaders import OdooReader
-from electricore.core.loaders.odoo import query
+from electricore.integrations.odoo import OdooReader, query
 
 
 def _odoo_link(model: str, record_id: int) -> str:

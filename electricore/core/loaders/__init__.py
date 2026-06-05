@@ -1,7 +1,7 @@
-"""
-Chargeurs de données pour ElectriCore.
+"""Chargeurs de données pour ElectriCore (DuckDB, Parquet).
 
-Modules de chargement et validation des données depuis différentes sources.
+Module ERP-agnostique conformément à [ADR-0016](../../../docs/adr/0016-core-erp-agnostique.md) :
+toute intégration ERP (Odoo, …) vit dans `electricore.integrations.<erp>`.
 """
 
 from .duckdb import (
@@ -21,25 +21,6 @@ from .duckdb import (
     r151,
     releves,
     releves_harmonises,
-)
-from .odoo import (
-    OdooConfig,
-    OdooQuery,
-    OdooReader,
-    commandes,
-    # API fonctionnelle - Helpers avec navigation
-    commandes_factures,
-    commandes_lignes,
-    consommations_mensuelles,
-    # Expressions Polars utilitaires
-    expr_calculer_trimestre_facturation,
-    factures,
-    flags_etat_facturation,
-    lignes_factures,
-    lignes_factures_du_mois,
-    partenaires,
-    # API fonctionnelle - Helpers simples
-    query,
 )
 from .parquet import charger_historique, charger_releves
 
@@ -63,22 +44,4 @@ __all__ = [
     "get_available_tables",
     "execute_custom_query",
     "DuckDBConfig",
-    # Connecteur Odoo
-    "OdooReader",
-    "OdooQuery",
-    "OdooConfig",
-    # API fonctionnelle Odoo - Helpers simples
-    "query",
-    "factures",
-    "lignes_factures",
-    "commandes",
-    "partenaires",
-    # API fonctionnelle Odoo - Helpers avec navigation
-    "commandes_factures",
-    "commandes_lignes",
-    "consommations_mensuelles",
-    "lignes_factures_du_mois",
-    "flags_etat_facturation",
-    # Expressions Polars utilitaires Odoo
-    "expr_calculer_trimestre_facturation",
 ]

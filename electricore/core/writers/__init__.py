@@ -1,10 +1,7 @@
+"""Writers pour l'écriture et l'export de données (ERP-agnostiques).
+
+Module ERP-agnostique conformément à [ADR-0016](../../../docs/adr/0016-core-erp-agnostique.md) :
+les writers ERP (Odoo, …) vivent dans `electricore.integrations.<erp>`.
 """
-Writers pour l'écriture et l'export de données vers des systèmes externes.
 
-Ce module contient les connecteurs en écriture pour exporter les données
-traitées vers des systèmes externes (Odoo, CSV, bases de données, etc.).
-"""
-
-from .odoo import OdooWriter
-
-__all__ = ["OdooWriter"]
+__all__: list[str] = []

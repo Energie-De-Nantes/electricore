@@ -11,15 +11,15 @@ import polars as pl
 import xlsxwriter
 
 from electricore.api.config import settings
-from electricore.core.loaders import (
-    OdooReader,
-    commandes_lignes,
-    query,
-)
 from electricore.core.loaders.contexte_mensuel import charger_contexte_facturation
 from electricore.core.pipelines.accise import pipeline_accise
 from electricore.core.pipelines.cta import ajouter_cta
 from electricore.core.pipelines.facturation import expr_calculer_trimestre
+from electricore.integrations.odoo import (
+    OdooReader,
+    commandes_lignes,
+    query,
+)
 
 
 def calculer_accise_detail(trimestre: str | None = None) -> pl.DataFrame:

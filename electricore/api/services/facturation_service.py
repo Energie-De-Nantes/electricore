@@ -11,10 +11,10 @@ import polars as pl
 import xlsxwriter
 
 from electricore.api.config import settings
-from electricore.core.loaders import OdooReader, c15, f15
+from electricore.core.loaders import c15, f15
 from electricore.core.loaders.contexte_mensuel import charger_contexte_facturation
-from electricore.core.loaders.odoo import lignes_factures_du_mois
 from electricore.core.pipelines.facturation import rapprocher_facturation_mensuelle
+from electricore.integrations.odoo import OdooReader, lignes_factures_du_mois
 
 
 def calculer_lignes_facture_rapprochees(mois: str | None = None) -> pl.DataFrame:
