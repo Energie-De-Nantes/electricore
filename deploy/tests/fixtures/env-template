@@ -1,0 +1,4 @@
+INSTANCE_SLUG=  # TODO: à remplir
+ELECTRICORE_VERSION=latest
+BACKUPS_PATH=/srv/electricore/backups  # TODO: remplacer
+API_KEY=  # TODO: à remplir

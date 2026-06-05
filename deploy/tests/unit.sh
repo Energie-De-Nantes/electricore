@@ -10,13 +10,19 @@ FIXTURES_DIR="${SCRIPT_DIR}/fixtures"
 source "${LIB_DIR}/validate.sh"
 # shellcheck source=../lib/os.sh
 source "${LIB_DIR}/os.sh"
+# shellcheck source=../lib/cli.sh
+source "${LIB_DIR}/cli.sh"
+# shellcheck source=../lib/config.sh
+source "${LIB_DIR}/config.sh"
+# shellcheck source=../lib/env_validate.sh
+source "${LIB_DIR}/env_validate.sh"
 
 PASS=0; FAIL=0
 ok() { printf '  \033[32m✓\033[0m %s\n' "$1"; PASS=$((PASS+1)); }
 ko() { printf '  \033[31m✗\033[0m %s\n' "$1"; FAIL=$((FAIL+1)); }
 
-assert_ok()   { local desc="$1"; shift; if "$@" 2>/dev/null; then ok "$desc"; else ko "$desc (exit non-zero)"; fi; }
-assert_fail() { local desc="$1"; shift; if "$@" 2>/dev/null; then ko "$desc (devait échouer)"; else ok "$desc"; fi; }
+assert_ok()   { local desc="$1"; shift; if "$@" >/dev/null 2>&1; then ok "$desc"; else ko "$desc (exit non-zero)"; fi; }
+assert_fail() { local desc="$1"; shift; if "$@" >/dev/null 2>&1; then ko "$desc (devait échouer)"; else ok "$desc"; fi; }
 assert_eq()   { if [[ "$1" == "$2" ]]; then ok "$3"; else ko "$3 — got '$1', want '$2'"; fi; }
 
 echo "→ validate.sh"
@@ -62,6 +68,50 @@ assert_ok   "is_supported_os Ubuntu 24.04"   bash -c "export OS_RELEASE_PATH='${
 assert_ok   "is_supported_os Debian 12"      bash -c "export OS_RELEASE_PATH='${FIXTURES_DIR}/os-release-debian-12';   source '${LIB_DIR}/os.sh'; is_supported_os"
 assert_fail "is_supported_os Alpine"         bash -c "export OS_RELEASE_PATH='${FIXTURES_DIR}/os-release-alpine';      source '${LIB_DIR}/os.sh'; is_supported_os"
 assert_fail "is_supported_os Ubuntu 20.04"   bash -c "export OS_RELEASE_PATH='${FIXTURES_DIR}/os-release-ubuntu-20.04'; source '${LIB_DIR}/os.sh'; is_supported_os"
+
+echo
+echo "→ cli.sh / parse_args"
+( parse_args --slug edn --domain edn.fr >/dev/null 2>&1
+  [[ "$OPT_SLUG" == "edn" && "$OPT_DOMAIN" == "edn.fr" && "$OPT_VERSION" == "latest" ]]
+) && ok "parse_args minimal (--slug + --domain)" || ko "parse_args minimal"
+
+( parse_args --slug edn --domain edn.fr --version 1.7.0 --ssh-pubkey "ssh-ed25519 AAAA" --skip-dns >/dev/null 2>&1
+  [[ "$OPT_VERSION" == "1.7.0" && "$OPT_SSH_PUBKEY" == "ssh-ed25519 AAAA" && "$OPT_SKIP_DNS" == "1" ]]
+) && ok "parse_args avec --version --ssh-pubkey --skip-dns" || ko "parse_args options complètes"
+
+assert_fail "parse_args sans --slug"      parse_args --domain edn.fr
+assert_fail "parse_args sans --domain"    parse_args --slug edn
+assert_fail "parse_args flag inconnu"     parse_args --slug edn --domain edn.fr --foo
+
+echo
+echo "→ config.sh / substitute_*"
+tmp_env=$(mktemp)
+cp "${FIXTURES_DIR}/env-template" "$tmp_env"
+substitute_env "$tmp_env" "edn"
+grep -q "^INSTANCE_SLUG=edn$" "$tmp_env" && ok "substitute_env: INSTANCE_SLUG=edn" || ko "substitute_env INSTANCE_SLUG"
+grep -q "^BACKUPS_PATH=/srv/edn/backups$" "$tmp_env" && ok "substitute_env: BACKUPS_PATH=/srv/edn/backups" || ko "substitute_env BACKUPS_PATH"
+rm -f "$tmp_env"
+
+tmp_caddy=$(mktemp)
+cp "${FIXTURES_DIR}/caddyfile-template" "$tmp_caddy"
+substitute_caddyfile "$tmp_caddy" "edn.electricore.fr" "ops@edn.fr"
+grep -q "edn.electricore.fr" "$tmp_caddy" && ok "substitute_caddyfile: domaine" || ko "substitute_caddyfile domaine"
+grep -q "ops@edn.fr" "$tmp_caddy" && ok "substitute_caddyfile: email" || ko "substitute_caddyfile email"
+! grep -q "electricore.exemple.fr" "$tmp_caddy" && ok "substitute_caddyfile: pas de placeholder résiduel" \
+    || ko "substitute_caddyfile placeholder résiduel"
+rm -f "$tmp_caddy"
+
+echo
+echo "→ env_validate.sh"
+assert_eq "$(read_env_var ${FIXTURES_DIR}/env-valid API_KEY)" "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" "read_env_var API_KEY"
+assert_eq "$(read_env_var ${FIXTURES_DIR}/env-valid QUOTED_VALUE)" "hello world" "read_env_var avec guillemets"
+assert_eq "$(read_env_var ${FIXTURES_DIR}/env-valid WITH_COMMENT)" "foo" "read_env_var ignore # comment"
+assert_eq "$(read_env_var ${FIXTURES_DIR}/env-valid ABSENT)" "" "read_env_var clé absente → vide"
+
+assert_ok   "validate_env_file (fixture valide)"   validate_env_file "${FIXTURES_DIR}/env-valid" "edn"
+assert_fail "validate_env_file (fixture invalide)" validate_env_file "${FIXTURES_DIR}/env-invalid" "edn"
+assert_fail "validate_env_file (slug mismatch)"    validate_env_file "${FIXTURES_DIR}/env-valid" "wrong-slug"
+assert_fail "validate_env_file (fichier absent)"   validate_env_file "/nonexistent" "edn"
 
 echo
 if [[ "$FAIL" -eq 0 ]]; then

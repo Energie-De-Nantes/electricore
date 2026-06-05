@@ -1,0 +1,7 @@
+{
+    email votre-email@example.com
+}
+
+electricore.exemple.fr {
+    reverse_proxy api:8001
+}
