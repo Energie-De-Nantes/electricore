@@ -24,6 +24,25 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# ─── Auto-bootstrap ─────────────────────────────────────────────────────
+# Si lib/ n'est pas à côté du script (cas du quickstart :
+# `curl install.sh && bash install.sh ...`), on télécharge les helpers
+# depuis main. Override : INSTALL_BASE_URL=https://.../<tag>/deploy
+if [[ ! -d "${SCRIPT_DIR}/lib" ]]; then
+    BASE="${INSTALL_BASE_URL:-https://raw.githubusercontent.com/Energie-De-Nantes/electricore/main/deploy}"
+    command -v curl >/dev/null || { echo "curl introuvable, install curl puis relance." >&2; exit 1; }
+    echo "→ Bootstrap : téléchargement des helpers depuis ${BASE}/lib/…"
+    install -d "${SCRIPT_DIR}/lib"
+    for _f in log cli validate os system user config env_validate dns stack etl; do
+        if ! curl -fsSL "${BASE}/lib/${_f}.sh" -o "${SCRIPT_DIR}/lib/${_f}.sh"; then
+            echo "✗ Échec téléchargement lib/${_f}.sh depuis ${BASE}/lib/" >&2
+            exit 1
+        fi
+    done
+    echo "✓ Helpers téléchargés dans ${SCRIPT_DIR}/lib/"
+fi
+
 # shellcheck source=lib/log.sh
 source "${SCRIPT_DIR}/lib/log.sh"
 # shellcheck source=lib/cli.sh
