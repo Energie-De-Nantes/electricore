@@ -21,8 +21,7 @@ with app.setup:
     from datetime import date
 
     from electricore.client import ElectricoreClient
-    from electricore.core.loaders import OdooReader
-    from electricore.core.loaders.odoo import lignes_factures_du_mois
+    from electricore.integrations.odoo import OdooReader, lignes_factures_du_mois
 
     # Configuration du logging
     logging.basicConfig(level=logging.INFO)
@@ -240,7 +239,7 @@ def _():
 
 @app.cell
 def _(fact_mois, filtre_a_injecter):
-    from electricore.core.writers import OdooWriter
+    from electricore.integrations.odoo import OdooWriter
 
     _a_injecter = fact_mois.filter(filtre_a_injecter)
     _sans_match = fact_mois.filter(pl.col("quantite_enedis").is_null())

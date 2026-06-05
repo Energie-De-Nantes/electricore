@@ -29,7 +29,7 @@ with app.setup(hide_code=True):
     from electricore.core.pipelines.historique import detecter_points_de_rupture, inserer_evenements_facturation
 
     # Import connecteur Odoo
-    from electricore.core.loaders import OdooReader, query
+    from electricore.integrations.odoo import OdooReader, query
 
 
 @app.cell(hide_code=True)

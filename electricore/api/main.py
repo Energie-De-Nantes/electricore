@@ -236,6 +236,31 @@ def get_flux_xlsx(
     return duckdb_service.query_table_xlsx(table_name, filters, limit)
 
 
+@arrow_endpoint(app, "/flux/{table_name}/arrow", tags=["flux"])
+def get_flux_arrow(
+    table_name: str,
+    prm: str | None = Query(None, description="Filtrer par pdl (Point de Livraison)"),
+    limit: int = Query(1_000_000, le=10_000_000, description="Nombre maximum de lignes (défaut 1 000 000)"),
+) -> bytes:
+    """Exporte les données d'un flux Enedis en flux Arrow IPC (max 10 000 000 lignes).
+
+    Consommable côté client avec `pl.read_ipc_stream(BytesIO(content))` — typage et
+    timezones préservés, pas de perte de précision contrairement à XLSX. Cf. `ElectricoreClient.flux`.
+
+    Vérifie l'existence de la table — renvoie 404 si inconnue, 500 sinon.
+    """
+    try:
+        available_tables = duckdb_service.list_tables()
+    except Exception as e:
+        raise HTTPException(500, f"Impossible d'accéder à la base de données: {e}")
+
+    if table_name not in available_tables:
+        raise HTTPException(404, f"Table '{table_name}' non trouvée. Tables disponibles: {available_tables}")
+
+    filters = {"pdl": prm} if prm else {}
+    return duckdb_service.query_table_arrow(table_name, filters, limit)
+
+
 @app.get("/flux/{table_name}/info", tags=["flux"])
 async def get_table_info(table_name: str, api_key: str = Depends(get_current_api_key)):
     """

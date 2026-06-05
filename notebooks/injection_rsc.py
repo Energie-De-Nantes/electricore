@@ -14,8 +14,12 @@ with app.setup:
     if str(project_root) not in sys.path:
         sys.path.append(str(project_root))
 
-    from electricore.core.loaders import OdooReader, c15
-    from electricore.core.loaders.odoo import query
+    import os
+
+    import httpx
+
+    from electricore.client import ElectricoreClient
+    from electricore.integrations.odoo import OdooReader, query
 
     logging.basicConfig(level=logging.INFO)
 
@@ -27,6 +31,13 @@ with app.setup:
     except ValueError as e:
         config = {}
         _msg = mo.md(f"⚠️ **Configuration Odoo manquante**\n\n{e}\n\nDéfinissez `ODOO_TEST_*` dans `.env`.")
+
+    # Client HTTP vers l'API electricore (cf. ADR-0009 : notebooks consomment l'API,
+    # pas la base DuckDB locale).
+    _api_url = os.getenv("ELECTRICORE_API_URL", "https://electricore.localhost")
+    _api_key = os.getenv("ELECTRICORE_API_KEY") or os.getenv("API_KEYS", "").split(",")[0].strip()
+    _http_client = httpx.Client(verify=False, timeout=httpx.Timeout(30.0, read=120.0))
+    client = ElectricoreClient(url=_api_url, api_key=_api_key, http_client=_http_client)
     _msg
 
 
@@ -56,11 +67,12 @@ def _():
 
 @app.cell(hide_code=True)
 def _():
+    # Lecture C15 via l'API (cf. ADR-0009). Le serveur retourne un DataFrame collecté ;
+    # on agrège ensuite localement.
     contrats_par_pdl = (
-        c15().lazy()
+        client.flux("c15")
         .group_by(["pdl", "ref_situation_contractuelle"])
         .agg(pl.col("date_evenement").min().alias("date_debut_contrat"))
-        .collect()
         # Supprimer la timezone pour compatibilité avec les dates Odoo
         .with_columns(pl.col("date_debut_contrat").dt.replace_time_zone(None))
         .sort(["pdl", "date_debut_contrat"])
@@ -186,7 +198,7 @@ def _():
 
 @app.cell
 def _(orders_avec_rsc):
-    from electricore.core.writers import OdooWriter
+    from electricore.integrations.odoo import OdooWriter
 
     _a_injecter = orders_avec_rsc.filter(pl.col("ref_situation_contractuelle").is_not_null())
     _sans_rsc   = orders_avec_rsc.filter(pl.col("ref_situation_contractuelle").is_null())

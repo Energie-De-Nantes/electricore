@@ -15,8 +15,7 @@ with app.setup:
     if str(project_root) not in sys.path:
         sys.path.append(str(project_root))
 
-    from electricore.core.loaders import OdooReader
-    from electricore.core.loaders.odoo import query, commandes, lignes_factures, commandes_lignes
+    from electricore.integrations.odoo import OdooReader, commandes, commandes_lignes, lignes_factures, query
 
     # Configuration du logging
     logging.basicConfig(level=logging.INFO)
