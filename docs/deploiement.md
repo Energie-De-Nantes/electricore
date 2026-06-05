@@ -32,8 +32,15 @@ Sur un VPS Ubuntu 22.04+/24.04+ ou Debian 12+ fraîchement provisionné, en root
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Energie-De-Nantes/electricore/main/deploy/install.sh -o install.sh
-sudo bash install.sh --slug <slug> --domain <slug>.electricore.fr --email ops@example.com
+EDITOR=nano sudo -E bash install.sh \
+    --slug <slug> --domain <slug>.electricore.fr --email ops@example.com
 ```
+
+> **Note sur l'éditeur** : `sudo` strip les variables d'environnement par
+> défaut, donc même si tu as `EDITOR=nano` dans ton shell, le script
+> tombera sur `vi` (défaut Ubuntu) sans le préfixe `EDITOR=nano sudo -E`.
+> Pour celles et ceux qui maîtrisent vi, `sudo bash install.sh ...` suffit.
+> Pour sortir de vi : `Esc`, `:q!`, `Enter` (sans sauver) ou `:wq` (sauver).
 
 Le script :
 
@@ -163,12 +170,15 @@ HTTP-01 (cf. [ADR-0015](adr/0015-deploiement-multi-instance.md)).
 ```bash
 ssh root@<vps>
 curl -fsSL https://raw.githubusercontent.com/Energie-De-Nantes/electricore/main/deploy/install.sh -o install.sh
-sudo bash install.sh \
+EDITOR=nano sudo -E bash install.sh \
     --slug <slug> \
     --domain <slug>.electricore.fr \
     --email ops@example.com \
     --version 1.7.0
 ```
+
+> `EDITOR=nano sudo -E` force le script à utiliser nano à l'étape d'édition
+> du `.env` (sinon vi par défaut sur Ubuntu). Omettre si tu préfères vi.
 
 Options notables :
 - `--version <tag>` — pin la version GHCR (recommandé en prod, défaut `latest`).

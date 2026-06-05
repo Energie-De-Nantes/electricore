@@ -401,17 +401,18 @@ uv run marimo edit notebooks/
 
 ### Déploiement VPS (Docker)
 
-Pour exécuter ElectriCore en production sur un VPS — ETL planifié, API + bot 24/7, TLS automatique — une stack docker-compose prête à l'emploi est fournie :
+Pour exécuter ElectriCore en production sur un VPS — ETL planifié, API + bot 24/7, TLS automatique — un script d'installation provisionne tout depuis un VPS Ubuntu/Debian frais :
 
 ```bash
-cd deploy/docker
-cp .env.example .env       # renseigner clés API, AES, SFTP, Telegram
-cp Caddyfile.example Caddyfile  # ajuster le domaine
-cp crontab.example crontab
-docker compose up -d
+ssh root@<vps>
+curl -fsSL https://raw.githubusercontent.com/Energie-De-Nantes/electricore/main/deploy/install.sh -o install.sh
+EDITOR=nano sudo -E bash install.sh \
+    --slug <slug> --domain <slug>.electricore.fr --email ops@example.com
 ```
 
-Guide complet : [`docs/deploiement.md`](docs/deploiement.md) (mode SFTP distant vs fichiers collocés, rotation clés AES, sauvegarde/restauration, dépannage).
+Le script crée un user système dédié, installe Docker, configure UFW, télécharge la stack, ouvre `.env` dans l'éditeur, vérifie le DNS, démarre les conteneurs et lance un ETL test (~5-10 min total).
+
+Guide complet : [`docs/deploiement.md`](docs/deploiement.md) (Quickstart, multi-instance, mode SFTP distant vs collocés, rotation clés AES, sauvegarde, mise à jour, migration depuis l'ancien layout, dépannage).
 
 ---
 
