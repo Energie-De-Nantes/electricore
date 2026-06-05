@@ -11,7 +11,11 @@ download_config_files() {
     local version="$1"
     local home="$2"
     local docker_dir="${home}/deploy/docker"
-    local base="${CONFIG_BASE_URL}/${version}/deploy/docker"
+    # `latest` est un alias Docker mais pas un ref Git → bascule vers `main`
+    # pour récupérer les configs depuis raw.githubusercontent.
+    local ref="$version"
+    [[ "$ref" == "latest" ]] && ref="main"
+    local base="${CONFIG_BASE_URL}/${ref}/deploy/docker"
     install -d "$docker_dir"
     # .env : ne pas écraser si présent (rerun)
     if [[ ! -f "${home}/.env" ]]; then
