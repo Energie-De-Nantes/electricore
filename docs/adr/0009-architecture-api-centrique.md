@@ -1,6 +1,6 @@
 # Architecture API-centrique
 
-À mesure que le projet s'est étendu (multiples opérateurs, déclenchements d'ETL distants, exports métier réguliers), tous les clients passent par l'API REST ([electricore/api/](../../electricore/api/)) : bot Telegram, scheduler ETL, futurs notebooks Marimo, intégrations externes. DuckDB, les pipelines Polars et `OdooReader/Writer` sont des composants internes consommés *via* l'API, pas directement.
+À mesure que le projet s'est étendu (multiples opérateurs, déclenchements d'ETL distants, exports métier réguliers), tous les clients passent par l'API REST ([electricore/api/](../../electricore/api/)) : bot Telegram, scheduler ETL, futurs notebooks Marimo, intégrations externes. DuckDB et les pipelines Polars (`core/`, ERP-agnostiques depuis [ADR-0016](0016-core-erp-agnostique.md)), plus les adaptateurs ERP (`integrations/<erp>/`, p. ex. `integrations/odoo/`), sont des composants internes consommés *via* l'API, pas directement.
 
 ## Conséquences
 

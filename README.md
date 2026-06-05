@@ -12,24 +12,26 @@ Un outil de calcul énergétique **performant** et **maintenable** pour :
 
 ---
 
-## 🏗️ Architecture - 3 Modules Principaux
+## 🏗️ Architecture - Modules
 
 ```
 electricore/
-├── etl/              # 📥 ETL - Extraction & Transformation (DLT)
-│   ├── sources/      # Sources de données (SFTP Enedis)
-│   ├── transformers/ # Transformations modulaires (crypto, archive, parsers)
-│   └── connectors/   # Connecteurs externes (Odoo)
+├── etl/              # 📥 ETL - Extraction & Transformation (DLT) depuis l'SFTP Enedis
 │
-├── core/             # 🧮 CORE - Calculs énergétiques (Polars)
+├── core/             # 🧮 CORE - Calculs énergétiques ERP-agnostiques (Polars)
 │   ├── models/       # Modèles Pandera (validation des données)
-│   ├── pipelines/    # Pipelines de calcul (périmètre, abonnements, énergie, turpe)
-│   └── loaders/      # Query builders (DuckDB, Polars)
+│   ├── pipelines/    # Pipelines de calcul (historique, abonnements, énergie, turpe, accise…)
+│   └── loaders/      # Query builders (DuckDB, Parquet)
 │
-└── api/              # 🌐 API - Accès aux données (FastAPI)
-    ├── services/     # Services de requêtage (DuckDB)
-    └── main.py       # Application FastAPI avec authentification
+├── integrations/     # 🔌 INTEGRATIONS - Adaptateurs ERP (cf. ADR-0016)
+│   └── odoo/         # OdooReader, OdooQuery, OdooWriter, helpers, schémas Pandera Odoo
+│
+├── api/              # 🌐 API - Accès aux données (FastAPI)
+│
+└── bot/              # 🤖 BOT Telegram - UI opérationnelle, client de l'API
 ```
+
+`core/` ne dépend ni d'Odoo ni d'aucun ERP — règle exécutable via le test [`tests/architecture/test_core_purity.py`](tests/architecture/test_core_purity.py) (cf. [ADR-0016](docs/adr/0016-core-erp-agnostique.md)). Les orchestrations qui composent Enedis et Odoo (rapprochement facturation, accise/CTA) vivent dans `integrations/odoo/`.
 
 ### Diagramme de flux
 
@@ -245,7 +247,7 @@ releves_cross_flux = (
 #### Odoo Query Builder - Intégration ERP
 
 ```python
-from electricore.core.loaders import OdooReader
+from electricore.integrations.odoo import OdooReader
 import polars as pl
 
 config = {
