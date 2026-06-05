@@ -36,6 +36,9 @@ Synonyme métier d'Enedis dans la majeure partie du territoire. À distinguer du
 Identifiant unique d'un point de raccordement physique au réseau, sur 14 chiffres. Un compteur Linky correspond à un PDL.
 _Éviter_ : compteur (le compteur est l'appareil, le PDL est l'emplacement), point de comptage.
 
+**RSC** (Référence Situation Contractuelle) :
+Identifiant Enedis d'une situation contractuelle d'un PDL — un PDL peut avoir plusieurs RSC successives. Côté ERP, chaque adaptateur décide comment la porter (cf. [`integrations/odoo/CONTEXT.md`](../integrations/odoo/CONTEXT.md) pour la représentation Odoo).
+
 **FTA** (Formule Tarifaire d'Acheminement) :
 Choix tarifaire contractuel qui détermine la grille TURPE applicable (ex : `BTINFCUST`, `BTSUPCU4`). Conditionne aussi le nombre de cadrans facturés.
 
@@ -181,24 +184,3 @@ Booléen marquant les relevés dont la date a été décalée pendant l'harmonis
 
 **Contrat lissé** :
 Modalité de facturation où le client paie un montant mensuel constant basé sur une estimation annuelle, plutôt qu'au prorata de la consommation réelle du mois. Régularisation annuelle. S'oppose au contrat *réel* (facturation au prorata).
-
----
-
-## Intégration Odoo
-
-**RSC** (Référence Situation Contractuelle) :
-Identifiant Enedis d'une situation contractuelle d'un PDL — un PDL peut avoir plusieurs RSC successives. Côté Odoo, portée par `x_ref_situation_contractuelle` sur `sale.order`.
-
-**Rapprochement PDL ↔ RSC** :
-Opération **amont** qui attribue la RSC active à un `sale.order` Odoo via un asof join temporel (PDL + `date_order` → RSC d'entrée C15 la plus récente avant la date). Nécessaire parce que le PDL n'identifie pas de façon unique un couple (contrat, usager) dans le temps — un même PDL peut porter plusieurs RSC successives —, et que la RSC n'est pas directement exposée aux facturistes par SGE. Le rapprochement est donc fait côté technique, puis écrit dans `x_ref_situation_contractuelle` sur le `sale.order`. Implémenté à ce jour par le notebook `notebooks/injection_rsc.py`.
-_Éviter_ : matching, attribution RSC.
-
-**Rapprochement facturation mensuelle** :
-Opération **aval** qui relie les lignes de facture Odoo (déjà tagguées avec `x_ref_situation_contractuelle`) à la facturation Enedis du mois (clé : RSC), et calcule la `quantite_enedis` par catégorie de produit (HP, HC, Base, Abonnements). Distincte du *Rapprochement PDL ↔ RSC* : ici la RSC est déjà connue, on enrichit. Implémenté par `rapprocher_facturation_mensuelle()` dans `core/pipelines/facturation.py`.
-_Éviter_ : réconciliation (anglicisme), jointure facturation, `updates_rsc` (ancien nom de variable).
-
-**`lignes_facture_rapprochees`** :
-DataFrame résultat du *Rapprochement facturation mensuelle*. Une ligne par ligne de facture Odoo du mois cible (tous états confondus), enrichie de la quantité calculée à partir des flux Enedis (`quantite_enedis`) et de deux flags : `a_facturer` (ligne en attente d'injection de quantité) et `a_supprimer` (ligne brouillon à quantité nulle, candidate à `unlink`). Sert de proposition de mise à jour : la décision d'écriture dans Odoo est prise par l'opérateur depuis un notebook (cf. [ADR-0012](../../docs/adr/0012-api-read-only-odoo.md)).
-
-**`x_invoicing_state`** :
-Champ Odoo qui matérialise l'avancement d'un `sale.order` dans le cycle de facturation mensuel. Les vérifications pré-facturation (`/check odoo` côté bot) reposent en partie sur sa répartition.

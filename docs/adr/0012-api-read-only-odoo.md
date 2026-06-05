@@ -8,7 +8,7 @@ La facturation et l'attribution des RSC ont un fort impact métier (factures cli
 
 ## Conséquences — règle pour les notebooks
 
-- **OdooReader / OdooWriter en notebook** :
+- **OdooReader / OdooWriter en notebook** (importés depuis `electricore.integrations.odoo` depuis [ADR-0016](0016-core-erp-agnostique.md)) :
   - ✅ Autorisé pour **enrichissement ad-hoc** (croisements de données, exploration, consultations supplémentaires).
   - ✅ Autorisé pour les **écritures validées par l'opérateur**.
   - ❌ Interdit **en amont d'une pipeline de facturation** : les inputs sont chargés côté serveur, le notebook consomme le résultat structuré via `ElectricoreClient`.

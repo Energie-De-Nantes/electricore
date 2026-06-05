@@ -50,7 +50,7 @@ electricore/
 │   ├── config/                # Flux configuration
 │   └── pipeline_production.py # Production pipeline with modes
 │
-├── core/                      # 🧮 CORE - Energy Calculations
+├── core/                      # 🧮 CORE - Energy Calculations (ERP-agnostique, ADR-0016)
 │   ├── pipelines/             # Polars pipelines
 │   │   ├── perimetre.py       # PDL perimeter (contract events)
 │   │   ├── abonnements.py     # Subscription periods
@@ -59,13 +59,15 @@ electricore/
 │   │   ├── accise.py          # Accise (TICFE) tax calculation
 │   │   ├── facturation.py     # Monthly billing aggregation (Pandera-validated)
 │   │   └── orchestration.py   # Full pipeline orchestration
-│   ├── models/                # Pandera validation schemas
+│   ├── models/                # Pandera validation schemas (Enedis only)
 │   ├── loaders/               # Data loading & query builders
 │   │   ├── duckdb/            # DuckDBQuery builder (c15, r151, releves, etc.)
-│   │   ├── odoo/              # OdooReader + OdooQuery
 │   │   └── parquet.py         # Parquet loader
-│   └── writers/               # Data export
-│       └── odoo.py            # OdooWriter
+│   └── writers/               # Data export (ERP-agnostique, vide pour l'instant)
+│
+├── integrations/              # 🔌 INTEGRATIONS - Adaptateurs ERP (ADR-0016)
+│   └── odoo/                  # OdooReader, OdooQuery, OdooWriter, helpers, transforms
+│       └── models/            # Pandera schemas Odoo (FactureOdoo, CommandeVenteOdoo…)
 │
 ├── api/                       # 🌐 API - REST Access Layer (hub central, voir ADR-0009)
 │   ├── services/              # Query services (DuckDB, ETL jobs, facturation, taxes)
@@ -160,15 +162,18 @@ All energy meter data columns follow the **`grandeur_cadran_unité`** format for
 
 ### Import Paths
 ```python
-# Loaders (read operations)
+# Loaders (read operations) — core/ ERP-agnostique (ADR-0016)
 from electricore.core.loaders import (
     c15, r151, r15, releves,           # DuckDB query builders
-    OdooReader, OdooQuery,             # Odoo read + query
     charger_releves, charger_historique # Polars loaders
 )
 
-# Writers (write operations)
-from electricore.core.writers import OdooWriter
+# Adaptateur Odoo — vit dans integrations/, pas dans core/
+from electricore.integrations.odoo import (
+    OdooReader, OdooQuery, OdooWriter,  # connecteurs
+    query, factures, commandes,         # helpers d'accès
+    commandes_lignes, lignes_factures_du_mois,
+)
 
 # Pipelines individuels
 from electricore.core.pipelines.perimetre import pipeline_perimetre
@@ -183,8 +188,8 @@ from electricore.core.pipelines.orchestration import facturation, calculer_histo
 ```
 
 ### Naming Conventions
-- Query builders: `DuckDBQuery` and `OdooQuery` (harmonized naming)
-- Files: `duckdb/`, `odoo/` (sub-packages, no `_loader` suffix)
+- Query builders: `DuckDBQuery` (dans `core/loaders/duckdb/`) et `OdooQuery` (dans `integrations/odoo/`)
+- Sous-packages : `core/loaders/duckdb/`, `integrations/odoo/` (pas de suffixe `_loader`)
 
 ## Key Modules & Quick Examples
 
@@ -259,7 +264,7 @@ tous_releves = releves().collect()
 ### 4. Odoo Query Builder
 
 ```python
-from electricore.core.loaders import OdooReader
+from electricore.integrations.odoo import OdooReader
 import polars as pl
 
 with OdooReader(config) as odoo:
