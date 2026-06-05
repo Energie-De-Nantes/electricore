@@ -41,14 +41,16 @@ download_config_files() {
 
 # substitute_env <env_file> <slug>
 # Remplace INSTANCE_SLUG= et BACKUPS_PATH= par les valeurs réelles.
-# Idempotent : peut être appelé plusieurs fois sans dégrader.
+# Préserve l'ownership du fichier (sed -i peut le casser).
 substitute_env() {
     local env_file="$1"
     local slug="$2"
+    local owner; owner=$(stat -c '%u:%g' "$env_file" 2>/dev/null || echo "")
     sed -i \
         -e "s|^INSTANCE_SLUG=.*|INSTANCE_SLUG=${slug}|" \
         -e "s|^BACKUPS_PATH=.*|BACKUPS_PATH=/srv/${slug}/backups|" \
         "$env_file"
+    [[ -n "$owner" ]] && chown "$owner" "$env_file" 2>/dev/null || true
 }
 
 # substitute_caddyfile <file> <domain> [<email>]
@@ -57,8 +59,10 @@ substitute_caddyfile() {
     local file="$1"
     local domain="$2"
     local email="${3:-}"
+    local owner; owner=$(stat -c '%u:%g' "$file" 2>/dev/null || echo "")
     sed -i "s|electricore\.exemple\.fr|${domain}|g" "$file"
     if [[ -n "$email" ]]; then
         sed -i "s|votre-email@example\.com|${email}|g" "$file"
     fi
+    [[ -n "$owner" ]] && chown "$owner" "$file" 2>/dev/null || true
 }

@@ -75,8 +75,8 @@ validate_env_file() {
 prepend_errors_to_env() {
     local env_file="$1"
     local errors="$2"
-    local tmp
-    tmp=$(mktemp)
+    local owner; owner=$(stat -c '%u:%g' "$env_file" 2>/dev/null || echo "")
+    local tmp; tmp=$(mktemp)
     # Markers uniques (improbables dans un .env utilisateur) pour pouvoir
     # supprimer un bloc précédent sans toucher aux séparateurs `# ===` de
     # sections, présents naturellement dans .env.example.
@@ -94,7 +94,6 @@ prepend_errors_to_env() {
         sed "/${start}/,/${end}/d" "$env_file"
     } > "$tmp"
     mv "$tmp" "$env_file"
-    # Conserve l'ownership précédent (sed -i / mktemp peut le casser).
-    [[ -n "${ENV_OWNER:-}" ]] && chown "$ENV_OWNER" "$env_file" 2>/dev/null || true
+    [[ -n "$owner" ]] && chown "$owner" "$env_file" 2>/dev/null || true
     chmod 600 "$env_file"
 }
