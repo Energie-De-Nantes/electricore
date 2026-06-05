@@ -9,12 +9,10 @@ Le calcul et l'orchestration métier vivent dans
    agrégations « par taux » / « résumé » spécifiques au livrable.
 """
 
-import io
-
 import polars as pl
-import xlsxwriter
 
 from electricore.api.config import settings
+from electricore.api.serializers import arrow_stream, xlsx_multi_sheet
 from electricore.integrations.odoo import OdooReader
 from electricore.integrations.odoo.taxes import accise_du_trimestre, cta_du_trimestre
 
@@ -32,10 +30,7 @@ def calculer_accise_detail(trimestre: str | None = None) -> pl.DataFrame:
 
 def generer_accise_arrow(trimestre: str | None = None) -> bytes:
     """Sérialise le détail accise en flux Arrow IPC."""
-    df = calculer_accise_detail(trimestre)
-    buf = io.BytesIO()
-    df.write_ipc_stream(buf)
-    return buf.getvalue()
+    return arrow_stream(calculer_accise_detail(trimestre))
 
 
 def generer_accise_xlsx(trimestre: str | None = None) -> bytes:
@@ -74,7 +69,7 @@ def generer_accise_xlsx(trimestre: str | None = None) -> bytes:
         .sort("trimestre")
     )
 
-    return _construire_xlsx(
+    return xlsx_multi_sheet(
         {
             "Résumé": df_resume,
             "Par taux": df_par_taux,
@@ -96,10 +91,7 @@ def calculer_cta_detail(trimestre: str | None = None) -> pl.DataFrame:
 
 def generer_cta_arrow(trimestre: str | None = None) -> bytes:
     """Sérialise le détail CTA mensuel en flux Arrow IPC."""
-    df = calculer_cta_detail(trimestre)
-    buf = io.BytesIO()
-    df.write_ipc_stream(buf)
-    return buf.getvalue()
+    return arrow_stream(calculer_cta_detail(trimestre))
 
 
 def generer_cta_xlsx(trimestre: str | None = None) -> bytes:
@@ -160,20 +152,10 @@ def generer_cta_xlsx(trimestre: str | None = None) -> bytes:
         .sort("trimestre")
     )
 
-    return _construire_xlsx(
+    return xlsx_multi_sheet(
         {
             "Résumé": df_resume,
             "Par taux": df_par_taux,
             "Détail": df_detail_cta,
         }
     )
-
-
-def _construire_xlsx(onglets: dict[str, pl.DataFrame]) -> bytes:
-    """Construit un fichier XLSX multi-onglets à partir d'un dict {nom: DataFrame}."""
-    buf = io.BytesIO()
-    wb = xlsxwriter.Workbook(buf, {"remove_timezone": True})
-    for nom, df in onglets.items():
-        df.write_excel(workbook=wb, worksheet=nom)
-    wb.close()
-    return buf.getvalue()
