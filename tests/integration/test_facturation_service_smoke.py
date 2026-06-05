@@ -14,6 +14,7 @@ import pytest
 
 from electricore.api.services import facturation_service
 from electricore.core.loaders.contexte_mensuel import ContexteFacturation
+from electricore.integrations.odoo import facturation as facturation_orchestration
 
 
 @pytest.fixture
@@ -118,17 +119,18 @@ def service_loaders_mockes(
         def filter(self, *args, **kwargs):
             return _QueryMock(self.lazy().filter(*args, **kwargs))
 
+    # OdooReader reste importé dans le service (binding HTTP).
     monkeypatch.setattr(facturation_service, "OdooReader", _OdooReaderMock)
-    monkeypatch.setattr(
-        facturation_service, "lignes_factures_du_mois", lambda odoo, mois: _QueryMock(df_lignes_odoo_minimal)
-    )
-    # `generer_documents_facturation` lit encore les flux bruts pour les CSV du ZIP.
-    monkeypatch.setattr(facturation_service, "c15", lambda: _QueryMock(df_flux_vide))
-    monkeypatch.setattr(facturation_service, "f15", lambda: _QueryMock(df_flux_vide))
 
-    # Migration #17 : les deux fonctions du service consomment désormais
-    # `charger_contexte_facturation` au lieu de reconstruire la trio
-    # c15 + releves_harmonises + facturation().
+    # Depuis #39 (ADR-0016) : l'orchestration vit dans `integrations.odoo.facturation`,
+    # donc les mocks ciblent ce module-là plutôt que le service.
+    monkeypatch.setattr(
+        facturation_orchestration, "lignes_factures_du_mois", lambda odoo, mois: _QueryMock(df_lignes_odoo_minimal)
+    )
+    monkeypatch.setattr(facturation_orchestration, "c15", lambda: _QueryMock(df_flux_vide))
+    monkeypatch.setattr(facturation_orchestration, "f15", lambda: _QueryMock(df_flux_vide))
+
+    # ContexteFacturation est résolu par l'orchestration (et plus par le service).
     def _fake_charger_contexte(mois):
         return ContexteFacturation(
             mois=mois or "2025-01-01",
@@ -136,7 +138,7 @@ def service_loaders_mockes(
             facturation_mensuelle=lf_fact_mensuelle_minimal.collect(),
         )
 
-    monkeypatch.setattr(facturation_service, "charger_contexte_facturation", _fake_charger_contexte)
+    monkeypatch.setattr(facturation_orchestration, "charger_contexte_facturation", _fake_charger_contexte)
 
     # pydantic Settings interdit setattr — on patche la méthode sur la classe.
     settings_cls = type(facturation_service.settings)
@@ -182,10 +184,11 @@ def test_generer_facturation_arrow_smoke(service_loaders_mockes):
 def test_calculer_lignes_facture_rapprochees_delegue_a_charger_contexte_facturation(
     monkeypatch, df_lignes_odoo_minimal, lf_fact_mensuelle_minimal, lf_historique_minimal
 ):
-    """`calculer_lignes_facture_rapprochees` consomme `ContexteFacturation` (issue #17).
+    """`facturation_du_mois` consomme `ContexteFacturation` (issue #17 + #39, ADR-0016).
 
-    Vérifie que le service ne reconstruit plus la trio `c15 + releves + facturation()`
-    mais délègue à `charger_contexte_facturation`, qui produit le bundle mensuel.
+    Depuis #39, l'orchestration vit dans `integrations.odoo.facturation`. Le test vérifie
+    que la chaîne service → orchestration délègue toujours à `charger_contexte_facturation`
+    plutôt que de reconstruire la trio `c15 + releves + facturation()`.
     """
     contexte_prefab = ContexteFacturation(
         mois="2025-01-01",
@@ -198,7 +201,7 @@ def test_calculer_lignes_facture_rapprochees_delegue_a_charger_contexte_facturat
         appels_charger.append(mois)
         return contexte_prefab
 
-    monkeypatch.setattr(facturation_service, "charger_contexte_facturation", _capture_charger)
+    monkeypatch.setattr(facturation_orchestration, "charger_contexte_facturation", _capture_charger)
 
     class _OdooReaderMock:
         def __init__(self, *args, **kwargs):
@@ -219,7 +222,7 @@ def test_calculer_lignes_facture_rapprochees_delegue_a_charger_contexte_facturat
 
     monkeypatch.setattr(facturation_service, "OdooReader", _OdooReaderMock)
     monkeypatch.setattr(
-        facturation_service, "lignes_factures_du_mois", lambda odoo, mois: _QueryMock(df_lignes_odoo_minimal)
+        facturation_orchestration, "lignes_factures_du_mois", lambda odoo, mois: _QueryMock(df_lignes_odoo_minimal)
     )
     settings_cls = type(facturation_service.settings)
     monkeypatch.setattr(settings_cls, "get_odoo_config", lambda self: {})
@@ -233,10 +236,11 @@ def test_calculer_lignes_facture_rapprochees_delegue_a_charger_contexte_facturat
 def test_generer_documents_facturation_delegue_a_charger_contexte_facturation(
     service_loaders_mockes, monkeypatch, lf_historique_minimal, lf_fact_mensuelle_minimal
 ):
-    """`generer_documents_facturation` consomme aussi `ContexteFacturation` (issue #17).
+    """`documents_facturation_du_mois` consomme aussi `ContexteFacturation` (issue #17 + #39).
 
-    La fonction conserve ses responsabilités spécifiques (F15/C15 du mois)
-    mais ne reconstruit plus la trio `c15 + releves + facturation()`.
+    Depuis #39, l'orchestration ZIP vit dans `integrations.odoo.facturation`. La fonction
+    conserve ses responsabilités spécifiques (F15/C15 du mois) mais ne reconstruit plus
+    la trio `c15 + releves + facturation()`.
     """
     contexte_prefab = ContexteFacturation(
         mois="2025-01-01",
@@ -249,7 +253,7 @@ def test_generer_documents_facturation_delegue_a_charger_contexte_facturation(
         appels_charger.append(mois)
         return contexte_prefab
 
-    monkeypatch.setattr(facturation_service, "charger_contexte_facturation", _capture_charger)
+    monkeypatch.setattr(facturation_orchestration, "charger_contexte_facturation", _capture_charger)
 
     facturation_service.generer_documents_facturation(mois="2025-01-01")
 
