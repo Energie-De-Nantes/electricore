@@ -3,7 +3,13 @@ name: Release
 on:
   push:
     tags:
+      # Stable : v1.7.0
       - 'v[0-9]+.[0-9]+.[0-9]+'
+      # Pre-release PEP 440 : v1.7.0a1, v1.7.0b1, v1.7.0rc1, v1.7.0.dev1
+      - 'v[0-9]+.[0-9]+.[0-9]+a[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+b[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+rc[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+.dev[0-9]+'
 
 # Pas de bloc concurrency : un release ne doit jamais être annulé en cours de publication.
 
@@ -21,6 +27,17 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+
+      - name: Detect pre-release
+        id: release_type
+        run: |
+          # Un tag stable matche vX.Y.Z strictement ; tout autre format
+          # (rc, dev, alpha, beta — voir le bloc `on.push.tags`) est une pré-release.
+          if [[ "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
@@ -45,9 +62,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          PRERELEASE_FLAG=""
+          if [[ "${{ steps.release_type.outputs.is_prerelease }}" == "true" ]]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
           gh release create "${GITHUB_REF_NAME}" \
             --title "${GITHUB_REF_NAME}" \
             --generate-notes \
+            ${PRERELEASE_FLAG} \
             dist/*.tar.gz dist/*.whl
 
       # ---------------------------------------------------------------
@@ -69,8 +91,15 @@ jobs:
           OWNER="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
           V="${GITHUB_REF_NAME#v}"
           MAJOR_MINOR="${V%.*}"
+          if [[ "${{ steps.release_type.outputs.is_prerelease }}" == "true" ]]; then
+            # Pré-release : on ne touche ni `:latest` ni `:MAJOR.MINOR` pour ne pas
+            # rediriger les déploiements stables vers la rc/dev.
+            TAGS="ghcr.io/${OWNER}/electricore:${V}"
+          else
+            TAGS="ghcr.io/${OWNER}/electricore:${V},ghcr.io/${OWNER}/electricore:${MAJOR_MINOR},ghcr.io/${OWNER}/electricore:latest"
+          fi
           {
-            echo "tags=ghcr.io/${OWNER}/electricore:${V},ghcr.io/${OWNER}/electricore:${MAJOR_MINOR},ghcr.io/${OWNER}/electricore:latest"
+            echo "tags=${TAGS}"
             echo "smoke_tag=ghcr.io/${OWNER}/electricore:${V}"
           } >> "$GITHUB_OUTPUT"
 
