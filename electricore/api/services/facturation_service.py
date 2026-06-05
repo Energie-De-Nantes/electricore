@@ -5,16 +5,13 @@ Le calcul et l'orchestration métier vivent dans
 
 1. Ouvrir la connexion `OdooReader` (responsabilité HTTP)
 2. Déléguer à l'orchestration
-3. Sérialiser le résultat (XLSX / Arrow IPC / ZIP)
+3. Sérialiser le résultat via `api/serializers/` (XLSX / Arrow IPC / ZIP)
 """
 
-import io
-import zipfile
-
 import polars as pl
-import xlsxwriter
 
 from electricore.api.config import settings
+from electricore.api.serializers import arrow_stream, xlsx_multi_sheet, zip_csv
 from electricore.integrations.odoo import OdooReader
 from electricore.integrations.odoo.facturation import (
     documents_facturation_du_mois,
@@ -37,31 +34,20 @@ def calculer_lignes_facture_rapprochees(mois: str | None = None) -> pl.DataFrame
 
 
 def generer_facturation_xlsx(mois: str | None = None) -> bytes:
-    """Réconciliation Odoo ↔ Enedis du mois (défaut : dernier mois disponible).
-
-    Args:
-        mois: format "YYYY-MM-DD" (premier jour du mois). None = dernier mois des données.
-
-    Returns:
-        XLSX bytes — 2 onglets : "Lignes fusionnées" et "Changements puissance".
-    """
+    """Réconciliation Odoo ↔ Enedis du mois sérialisée en XLSX (2 onglets)."""
     lignes_rapprochees = calculer_lignes_facture_rapprochees(mois)
     changements_puissance = lignes_rapprochees.filter(pl.col("memo_puissance") != "")
-
-    buf = io.BytesIO()
-    wb = xlsxwriter.Workbook(buf, {"remove_timezone": True})
-    lignes_rapprochees.write_excel(workbook=wb, worksheet="Lignes fusionnées")
-    changements_puissance.write_excel(workbook=wb, worksheet="Changements puissance")
-    wb.close()
-    return buf.getvalue()
+    return xlsx_multi_sheet(
+        {
+            "Lignes fusionnées": lignes_rapprochees,
+            "Changements puissance": changements_puissance,
+        }
+    )
 
 
 def generer_facturation_arrow(mois: str | None = None) -> bytes:
     """Sérialise `lignes_facture_rapprochees` en flux Arrow IPC."""
-    lignes_rapprochees = calculer_lignes_facture_rapprochees(mois)
-    buf = io.BytesIO()
-    lignes_rapprochees.write_ipc_stream(buf)
-    return buf.getvalue()
+    return arrow_stream(calculer_lignes_facture_rapprochees(mois))
 
 
 def generer_documents_facturation(mois: str | None = None) -> tuple[bytes, str]:
@@ -75,9 +61,4 @@ def generer_documents_facturation(mois: str | None = None) -> tuple[bytes, str]:
     """
     with OdooReader(config=settings.get_odoo_config()) as odoo:
         documents, suffix = documents_facturation_du_mois(odoo, mois)
-
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for name, df in documents.items():
-            zf.writestr(name, df.write_csv())
-    return buf.getvalue(), suffix
+    return zip_csv(documents), suffix
