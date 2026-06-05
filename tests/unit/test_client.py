@@ -108,6 +108,72 @@ def test_cta_round_trip_via_endpoint(monkeypatch):
     assert_frame_equal(df, df_attendu)
 
 
+def test_flux_round_trip_via_endpoint(monkeypatch):
+    """`client.flux(table_name)` round-trip un DataFrame servi par /flux/{name}/arrow."""
+    df_attendu = pl.DataFrame(
+        {
+            "pdl": ["12345678901234"],
+            "date_evenement": ["2025-01-15"],
+            "evenement_declencheur": ["MES"],
+        }
+    )
+
+    monkeypatch.setattr("electricore.api.services.duckdb_service.list_tables", lambda: ["c15"])
+    monkeypatch.setattr(
+        "electricore.api.services.duckdb_service.query_table_arrow",
+        lambda table_name, filters, limit: __import__(
+            "electricore.api.serializers", fromlist=["arrow_stream"]
+        ).arrow_stream(df_attendu),
+    )
+
+    app.dependency_overrides[get_current_api_key] = lambda: "test-key"
+    try:
+        client = ElectricoreClient(url="http://testserver", api_key="key", http_client=TestClient(app))
+        df = client.flux("c15")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert_frame_equal(df, df_attendu)
+
+
+def test_flux_propage_filtre_prm_a_lendpoint(monkeypatch):
+    """`client.flux(table, prm=...)` propage le PRM en query string."""
+    captures: list[tuple[str, dict | None, int]] = []
+
+    def _capture(table_name: str, filters: dict | None, limit: int) -> bytes:
+        captures.append((table_name, filters, limit))
+        return __import__("electricore.api.serializers", fromlist=["arrow_stream"]).arrow_stream(
+            pl.DataFrame({"x": [1]})
+        )
+
+    monkeypatch.setattr("electricore.api.services.duckdb_service.list_tables", lambda: ["r151"])
+    monkeypatch.setattr("electricore.api.services.duckdb_service.query_table_arrow", _capture)
+
+    app.dependency_overrides[get_current_api_key] = lambda: "test-key"
+    try:
+        client = ElectricoreClient(url="http://testserver", api_key="key", http_client=TestClient(app))
+        client.flux("r151", prm="12345678901234")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert captures == [("r151", {"pdl": "12345678901234"}, 1_000_000)]
+
+
+def test_flux_renvoie_404_pour_table_inconnue(monkeypatch):
+    """Le client propage une `HTTPStatusError` quand la table n'existe pas."""
+    monkeypatch.setattr("electricore.api.services.duckdb_service.list_tables", lambda: ["c15"])
+
+    app.dependency_overrides[get_current_api_key] = lambda: "test-key"
+    try:
+        client = ElectricoreClient(url="http://testserver", api_key="key", http_client=TestClient(app))
+        with pytest.raises(httpx.HTTPStatusError) as exc_info:
+            client.flux("inexistante")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert exc_info.value.response.status_code == 404
+
+
 def test_facturation_envoie_la_cle_api_dans_le_header():
     """Le header `X-API-Key` est positionné par le client."""
     headers_recus: list[str] = []

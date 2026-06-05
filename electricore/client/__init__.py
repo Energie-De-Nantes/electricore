@@ -35,6 +35,32 @@ class ElectricoreClient:
         response.raise_for_status()
         return pl.read_ipc_stream(io.BytesIO(response.content))
 
+    def flux(
+        self,
+        table_name: str,
+        *,
+        prm: str | None = None,
+        limit: int = 1_000_000,
+    ) -> pl.DataFrame:
+        """Récupère le contenu brut d'un flux Enedis (c15, r151, f15, etc.) en Polars.
+
+        Sert d'équivalent HTTP des fonctions `c15()`, `r151()`, `f15()` du
+        `DuckDBQuery` — pour les notebooks distants qui n'ont pas accès local
+        à la base DuckDB (cf. ADR-0009).
+
+        Args:
+            table_name: Nom de la table flux (`c15`, `r151`, `r15`, `f15_detail`, etc.).
+            prm: Filtre optionnel sur la colonne `pdl`.
+            limit: Nombre maximum de lignes (défaut 1 000 000, max serveur 10 000 000).
+
+        Returns:
+            `pl.DataFrame` typé (timezones préservées).
+        """
+        params: dict[str, str | int] = {"limit": limit}
+        if prm:
+            params["prm"] = prm
+        return self._get_arrow(f"/flux/{table_name}/arrow", params)
+
     def facturation(self, mois: str | None = None) -> pl.DataFrame:
         """Récupère `lignes_facture_rapprochees` pour le mois donné.
 

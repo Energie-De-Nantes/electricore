@@ -3,7 +3,6 @@ Service DuckDB pour accès générique aux données flux.
 Fonctions pures pour lire les tables de flux Enedis.
 """
 
-import io
 import logging
 import os
 import time
@@ -171,13 +170,24 @@ def get_table_info(table_name: str) -> dict:
         return {"table": f"flux_{table_name}", "schema": SCHEMA, "count": count, "columns": columns}
 
 
+def _query_table_df(table_name: str, filters: dict | None = None, limit: int = 10000):
+    """Charge une table flux dans un DataFrame Polars, avec filtres et limite optionnels."""
+    sql = f"SELECT * FROM {SCHEMA}.flux_{table_name}"
+    if filters:
+        conditions = [f"{col} = '{val}'" for col, val in filters.items()]
+        sql += f" WHERE {' AND '.join(conditions)}"
+    sql += f" LIMIT {limit}"
+
+    with _connect_readonly() as conn:
+        return conn.execute(sql).pl()
+
+
 def query_table_xlsx(
     table_name: str,
     filters: dict | None = None,
     limit: int = 10000,
 ) -> bytes:
-    """
-    Retourne les données d'une table flux au format XLSX (bytes).
+    """Retourne les données d'une table flux au format XLSX (bytes).
 
     Args:
         table_name: Nom de la table (r151, c15, r64, etc.)
@@ -187,22 +197,31 @@ def query_table_xlsx(
     Returns:
         Contenu XLSX en bytes
     """
-    sql = f"SELECT * FROM {SCHEMA}.flux_{table_name}"
-    if filters:
-        conditions = [f"{col} = '{val}'" for col, val in filters.items()]
-        sql += f" WHERE {' AND '.join(conditions)}"
-    sql += f" LIMIT {limit}"
+    from electricore.api.serializers import xlsx_multi_sheet
 
-    with _connect_readonly() as conn:
-        df = conn.execute(sql).pl()
+    df = _query_table_df(table_name, filters, limit)
+    return xlsx_multi_sheet({table_name: df})
 
-    import xlsxwriter
 
-    buf = io.BytesIO()
-    wb = xlsxwriter.Workbook(buf, {"remove_timezone": True})
-    df.write_excel(workbook=wb, worksheet=table_name)
-    wb.close()
-    return buf.getvalue()
+def query_table_arrow(
+    table_name: str,
+    filters: dict | None = None,
+    limit: int = 1_000_000,
+) -> bytes:
+    """Retourne les données d'une table flux au format Arrow IPC (bytes).
+
+    Args:
+        table_name: Nom de la table (r151, c15, r64, etc.)
+        filters: Dict de filtres {colonne: valeur}
+        limit: Nombre max de lignes (défaut 1 000 000)
+
+    Returns:
+        Flux Arrow IPC en bytes, re-lisible via `pl.read_ipc_stream(BytesIO(...))`.
+    """
+    from electricore.api.serializers import arrow_stream
+
+    df = _query_table_df(table_name, filters, limit)
+    return arrow_stream(df)
 
 
 _ENTREES = ("PMES", "MES", "CFNE")
@@ -210,18 +229,13 @@ _SORTIES = ("RES", "CFNS")
 
 
 def _query_c15_xlsx(codes: tuple[str, ...], worksheet: str, limit: int) -> bytes:
+    from electricore.api.serializers import xlsx_multi_sheet
+
     placeholders = ", ".join(f"'{c}'" for c in codes)
     sql = f"SELECT * FROM {SCHEMA}.flux_c15 WHERE evenement_declencheur IN ({placeholders}) LIMIT {limit}"
     with _connect_readonly() as conn:
         df = conn.execute(sql).pl()
-
-    import xlsxwriter
-
-    buf = io.BytesIO()
-    wb = xlsxwriter.Workbook(buf, {"remove_timezone": True})
-    df.write_excel(workbook=wb, worksheet=worksheet)
-    wb.close()
-    return buf.getvalue()
+    return xlsx_multi_sheet({worksheet: df})
 
 
 def query_entrees_xlsx(limit: int = 10000) -> bytes:
