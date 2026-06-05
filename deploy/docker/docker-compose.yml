@@ -1,15 +1,24 @@
 # ElectriCore — stack VPS reproductible.
 #
-# Layout attendu (sur VPS comme en local) :
-#   <dossier-déploiement>/
+# Layout attendu (cf. ADR-0017) :
+#   /srv/<slug>/                       ← home du user système de l'instance
 #   ├── .env                           ← secrets (source unique)
+#   ├── backups/                       ← bind-mount des snapshots DuckDB
 #   └── deploy/docker/
 #       ├── docker-compose.yml         ← ce fichier
 #       ├── Caddyfile
 #       └── crontab
 #
-# Le compose lit le .env via `env_file: ../../.env` (deux niveaux au-dessus).
-# Idem pour les tests locaux depuis le repo Git : on réutilise le .env racine.
+# Invocation : depuis `deploy/docker/`, lancer avec --env-file pour que les
+# substitutions `${...}` ci-dessous résolvent les valeurs du .env racine :
+#
+#   docker compose --env-file ../../.env up -d
+#
+# Sans --env-file, Compose chercherait un .env dans le cwd (deploy/docker/) et
+# tomberait sur les défauts (ELECTRICORE_VERSION=latest, BACKUPS_PATH=./backups
+# côté deploy/docker/). Les vars dans les conteneurs (env_file: ../../.env) ne
+# sont PAS utilisées pour les substitutions du compose lui-même — c'est une
+# subtilité Compose qui justifie l'invocation explicite.
 #
 # Documentation complète : docs/deploiement.md
 
@@ -61,7 +70,13 @@ services:
       TZ: Europe/Paris
     volumes:
       - duckdb_data:/data
-      - duckdb_backups:/backups
+      # Bind-mount des backups (cf. ADR-0017). Côté host, le dossier est owned
+      # par uid 1000 (le user `electricore` du conteneur). Le user système
+      # de l'instance (`<slug>`) doit être ajouté au groupe 1000 par le script
+      # d'installation pour pouvoir y faire `ls`/`rclone` directement.
+      # Défaut `./backups` = dev local depuis le repo, à remplacer en prod par
+      # `/srv/<slug>/backups` via BACKUPS_PATH dans .env.
+      - ${BACKUPS_PATH:-./backups}:/backups
       - ./crontab:/etc/cron/crontab:ro
     depends_on:
       api:
@@ -85,6 +100,5 @@ services:
 
 volumes:
   duckdb_data:
-  duckdb_backups:
   caddy_data:
   caddy_config:
