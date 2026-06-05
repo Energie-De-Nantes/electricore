@@ -12,6 +12,7 @@ import pytest
 
 from electricore.api.services import taxes_service
 from electricore.core.loaders.contexte_mensuel import ContexteFacturation
+from electricore.integrations.odoo import taxes as taxes_orchestration
 
 
 @pytest.fixture
@@ -34,8 +35,11 @@ def df_facturation_mensuelle_cta() -> pl.DataFrame:
 
 
 def test_calculer_cta_detail_delegue_a_charger_contexte_facturation(monkeypatch, df_facturation_mensuelle_cta):
-    """`calculer_cta_detail` consomme `ContexteFacturation` au lieu de
-    reconstruire `c15 + releves + facturation()`.
+    """`cta_du_trimestre` consomme `ContexteFacturation` (issue #19 + #40, ADR-0016).
+
+    Depuis #40, l'orchestration vit dans `integrations.odoo.taxes`. Le test vérifie
+    que la chaîne service → orchestration délègue toujours à `charger_contexte_facturation`
+    plutôt que de reconstruire la trio `c15 + releves + facturation()`.
     """
     contexte_prefab = ContexteFacturation(
         mois="2025-01-01",
@@ -48,9 +52,9 @@ def test_calculer_cta_detail_delegue_a_charger_contexte_facturation(monkeypatch,
         appels_charger.append(mois)
         return contexte_prefab
 
-    monkeypatch.setattr(taxes_service, "charger_contexte_facturation", _capture_charger)
+    monkeypatch.setattr(taxes_orchestration, "charger_contexte_facturation", _capture_charger)
 
-    # Stubs Odoo (le service charge encore les PDLs depuis sale.order).
+    # Stubs Odoo (l'orchestration charge encore les PDLs depuis sale.order).
     class _OdooReaderMock:
         def __init__(self, *args, **kwargs):
             pass
@@ -82,7 +86,7 @@ def test_calculer_cta_detail_delegue_a_charger_contexte_facturation(monkeypatch,
     )
 
     monkeypatch.setattr(taxes_service, "OdooReader", _OdooReaderMock)
-    monkeypatch.setattr(taxes_service, "query", lambda odoo, model, domain, fields: _QueryMock(df_pdl_brut))
+    monkeypatch.setattr(taxes_orchestration, "query", lambda odoo, model, domain, fields: _QueryMock(df_pdl_brut))
     settings_cls = type(taxes_service.settings)
     monkeypatch.setattr(settings_cls, "get_odoo_config", lambda self: {})
 
