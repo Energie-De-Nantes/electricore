@@ -4,9 +4,11 @@ Le calcul et l'orchestration métier vivent dans
 `electricore.integrations.odoo.taxes`. Ce service ne fait que :
 
 1. Ouvrir la connexion `OdooReader` (responsabilité HTTP)
-2. Déléguer à l'orchestration
-3. Sérialiser le résultat (XLSX multi-onglets / Arrow IPC), avec les
-   agrégations « par taux » / « résumé » spécifiques au livrable.
+2. Déléguer à l'orchestration (`accise_par_contrat` / `rapport_accise` / `cta_du_trimestre`)
+3. Sérialiser le résultat (XLSX multi-onglets / Arrow IPC).
+
+La shape du livrable (`Résumé` / `Par taux` / `Détail`) vit désormais dans
+`integrations.odoo.taxes.rapport_accise` (cf. issue #56).
 """
 
 import polars as pl
@@ -14,66 +16,38 @@ import polars as pl
 from electricore.api.config import settings
 from electricore.api.serializers import arrow_stream, xlsx_multi_sheet
 from electricore.integrations.odoo import OdooReader
-from electricore.integrations.odoo.taxes import accise_du_trimestre, cta_du_trimestre
+from electricore.integrations.odoo.taxes import (
+    accise_par_contrat,
+    cta_du_trimestre,
+    rapport_accise,
+)
 
 
 def calculer_accise_detail(trimestre: str | None = None) -> pl.DataFrame:
-    """Binding HTTP : ouvre Odoo + délègue à `accise_du_trimestre`.
-
-    Seam testable au niveau du service (les endpoints peuvent la monkeypatch
-    pour bypasser Odoo). La logique métier vit dans
-    `electricore.integrations.odoo.taxes.accise_du_trimestre`.
-    """
+    """Binding HTTP : ouvre Odoo + délègue à `accise_par_contrat`."""
     with OdooReader(config=settings.get_odoo_config()) as odoo:
-        return accise_du_trimestre(odoo, trimestre)
+        return accise_par_contrat(odoo, trimestre)
 
 
-def generer_accise_arrow(trimestre: str | None = None) -> bytes:
-    """Sérialise le détail accise en flux Arrow IPC."""
+def generer_accise_detail_arrow(trimestre: str | None = None) -> bytes:
+    """Sérialise le détail accise (PDL × mois) en flux Arrow IPC."""
     return arrow_stream(calculer_accise_detail(trimestre))
 
 
-def generer_accise_xlsx(trimestre: str | None = None) -> bytes:
-    """Calcule l'accise TICFE et retourne un fichier XLSX multi-onglets.
+def generer_accise_detail_xlsx(trimestre: str | None = None) -> bytes:
+    """Sérialise le détail accise (PDL × mois) en XLSX mono-onglet."""
+    return xlsx_multi_sheet({"Détail": calculer_accise_detail(trimestre)})
 
-    Args:
-        trimestre: Filtre optionnel au format "YYYY-TX" (ex: "2025-T1").
-            Si None, retourne toutes les données disponibles.
 
-    Returns:
-        Contenu XLSX en bytes avec 3 onglets : Résumé, Par taux, Détail.
-    """
-    df_accise = calculer_accise_detail(trimestre)
-
-    df_par_taux = (
-        df_accise.group_by("taux_accise_eur_mwh")
-        .agg(
-            [
-                pl.col("energie_mwh").sum().round(3),
-                pl.col("accise_eur").sum().round(2),
-                pl.col("pdl").n_unique().alias("nb_pdl"),
-            ]
-        )
-        .sort("taux_accise_eur_mwh", descending=True)
-    )
-
-    df_resume = (
-        df_accise.group_by("trimestre")
-        .agg(
-            [
-                pl.col("pdl").n_unique().alias("Nombre de PDL"),
-                pl.col("energie_mwh").sum().round(3).alias("Énergie totale (MWh)"),
-                pl.col("accise_eur").sum().round(2).alias("Accise totale (€)"),
-            ]
-        )
-        .sort("trimestre")
-    )
-
+def generer_accise_rapport_xlsx(trimestre: str | None = None) -> bytes:
+    """Livrable facturiste : 3 onglets (Résumé / Par taux / Détail) depuis `rapport_accise`."""
+    with OdooReader(config=settings.get_odoo_config()) as odoo:
+        r = rapport_accise(odoo, trimestre)
     return xlsx_multi_sheet(
         {
-            "Résumé": df_resume,
-            "Par taux": df_par_taux,
-            "Détail": df_accise.sort(["pdl", "mois_consommation"]),
+            "Résumé": r.resume,
+            "Par taux": r.par_taux,
+            "Détail": r.detail.sort(["pdl", "mois_consommation"]),
         }
     )
 

@@ -13,7 +13,7 @@ import pytest
 
 FACTURATION_ORCHESTRATIONS = ("facturation_du_mois", "documents_facturation_du_mois")
 
-TAXES_ORCHESTRATIONS = ("accise_du_trimestre", "cta_du_trimestre")
+TAXES_ORCHESTRATIONS = ("rapport_accise", "accise_par_contrat", "cta_du_trimestre")
 
 
 @pytest.mark.parametrize("name", FACTURATION_ORCHESTRATIONS)
