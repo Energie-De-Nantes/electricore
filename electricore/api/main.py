@@ -164,6 +164,27 @@ def get_sorties_xlsx(
     return xlsx_multi_sheet({"sorties": df})
 
 
+def _load_flux_df(table_name: str, prm: str | None, limit: int):
+    """Charge un flux via DuckDBQuery + serializer. Whitelist déclarative via FLUX_CONFIGS.
+
+    Test seam : monkeypatch ce helper pour court-circuiter l'IO DuckDB dans les
+    tests d'endpoint (le SQL est paramétré et la sécurité est testée séparément).
+    """
+    from electricore.core.loaders.duckdb.helpers import make_query
+    from electricore.core.loaders.duckdb.registry import FLUX_CONFIGS
+
+    if table_name not in FLUX_CONFIGS:
+        raise HTTPException(
+            404,
+            f"Table '{table_name}' non trouvée. Tables disponibles: {sorted(FLUX_CONFIGS.keys())}",
+        )
+
+    query = make_query(FLUX_CONFIGS[table_name])
+    if prm:
+        query = query.filter({"pdl": prm})
+    return query.limit(limit).collect()
+
+
 @app.get("/flux/{table_name}", tags=["flux"])
 async def get_flux(
     table_name: str,
@@ -181,45 +202,16 @@ async def get_flux(
     - /flux/r151 : Relevés quotidiens
     - /flux/c15 : Changements contractuels
     - /flux/r64 : Relevés demandés sur SGE
-    - /flux/f15_detail : Facturation Enedis détaillée
-
-    Args:
-        table_name: Nom de la table flux (r151, c15, r64, etc.)
-        prm: Filtre optionnel par Point de Livraison
-        limit: Nombre max de lignes (max 1000)
-        offset: Pagination - lignes à ignorer
-        api_key: Clé API (automatiquement validée)
-
-    Returns:
-        Dict contenant les données filtrées et métadonnées de pagination
+    - /flux/f15 : Facturation Enedis détaillée
     """
-    # Vérifier que la table existe
-    try:
-        available_tables = duckdb_service.list_tables()
-    except Exception as e:
-        raise HTTPException(500, f"Impossible d'accéder à la base de données: {e}")
-
-    if table_name not in available_tables:
-        raise HTTPException(404, f"Table '{table_name}' non trouvée. Tables disponibles: {available_tables}")
-
-    # Construire les filtres
-    filters = {}
-    if prm:
-        # Toutes les tables utilisent 'pdl' pour l'identifiant PRM
-        filters["pdl"] = prm
-
-    # Récupérer les données
-    try:
-        data = duckdb_service.query_table(table_name, filters, limit, offset)
-
-        return {
-            "table": f"flux_{table_name}",
-            "filters": filters if filters else None,
-            "pagination": {"limit": limit, "offset": offset, "returned": len(data)},
-            "data": data,
-        }
-    except Exception as e:
-        raise HTTPException(500, f"Erreur lors de la lecture des données: {e}")
+    df = _load_flux_df(table_name, prm, limit + offset)
+    rows = df.slice(offset, limit).to_dicts()
+    return {
+        "table": f"flux_{table_name}",
+        "filters": {"pdl": prm} if prm else None,
+        "pagination": {"limit": limit, "offset": offset, "returned": len(rows)},
+        "data": rows,
+    }
 
 
 @xlsx_endpoint(app, "/flux/{table_name}/xlsx", filename="flux_{table_name}.xlsx", error_status=500, tags=["flux"])
@@ -228,20 +220,11 @@ def get_flux_xlsx(
     prm: str | None = Query(None, description="Filtrer par pdl (Point de Livraison)"),
     limit: int = Query(10000, le=100000, description="Nombre maximum de lignes"),
 ) -> bytes:
-    """Exporte les données d'un flux Enedis au format XLSX (max 100 000 lignes).
+    """Exporte les données d'un flux Enedis au format XLSX (max 100 000 lignes)."""
+    from electricore.api.serializers import xlsx_multi_sheet
 
-    Vérifie l'existence de la table — renvoie 404 si inconnue, 500 sinon.
-    """
-    try:
-        available_tables = duckdb_service.list_tables()
-    except Exception as e:
-        raise HTTPException(500, f"Impossible d'accéder à la base de données: {e}")
-
-    if table_name not in available_tables:
-        raise HTTPException(404, f"Table '{table_name}' non trouvée. Tables disponibles: {available_tables}")
-
-    filters = {"pdl": prm} if prm else {}
-    return duckdb_service.query_table_xlsx(table_name, filters, limit)
+    df = _load_flux_df(table_name, prm, limit)
+    return xlsx_multi_sheet({table_name: df})
 
 
 @arrow_endpoint(app, "/flux/{table_name}/arrow", tags=["flux"])
@@ -254,19 +237,11 @@ def get_flux_arrow(
 
     Consommable côté client avec `pl.read_ipc_stream(BytesIO(content))` — typage et
     timezones préservés, pas de perte de précision contrairement à XLSX. Cf. `ElectricoreClient.flux`.
-
-    Vérifie l'existence de la table — renvoie 404 si inconnue, 500 sinon.
     """
-    try:
-        available_tables = duckdb_service.list_tables()
-    except Exception as e:
-        raise HTTPException(500, f"Impossible d'accéder à la base de données: {e}")
+    from electricore.api.serializers import arrow_stream
 
-    if table_name not in available_tables:
-        raise HTTPException(404, f"Table '{table_name}' non trouvée. Tables disponibles: {available_tables}")
-
-    filters = {"pdl": prm} if prm else {}
-    return duckdb_service.query_table_arrow(table_name, filters, limit)
+    df = _load_flux_df(table_name, prm, limit)
+    return arrow_stream(df)
 
 
 @app.get("/flux/{table_name}/info", tags=["flux"])
