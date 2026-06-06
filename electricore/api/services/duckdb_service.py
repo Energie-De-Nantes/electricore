@@ -165,30 +165,6 @@ def query_table_arrow(
     return arrow_stream(df)
 
 
-_ENTREES = ("PMES", "MES", "CFNE")
-_SORTIES = ("RES", "CFNS")
-
-
-def _query_c15_xlsx(codes: tuple[str, ...], worksheet: str, limit: int) -> bytes:
-    from electricore.api.serializers import xlsx_multi_sheet
-
-    placeholders = ", ".join(f"'{c}'" for c in codes)
-    sql = f"SELECT * FROM {SCHEMA}.flux_c15 WHERE evenement_declencheur IN ({placeholders}) LIMIT {limit}"
-    with duckdb_readonly_conn(DB_PATH) as conn:
-        df = conn.execute(sql).pl()
-    return xlsx_multi_sheet({worksheet: df})
-
-
-def query_entrees_xlsx(limit: int = 10000) -> bytes:
-    """Export XLSX des entrées C15 (PMES, MES, CFNE)."""
-    return _query_c15_xlsx(_ENTREES, "entrees", limit)
-
-
-def query_sorties_xlsx(limit: int = 10000) -> bytes:
-    """Export XLSX des sorties C15 (RES, CFNS)."""
-    return _query_c15_xlsx(_SORTIES, "sorties", limit)
-
-
 def list_tables() -> list[str]:
     """
     Liste toutes les tables flux disponibles.
