@@ -8,6 +8,7 @@ Ce module fournit un builder de requêtes suivant les principes fonctionnels :
 - Séparation claire entre construction et exécution
 """
 
+import re
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -91,9 +92,21 @@ class DuckDBQuery:
         Returns:
             Nouvelle instance DuckDBQuery avec les filtres ajoutés
 
+        Raises:
+            ValueError: Si une colonne n'appartient pas au schéma du flux.
+
         Example:
             >>> query.filter({"Date_Evenement": ">= '2024-01-01'", "pdl": ["PDL123"]})
         """
+        allowed = {c.name for c in self.config.schema.columns}
+        # Schémas CTE/UNION (base_sql) sans colonnes typées : on saute l'allowlist
+        if allowed:
+            unknown = [col for col in filters if col not in allowed]
+            if unknown:
+                raise ValueError(
+                    f"colonne inconnue {unknown!r} pour le flux {self.config.schema.flux_name}. "
+                    f"Colonnes valides : {sorted(allowed)}"
+                )
         new_filters = self.filters + tuple(filters.items())
         return replace(self, filters=new_filters)
 
@@ -173,64 +186,67 @@ class DuckDBQuery:
     # CONSTRUCTION SQL (Fonctions pures)
     # =========================================================================
 
-    def _build_filter_clause(self, column: str, condition: Any) -> str:
-        """
-        Construit une clause WHERE depuis un filtre (fonction pure).
+    _OPERATOR_RE = re.compile(r"^\s*(>=|<=|<>|!=|>|<|=)\s*(.+?)\s*$")
 
-        Args:
-            column: Nom de la colonne
-            condition: Condition (liste, string avec opérateur, ou valeur simple)
+    def _build_filter_clause(self, column: str, condition: Any) -> tuple[str, list[Any]]:
+        """Construit une clause WHERE paramétrée depuis un filtre (fonction pure).
 
         Returns:
-            Clause WHERE formatée
+            (sql_fragment_avec_?, params) — les valeurs ne sont JAMAIS interpolées
+            dans le SQL ; elles transitent par le binding `conn.execute(sql, params)`.
         """
-        # Condition brute
+        # Condition brute (échappée, non exposée HTTP, validée allowlist au constructeur)
         if column == "__raw_condition":
-            return condition
+            return condition, []
 
         # Liste de valeurs (IN)
         if isinstance(condition, list):
-            values = "', '".join(str(v) for v in condition)
-            return f"{column} IN ('{values}')"
+            placeholders = ", ".join(["?"] * len(condition))
+            return f"{column} IN ({placeholders})", list(condition)
 
-        # String avec opérateur (>=, <=, etc.)
-        if isinstance(condition, str) and any(op in condition for op in [">=", "<=", ">", "<", "="]):
-            return f"{column} {condition}"
+        # String avec opérateur préfixe : ">= '2024-01-01'", "< 100", etc.
+        if isinstance(condition, str):
+            match = self._OPERATOR_RE.match(condition)
+            if match:
+                op, raw_value = match.group(1), match.group(2)
+                # Strip enclosing quotes (simple ou double) si présentes
+                if len(raw_value) >= 2 and raw_value[0] == raw_value[-1] and raw_value[0] in ("'", '"'):
+                    raw_value = raw_value[1:-1]
+                return f"{column} {op} ?", [raw_value]
 
         # Égalité simple
-        return f"{column} = '{condition}'"
+        return f"{column} = ?", [condition]
 
-    def _build_final_query(self) -> str:
-        """
-        Construit la requête SQL finale avec filtres et limite (fonction pure).
+    def _build_final_query(self) -> tuple[str, list[Any]]:
+        """Construit la requête SQL finale + ses paramètres (fonction pure).
 
         Returns:
-            Requête SQL complète prête à être exécutée
+            (sql_avec_placeholders, params) — à passer à `conn.execute(sql, params)`.
         """
         # Si base_sql fourni (CTE/UNION), l'utiliser directement
         if self.base_sql:
             query = self.base_sql
         else:
-            # Requête de base depuis le schéma
             query = build_base_query(self.config.schema)
 
-        # Ajouter les filtres
+        params: list[Any] = []
         if self.filters:
-            where_clauses = [self._build_filter_clause(col, val) for col, val in self.filters]
+            fragments = []
+            for col, val in self.filters:
+                fragment, frag_params = self._build_filter_clause(col, val)
+                fragments.append(fragment)
+                params.extend(frag_params)
 
-            # Vérifier si la requête a déjà une clause WHERE
             if "WHERE" in query.upper():
-                # Ajouter les conditions avec AND
-                query += " AND " + " AND ".join(where_clauses)
+                query += " AND " + " AND ".join(fragments)
             else:
-                # Ajouter une nouvelle clause WHERE
-                query += "\nWHERE " + " AND ".join(where_clauses)
+                query += "\nWHERE " + " AND ".join(fragments)
 
-        # Ajouter la limite
+        # LIMIT est un entier injecté en dur — pas une donnée utilisateur, sûr
         if self.limit_value:
             query += f"\nLIMIT {self.limit_value}"
 
-        return query
+        return query, params
 
     # =========================================================================
     # EXÉCUTION (Fonctions impures - IO)
@@ -254,12 +270,12 @@ class DuckDBQuery:
         if not config.database_path.exists():
             raise FileNotFoundError(f"Base DuckDB non trouvée : {config.database_path}")
 
-        # Construction SQL (pure)
-        final_query = self._build_final_query()
+        # Construction SQL paramétrée (pure)
+        final_query, params = self._build_final_query()
 
-        # Connexion et exécution (impure - IO)
+        # Connexion et exécution (impure - IO) ; valeurs liées, jamais interpolées
         with duckdb_readonly_conn(config.database_path) as conn:
-            lazy_frame = conn.execute(final_query).pl().lazy()
+            lazy_frame = conn.execute(final_query, params).pl().lazy()
 
         # Application des transformations (pure)
         lazy_frame = self.config.transform(lazy_frame)

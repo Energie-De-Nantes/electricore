@@ -25,10 +25,11 @@ class TestC15EntreesMethod:
         assert q.filters == (("evenement_declencheur", list(ENTREES_C15)),)
 
     def test_generates_in_clause(self):
-        """Le SQL final contient une clause IN avec les 3 codes."""
-        sql = c15().entrees()._build_final_query()
+        """Le SQL final contient une clause IN paramétrée avec les 3 codes."""
+        sql, params = c15().entrees()._build_final_query()
 
-        assert "evenement_declencheur IN ('PMES', 'MES', 'CFNE')" in sql
+        assert "evenement_declencheur IN (?, ?, ?)" in sql
+        assert params == ["PMES", "MES", "CFNE"]
 
     def test_chainable_with_limit(self):
         """`.entrees()` retourne un DuckDBQuery chainable."""
@@ -47,9 +48,10 @@ class TestC15SortiesMethod:
         assert q.filters == (("evenement_declencheur", list(SORTIES_C15)),)
 
     def test_generates_in_clause(self):
-        sql = c15().sorties()._build_final_query()
+        sql, params = c15().sorties()._build_final_query()
 
-        assert "evenement_declencheur IN ('RES', 'CFNS')" in sql
+        assert "evenement_declencheur IN (?, ?)" in sql
+        assert params == ["RES", "CFNS"]
 
 
 class TestGuardOnNonC15:
