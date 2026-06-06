@@ -16,6 +16,9 @@ uv sync --extra etl --group test --group typecheck
 
 # Installer les hooks pre-commit (ruff lint + format à chaque commit local)
 uvx pre-commit install
+
+# Installer le hook pre-push (testsuite avant chaque git push)
+uvx pre-commit install --hook-type pre-push
 ```
 
 Python 3.12 ou 3.13 requis.
@@ -34,6 +37,12 @@ uv run --group test pytest --cov=electricore
 ```
 
 La suite compte ~216 tests qui passent en moins d'une seconde. 35 tests sont volontairement skippés (intégration Odoo nécessitant des secrets, génération de snapshots).
+
+Le hook **pre-push** exécute automatiquement la suite avant chaque `git push` (cf. installation ci-dessus). Pour le lancer manuellement sans pousser :
+
+```bash
+uvx pre-commit run --hook-stage pre-push --all-files
+```
 
 **Pas besoin de secrets Enedis/Odoo** pour développer : les tests qui en dépendent se skippent automatiquement quand `secrets.toml` ou les variables d'environnement sont absents.
 
