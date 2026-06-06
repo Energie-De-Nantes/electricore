@@ -73,7 +73,9 @@ class ElectriCoreClient:
         if trimestre:
             params["trimestre"] = trimestre
         async with httpx.AsyncClient() as c:
-            r = await c.get(f"{self._base}/taxes/accise/xlsx", headers=self._headers, params=params, timeout=300)
+            r = await c.get(
+                f"{self._base}/taxes/accise/rapport.xlsx", headers=self._headers, params=params, timeout=300
+            )
             r.raise_for_status()
             return r.content
 

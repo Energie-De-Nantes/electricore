@@ -59,7 +59,7 @@ def test_facturation_retourne_le_dataframe_servi_par_endpoint(client_electricore
 
 
 def test_accise_round_trip_via_endpoint(monkeypatch):
-    """`client.accise(trimestre)` round-trip un DataFrame servi par /taxes/accise/arrow."""
+    """`client.accise(trimestre)` round-trip un DataFrame servi par /taxes/accise/detail.arrow."""
     df_attendu = pl.DataFrame(
         {
             "pdl": ["12345678901234"],

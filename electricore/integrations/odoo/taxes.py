@@ -4,9 +4,18 @@ Compose les calculs `core/` (pipelines accise / CTA, contexte mensuel) avec
 l'adaptateur Odoo (lecture des lignes de factures, des PDLs des `sale.order`)
 pour produire les DataFrames consommés par les endpoints API et les notebooks.
 
+Deux interfaces cohabitent (cf. issue #56) :
+
+- `accise_par_contrat` / `cta_du_trimestre` : calcul brut par PDL × période, pour
+  exploration et réinjection (Arrow / XLSX mono-onglet).
+- `rapport_accise` : livrable agrégé (`Résumé` / `Par taux` / `Détail`) destiné à
+  la déclaration trimestrielle facturiste (XLSX multi-onglets).
+
 EDN-shaped aujourd'hui ; sert de prototype pour un futur module Odoo libre
 couvrant les fournisseurs alternatifs (cf. CONTEXT.md, ADR-0016).
 """
+
+from typing import NamedTuple
 
 import polars as pl
 
@@ -16,11 +25,27 @@ from electricore.core.pipelines.cta import ajouter_cta
 from electricore.core.pipelines.facturation import expr_calculer_trimestre
 
 from .helpers import commandes_lignes, query
+from .models.rapport_accise import (
+    RapportAcciseDetail,
+    RapportAcciseParTaux,
+    RapportAcciseResume,
+)
 from .reader import OdooReader
 
 
-def accise_du_trimestre(odoo: OdooReader, trimestre: str | None = None) -> pl.DataFrame:
-    """Charge les lignes Odoo et applique `pipeline_accise` (+ filtre trimestre).
+class RapportAccise(NamedTuple):
+    """Livrable trimestriel d'accise (= les 3 onglets de l'export XLSX facturiste)."""
+
+    resume: pl.DataFrame
+    par_taux: pl.DataFrame
+    detail: pl.DataFrame
+
+
+def accise_par_contrat(odoo: OdooReader, trimestre: str | None = None) -> pl.DataFrame:
+    """Calcul brut de l'accise par PDL × mois de consommation.
+
+    Interface "brute" pour les cas techniques (exploration, réinjection, Arrow stream).
+    Pour le livrable agrégé destiné au facturiste, utiliser `rapport_accise(...)`.
 
     Args:
         odoo: `OdooReader` déjà ouvert (le caller est responsable de la connexion).
@@ -35,6 +60,49 @@ def accise_du_trimestre(odoo: OdooReader, trimestre: str | None = None) -> pl.Da
     if trimestre is not None:
         df_accise = df_accise.filter(pl.col("trimestre") == trimestre)
     return df_accise
+
+
+def rapport_accise(odoo: OdooReader, trimestre: str | None = None) -> RapportAccise:
+    """Livrable agrégé pour déclaration trimestrielle d'accise TICFE.
+
+    Compose `accise_par_contrat` (calcul brut) avec les agrégations « Par taux »
+    et « Résumé » nécessaires au facturiste. Les 3 frames du `NamedTuple` sont
+    validées Pandera avant retour.
+
+    Args:
+        odoo: `OdooReader` déjà ouvert.
+        trimestre: format "YYYY-TX". `None` = tous les trimestres.
+
+    Returns:
+        `RapportAccise(resume, par_taux, detail)`.
+    """
+    detail = accise_par_contrat(odoo, trimestre)
+    par_taux = (
+        detail.group_by("taux_accise_eur_mwh")
+        .agg(
+            [
+                pl.col("energie_mwh").sum().round(3),
+                pl.col("accise_eur").sum().round(2),
+                pl.col("pdl").n_unique().cast(pl.Int64).alias("nb_pdl"),
+            ]
+        )
+        .sort("taux_accise_eur_mwh", descending=True)
+    )
+    resume = (
+        detail.group_by("trimestre")
+        .agg(
+            [
+                pl.col("pdl").n_unique().cast(pl.Int64).alias("nb_pdl"),
+                pl.col("energie_mwh").sum().round(3).alias("energie_mwh_total"),
+                pl.col("accise_eur").sum().round(2).alias("accise_eur_total"),
+            ]
+        )
+        .sort("trimestre")
+    )
+    RapportAcciseResume.validate(resume)
+    RapportAcciseParTaux.validate(par_taux)
+    RapportAcciseDetail.validate(detail)
+    return RapportAccise(resume=resume, par_taux=par_taux, detail=detail)
 
 
 def cta_du_trimestre(odoo: OdooReader, trimestre: str | None = None) -> pl.DataFrame:

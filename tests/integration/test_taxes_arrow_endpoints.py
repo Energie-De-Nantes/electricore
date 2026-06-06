@@ -1,4 +1,4 @@
-"""Tests d'intégration des endpoints `/taxes/accise/arrow` et `/taxes/cta/arrow`."""
+"""Tests d'intégration des endpoints `/taxes/accise/*` et `/taxes/cta/arrow`."""
 
 import io
 
@@ -12,6 +12,7 @@ from electricore.api.main import app
 from electricore.api.security import get_current_api_key
 
 ARROW_IPC = "application/vnd.apache.arrow.stream"
+XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
 @pytest.fixture(autouse=True)
@@ -21,8 +22,21 @@ def _mock_odoo_configured(monkeypatch):
 
 
 @pytest.fixture
+def _mock_odoo_reader(monkeypatch):
+    """Court-circuite `OdooReader` (les tests mockent directement `accise_par_contrat`)."""
+    from contextlib import contextmanager
+
+    @contextmanager
+    def _fake_reader(config):
+        yield None
+
+    monkeypatch.setattr("electricore.integrations.odoo.OdooReader", _fake_reader)
+    monkeypatch.setattr("electricore.api.services.taxes_service.OdooReader", _fake_reader)
+
+
+@pytest.fixture
 def df_accise_detail() -> pl.DataFrame:
-    """Échantillon ressemblant à la sortie de pipeline_accise."""
+    """Échantillon ressemblant à la sortie de `accise_par_contrat`."""
     return pl.DataFrame(
         {
             "pdl": ["12345678901234", "12345678901234"],
@@ -36,20 +50,20 @@ def df_accise_detail() -> pl.DataFrame:
 
 
 # =============================================================================
-# /taxes/accise/arrow
+# /taxes/accise/detail.arrow
 # =============================================================================
 
 
-def test_accise_endpoint_retourne_arrow_ipc_stream(monkeypatch, df_accise_detail):
+def test_accise_detail_arrow_retourne_arrow_ipc_stream(monkeypatch, _mock_odoo_reader, df_accise_detail):
     """L'endpoint sert le détail accise en Arrow IPC."""
     app.dependency_overrides[get_current_api_key] = lambda: "test-key"
     monkeypatch.setattr(
-        "electricore.api.services.taxes_service.calculer_accise_detail",
-        lambda trimestre=None: df_accise_detail,
+        "electricore.api.services.taxes_service.accise_par_contrat",
+        lambda odoo, trimestre=None: df_accise_detail,
     )
 
     try:
-        response = TestClient(app).get("/taxes/accise/arrow")
+        response = TestClient(app).get("/taxes/accise/detail.arrow")
     finally:
         app.dependency_overrides.clear()
 
@@ -60,30 +74,119 @@ def test_accise_endpoint_retourne_arrow_ipc_stream(monkeypatch, df_accise_detail
     assert_frame_equal(df, df_accise_detail)
 
 
-def test_accise_endpoint_refuse_sans_api_key():
+def test_accise_detail_arrow_refuse_sans_api_key():
     """Sans clé API → 401."""
-    response = TestClient(app).get("/taxes/accise/arrow")
+    response = TestClient(app).get("/taxes/accise/detail.arrow")
     assert response.status_code == 401
 
 
-def test_accise_endpoint_propage_trimestre(monkeypatch, df_accise_detail):
-    """Le query param `trimestre` est transmis au service de calcul."""
+def test_accise_detail_arrow_propage_trimestre(monkeypatch, _mock_odoo_reader, df_accise_detail):
+    """Le query param `trimestre` est transmis à `accise_par_contrat`."""
     app.dependency_overrides[get_current_api_key] = lambda: "test-key"
     appels: list[str | None] = []
 
-    def fake_calculer(trimestre: str | None = None) -> pl.DataFrame:
+    def _capture(odoo, trimestre=None):
         appels.append(trimestre)
         return df_accise_detail
 
-    monkeypatch.setattr("electricore.api.services.taxes_service.calculer_accise_detail", fake_calculer)
+    monkeypatch.setattr("electricore.api.services.taxes_service.accise_par_contrat", _capture)
 
     try:
-        response = TestClient(app).get("/taxes/accise/arrow", params={"trimestre": "2025-T1"})
+        response = TestClient(app).get("/taxes/accise/detail.arrow", params={"trimestre": "2025-T1"})
     finally:
         app.dependency_overrides.clear()
 
     assert response.status_code == 200
     assert appels == ["2025-T1"]
+
+
+# =============================================================================
+# /taxes/accise/detail.xlsx
+# =============================================================================
+
+
+def test_accise_detail_xlsx_retourne_xlsx_mono_onglet(monkeypatch, _mock_odoo_reader, df_accise_detail):
+    """L'endpoint sert le détail accise en XLSX mono-onglet."""
+    app.dependency_overrides[get_current_api_key] = lambda: "test-key"
+    monkeypatch.setattr(
+        "electricore.api.services.taxes_service.accise_par_contrat",
+        lambda odoo, trimestre=None: df_accise_detail,
+    )
+
+    try:
+        response = TestClient(app).get("/taxes/accise/detail.xlsx")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith(XLSX_MIME)
+    assert "attachment" in response.headers.get("content-disposition", "")
+
+
+# =============================================================================
+# /taxes/accise/rapport.xlsx
+# =============================================================================
+
+
+@pytest.fixture
+def fake_rapport_accise(df_accise_detail):
+    """`RapportAccise` synthétique (les 3 onglets minimaux pour la sérialisation XLSX)."""
+    from electricore.integrations.odoo.taxes import RapportAccise
+
+    return RapportAccise(
+        resume=pl.DataFrame(
+            {"trimestre": ["2025-T1"], "nb_pdl": [1], "energie_mwh_total": [3.579], "accise_eur_total": [80.53]}
+        ),
+        par_taux=pl.DataFrame(
+            {"taux_accise_eur_mwh": [22.5], "energie_mwh": [3.579], "accise_eur": [80.53], "nb_pdl": [1]}
+        ),
+        detail=df_accise_detail,
+    )
+
+
+def test_accise_rapport_xlsx_retourne_xlsx_multi_onglets(monkeypatch, _mock_odoo_reader, fake_rapport_accise):
+    """L'endpoint sert le rapport multi-onglets (Résumé / Par taux / Détail)."""
+    app.dependency_overrides[get_current_api_key] = lambda: "test-key"
+    monkeypatch.setattr(
+        "electricore.api.services.taxes_service.rapport_accise",
+        lambda odoo, trimestre=None: fake_rapport_accise,
+    )
+
+    try:
+        response = TestClient(app).get("/taxes/accise/rapport.xlsx")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith(XLSX_MIME)
+    assert "attachment" in response.headers.get("content-disposition", "")
+
+
+def test_accise_rapport_xlsx_propage_trimestre(monkeypatch, _mock_odoo_reader, fake_rapport_accise):
+    """Le query param `trimestre` est propagé jusqu'à `rapport_accise`."""
+    app.dependency_overrides[get_current_api_key] = lambda: "test-key"
+    appels: list[str | None] = []
+
+    def _capture(odoo, trimestre=None):
+        appels.append(trimestre)
+        return fake_rapport_accise
+
+    monkeypatch.setattr("electricore.api.services.taxes_service.rapport_accise", _capture)
+
+    try:
+        response = TestClient(app).get("/taxes/accise/rapport.xlsx", params={"trimestre": "2025-T2"})
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert appels == ["2025-T2"]
+
+
+def test_anciens_endpoints_accise_404(_mock_odoo_reader):
+    """Les anciens paths sont supprimés."""
+    for path in ("/taxes/accise/xlsx", "/taxes/accise/arrow"):
+        response = TestClient(app).get(path)
+        assert response.status_code == 404, f"{path} devrait être 404"
 
 
 # =============================================================================

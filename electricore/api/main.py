@@ -24,8 +24,9 @@ from electricore.api.services.facturation_service import (
     generer_facturation_xlsx,
 )
 from electricore.api.services.taxes_service import (
-    generer_accise_arrow,
-    generer_accise_xlsx,
+    generer_accise_detail_arrow,
+    generer_accise_detail_xlsx,
+    generer_accise_rapport_xlsx,
     generer_cta_arrow,
     generer_cta_xlsx,
 )
@@ -414,28 +415,44 @@ async def list_api_keys(api_key: str = Depends(get_current_api_key), key_info: A
     }
 
 
-@xlsx_endpoint(app, "/taxes/accise/xlsx", filename="accise{trimestre}.xlsx", requires_odoo=True, tags=["taxes"])
-def export_accise_xlsx(
+@xlsx_endpoint(
+    app, "/taxes/accise/rapport.xlsx", filename="accise_rapport{trimestre}.xlsx", requires_odoo=True, tags=["taxes"]
+)
+def export_accise_rapport_xlsx(
     trimestre: str | None = Query(
         default=None,
         examples=["2025-T1"],
         description="Filtre par trimestre au format YYYY-TX. Sans filtre : toutes les données.",
     ),
 ) -> bytes:
-    """Calcule l'Accise TICFE et retourne un fichier XLSX (3 onglets : Résumé, Par taux, Détail)."""
-    return generer_accise_xlsx(trimestre)
+    """Livrable facturiste : Accise TICFE en XLSX multi-onglets (Résumé / Par taux / Détail)."""
+    return generer_accise_rapport_xlsx(trimestre)
 
 
-@arrow_endpoint(app, "/taxes/accise/arrow", requires_odoo=True, tags=["taxes"])
-def export_accise_arrow(
+@xlsx_endpoint(
+    app, "/taxes/accise/detail.xlsx", filename="accise_detail{trimestre}.xlsx", requires_odoo=True, tags=["taxes"]
+)
+def export_accise_detail_xlsx(
     trimestre: str | None = Query(
         default=None,
         examples=["2025-T1"],
         description="Filtre par trimestre au format YYYY-TX. Sans filtre : toutes les données.",
     ),
 ) -> bytes:
-    """Détail Accise TICFE sérialisé en Arrow IPC stream (table PDL × mois)."""
-    return generer_accise_arrow(trimestre)
+    """Détail Accise TICFE en XLSX mono-onglet (table PDL × mois, cas technique)."""
+    return generer_accise_detail_xlsx(trimestre)
+
+
+@arrow_endpoint(app, "/taxes/accise/detail.arrow", requires_odoo=True, tags=["taxes"])
+def export_accise_detail_arrow(
+    trimestre: str | None = Query(
+        default=None,
+        examples=["2025-T1"],
+        description="Filtre par trimestre au format YYYY-TX. Sans filtre : toutes les données.",
+    ),
+) -> bytes:
+    """Détail Accise TICFE en Arrow IPC stream (table PDL × mois, cas technique)."""
+    return generer_accise_detail_arrow(trimestre)
 
 
 @xlsx_endpoint(app, "/taxes/cta/xlsx", filename="cta{trimestre}.xlsx", requires_odoo=True, tags=["taxes"])
