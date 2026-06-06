@@ -40,6 +40,7 @@ from .helpers import (
     releves_harmonises,
 )
 from .query import DuckDBQuery
+from .registry import ENTREES_C15, SORTIES_C15
 
 # =============================================================================
 # EXPORTS PUBLICS
@@ -59,6 +60,9 @@ __all__ = [
     "r64",
     "releves",
     "releves_harmonises",
+    # Groupings C15 canoniques (cf. CONTEXT.md)
+    "ENTREES_C15",
+    "SORTIES_C15",
     # API legacy (compatibilité)
     "load_historique",
     "load_releves",

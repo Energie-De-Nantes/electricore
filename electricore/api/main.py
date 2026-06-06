@@ -145,7 +145,11 @@ def get_entrees_xlsx(
     limit: int = Query(10000, le=100000, description="Nombre maximum de lignes"),
 ) -> bytes:
     """Exporte les **entrées** C15 au format XLSX (PMES, MES, CFNE)."""
-    return duckdb_service.query_entrees_xlsx(limit)
+    from electricore.api.serializers import xlsx_multi_sheet
+    from electricore.core.loaders.duckdb import c15
+
+    df = c15().entrees().limit(limit).collect()
+    return xlsx_multi_sheet({"entrees": df})
 
 
 @xlsx_endpoint(app, "/flux/c15/sorties/xlsx", filename="sorties_c15.xlsx", error_status=500, tags=["flux"])
@@ -153,7 +157,11 @@ def get_sorties_xlsx(
     limit: int = Query(10000, le=100000, description="Nombre maximum de lignes"),
 ) -> bytes:
     """Exporte les **sorties** C15 au format XLSX (RES, CFNS)."""
-    return duckdb_service.query_sorties_xlsx(limit)
+    from electricore.api.serializers import xlsx_multi_sheet
+    from electricore.core.loaders.duckdb import c15
+
+    df = c15().sorties().limit(limit).collect()
+    return xlsx_multi_sheet({"sorties": df})
 
 
 @app.get("/flux/{table_name}", tags=["flux"])

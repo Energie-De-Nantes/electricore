@@ -141,6 +141,34 @@ class DuckDBQuery:
         """
         return replace(self, valider=enable)
 
+    def entrees(self) -> "DuckDBQuery":
+        """Filtre sur les codes d'entrée canoniques C15 (PMES, MES, CFNE).
+
+        Raises:
+            ValueError: Si le builder n'est pas configuré pour le flux C15.
+        """
+        from .registry import ENTREES_C15
+
+        self._assert_c15(".entrees()")
+        return self.filter({"evenement_declencheur": list(ENTREES_C15)})
+
+    def sorties(self) -> "DuckDBQuery":
+        """Filtre sur les codes de sortie canoniques C15 (RES, CFNS).
+
+        Raises:
+            ValueError: Si le builder n'est pas configuré pour le flux C15.
+        """
+        from .registry import SORTIES_C15
+
+        self._assert_c15(".sorties()")
+        return self.filter({"evenement_declencheur": list(SORTIES_C15)})
+
+    def _assert_c15(self, method_name: str) -> None:
+        """Garde-fou : les groupings entrées/sorties n'existent que pour C15."""
+        flux = self.config.schema.flux_name
+        if flux != "C15":
+            raise ValueError(f"{method_name} ne s'applique qu'au flux C15, reçu : {flux}")
+
     # =========================================================================
     # CONSTRUCTION SQL (Fonctions pures)
     # =========================================================================
