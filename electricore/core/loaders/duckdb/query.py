@@ -16,7 +16,7 @@ from typing import Any
 import pandera.polars as pa
 import polars as pl
 
-from .config import DuckDBConfig, duckdb_connection
+from .config import DuckDBConfig, duckdb_readonly_conn
 from .sql import FluxSchema, build_base_query
 
 # =============================================================================
@@ -230,7 +230,7 @@ class DuckDBQuery:
         final_query = self._build_final_query()
 
         # Connexion et exécution (impure - IO)
-        with duckdb_connection(config.database_path) as conn:
+        with duckdb_readonly_conn(config.database_path) as conn:
             lazy_frame = conn.execute(final_query).pl().lazy()
 
         # Application des transformations (pure)

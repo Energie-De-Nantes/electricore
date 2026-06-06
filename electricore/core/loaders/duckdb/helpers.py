@@ -16,7 +16,7 @@ import polars as pl
 # Imports de validation
 from electricore.core.models.releve_index import RelevéIndex
 
-from .config import DuckDBConfig, duckdb_connection
+from .config import DuckDBConfig, duckdb_readonly_conn
 from .query import DuckDBQuery, QueryConfig, make_query
 from .registry import FLUX_CONFIGS
 from .sql import BASE_QUERY_RELEVES_HARMONISES, BASE_QUERY_RELEVES_UNIFIES, FluxSchema
@@ -282,7 +282,7 @@ def get_available_tables(database_path: str | Path | None = None) -> list[str]:
     """
     config = DuckDBConfig(database_path)
 
-    with duckdb_connection(config.database_path) as conn:
+    with duckdb_readonly_conn(config.database_path) as conn:
         result = conn.execute("""
             SELECT table_schema, table_name
             FROM information_schema.tables
@@ -309,7 +309,7 @@ def execute_custom_query(
     """
     config = DuckDBConfig(database_path)
 
-    with duckdb_connection(config.database_path) as conn:
+    with duckdb_readonly_conn(config.database_path) as conn:
         if lazy:
             return pl.read_database(query=query, connection=conn).lazy()
         else:

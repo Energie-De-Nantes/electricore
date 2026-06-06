@@ -22,7 +22,7 @@ API publique :
 """
 
 # Imports internes
-from .config import DuckDBConfig, duckdb_connection
+from .config import DuckDBConfig, duckdb_readonly_conn
 from .helpers import (
     # API fluide
     c15,
@@ -48,7 +48,7 @@ from .query import DuckDBQuery
 __all__ = [
     # Configuration
     "DuckDBConfig",
-    "duckdb_connection",
+    "duckdb_readonly_conn",
     # Query builder
     "DuckDBQuery",
     # API fluide (recommandée)

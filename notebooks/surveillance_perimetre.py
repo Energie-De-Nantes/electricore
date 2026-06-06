@@ -14,7 +14,7 @@ with app.setup(hide_code=True):
     if str(project_root) not in sys.path:
         sys.path.append(str(project_root))
 
-    from electricore.core.loaders.duckdb import duckdb_connection, DuckDBConfig
+    from electricore.core.loaders.duckdb import duckdb_readonly_conn, DuckDBConfig
 
 
 @app.cell(hide_code=True)
@@ -33,7 +33,7 @@ def _():
 @app.cell
 def _():
     _config = DuckDBConfig()
-    with duckdb_connection(_config.database_path) as _conn:
+    with duckdb_readonly_conn(_config.database_path) as _conn:
         _entrees = _conn.execute("""
             SELECT pdl, ref_situation_contractuelle, MIN(date_evenement)::DATE AS date_entree
             FROM flux_enedis.flux_c15
@@ -80,7 +80,7 @@ def _(periodes):
 @app.cell
 def _():
     _config = DuckDBConfig()
-    with duckdb_connection(_config.database_path) as _conn:
+    with duckdb_readonly_conn(_config.database_path) as _conn:
         r64_mois = _conn.execute("""
             SELECT DISTINCT pdl, DATE_TRUNC('month', date_releve::DATE)::DATE AS debut_mois
             FROM flux_enedis.flux_r64
