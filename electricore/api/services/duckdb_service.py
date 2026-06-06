@@ -5,76 +5,17 @@ Fonctions pures pour lire les tables de flux Enedis.
 
 import logging
 import os
-import time
-from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 
 import duckdb
 
+from electricore.core.loaders.duckdb import duckdb_readonly_conn
+
 logger = logging.getLogger(__name__)
 
 DB_PATH = Path(os.getenv("DUCKDB_PATH", "electricore/etl/flux_enedis_pipeline.duckdb"))
 SCHEMA = "flux_enedis"
-
-# Politique de retry lorsque le writer ETL détient le verrou exclusif.
-# 3 essais × 1s couvrent les fenêtres typiques de checkpoint DLT.
-_LOCK_RETRY_ATTEMPTS = 3
-_LOCK_RETRY_BACKOFF_S = 1.0
-
-
-def _is_lock_error(exc: duckdb.IOException) -> bool:
-    """
-    Discrimine un verrou (récupérable par retry) d'une condition non récupérable
-    comme un fichier inexistant.
-
-    DuckDB ne propose pas de hiérarchie d'exceptions plus fine que `IOException`,
-    on inspecte donc le message. Les marqueurs typiques :
-      - verrou exclusif : "Could not set lock", "Conflicting lock"
-      - fichier absent  : "does not exist"
-    """
-    msg = str(exc).lower()
-    if "does not exist" in msg or "no such file" in msg:
-        return False
-    return True
-
-
-@contextmanager
-def _connect_readonly():
-    """
-    Ouvre une connexion DuckDB read-only en réessayant si le fichier est verrouillé.
-
-    Le writer ETL (autre conteneur) peut prendre un lock exclusif pendant un
-    checkpoint ou pendant `EXPORT DATABASE`. On retente brièvement avant de
-    propager l'erreur, pour absorber les pics courts sans casser les requêtes API.
-    On ne réessaie PAS si l'erreur est "fichier introuvable" — c'est non
-    récupérable et un retry ne ferait que masquer l'erreur jusqu'au timeout.
-    """
-    last_exc: Exception | None = None
-    for attempt in range(_LOCK_RETRY_ATTEMPTS):
-        try:
-            conn = duckdb.connect(str(DB_PATH), read_only=True)
-        except duckdb.IOException as exc:
-            last_exc = exc
-            if not _is_lock_error(exc):
-                raise
-            if attempt < _LOCK_RETRY_ATTEMPTS - 1:
-                logger.warning(
-                    "DuckDB verrouillé (tentative %d/%d), nouvelle tentative dans %.1fs",
-                    attempt + 1,
-                    _LOCK_RETRY_ATTEMPTS,
-                    _LOCK_RETRY_BACKOFF_S,
-                )
-                time.sleep(_LOCK_RETRY_BACKOFF_S)
-                continue
-            raise
-        try:
-            yield conn
-        finally:
-            conn.close()
-        return
-    # Ne devrait jamais être atteint (le `raise` ci-dessus le couvre)
-    raise last_exc if last_exc else RuntimeError("Échec ouverture DuckDB")
 
 
 def get_freshness() -> dict:
@@ -100,7 +41,7 @@ def get_freshness() -> dict:
         return payload
 
     try:
-        with _connect_readonly() as conn:
+        with duckdb_readonly_conn(DB_PATH) as conn:
             rows = conn.execute(
                 "SELECT table_name, estimated_size FROM duckdb_tables() "
                 "WHERE schema_name = ? AND table_name LIKE 'flux_%' "
@@ -136,7 +77,7 @@ def query_table(table_name: str, filters: dict | None = None, limit: int = 100, 
 
     sql += f" LIMIT {limit} OFFSET {offset}"
 
-    with _connect_readonly() as conn:
+    with duckdb_readonly_conn(DB_PATH) as conn:
         result = conn.execute(sql)
         columns = [desc[0] for desc in result.description]
         return [dict(zip(columns, row, strict=False)) for row in result.fetchall()]
@@ -152,7 +93,7 @@ def get_table_info(table_name: str) -> dict:
     Returns:
         Dict avec table, count, columns
     """
-    with _connect_readonly() as conn:
+    with duckdb_readonly_conn(DB_PATH) as conn:
         # Nombre de lignes
         count = conn.execute(f"SELECT COUNT(*) FROM {SCHEMA}.flux_{table_name}").fetchone()[0]
 
@@ -178,7 +119,7 @@ def _query_table_df(table_name: str, filters: dict | None = None, limit: int = 1
         sql += f" WHERE {' AND '.join(conditions)}"
     sql += f" LIMIT {limit}"
 
-    with _connect_readonly() as conn:
+    with duckdb_readonly_conn(DB_PATH) as conn:
         return conn.execute(sql).pl()
 
 
@@ -233,7 +174,7 @@ def _query_c15_xlsx(codes: tuple[str, ...], worksheet: str, limit: int) -> bytes
 
     placeholders = ", ".join(f"'{c}'" for c in codes)
     sql = f"SELECT * FROM {SCHEMA}.flux_c15 WHERE evenement_declencheur IN ({placeholders}) LIMIT {limit}"
-    with _connect_readonly() as conn:
+    with duckdb_readonly_conn(DB_PATH) as conn:
         df = conn.execute(sql).pl()
     return xlsx_multi_sheet({worksheet: df})
 
@@ -255,7 +196,7 @@ def list_tables() -> list[str]:
     Returns:
         Liste des noms de tables (sans préfixe flux_)
     """
-    with _connect_readonly() as conn:
+    with duckdb_readonly_conn(DB_PATH) as conn:
         tables = conn.execute(f"""
             SELECT table_name 
             FROM information_schema.tables 

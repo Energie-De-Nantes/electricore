@@ -16,7 +16,7 @@ from electricore.core.loaders.duckdb import (
     DuckDBConfig,
     DuckDBQuery,
     c15,
-    duckdb_connection,
+    duckdb_readonly_conn,
     execute_custom_query,
     get_available_tables,
     load_historique,
@@ -70,7 +70,7 @@ class TestDuckDBConnection:
         mock_conn = Mock()
         mock_connect.return_value = mock_conn
 
-        with duckdb_connection("test.duckdb") as conn:
+        with duckdb_readonly_conn("test.duckdb") as conn:
             assert conn == mock_conn
 
         # Vérifier que la connexion est fermée
@@ -83,7 +83,7 @@ class TestDuckDBConnection:
         mock_connect.return_value = mock_conn
 
         try:
-            with duckdb_connection("test.duckdb"):
+            with duckdb_readonly_conn("test.duckdb"):
                 raise Exception("Test error")
         except Exception:
             pass
@@ -319,7 +319,7 @@ class TestLoadFunctions:
 class TestUtilityFunctions:
     """Tests pour les fonctions utilitaires."""
 
-    @patch("electricore.core.loaders.duckdb.helpers.duckdb_connection")
+    @patch("electricore.core.loaders.duckdb.helpers.duckdb_readonly_conn")
     def test_get_available_tables(self, mock_conn_context):
         """Test de récupération des tables disponibles."""
         # Setup du mock
@@ -344,7 +344,7 @@ class TestUtilityFunctions:
             ORDER BY table_schema, table_name
         """)
 
-    @patch("electricore.core.loaders.duckdb.helpers.duckdb_connection")
+    @patch("electricore.core.loaders.duckdb.helpers.duckdb_readonly_conn")
     @patch("electricore.core.loaders.duckdb.helpers.pl.read_database")
     def test_execute_custom_query_lazy(self, mock_read_db, mock_conn_context):
         """Test d'exécution de requête personnalisée (lazy)."""
@@ -361,7 +361,7 @@ class TestUtilityFunctions:
         assert result == mock_lazy_frame
         mock_read_db.assert_called_once()
 
-    @patch("electricore.core.loaders.duckdb.helpers.duckdb_connection")
+    @patch("electricore.core.loaders.duckdb.helpers.duckdb_readonly_conn")
     @patch("electricore.core.loaders.duckdb.helpers.pl.read_database")
     def test_execute_custom_query_eager(self, mock_read_db, mock_conn_context):
         """Test d'exécution de requête personnalisée (eager)."""
