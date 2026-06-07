@@ -11,7 +11,11 @@ import importlib
 
 import pytest
 
-FACTURATION_ORCHESTRATIONS = ("facturation_du_mois", "documents_facturation_du_mois")
+FACTURATION_ORCHESTRATIONS = (
+    "facturation_du_mois",
+    "rapport_facturation",
+    "documents_facturation_du_mois",
+)
 
 TAXES_ORCHESTRATIONS = ("rapport_accise", "accise_par_contrat", "rapport_cta", "cta_par_contrat")
 

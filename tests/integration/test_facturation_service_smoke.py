@@ -90,7 +90,7 @@ def service_loaders_mockes(
 ):
     """Patch tous les loaders et l'orchestration utilisés par le service.
 
-    `generer_facturation_xlsx` et `generer_documents_facturation` chargent
+    `generer_facturation_*_xlsx` et `generer_documents_facturation` chargent
     Odoo + DuckDB + lancent la pipeline facturation. On stub tout ce qui
     parle au monde extérieur pour pouvoir exercer la logique du service
     sans dépendances.
@@ -145,12 +145,20 @@ def service_loaders_mockes(
     monkeypatch.setattr(settings_cls, "get_odoo_config", lambda self: {})
 
 
-def test_generer_facturation_xlsx_smoke(service_loaders_mockes):
-    """generer_facturation_xlsx s'exécute sans NameError et produit un XLSX valide."""
-    xlsx_bytes = facturation_service.generer_facturation_xlsx(mois="2025-01-01")
+def test_generer_facturation_rapport_xlsx_smoke(service_loaders_mockes):
+    """generer_facturation_rapport_xlsx s'exécute sans NameError et produit un XLSX valide."""
+    xlsx_bytes = facturation_service.generer_facturation_rapport_xlsx(mois="2025-01-01")
 
     assert isinstance(xlsx_bytes, bytes)
     assert xlsx_bytes[:2] == b"PK"  # signature ZIP / XLSX
+
+
+def test_generer_facturation_detail_xlsx_smoke(service_loaders_mockes):
+    """generer_facturation_detail_xlsx s'exécute et produit un XLSX mono-onglet valide."""
+    xlsx_bytes = facturation_service.generer_facturation_detail_xlsx(mois="2025-01-01")
+
+    assert isinstance(xlsx_bytes, bytes)
+    assert xlsx_bytes[:2] == b"PK"
 
 
 def test_generer_documents_facturation_smoke(service_loaders_mockes):
@@ -172,9 +180,9 @@ def test_generer_documents_facturation_smoke(service_loaders_mockes):
     }
 
 
-def test_generer_facturation_arrow_smoke(service_loaders_mockes):
-    """generer_facturation_arrow s'exécute et retourne un flux Arrow IPC valide."""
-    arrow_bytes = facturation_service.generer_facturation_arrow(mois="2025-01-01")
+def test_generer_facturation_detail_arrow_smoke(service_loaders_mockes):
+    """generer_facturation_detail_arrow s'exécute et retourne un flux Arrow IPC valide."""
+    arrow_bytes = facturation_service.generer_facturation_detail_arrow(mois="2025-01-01")
 
     df = pl.read_ipc_stream(io.BytesIO(arrow_bytes))
     assert len(df) == 1  # une ligne du fixture
