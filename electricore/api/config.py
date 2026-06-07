@@ -5,6 +5,8 @@ Utilise Pydantic Settings pour une configuration basée sur les variables d'envi
 
 import os
 import secrets
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _pkg_version
 
 from pydantic import BaseModel, Field, validator
 
@@ -12,6 +14,14 @@ from electricore.config.env import charger_env
 
 # Charger le .env au démarrage du module
 charger_env()
+
+
+def _default_api_version() -> str:
+    """Version du package electricore (suit pyproject.toml / tag de release)."""
+    try:
+        return _pkg_version("electricore")
+    except PackageNotFoundError:
+        return "0.0.0+unknown"
 
 
 class APISettings(BaseModel):
@@ -25,7 +35,7 @@ class APISettings(BaseModel):
 
     # Configuration générale de l'API
     api_title: str = Field(default="ElectriCore API")
-    api_version: str = Field(default="0.1.0")
+    api_version: str = Field(default_factory=_default_api_version)
     api_description: str = Field(default="API sécurisée pour accéder aux données flux Enedis")
 
     # Identité de l'instance (cf. ADR-0015 — déploiement multi-instance)
@@ -68,7 +78,7 @@ class APISettings(BaseModel):
         # Charger depuis les variables d'environnement
         env_values = {
             "api_title": os.getenv("API_TITLE", "ElectriCore API"),
-            "api_version": os.getenv("API_VERSION", "0.1.0"),
+            "api_version": os.getenv("API_VERSION") or _default_api_version(),
             "api_description": os.getenv("API_DESCRIPTION", "API sécurisée pour accéder aux données flux Enedis"),
             "instance_slug": os.getenv("INSTANCE_SLUG", ""),
             "api_key": os.getenv("API_KEY", ""),
