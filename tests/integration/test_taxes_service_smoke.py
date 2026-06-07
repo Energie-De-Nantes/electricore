@@ -85,9 +85,11 @@ def test_calculer_cta_detail_delegue_a_charger_contexte_facturation(monkeypatch,
         }
     )
 
-    monkeypatch.setattr(taxes_service, "OdooReader", _OdooReaderMock)
+    from electricore.integrations.odoo import decorators as odoo_decorators
+
+    monkeypatch.setattr(odoo_decorators, "OdooReader", _OdooReaderMock)
     monkeypatch.setattr(taxes_orchestration, "query", lambda odoo, model, domain, fields: _QueryMock(df_pdl_brut))
-    settings_cls = type(taxes_service.settings)
+    settings_cls = type(odoo_decorators.settings)
     monkeypatch.setattr(settings_cls, "get_odoo_config", lambda self: {})
 
     result = taxes_service.calculer_cta_detail()

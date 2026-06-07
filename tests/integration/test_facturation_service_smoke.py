@@ -119,8 +119,11 @@ def service_loaders_mockes(
         def filter(self, *args, **kwargs):
             return _QueryMock(self.lazy().filter(*args, **kwargs))
 
-    # OdooReader reste importé dans le service (binding HTTP).
-    monkeypatch.setattr(facturation_service, "OdooReader", _OdooReaderMock)
+    # Depuis #67 : `OdooReader` est ouvert par le décorateur `@with_odoo`
+    # qui vit dans `electricore.integrations.odoo.decorators`.
+    from electricore.integrations.odoo import decorators as odoo_decorators
+
+    monkeypatch.setattr(odoo_decorators, "OdooReader", _OdooReaderMock)
 
     # Depuis #39 (ADR-0016) : l'orchestration vit dans `integrations.odoo.facturation`,
     # donc les mocks ciblent ce module-là plutôt que le service.
@@ -141,7 +144,7 @@ def service_loaders_mockes(
     monkeypatch.setattr(facturation_orchestration, "charger_contexte_facturation", _fake_charger_contexte)
 
     # pydantic Settings interdit setattr — on patche la méthode sur la classe.
-    settings_cls = type(facturation_service.settings)
+    settings_cls = type(odoo_decorators.settings)
     monkeypatch.setattr(settings_cls, "get_odoo_config", lambda self: {})
 
 
@@ -228,11 +231,13 @@ def test_calculer_lignes_facture_rapprochees_delegue_a_charger_contexte_facturat
         def collect(self):
             return self._df
 
-    monkeypatch.setattr(facturation_service, "OdooReader", _OdooReaderMock)
+    from electricore.integrations.odoo import decorators as odoo_decorators
+
+    monkeypatch.setattr(odoo_decorators, "OdooReader", _OdooReaderMock)
     monkeypatch.setattr(
         facturation_orchestration, "lignes_factures_du_mois", lambda odoo, mois: _QueryMock(df_lignes_odoo_minimal)
     )
-    settings_cls = type(facturation_service.settings)
+    settings_cls = type(odoo_decorators.settings)
     monkeypatch.setattr(settings_cls, "get_odoo_config", lambda self: {})
 
     result = facturation_service.calculer_lignes_facture_rapprochees(mois="2025-01-01")

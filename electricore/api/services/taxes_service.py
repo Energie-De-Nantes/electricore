@@ -3,20 +3,18 @@
 Le calcul et l'orchestration métier vivent dans
 `electricore.integrations.odoo.taxes`. Ce service ne fait que :
 
-1. Ouvrir la connexion `OdooReader` (responsabilité HTTP)
-2. Déléguer à l'orchestration (`accise_par_contrat`, `rapport_accise`,
-   `cta_par_contrat`, `rapport_cta`)
+1. Ouvrir la connexion Odoo via `@with_odoo` (cf. issue #67)
+2. Déléguer à l'orchestration
 3. Sérialiser le résultat (XLSX multi-onglets / Arrow IPC).
 
-La shape des livrables (`Résumé` / `Par taux` / `Détail`) vit désormais dans
-`integrations.odoo.taxes.rapport_accise` et `.rapport_cta` (cf. issues #56, #63).
+La shape des livrables (`Résumé` / `Par taux` / `Détail`) vit dans
+`integrations.odoo.taxes.rapport_accise` et `.rapport_cta` (#56, #63).
 """
 
 import polars as pl
 
-from electricore.api.config import settings
 from electricore.api.serializers import arrow_stream, xlsx_multi_sheet
-from electricore.integrations.odoo import OdooReader
+from electricore.integrations.odoo.decorators import with_odoo
 from electricore.integrations.odoo.taxes import (
     accise_par_contrat,
     cta_par_contrat,
@@ -24,11 +22,15 @@ from electricore.integrations.odoo.taxes import (
     rapport_cta,
 )
 
+# =============================================================================
+# Accise — détail brut + rapport agrégé
+# =============================================================================
 
-def calculer_accise_detail(trimestre: str | None = None) -> pl.DataFrame:
-    """Binding HTTP : ouvre Odoo + délègue à `accise_par_contrat`."""
-    with OdooReader(config=settings.get_odoo_config()) as odoo:
-        return accise_par_contrat(odoo, trimestre)
+
+@with_odoo
+def calculer_accise_detail(odoo, trimestre: str | None = None) -> pl.DataFrame:
+    """Binding HTTP : délègue à `accise_par_contrat` avec OdooReader auto-géré."""
+    return accise_par_contrat(odoo, trimestre)
 
 
 def generer_accise_detail_arrow(trimestre: str | None = None) -> bytes:
@@ -41,10 +43,14 @@ def generer_accise_detail_xlsx(trimestre: str | None = None) -> bytes:
     return xlsx_multi_sheet({"Détail": calculer_accise_detail(trimestre)})
 
 
+@with_odoo
+def _accise_rapport(odoo, trimestre: str | None = None):
+    return rapport_accise(odoo, trimestre)
+
+
 def generer_accise_rapport_xlsx(trimestre: str | None = None) -> bytes:
     """Livrable facturiste : 3 onglets (Résumé / Par taux / Détail) depuis `rapport_accise`."""
-    with OdooReader(config=settings.get_odoo_config()) as odoo:
-        r = rapport_accise(odoo, trimestre)
+    r = _accise_rapport(trimestre)
     return xlsx_multi_sheet(
         {
             "Résumé": r.resume,
@@ -54,10 +60,15 @@ def generer_accise_rapport_xlsx(trimestre: str | None = None) -> bytes:
     )
 
 
-def calculer_cta_detail(trimestre: str | None = None) -> pl.DataFrame:
-    """Binding HTTP : ouvre Odoo + délègue à `cta_par_contrat`."""
-    with OdooReader(config=settings.get_odoo_config()) as odoo:
-        return cta_par_contrat(odoo, trimestre)
+# =============================================================================
+# CTA — détail brut + rapport agrégé
+# =============================================================================
+
+
+@with_odoo
+def calculer_cta_detail(odoo, trimestre: str | None = None) -> pl.DataFrame:
+    """Binding HTTP : délègue à `cta_par_contrat` avec OdooReader auto-géré."""
+    return cta_par_contrat(odoo, trimestre)
 
 
 def generer_cta_detail_arrow(trimestre: str | None = None) -> bytes:
@@ -70,6 +81,11 @@ def generer_cta_detail_xlsx(trimestre: str | None = None) -> bytes:
     return xlsx_multi_sheet({"Détail": calculer_cta_detail(trimestre)})
 
 
+@with_odoo
+def _cta_rapport(odoo, trimestre: str | None = None):
+    return rapport_cta(odoo, trimestre)
+
+
 def generer_cta_rapport_xlsx(trimestre: str | None = None) -> bytes:
     """Livrable facturiste : 3 onglets (Résumé / Par taux / Détail) depuis `rapport_cta`.
 
@@ -77,8 +93,7 @@ def generer_cta_rapport_xlsx(trimestre: str | None = None) -> bytes:
     l'onglet `Par taux` reflète cette dimensionalité, et l'onglet `Détail`
     list les taux successifs par PDL en string joined ` ; `.
     """
-    with OdooReader(config=settings.get_odoo_config()) as odoo:
-        r = rapport_cta(odoo, trimestre)
+    r = _cta_rapport(trimestre)
     return xlsx_multi_sheet(
         {
             "Résumé": r.resume,
