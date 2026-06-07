@@ -102,6 +102,20 @@ def rapport_facturation(odoo: OdooReader, mois: str | None = None) -> RapportFac
     return RapportFacturation(resume=resume, lignes=lignes, changements_puissance=changements_puissance)
 
 
+def feuilles_rapport_facturation(r: RapportFacturation) -> dict[str, pl.DataFrame]:
+    """Mapping onglet → DataFrame pour le livrable XLSX facturation (cf. CONTEXT.md).
+
+    Consommable directement par `xlsx_multi_sheet`. Co-localisée avec
+    `rapport_facturation` parce que le shape du livrable et son contenu sont
+    indissociables.
+    """
+    return {
+        "Résumé": r.resume,
+        "Lignes": r.lignes,
+        "Changements puissance": r.changements_puissance,
+    }
+
+
 def documents_facturation_du_mois(odoo: OdooReader, mois: str | None = None) -> tuple[dict[str, pl.DataFrame], str]:
     """Documents utiles à la campagne de facturation mensuelle (audit + injection).
 

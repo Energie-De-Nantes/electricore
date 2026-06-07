@@ -42,10 +42,21 @@ def df_attendu() -> pl.DataFrame:
 
 @pytest.fixture
 def client_electricore(monkeypatch, df_attendu):
-    """ElectricoreClient pointé sur l'app FastAPI avec service moqué."""
+    """ElectricoreClient pointé sur l'app FastAPI avec orchestration moquée.
+
+    Depuis #77, l'endpoint stacke @arrow_endpoint + @with_odoo : on court-circuite
+    `OdooReader` et on patche `facturation_du_mois` au point d'import dans `main.py`.
+    """
+    from contextlib import contextmanager
+
+    @contextmanager
+    def _fake_reader(config):
+        yield None
+
+    monkeypatch.setattr("electricore.integrations.odoo.decorators.OdooReader", _fake_reader)
     monkeypatch.setattr(
-        "electricore.api.services.facturation_service.calculer_lignes_facture_rapprochees",
-        lambda mois=None: df_attendu,
+        "electricore.api.main.facturation_du_mois",
+        lambda odoo, mois=None: df_attendu,
     )
     app.dependency_overrides[get_current_api_key] = lambda: "test-key"
     transport = TestClient(app)
@@ -95,6 +106,8 @@ def test_accise_round_trip_via_endpoint(monkeypatch):
 
 def test_cta_round_trip_via_endpoint(monkeypatch):
     """`client.cta(trimestre)` round-trip un DataFrame servi par /taxes/cta/detail.arrow."""
+    from contextlib import contextmanager
+
     df_attendu = pl.DataFrame(
         {
             "pdl": ["12345678901234"],
@@ -105,9 +118,17 @@ def test_cta_round_trip_via_endpoint(monkeypatch):
             "taux_cta_pct": [21.61],
         }
     )
+
+    # Depuis #77, l'endpoint stacke @arrow_endpoint + @with_odoo : court-circuit
+    # `OdooReader` et patche `cta_par_contrat` au point d'import dans `main.py`.
+    @contextmanager
+    def _fake_reader(config):
+        yield None
+
+    monkeypatch.setattr("electricore.integrations.odoo.decorators.OdooReader", _fake_reader)
     monkeypatch.setattr(
-        "electricore.api.services.taxes_service.calculer_cta_detail",
-        lambda trimestre=None: df_attendu,
+        "electricore.api.main.cta_par_contrat",
+        lambda odoo, trimestre=None: df_attendu,
     )
     app.dependency_overrides[get_current_api_key] = lambda: "test-key"
     try:

@@ -243,3 +243,13 @@ def rapport_cta(odoo: OdooReader, trimestre: str | None = None) -> RapportCta:
     RapportCtaParTaux.validate(par_taux)
     RapportCtaDetail.validate(detail)
     return RapportCta(resume=resume, par_taux=par_taux, detail=detail)
+
+
+def feuilles_rapport_cta(r: RapportCta) -> dict[str, pl.DataFrame]:
+    """Mapping onglet → DataFrame pour le livrable XLSX CTA (cf. CONTEXT.md).
+
+    Consommable directement par `xlsx_multi_sheet`. Co-localisée avec
+    `rapport_cta` parce que le shape du livrable et son contenu sont
+    indissociables.
+    """
+    return {"Résumé": r.resume, "Par taux": r.par_taux, "Détail": r.detail}

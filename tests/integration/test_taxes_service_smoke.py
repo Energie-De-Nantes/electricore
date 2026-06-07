@@ -1,16 +1,19 @@
-"""Tests smoke de `taxes_service.calculer_cta_detail`.
+"""Tests smoke de `cta_par_contrat` (orchestration CTA).
 
-Garantit que la fonction délègue le chargement de la facturation à
-`charger_contexte_facturation` (issue #19) au lieu de reconstruire la trio
-`c15 + releves_harmonises + facturation()`.
+Garantit que l'orchestration délègue le chargement de la facturation à
+`charger_contexte_facturation` (issue #19) plutôt que de reconstruire la
+trio `c15 + releves_harmonises + facturation()`.
+
+Depuis #77, `taxes_service.calculer_cta_detail` a disparu — l'endpoint
+appelle directement `cta_par_contrat` côté `integrations.odoo.taxes`.
 """
 
+from contextlib import contextmanager
 from datetime import datetime
 
 import polars as pl
 import pytest
 
-from electricore.api.services import taxes_service
 from electricore.core.loaders.contexte_mensuel import ContexteFacturation
 from electricore.integrations.odoo import taxes as taxes_orchestration
 
@@ -34,11 +37,10 @@ def df_facturation_mensuelle_cta() -> pl.DataFrame:
     )
 
 
-def test_calculer_cta_detail_delegue_a_charger_contexte_facturation(monkeypatch, df_facturation_mensuelle_cta):
+def test_cta_par_contrat_delegue_a_charger_contexte_facturation(monkeypatch, df_facturation_mensuelle_cta):
     """`cta_par_contrat` consomme `ContexteFacturation` (issue #19 + #40, ADR-0016).
 
-    Depuis #40, l'orchestration vit dans `integrations.odoo.taxes`. Le test vérifie
-    que la chaîne service → orchestration délègue toujours à `charger_contexte_facturation`
+    Invariant : l'orchestration délègue à `charger_contexte_facturation`
     plutôt que de reconstruire la trio `c15 + releves + facturation()`.
     """
     contexte_prefab = ContexteFacturation(
@@ -56,9 +58,6 @@ def test_calculer_cta_detail_delegue_a_charger_contexte_facturation(monkeypatch,
 
     # Stubs Odoo (l'orchestration charge encore les PDLs depuis sale.order).
     class _OdooReaderMock:
-        def __init__(self, *args, **kwargs):
-            pass
-
         def __enter__(self):
             return self
 
@@ -85,14 +84,14 @@ def test_calculer_cta_detail_delegue_a_charger_contexte_facturation(monkeypatch,
         }
     )
 
-    from electricore.integrations.odoo import decorators as odoo_decorators
-
-    monkeypatch.setattr(odoo_decorators, "OdooReader", _OdooReaderMock)
     monkeypatch.setattr(taxes_orchestration, "query", lambda odoo, model, domain, fields: _QueryMock(df_pdl_brut))
-    settings_cls = type(odoo_decorators.settings)
-    monkeypatch.setattr(settings_cls, "get_odoo_config", lambda self: {})
 
-    result = taxes_service.calculer_cta_detail()
+    @contextmanager
+    def _fake_reader(config):
+        yield _OdooReaderMock()
+
+    with _fake_reader(config={}) as odoo:
+        result = taxes_orchestration.cta_par_contrat(odoo)
 
     assert appels_charger == [None], "charger_contexte_facturation doit être appelé une fois"
     assert isinstance(result, pl.DataFrame)

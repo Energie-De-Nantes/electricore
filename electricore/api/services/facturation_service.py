@@ -1,59 +1,17 @@
-"""Service de sérialisation de la facturation Odoo ↔ Enedis.
+"""Service de sérialisation pour `/facturation/documents` (ZIP CSV).
 
-Le calcul et l'orchestration métier vivent dans
-`electricore.integrations.odoo.facturation`. Ce service ne fait que :
+Volet rapport/detail migré (issue #77) : les endpoints `/facturation/rapport.xlsx`,
+`/facturation/detail.xlsx`, `/facturation/detail.arrow` consomment désormais
+directement `feuilles_rapport_facturation` + `facturation_du_mois` côté
+`integrations.odoo.facturation`, sans couche service intermédiaire.
 
-1. Ouvrir la connexion Odoo via `@with_odoo` (cf. issue #67)
-2. Déléguer à `facturation_du_mois`, `rapport_facturation` ou
-   `documents_facturation_du_mois`
-3. Sérialiser le résultat (XLSX / Arrow IPC / ZIP)
-
-La shape des livrables (`Résumé` / `Lignes` / `Changements puissance`) vit
-dans `integrations.odoo.facturation.rapport_facturation` (#64).
+Le wrapper `_documents_facturation` reste ici tant que `/facturation/documents`
+n'est pas migré au format XLSX multi-onglets (issue #78).
 """
 
-import polars as pl
-
-from electricore.api.serializers import arrow_stream, xlsx_multi_sheet, zip_csv
+from electricore.api.serializers import zip_csv
 from electricore.integrations.odoo.decorators import with_odoo
-from electricore.integrations.odoo.facturation import (
-    documents_facturation_du_mois,
-    facturation_du_mois,
-    rapport_facturation,
-)
-
-
-@with_odoo
-def calculer_lignes_facture_rapprochees(odoo, mois: str | None = None) -> pl.DataFrame:
-    """Binding HTTP : délègue à `facturation_du_mois` avec OdooReader auto-géré."""
-    return facturation_du_mois(odoo, mois)
-
-
-def generer_facturation_detail_arrow(mois: str | None = None) -> bytes:
-    """Sérialise les lignes brutes du mois en flux Arrow IPC (cas technique)."""
-    return arrow_stream(calculer_lignes_facture_rapprochees(mois))
-
-
-def generer_facturation_detail_xlsx(mois: str | None = None) -> bytes:
-    """Sérialise les lignes brutes du mois en XLSX mono-onglet (cas technique)."""
-    return xlsx_multi_sheet({"Détail": calculer_lignes_facture_rapprochees(mois)})
-
-
-@with_odoo
-def _facturation_rapport(odoo, mois: str | None = None):
-    return rapport_facturation(odoo, mois)
-
-
-def generer_facturation_rapport_xlsx(mois: str | None = None) -> bytes:
-    """Livrable facturiste : 3 onglets (Résumé / Lignes / Changements puissance)."""
-    r = _facturation_rapport(mois)
-    return xlsx_multi_sheet(
-        {
-            "Résumé": r.resume,
-            "Lignes": r.lignes,
-            "Changements puissance": r.changements_puissance,
-        }
-    )
+from electricore.integrations.odoo.facturation import documents_facturation_du_mois
 
 
 @with_odoo

@@ -1,9 +1,10 @@
 """Contexte mensuel de facturation — éléments dérivés une seule fois pour un mois.
 
 `charger_contexte_facturation` centralise la séquence répétée par
-plusieurs services (`facturation_service`, `taxes_service` côté CTA) :
-charger l'historique et les relevés harmonisés, déclencher le pipeline
-`facturation()`, et résoudre le mois cible quand il n'est pas fourni.
+plusieurs orchestrations (`facturation_du_mois`, `cta_par_contrat` côté
+`integrations.odoo`) : charger l'historique et les relevés harmonisés,
+déclencher le pipeline `facturation()`, et résoudre le mois cible quand
+il n'est pas fourni.
 
 Voir issue #17.
 """
