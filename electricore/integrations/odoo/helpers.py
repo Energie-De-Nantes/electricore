@@ -42,31 +42,6 @@ def query(odoo: OdooReader, model: str, domain: list | None = None, fields: list
     return OdooQuery(connector=odoo, lazy_frame=df.lazy(), _current_model=model)
 
 
-def factures(odoo: OdooReader, domain: list | None = None) -> OdooQuery:
-    """
-    Query builder pour factures Odoo (account.move).
-
-    Shortcut pour créer un query builder sur les factures avec champs standards.
-
-    Args:
-        odoo: Instance OdooReader connectée
-        domain: Filtre Odoo initial (ex: [('state', '=', 'posted')])
-
-    Returns:
-        OdooQuery chainable
-
-    Example:
-        >>> with OdooReader(config) as odoo:
-        ...     df = (factures(odoo, domain=[('state', '=', 'posted')])
-        ...         .enrich('partner_id', fields=['name', 'email'])
-        ...         .filter(pl.col('amount_total') > 1000)
-        ...         .collect())
-    """
-    return query(
-        odoo, "account.move", domain=domain, fields=["name", "invoice_date", "amount_total", "state", "partner_id"]
-    )
-
-
 def lignes_factures(odoo: OdooReader, domain: list | None = None) -> OdooQuery:
     """
     Query builder pour lignes de factures Odoo (account.move.line).
@@ -113,61 +88,9 @@ def commandes(odoo: OdooReader, domain: list | None = None) -> OdooQuery:
     )
 
 
-def partenaires(odoo: OdooReader, domain: list | None = None) -> OdooQuery:
-    """
-    Query builder pour partenaires Odoo (res.partner).
-
-    Args:
-        odoo: Instance OdooReader connectée
-        domain: Filtre Odoo initial (ex: [('customer_rank', '>', 0)])
-
-    Returns:
-        OdooQuery chainable
-
-    Example:
-        >>> with OdooReader(config) as odoo:
-        ...     df = (partenaires(odoo, domain=[('customer_rank', '>', 0)])
-        ...         .filter(pl.col('active') == True)
-        ...         .collect())
-    """
-    return query(odoo, "res.partner", domain=domain, fields=["name", "email", "phone", "customer_rank", "active"])
-
-
 # =============================================================================
 # HELPERS AVEC NAVIGATION - Raccourcis pour relations multi-niveaux
 # =============================================================================
-
-
-def commandes_factures(odoo: OdooReader, domain: list | None = None) -> OdooQuery:
-    """
-    Query builder pour commandes avec factures.
-
-    Navigation : sale.order → account.move
-
-    Args:
-        odoo: Instance OdooReader connectée
-        domain: Filtre Odoo initial sur sale.order
-
-    Returns:
-        OdooQuery chainable avec navigation pré-configurée
-
-    Example:
-        >>> with OdooReader(config) as odoo:
-        ...     # Utilisation simple
-        ...     df = commandes_factures(odoo, domain=[('state', '=', 'sale')]).collect()
-        ...
-        ...     # Avec filtres et transformations supplémentaires
-        ...     df = (commandes_factures(odoo)
-        ...         .filter(pl.col('invoice_date') >= '2024-01-01')
-        ...         .select(['name', 'date_order', 'name_account_move', 'invoice_date'])
-        ...         .collect())
-    """
-    return query(
-        odoo,
-        "sale.order",
-        domain=domain,
-        fields=["name", "date_order", "amount_total", "state", "x_pdl", "partner_id", "invoice_ids"],
-    ).follow("invoice_ids", fields=["name", "invoice_date", "invoice_line_ids"])
 
 
 def commandes_lignes(odoo: OdooReader, domain: list | None = None) -> OdooQuery:
@@ -226,44 +149,6 @@ def commandes_lignes(odoo: OdooReader, domain: list | None = None) -> OdooQuery:
         .follow("product_id", fields=["name", "categ_id"])
         .enrich("categ_id", fields=["name"])
     )
-
-
-def consommations_mensuelles(odoo: OdooReader, domain: list | None = None) -> OdooQuery:
-    """
-    Query builder pour consommations mensuelles agrégées.
-
-    Récupère les lignes de factures avec les informations nécessaires au calcul
-    des consommations mensuelles. Les données doivent être agrégées post-collecte
-    avec les pipelines appropriés (voir pipeline_accise).
-
-    Navigation : sale.order → account.move → account.move.line → product.product → product.category
-
-    Args:
-        odoo: Instance OdooReader connectée
-        domain: Filtre Odoo initial sur sale.order
-
-    Returns:
-        OdooQuery chainable retournant les lignes de factures
-
-    Example:
-        >>> from electricore.integrations.odoo import consommations_mensuelles
-        >>> from electricore.core.pipelines.accise import pipeline_accise
-        >>>
-        >>> with OdooReader(config) as odoo:
-        ...     # Récupérer les données et appliquer le pipeline
-        ...     lignes = consommations_mensuelles(odoo).collect()
-        ...     df_accise = pipeline_accise(lignes.lazy())
-        ...
-        ...     # Ou directement avec commandes_lignes()
-        ...     lignes = commandes_lignes(odoo).collect()
-        ...     df_accise = pipeline_accise(lignes.lazy())
-
-    Note:
-        Ce helper est identique à commandes_lignes() et existe pour cohérence
-        sémantique. Pour le calcul d'Accise, utilisez pipeline_accise() qui gère
-        l'agrégation et les calculs.
-    """
-    return commandes_lignes(odoo, domain=domain)
 
 
 def flags_etat_facturation(lf: pl.LazyFrame) -> pl.LazyFrame:
