@@ -566,7 +566,7 @@ wheels = [
 
 [[package]]
 name = "electricore"
-version = "1.7.0rc2"
+version = "1.7.0rc3"
 source = { editable = "." }
 dependencies = [
     { name = "duckdb" },
