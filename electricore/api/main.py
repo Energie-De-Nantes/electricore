@@ -20,8 +20,9 @@ from electricore.api.services import duckdb_service, etl_service
 from electricore.api.services.check_facturation_service import verifier_odoo
 from electricore.api.services.facturation_service import (
     generer_documents_facturation,
-    generer_facturation_arrow,
-    generer_facturation_xlsx,
+    generer_facturation_detail_arrow,
+    generer_facturation_detail_xlsx,
+    generer_facturation_rapport_xlsx,
 )
 from electricore.api.services.taxes_service import (
     generer_accise_detail_arrow,
@@ -494,28 +495,52 @@ def export_cta_detail_arrow(
     return generer_cta_detail_arrow(trimestre)
 
 
-@xlsx_endpoint(app, "/facturation/xlsx", filename="facturation{mois}.xlsx", requires_odoo=True, tags=["facturation"])
-def export_facturation_xlsx(
+@xlsx_endpoint(
+    app,
+    "/facturation/rapport.xlsx",
+    filename="facturation_rapport{mois}.xlsx",
+    requires_odoo=True,
+    tags=["facturation"],
+)
+def export_facturation_rapport_xlsx(
     mois: str | None = Query(
         default=None,
         examples=["2025-01-01"],
         description="Mois au format YYYY-MM-DD (défaut : dernier mois disponible dans les données)",
     ),
 ) -> bytes:
-    """Réconciliation des lignes Odoo à facturer avec les données Enedis (2 onglets XLSX)."""
-    return generer_facturation_xlsx(mois)
+    """Livrable facturiste : 3 onglets (Résumé / Lignes / Changements puissance)."""
+    return generer_facturation_rapport_xlsx(mois)
 
 
-@arrow_endpoint(app, "/facturation/arrow", requires_odoo=True, tags=["facturation"])
-def export_facturation_arrow(
+@xlsx_endpoint(
+    app,
+    "/facturation/detail.xlsx",
+    filename="facturation_detail{mois}.xlsx",
+    requires_odoo=True,
+    tags=["facturation"],
+)
+def export_facturation_detail_xlsx(
     mois: str | None = Query(
         default=None,
         examples=["2025-01-01"],
         description="Mois au format YYYY-MM-DD (défaut : dernier mois disponible dans les données)",
     ),
 ) -> bytes:
-    """Réconciliation Odoo↔Enedis sérialisée en Arrow IPC stream (`lignes_facture_rapprochees`)."""
-    return generer_facturation_arrow(mois)
+    """Lignes brutes du rapprochement Odoo↔Enedis en XLSX mono-onglet (cas technique)."""
+    return generer_facturation_detail_xlsx(mois)
+
+
+@arrow_endpoint(app, "/facturation/detail.arrow", requires_odoo=True, tags=["facturation"])
+def export_facturation_detail_arrow(
+    mois: str | None = Query(
+        default=None,
+        examples=["2025-01-01"],
+        description="Mois au format YYYY-MM-DD (défaut : dernier mois disponible dans les données)",
+    ),
+) -> bytes:
+    """Lignes brutes du rapprochement Odoo↔Enedis en Arrow IPC stream (cas technique)."""
+    return generer_facturation_detail_arrow(mois)
 
 
 @app.get("/facturation/check/odoo", tags=["facturation"])

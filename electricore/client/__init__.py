@@ -67,7 +67,7 @@ class ElectricoreClient:
         Args:
             mois: "YYYY-MM-DD" — défaut : dernier mois disponible côté serveur.
         """
-        return self._get_arrow("/facturation/arrow", {"mois": mois} if mois else {})
+        return self._get_arrow("/facturation/detail.arrow", {"mois": mois} if mois else {})
 
     def accise(self, trimestre: str | None = None) -> pl.DataFrame:
         """Récupère le détail Accise TICFE pour le trimestre donné.

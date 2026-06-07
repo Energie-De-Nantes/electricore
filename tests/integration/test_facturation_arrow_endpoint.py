@@ -1,6 +1,10 @@
-"""Tests d'intégration de l'endpoint `GET /facturation/arrow`."""
+"""Tests d'intégration des endpoints `/facturation/*` (issue #64).
+
+3 endpoints : `rapport.xlsx` (facturiste), `detail.xlsx` + `detail.arrow` (technique).
+"""
 
 import io
+from contextlib import contextmanager
 
 import polars as pl
 import pytest
@@ -11,6 +15,9 @@ from electricore.api.config import settings
 from electricore.api.main import app
 from electricore.api.security import get_current_api_key
 
+ARROW_IPC = "application/vnd.apache.arrow.stream"
+XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
 
 @pytest.fixture(autouse=True)
 def _mock_odoo_configured(monkeypatch):
@@ -19,8 +26,20 @@ def _mock_odoo_configured(monkeypatch):
 
 
 @pytest.fixture
+def _mock_odoo_reader(monkeypatch):
+    """Court-circuite `OdooReader` (les tests mockent directement les orchestrations)."""
+
+    @contextmanager
+    def _fake_reader(config):
+        yield None
+
+    monkeypatch.setattr("electricore.integrations.odoo.OdooReader", _fake_reader)
+    monkeypatch.setattr("electricore.api.services.facturation_service.OdooReader", _fake_reader)
+
+
+@pytest.fixture
 def lignes_rapprochees_attendues() -> pl.DataFrame:
-    """Petit DataFrame qui mime la sortie de rapprocher_facturation_mensuelle."""
+    """Petit DataFrame qui mime la sortie de `facturation_du_mois`."""
     return pl.DataFrame(
         {
             "invoice_line_ids": [101, 102],
@@ -36,53 +55,141 @@ def lignes_rapprochees_attendues() -> pl.DataFrame:
     )
 
 
-@pytest.fixture
-def client_avec_service_mock(monkeypatch, lignes_rapprochees_attendues):
-    """TestClient avec auth + service de facturation moqués."""
+# =============================================================================
+# /facturation/detail.arrow
+# =============================================================================
+
+
+def test_detail_arrow_retourne_arrow_ipc_stream(monkeypatch, lignes_rapprochees_attendues):
+    """L'endpoint sert le DataFrame brut en Arrow IPC."""
     app.dependency_overrides[get_current_api_key] = lambda: "test-key"
     monkeypatch.setattr(
         "electricore.api.services.facturation_service.calculer_lignes_facture_rapprochees",
         lambda mois=None: lignes_rapprochees_attendues,
     )
-    yield TestClient(app)
-    app.dependency_overrides.clear()
-
-
-def test_endpoint_retourne_arrow_ipc_stream(client_avec_service_mock, lignes_rapprochees_attendues):
-    """L'endpoint sert le DataFrame `lignes_facture_rapprochees` en Arrow IPC."""
-    response = client_avec_service_mock.get("/facturation/arrow")
+    try:
+        response = TestClient(app).get("/facturation/detail.arrow")
+    finally:
+        app.dependency_overrides.clear()
 
     assert response.status_code == 200
-    assert response.headers["content-type"] == "application/vnd.apache.arrow.stream"
+    assert response.headers["content-type"] == ARROW_IPC
 
     df = pl.read_ipc_stream(io.BytesIO(response.content))
     assert_frame_equal(df, lignes_rapprochees_attendues)
 
 
-def test_endpoint_refuse_sans_api_key():
-    """Sans header `X-API-Key`, l'endpoint répond 401."""
-    response = TestClient(app).get("/facturation/arrow")
+def test_detail_arrow_refuse_sans_api_key():
+    response = TestClient(app).get("/facturation/detail.arrow")
     assert response.status_code == 401
 
 
-def test_endpoint_propage_le_parametre_mois_au_service(monkeypatch, lignes_rapprochees_attendues):
-    """Le query param `mois` est transmis au service de calcul."""
+def test_detail_arrow_propage_mois(monkeypatch, lignes_rapprochees_attendues):
+    """Le query param `mois` est transmis à `calculer_lignes_facture_rapprochees`."""
     app.dependency_overrides[get_current_api_key] = lambda: "test-key"
-    appels_avec_mois: list[str | None] = []
+    appels: list[str | None] = []
 
     def fake_calculer(mois: str | None = None) -> pl.DataFrame:
-        appels_avec_mois.append(mois)
+        appels.append(mois)
         return lignes_rapprochees_attendues
 
     monkeypatch.setattr(
         "electricore.api.services.facturation_service.calculer_lignes_facture_rapprochees",
         fake_calculer,
     )
-
     try:
-        response = TestClient(app).get("/facturation/arrow", params={"mois": "2025-03-01"})
+        response = TestClient(app).get("/facturation/detail.arrow", params={"mois": "2025-03-01"})
     finally:
         app.dependency_overrides.clear()
 
     assert response.status_code == 200
-    assert appels_avec_mois == ["2025-03-01"]
+    assert appels == ["2025-03-01"]
+
+
+# =============================================================================
+# /facturation/detail.xlsx
+# =============================================================================
+
+
+def test_detail_xlsx_retourne_xlsx_mono_onglet(monkeypatch, lignes_rapprochees_attendues):
+    """L'endpoint sert les lignes brutes en XLSX mono-onglet."""
+    app.dependency_overrides[get_current_api_key] = lambda: "test-key"
+    monkeypatch.setattr(
+        "electricore.api.services.facturation_service.calculer_lignes_facture_rapprochees",
+        lambda mois=None: lignes_rapprochees_attendues,
+    )
+    try:
+        response = TestClient(app).get("/facturation/detail.xlsx")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith(XLSX_MIME)
+    assert "attachment" in response.headers.get("content-disposition", "")
+
+
+# =============================================================================
+# /facturation/rapport.xlsx
+# =============================================================================
+
+
+@pytest.fixture
+def fake_rapport_facturation(lignes_rapprochees_attendues):
+    """`RapportFacturation` synthétique pour la sérialisation XLSX."""
+    from electricore.integrations.odoo.facturation import RapportFacturation
+
+    return RapportFacturation(
+        resume=pl.DataFrame(
+            {
+                "mois": ["2025-03-01"],
+                "nb_pdl": [2],
+                "total_a_facturer": [2],
+                "total_a_supprimer": [0],
+            }
+        ),
+        lignes=lignes_rapprochees_attendues,
+        changements_puissance=lignes_rapprochees_attendues.head(0),
+    )
+
+
+def test_rapport_xlsx_retourne_xlsx_multi_onglets(monkeypatch, _mock_odoo_reader, fake_rapport_facturation):
+    """L'endpoint sert le rapport multi-onglets (Résumé / Lignes / Changements puissance)."""
+    app.dependency_overrides[get_current_api_key] = lambda: "test-key"
+    monkeypatch.setattr(
+        "electricore.api.services.facturation_service.rapport_facturation",
+        lambda odoo, mois=None: fake_rapport_facturation,
+    )
+    try:
+        response = TestClient(app).get("/facturation/rapport.xlsx")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith(XLSX_MIME)
+    assert "attachment" in response.headers.get("content-disposition", "")
+
+
+def test_rapport_xlsx_propage_mois(monkeypatch, _mock_odoo_reader, fake_rapport_facturation):
+    """Le query param `mois` est propagé jusqu'à `rapport_facturation`."""
+    app.dependency_overrides[get_current_api_key] = lambda: "test-key"
+    appels: list[str | None] = []
+
+    def _capture(odoo, mois=None):
+        appels.append(mois)
+        return fake_rapport_facturation
+
+    monkeypatch.setattr("electricore.api.services.facturation_service.rapport_facturation", _capture)
+    try:
+        response = TestClient(app).get("/facturation/rapport.xlsx", params={"mois": "2025-04-01"})
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert appels == ["2025-04-01"]
+
+
+def test_anciens_endpoints_facturation_404(_mock_odoo_reader):
+    """Les anciens paths `/facturation/xlsx` et `/facturation/arrow` sont supprimés."""
+    for path in ("/facturation/xlsx", "/facturation/arrow"):
+        response = TestClient(app).get(path)
+        assert response.status_code == 404, f"{path} devrait être 404"
