@@ -55,7 +55,7 @@ def client_electricore(monkeypatch, df_attendu):
 
     monkeypatch.setattr("electricore.integrations.odoo.decorators.OdooReader", _fake_reader)
     monkeypatch.setattr(
-        "electricore.api.main.facturation_du_mois",
+        "electricore.api.routers.facturation.facturation_du_mois",
         lambda odoo, mois=None: df_attendu,
     )
     app.dependency_overrides[get_current_api_key] = lambda: "test-key"
@@ -91,7 +91,7 @@ def test_accise_round_trip_via_endpoint(monkeypatch):
 
     monkeypatch.setattr("electricore.integrations.odoo.decorators.OdooReader", _fake_reader)
     monkeypatch.setattr(
-        "electricore.api.main.accise_par_contrat",
+        "electricore.api.routers.taxes.accise_par_contrat",
         lambda odoo, trimestre=None: df_attendu,
     )
     app.dependency_overrides[get_current_api_key] = lambda: "test-key"
@@ -127,7 +127,7 @@ def test_cta_round_trip_via_endpoint(monkeypatch):
 
     monkeypatch.setattr("electricore.integrations.odoo.decorators.OdooReader", _fake_reader)
     monkeypatch.setattr(
-        "electricore.api.main.cta_par_contrat",
+        "electricore.api.routers.taxes.cta_par_contrat",
         lambda odoo, trimestre=None: df_attendu,
     )
     app.dependency_overrides[get_current_api_key] = lambda: "test-key"
@@ -151,7 +151,7 @@ def test_flux_round_trip_via_endpoint(monkeypatch):
     )
 
     monkeypatch.setattr(
-        "electricore.api.main._load_flux_df",
+        "electricore.api.routers.flux._load_flux_df",
         lambda table_name, prm, limit: df_attendu,
     )
 
@@ -173,7 +173,7 @@ def test_flux_propage_filtre_prm_a_lendpoint(monkeypatch):
         captures.append((table_name, prm, limit))
         return pl.DataFrame({"x": [1]})
 
-    monkeypatch.setattr("electricore.api.main._load_flux_df", _capture)
+    monkeypatch.setattr("electricore.api.routers.flux._load_flux_df", _capture)
 
     app.dependency_overrides[get_current_api_key] = lambda: "test-key"
     try:

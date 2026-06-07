@@ -81,7 +81,7 @@ def df_flux_synthetique() -> pl.DataFrame:
 
 def test_generic_flux_xlsx_extension_suffix_returns_200(client, monkeypatch, df_flux_synthetique):
     """`GET /flux/{table_name}.xlsx` (extension-suffix) sert le XLSX du flux."""
-    monkeypatch.setattr("electricore.api.main._load_flux_df", lambda t, prm, lim: df_flux_synthetique)
+    monkeypatch.setattr("electricore.api.routers.flux._load_flux_df", lambda t, prm, lim: df_flux_synthetique)
 
     response = client.get("/flux/c15.xlsx")
 
@@ -91,7 +91,7 @@ def test_generic_flux_xlsx_extension_suffix_returns_200(client, monkeypatch, df_
 
 def test_generic_flux_arrow_extension_suffix_returns_200(client, monkeypatch, df_flux_synthetique):
     """`GET /flux/{table_name}.arrow` (extension-suffix) sert l'Arrow IPC du flux."""
-    monkeypatch.setattr("electricore.api.main._load_flux_df", lambda t, prm, lim: df_flux_synthetique)
+    monkeypatch.setattr("electricore.api.routers.flux._load_flux_df", lambda t, prm, lim: df_flux_synthetique)
 
     response = client.get("/flux/c15.arrow")
 
@@ -131,7 +131,7 @@ def test_anciens_paths_flux_segment_404(client):
 
 def test_flux_json_endpoint_still_works(client, monkeypatch, df_flux_synthetique):
     """`GET /flux/{table_name}` (sans extension) sert toujours le JSON."""
-    monkeypatch.setattr("electricore.api.main._load_flux_df", lambda t, prm, lim: df_flux_synthetique)
+    monkeypatch.setattr("electricore.api.routers.flux._load_flux_df", lambda t, prm, lim: df_flux_synthetique)
 
     response = client.get("/flux/c15", params={"limit": 10})
 
