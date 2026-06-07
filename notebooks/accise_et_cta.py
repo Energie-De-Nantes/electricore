@@ -31,7 +31,7 @@ def _():
     mo.md(r"""
     # Accise & CTA — calcul trimestriel
 
-    Les calculs sont délégués aux endpoints `/taxes/cta/arrow` et `/taxes/accise/detail.arrow`
+    Les calculs sont délégués aux endpoints `/taxes/cta/detail.arrow` et `/taxes/accise/detail.arrow`
     de l'API electricore (cf. ADR-0009). Le notebook se contente de récupérer les
     DataFrames, de sélectionner un trimestre et d'afficher les agrégats.
 

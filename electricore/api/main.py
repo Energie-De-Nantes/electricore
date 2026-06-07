@@ -27,8 +27,9 @@ from electricore.api.services.taxes_service import (
     generer_accise_detail_arrow,
     generer_accise_detail_xlsx,
     generer_accise_rapport_xlsx,
-    generer_cta_arrow,
-    generer_cta_xlsx,
+    generer_cta_detail_arrow,
+    generer_cta_detail_xlsx,
+    generer_cta_rapport_xlsx,
 )
 
 logger = logging.getLogger(__name__)
@@ -455,28 +456,42 @@ def export_accise_detail_arrow(
     return generer_accise_detail_arrow(trimestre)
 
 
-@xlsx_endpoint(app, "/taxes/cta/xlsx", filename="cta{trimestre}.xlsx", requires_odoo=True, tags=["taxes"])
-def export_cta_xlsx(
+@xlsx_endpoint(
+    app, "/taxes/cta/rapport.xlsx", filename="cta_rapport{trimestre}.xlsx", requires_odoo=True, tags=["taxes"]
+)
+def export_cta_rapport_xlsx(
     trimestre: str | None = Query(
         default=None,
         examples=["2025-T1"],
         description="Filtre par trimestre au format YYYY-TX. Sans filtre : toutes les données.",
     ),
 ) -> bytes:
-    """Calcule la CTA et retourne un fichier XLSX (3 onglets : Résumé, Par taux, Détail)."""
-    return generer_cta_xlsx(trimestre)
+    """Livrable facturiste : CTA en XLSX multi-onglets (Résumé / Par taux / Détail)."""
+    return generer_cta_rapport_xlsx(trimestre)
 
 
-@arrow_endpoint(app, "/taxes/cta/arrow", requires_odoo=True, tags=["taxes"])
-def export_cta_arrow(
+@xlsx_endpoint(app, "/taxes/cta/detail.xlsx", filename="cta_detail{trimestre}.xlsx", requires_odoo=True, tags=["taxes"])
+def export_cta_detail_xlsx(
     trimestre: str | None = Query(
         default=None,
         examples=["2025-T1"],
         description="Filtre par trimestre au format YYYY-TX. Sans filtre : toutes les données.",
     ),
 ) -> bytes:
-    """Détail CTA mensuel sérialisé en Arrow IPC stream (pdl × mois avec cta_eur, taux_cta_pct)."""
-    return generer_cta_arrow(trimestre)
+    """Détail CTA mensuel en XLSX mono-onglet (PDL × mois, cas technique)."""
+    return generer_cta_detail_xlsx(trimestre)
+
+
+@arrow_endpoint(app, "/taxes/cta/detail.arrow", requires_odoo=True, tags=["taxes"])
+def export_cta_detail_arrow(
+    trimestre: str | None = Query(
+        default=None,
+        examples=["2025-T1"],
+        description="Filtre par trimestre au format YYYY-TX. Sans filtre : toutes les données.",
+    ),
+) -> bytes:
+    """Détail CTA mensuel en Arrow IPC stream (PDL × mois, cas technique)."""
+    return generer_cta_detail_arrow(trimestre)
 
 
 @xlsx_endpoint(app, "/facturation/xlsx", filename="facturation{mois}.xlsx", requires_odoo=True, tags=["facturation"])

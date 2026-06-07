@@ -83,7 +83,7 @@ def test_accise_round_trip_via_endpoint(monkeypatch):
 
 
 def test_cta_round_trip_via_endpoint(monkeypatch):
-    """`client.cta(trimestre)` round-trip un DataFrame servi par /taxes/cta/arrow."""
+    """`client.cta(trimestre)` round-trip un DataFrame servi par /taxes/cta/detail.arrow."""
     df_attendu = pl.DataFrame(
         {
             "pdl": ["12345678901234"],

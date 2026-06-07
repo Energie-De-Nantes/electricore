@@ -35,7 +35,7 @@ def df_facturation_mensuelle_cta() -> pl.DataFrame:
 
 
 def test_calculer_cta_detail_delegue_a_charger_contexte_facturation(monkeypatch, df_facturation_mensuelle_cta):
-    """`cta_du_trimestre` consomme `ContexteFacturation` (issue #19 + #40, ADR-0016).
+    """`cta_par_contrat` consomme `ContexteFacturation` (issue #19 + #40, ADR-0016).
 
     Depuis #40, l'orchestration vit dans `integrations.odoo.taxes`. Le test vérifie
     que la chaîne service → orchestration délègue toujours à `charger_contexte_facturation`
