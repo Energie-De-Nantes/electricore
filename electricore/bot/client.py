@@ -82,7 +82,7 @@ class ElectriCoreClient:
     async def get_cta_xlsx(self, trimestre: str | None = None) -> bytes:
         params: dict = {"trimestre": trimestre} if trimestre else {}
         async with httpx.AsyncClient() as c:
-            r = await c.get(f"{self._base}/taxes/cta/xlsx", headers=self._headers, params=params, timeout=300)
+            r = await c.get(f"{self._base}/taxes/cta/rapport.xlsx", headers=self._headers, params=params, timeout=300)
             r.raise_for_status()
             return r.content
 

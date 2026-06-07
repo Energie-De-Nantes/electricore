@@ -190,18 +190,17 @@ def test_anciens_endpoints_accise_404(_mock_odoo_reader):
 
 
 # =============================================================================
-# /taxes/cta/arrow
+# /taxes/cta/detail.arrow
 # =============================================================================
 
 
 @pytest.fixture
 def df_cta_detail() -> pl.DataFrame:
-    """Échantillon ressemblant à la sortie mensuelle de la pipeline CTA."""
+    """Échantillon ressemblant à la sortie mensuelle de `cta_par_contrat`."""
     return pl.DataFrame(
         {
             "pdl": ["12345678901234"],
             "order_name": ["SO/2025/0001"],
-            "mois_annee": ["janvier 2025"],
             "trimestre": ["2025-T1"],
             "turpe_fixe_eur": [42.50],
             "cta_eur": [9.18],
@@ -210,16 +209,16 @@ def df_cta_detail() -> pl.DataFrame:
     )
 
 
-def test_cta_endpoint_retourne_arrow_ipc_stream(monkeypatch, df_cta_detail):
+def test_cta_detail_arrow_retourne_arrow_ipc_stream(monkeypatch, _mock_odoo_reader, df_cta_detail):
     """L'endpoint sert le détail CTA en Arrow IPC."""
     app.dependency_overrides[get_current_api_key] = lambda: "test-key"
     monkeypatch.setattr(
-        "electricore.api.services.taxes_service.calculer_cta_detail",
-        lambda trimestre=None: df_cta_detail,
+        "electricore.api.services.taxes_service.cta_par_contrat",
+        lambda odoo, trimestre=None: df_cta_detail,
     )
 
     try:
-        response = TestClient(app).get("/taxes/cta/arrow")
+        response = TestClient(app).get("/taxes/cta/detail.arrow")
     finally:
         app.dependency_overrides.clear()
 
@@ -230,25 +229,134 @@ def test_cta_endpoint_retourne_arrow_ipc_stream(monkeypatch, df_cta_detail):
     assert_frame_equal(df, df_cta_detail)
 
 
-def test_cta_endpoint_refuse_sans_api_key():
-    response = TestClient(app).get("/taxes/cta/arrow")
+def test_cta_detail_arrow_refuse_sans_api_key():
+    response = TestClient(app).get("/taxes/cta/detail.arrow")
     assert response.status_code == 401
 
 
-def test_cta_endpoint_propage_trimestre(monkeypatch, df_cta_detail):
+def test_cta_detail_arrow_propage_trimestre(monkeypatch, _mock_odoo_reader, df_cta_detail):
+    """Le query param `trimestre` est transmis à `cta_par_contrat`."""
     app.dependency_overrides[get_current_api_key] = lambda: "test-key"
     appels: list[str | None] = []
 
-    def fake_calculer(trimestre: str | None = None) -> pl.DataFrame:
+    def _capture(odoo, trimestre=None):
         appels.append(trimestre)
         return df_cta_detail
 
-    monkeypatch.setattr("electricore.api.services.taxes_service.calculer_cta_detail", fake_calculer)
+    monkeypatch.setattr("electricore.api.services.taxes_service.cta_par_contrat", _capture)
 
     try:
-        response = TestClient(app).get("/taxes/cta/arrow", params={"trimestre": "2025-T2"})
+        response = TestClient(app).get("/taxes/cta/detail.arrow", params={"trimestre": "2025-T2"})
     finally:
         app.dependency_overrides.clear()
 
     assert response.status_code == 200
     assert appels == ["2025-T2"]
+
+
+# =============================================================================
+# /taxes/cta/detail.xlsx
+# =============================================================================
+
+
+def test_cta_detail_xlsx_retourne_xlsx_mono_onglet(monkeypatch, _mock_odoo_reader, df_cta_detail):
+    """L'endpoint sert le détail CTA en XLSX mono-onglet."""
+    app.dependency_overrides[get_current_api_key] = lambda: "test-key"
+    monkeypatch.setattr(
+        "electricore.api.services.taxes_service.cta_par_contrat",
+        lambda odoo, trimestre=None: df_cta_detail,
+    )
+
+    try:
+        response = TestClient(app).get("/taxes/cta/detail.xlsx")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith(XLSX_MIME)
+    assert "attachment" in response.headers.get("content-disposition", "")
+
+
+# =============================================================================
+# /taxes/cta/rapport.xlsx
+# =============================================================================
+
+
+@pytest.fixture
+def fake_rapport_cta(df_cta_detail):
+    """`RapportCta` synthétique pour la sérialisation XLSX."""
+    from electricore.integrations.odoo.taxes import RapportCta
+
+    return RapportCta(
+        resume=pl.DataFrame(
+            {
+                "trimestre": ["2025-T1"],
+                "nb_pdl": [1],
+                "turpe_fixe_total_eur": [42.50],
+                "cta_total_eur": [9.18],
+            }
+        ),
+        par_taux=pl.DataFrame(
+            {
+                "trimestre": ["2025-T1"],
+                "taux_cta_pct": [21.61],
+                "nb_pdl": [1],
+                "turpe_fixe_eur": [42.50],
+                "cta_eur": [9.18],
+            }
+        ),
+        detail=pl.DataFrame(
+            {
+                "pdl": ["12345678901234"],
+                "order_name": ["SO/2025/0001"],
+                "turpe_fixe_total_eur": [42.50],
+                "cta_total_eur": [9.18],
+                "taux_cta_appliques": ["21.61"],
+            }
+        ),
+    )
+
+
+def test_cta_rapport_xlsx_retourne_xlsx_multi_onglets(monkeypatch, _mock_odoo_reader, fake_rapport_cta):
+    """L'endpoint sert le rapport multi-onglets (Résumé / Par taux / Détail)."""
+    app.dependency_overrides[get_current_api_key] = lambda: "test-key"
+    monkeypatch.setattr(
+        "electricore.api.services.taxes_service.rapport_cta",
+        lambda odoo, trimestre=None: fake_rapport_cta,
+    )
+
+    try:
+        response = TestClient(app).get("/taxes/cta/rapport.xlsx")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith(XLSX_MIME)
+    assert "attachment" in response.headers.get("content-disposition", "")
+
+
+def test_cta_rapport_xlsx_propage_trimestre(monkeypatch, _mock_odoo_reader, fake_rapport_cta):
+    """Le query param `trimestre` est propagé jusqu'à `rapport_cta`."""
+    app.dependency_overrides[get_current_api_key] = lambda: "test-key"
+    appels: list[str | None] = []
+
+    def _capture(odoo, trimestre=None):
+        appels.append(trimestre)
+        return fake_rapport_cta
+
+    monkeypatch.setattr("electricore.api.services.taxes_service.rapport_cta", _capture)
+
+    try:
+        response = TestClient(app).get("/taxes/cta/rapport.xlsx", params={"trimestre": "2025-T2"})
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert appels == ["2025-T2"]
+
+
+def test_anciens_endpoints_cta_404(_mock_odoo_reader):
+    """Les anciens paths CTA sont supprimés."""
+    for path in ("/taxes/cta/xlsx", "/taxes/cta/arrow"):
+        response = TestClient(app).get(path)
+        assert response.status_code == 404, f"{path} devrait être 404"

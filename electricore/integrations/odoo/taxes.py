@@ -6,10 +6,10 @@ pour produire les DataFrames consommés par les endpoints API et les notebooks.
 
 Deux interfaces cohabitent (cf. issue #56) :
 
-- `accise_par_contrat` / `cta_du_trimestre` : calcul brut par PDL × période, pour
+- `accise_par_contrat` / `cta_par_contrat` : calcul brut par PDL × période, pour
   exploration et réinjection (Arrow / XLSX mono-onglet).
-- `rapport_accise` : livrable agrégé (`Résumé` / `Par taux` / `Détail`) destiné à
-  la déclaration trimestrielle facturiste (XLSX multi-onglets).
+- `rapport_accise` / `rapport_cta` : livrable agrégé (`Résumé` / `Par taux` /
+  `Détail`) destiné à la déclaration trimestrielle facturiste (XLSX multi-onglets).
 
 EDN-shaped aujourd'hui ; sert de prototype pour un futur module Odoo libre
 couvrant les fournisseurs alternatifs (cf. CONTEXT.md, ADR-0016).
@@ -30,11 +30,28 @@ from .models.rapport_accise import (
     RapportAcciseParTaux,
     RapportAcciseResume,
 )
+from .models.rapport_cta import (
+    RapportCtaDetail,
+    RapportCtaParTaux,
+    RapportCtaResume,
+)
 from .reader import OdooReader
 
 
 class RapportAccise(NamedTuple):
     """Livrable trimestriel d'accise (= les 3 onglets de l'export XLSX facturiste)."""
+
+    resume: pl.DataFrame
+    par_taux: pl.DataFrame
+    detail: pl.DataFrame
+
+
+class RapportCta(NamedTuple):
+    """Livrable trimestriel CTA (= les 3 onglets de l'export XLSX facturiste).
+
+    `detail` est une agrégation par PDL (sommes + taux successifs string-joined),
+    pas la sortie brute de `cta_par_contrat` (qui reste mensuelle).
+    """
 
     resume: pl.DataFrame
     par_taux: pl.DataFrame
@@ -105,8 +122,11 @@ def rapport_accise(odoo: OdooReader, trimestre: str | None = None) -> RapportAcc
     return RapportAccise(resume=resume, par_taux=par_taux, detail=detail)
 
 
-def cta_du_trimestre(odoo: OdooReader, trimestre: str | None = None) -> pl.DataFrame:
-    """Charge Odoo + flux, applique la pipeline CTA mensuelle (+ filtre trimestre).
+def cta_par_contrat(odoo: OdooReader, trimestre: str | None = None) -> pl.DataFrame:
+    """Calcul brut de la CTA mensuelle par PDL × mois (interface technique).
+
+    Pour le livrable facturiste (multi-onglets Résumé / Par taux / Détail),
+    utiliser `rapport_cta(...)`.
 
     Args:
         odoo: `OdooReader` déjà ouvert.
@@ -145,3 +165,70 @@ def cta_du_trimestre(odoo: OdooReader, trimestre: str | None = None) -> pl.DataF
     if trimestre is not None:
         df_mensuel = df_mensuel.filter(pl.col("trimestre") == trimestre)
     return df_mensuel
+
+
+def rapport_cta(odoo: OdooReader, trimestre: str | None = None) -> RapportCta:
+    """Livrable agrégé pour déclaration trimestrielle CTA.
+
+    Compose `cta_par_contrat` (mensuel brut) avec les agrégations « Par taux »,
+    « Résumé » et une synthèse « Détail » par PDL où la liste des taux appliqués
+    est sérialisée en string (utile quand un décret CRE découpe le trimestre).
+
+    Les 3 frames du `NamedTuple` sont validées Pandera avant retour.
+
+    Args:
+        odoo: `OdooReader` déjà ouvert.
+        trimestre: format "YYYY-TX". `None` = tous les trimestres.
+
+    Returns:
+        `RapportCta(resume, par_taux, detail)`.
+    """
+    df_mensuel = cta_par_contrat(odoo, trimestre)
+
+    par_taux = (
+        df_mensuel.group_by(["trimestre", "taux_cta_pct"])
+        .agg(
+            [
+                pl.col("pdl").n_unique().cast(pl.Int64).alias("nb_pdl"),
+                pl.col("turpe_fixe_eur").sum().round(2),
+                pl.col("cta_eur").sum().round(2),
+            ]
+        )
+        .sort(["trimestre", "taux_cta_pct"])
+    )
+
+    resume = (
+        df_mensuel.group_by("trimestre")
+        .agg(
+            [
+                pl.col("pdl").n_unique().cast(pl.Int64).alias("nb_pdl"),
+                pl.col("turpe_fixe_eur").sum().round(2).alias("turpe_fixe_total_eur"),
+                pl.col("cta_eur").sum().round(2).alias("cta_total_eur"),
+            ]
+        )
+        .sort("trimestre")
+    )
+
+    detail = (
+        df_mensuel.lazy()
+        .group_by("pdl")
+        .agg(
+            [
+                pl.col("order_name").first(),
+                pl.col("turpe_fixe_eur").sum().round(2).alias("turpe_fixe_total_eur"),
+                pl.col("cta_eur").sum().round(2).alias("cta_total_eur"),
+                pl.col("taux_cta_pct").unique().sort().alias("_taux_list"),
+            ]
+        )
+        .sort("cta_total_eur", descending=True)
+        .collect()
+        .with_columns(
+            pl.col("_taux_list").list.eval(pl.element().cast(pl.Utf8)).list.join(" ; ").alias("taux_cta_appliques")
+        )
+        .drop("_taux_list")
+    )
+
+    RapportCtaResume.validate(resume)
+    RapportCtaParTaux.validate(par_taux)
+    RapportCtaDetail.validate(detail)
+    return RapportCta(resume=resume, par_taux=par_taux, detail=detail)
