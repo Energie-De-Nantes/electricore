@@ -32,25 +32,23 @@ Sur un VPS Ubuntu 22.04+/24.04+ ou Debian 12+ fraîchement provisionné, en root
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Energie-De-Nantes/electricore/main/deploy/install.sh -o install.sh
-EDITOR=nano sudo -E bash install.sh \
+sudo bash install.sh \
     --slug <slug> --domain <slug>.electricore.fr --email ops@example.com
 ```
 
-> **Note sur l'éditeur** : `sudo` strip les variables d'environnement par
-> défaut, donc même si tu as `EDITOR=nano` dans ton shell, le script
-> tombera sur `vi` (défaut Ubuntu) sans le préfixe `EDITOR=nano sudo -E`.
-> Pour celles et ceux qui maîtrisent vi, `sudo bash install.sh ...` suffit.
-> Pour sortir de vi : `Esc`, `:q!`, `Enter` (sans sauver) ou `:wq` (sauver).
+> **Note sur l'éditeur** : `nano` est l'éditeur par défaut (installé par le
+> script s'il manque). Pour utiliser vim/vi : `EDITOR=vim sudo -E bash install.sh ...`
+> (le `-E` est nécessaire car `sudo` strip les variables d'environnement par défaut).
 
 Le script :
 
-1. Détecte l'OS et installe les paquets requis (`curl`, `jq`, `cron`, `dnsutils`).
+1. Détecte l'OS et installe les paquets requis (`curl`, `jq`, `cron`, `dnsutils`, `nano`).
 2. Installe Docker si absent (via `get-docker.com`).
 3. Configure UFW (OpenSSH + 80/tcp + 443/tcp + 443/udp).
 4. Crée un user système `<slug>` (home `/srv/<slug>/`, groupe `docker`).
 5. Télécharge la config (`docker-compose.yml`, `Caddyfile`, `crontab`, `.env`).
 6. Substitue les valeurs (`INSTANCE_SLUG`, `BACKUPS_PATH`, domaine, email).
-7. Ouvre `.env` dans `$EDITOR` (vi par défaut) — tu remplis les `# TODO:`.
+7. Ouvre `.env` dans `$EDITOR` (nano par défaut) — tu remplis les `# TODO:`.
 8. Vérifie le DNS (`<domain>` doit pointer vers l'IP publique du VPS).
 9. Démarre la stack `docker compose up -d`.
 10. Lance un ETL test (vérifie clés AES + SFTP + DuckDB).
@@ -170,18 +168,19 @@ HTTP-01 (cf. [ADR-0015](adr/0015-deploiement-multi-instance.md)).
 ```bash
 ssh root@<vps>
 curl -fsSL https://raw.githubusercontent.com/Energie-De-Nantes/electricore/main/deploy/install.sh -o install.sh
-EDITOR=nano sudo -E bash install.sh \
+sudo bash install.sh \
     --slug <slug> \
     --domain <slug>.electricore.fr \
     --email ops@example.com \
     --version 1.7.0
 ```
 
-> `EDITOR=nano sudo -E` force le script à utiliser nano à l'étape d'édition
-> du `.env` (sinon vi par défaut sur Ubuntu). Omettre si tu préfères vi.
+> L'éditeur par défaut est `nano`. Pour vim/vi : préfixer par
+> `EDITOR=vim sudo -E bash install.sh ...` (le `-E` passe l'env à sudo).
 
 Options notables :
-- `--version <tag>` — pin la version GHCR (recommandé en prod, défaut `latest`).
+- `--version <tag>` — pin la version GHCR + écrit `ELECTRICORE_VERSION` dans `.env`
+  (recommandé en prod, défaut `latest`). Accepte `1.7.0`, `1.8.0rc1`, etc.
 - `--ssh-pubkey "ssh-ed25519 ..."` — clé SSH dédiée pour `<slug>`. Sans cette
   option, le script copie `~root/.ssh/authorized_keys`.
 - `--env-from <fichier>` — charge un `.env` pré-rempli (utile pour les déploiements
@@ -248,7 +247,7 @@ d'écriture vers Odoo (cf. [ADR-0012](adr/0012-api-read-only-odoo.md)).
 | Endpoint | Sortie | Paramètre |
 |---|---|---|
 | `GET /facturation/arrow` | `lignes_facture_rapprochees` (rapprochement Odoo ↔ Enedis du mois) | `mois=YYYY-MM-DD` (défaut : dernier mois) |
-| `GET /taxes/accise/arrow` | Détail Accise TICFE | `trimestre=YYYY-TX` |
+| `GET /taxes/accise/detail.arrow` | Détail Accise TICFE | `trimestre=YYYY-TX` |
 | `GET /taxes/cta/arrow` | Détail CTA mensuel | idem |
 
 Les endpoints `xlsx` existants restent inchangés.
@@ -432,8 +431,8 @@ Le script :
 1. Détecte l'instance existante (mode reconfigure).
 2. Re-télécharge `docker-compose.yml`, `Caddyfile`, `crontab` au tag demandé
    (utile si la stack a évolué).
-3. Backup `.env`, ouvre `$EDITOR` — tu peux ajuster `ELECTRICORE_VERSION`
-   si différent du `--version`.
+3. Backup `.env`, écrit `ELECTRICORE_VERSION=<--version>` automatiquement, ouvre
+   `$EDITOR` (nano par défaut) pour les ajustements éventuels.
 4. `docker compose pull` puis `up -d` (recrée les conteneurs avec la nouvelle image).
 5. ETL test.
 

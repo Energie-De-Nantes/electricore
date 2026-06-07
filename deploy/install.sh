@@ -120,7 +120,7 @@ fi
 
 # ─── Étape 2 : paquets ──────────────────────────────────────────────────
 log_step "Paquets système"
-ensure_packages curl jq cron dnsutils
+ensure_packages curl jq cron dnsutils nano
 
 # ─── Étape 3 : Docker ───────────────────────────────────────────────────
 log_step "Docker"
@@ -142,7 +142,7 @@ chown_instance_home "$OPT_SLUG"
 
 # ─── Étape 7 : substitutions ────────────────────────────────────────────
 log_step "Patch des templates (slug + domaine + email)"
-substitute_env "$ENV_FILE" "$OPT_SLUG"
+substitute_env "$ENV_FILE" "$OPT_SLUG" "$OPT_VERSION"
 substitute_caddyfile "$CADDYFILE" "$OPT_DOMAIN" "$OPT_EMAIL"
 if [[ -z "$OPT_EMAIL" ]]; then
     log_warn "email Let's Encrypt non fourni — placeholder conservé dans ${CADDYFILE}." \
@@ -164,11 +164,11 @@ if [[ -n "$OPT_ENV_FROM" ]]; then
     chmod 600 "$ENV_FILE"
     log_info "chargement depuis $OPT_ENV_FROM"
 else
-    log_info "ouverture de $ENV_FILE dans \${EDITOR:-vi}…"
+    log_info "ouverture de $ENV_FILE dans \${EDITOR:-nano}…"
 fi
 while true; do
     if [[ -z "$OPT_ENV_FROM" ]]; then
-        sudo -u "$OPT_SLUG" "${EDITOR:-vi}" "$ENV_FILE"
+        sudo -u "$OPT_SLUG" "${EDITOR:-nano}" "$ENV_FILE"
     fi
     if errs=$(validate_env_file "$ENV_FILE" "$OPT_SLUG"); then
         log_ok ".env valide"
