@@ -63,7 +63,7 @@ def test_detail_arrow_retourne_arrow_ipc_stream(monkeypatch, _mock_odoo_reader, 
     """L'endpoint sert le DataFrame brut en Arrow IPC."""
     app.dependency_overrides[get_current_api_key] = lambda: "test-key"
     monkeypatch.setattr(
-        "electricore.api.main.facturation_du_mois",
+        "electricore.api.routers.facturation.facturation_du_mois",
         lambda odoo, mois=None: lignes_rapprochees_attendues,
     )
     try:
@@ -93,7 +93,7 @@ def test_detail_arrow_propage_mois(monkeypatch, _mock_odoo_reader, lignes_rappro
         return lignes_rapprochees_attendues
 
     monkeypatch.setattr(
-        "electricore.api.main.facturation_du_mois",
+        "electricore.api.routers.facturation.facturation_du_mois",
         fake_calculer,
     )
     try:
@@ -114,7 +114,7 @@ def test_detail_xlsx_retourne_xlsx_mono_onglet(monkeypatch, _mock_odoo_reader, l
     """L'endpoint sert les lignes brutes en XLSX mono-onglet."""
     app.dependency_overrides[get_current_api_key] = lambda: "test-key"
     monkeypatch.setattr(
-        "electricore.api.main.facturation_du_mois",
+        "electricore.api.routers.facturation.facturation_du_mois",
         lambda odoo, mois=None: lignes_rapprochees_attendues,
     )
     try:
@@ -155,7 +155,7 @@ def test_rapport_xlsx_retourne_xlsx_multi_onglets(monkeypatch, _mock_odoo_reader
     """L'endpoint sert le rapport multi-onglets (Résumé / Lignes / Changements puissance)."""
     app.dependency_overrides[get_current_api_key] = lambda: "test-key"
     monkeypatch.setattr(
-        "electricore.api.main.rapport_facturation",
+        "electricore.api.routers.facturation.rapport_facturation",
         lambda odoo, mois=None: fake_rapport_facturation,
     )
     try:
@@ -177,7 +177,7 @@ def test_rapport_xlsx_propage_mois(monkeypatch, _mock_odoo_reader, fake_rapport_
         appels.append(mois)
         return fake_rapport_facturation
 
-    monkeypatch.setattr("electricore.api.main.rapport_facturation", _capture)
+    monkeypatch.setattr("electricore.api.routers.facturation.rapport_facturation", _capture)
     try:
         response = TestClient(app).get("/facturation/rapport.xlsx", params={"mois": "2025-04-01"})
     finally:
@@ -219,7 +219,7 @@ def test_documents_xlsx_retourne_xlsx_multi_onglets(monkeypatch, _mock_odoo_read
     """L'endpoint sert un XLSX multi-onglets (6 onglets FR), filename suffixé par `mois`."""
     app.dependency_overrides[get_current_api_key] = lambda: "test-key"
     monkeypatch.setattr(
-        "electricore.api.main.documents_facturation_du_mois",
+        "electricore.api.routers.facturation.documents_facturation_du_mois",
         lambda odoo, mois=None: documents_facturation_attendus,
     )
     try:
@@ -242,7 +242,7 @@ def test_documents_xlsx_propage_mois(monkeypatch, _mock_odoo_reader, documents_f
         appels.append(mois)
         return documents_facturation_attendus
 
-    monkeypatch.setattr("electricore.api.main.documents_facturation_du_mois", _capture)
+    monkeypatch.setattr("electricore.api.routers.facturation.documents_facturation_du_mois", _capture)
     try:
         response = TestClient(app).get("/facturation/documents.xlsx", params={"mois": "2025-03-01"})
     finally:
