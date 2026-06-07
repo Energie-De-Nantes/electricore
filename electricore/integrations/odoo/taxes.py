@@ -91,9 +91,10 @@ def rapport_accise(odoo: OdooReader, trimestre: str | None = None) -> RapportAcc
         trimestre: format "YYYY-TX". `None` = tous les trimestres.
 
     Returns:
-        `RapportAccise(resume, par_taux, detail)`.
+        `RapportAccise(resume, par_taux, detail)`. `detail` est trié
+        `(pdl, mois_consommation)` — invariant porté par cette fonction.
     """
-    detail = accise_par_contrat(odoo, trimestre)
+    detail = accise_par_contrat(odoo, trimestre).sort(["pdl", "mois_consommation"])
     par_taux = (
         detail.group_by("taux_accise_eur_mwh")
         .agg(
@@ -120,6 +121,16 @@ def rapport_accise(odoo: OdooReader, trimestre: str | None = None) -> RapportAcc
     RapportAcciseParTaux.validate(par_taux)
     RapportAcciseDetail.validate(detail)
     return RapportAccise(resume=resume, par_taux=par_taux, detail=detail)
+
+
+def feuilles_rapport_accise(r: RapportAccise) -> dict[str, pl.DataFrame]:
+    """Mapping onglet → DataFrame pour le livrable XLSX Accise (cf. CONTEXT.md).
+
+    Consommable directement par `xlsx_multi_sheet`. Co-localisée avec
+    `rapport_accise` parce que le shape du livrable et son contenu sont
+    indissociables.
+    """
+    return {"Résumé": r.resume, "Par taux": r.par_taux, "Détail": r.detail}
 
 
 def cta_par_contrat(odoo: OdooReader, trimestre: str | None = None) -> pl.DataFrame:

@@ -184,3 +184,18 @@ Booléen marquant les relevés dont la date a été décalée pendant l'harmonis
 
 **Contrat lissé** :
 Modalité de facturation où le client paie un montant mensuel constant basé sur une estimation annuelle, plutôt qu'au prorata de la consommation réelle du mois. Régularisation annuelle. S'oppose au contrat *réel* (facturation au prorata).
+
+---
+
+## Exports et livrables
+
+**Rapport** :
+Structure de données (NamedTuple) regroupant les DataFrames qu'un pipeline d'orchestration produit pour un domaine (Accise, CTA, facturation). Exemple : `RapportAccise(resume, par_taux, detail)`. Pré-trié et prêt à consommer — l'ordre des lignes est porté par la fonction `rapport_*` elle-même, pas par les consommateurs.
+
+**Livrable** :
+Export structuré destiné à un consommateur métier (facturiste, audit). Un livrable matérialise un *Rapport* sous une forme attendue par son destinataire — typiquement un XLSX multi-onglets (`Résumé` / `Par taux` / `Détail`). Distinct du *détail brut* (table unique exportée en XLSX mono-onglet ou Arrow IPC, format technique).
+_Éviter_ : export (trop générique), fichier.
+
+**Feuilles** :
+Onglets d'un *Livrable* XLSX. La fonction `feuilles_rapport_*(r) -> dict[str, DataFrame]` transforme un `Rapport*` en mapping consommable par `xlsx_multi_sheet`. Co-localisée avec la fonction `rapport_*` correspondante (même module). Les clés du dict sont les libellés d'onglets affichés à l'utilisateur (FR : `Résumé`, `Par taux`, `Détail`).
+_Éviter_ : onglets (anglicisme), sheets.
