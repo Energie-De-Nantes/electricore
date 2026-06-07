@@ -7,6 +7,70 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
+## [1.7.0] - 2026-06-07
+
+### 🏗️ core/ ERP-agnostique + déploiement script-first + API épaisse
+
+Release majeure structurée autour de deux ADR architecturaux et de la finalisation de l'« API épaisse » (notebooks de prod migrés en HTTP).
+
+#### Architecture — ADR-0016 (`core/` ERP-agnostique)
+
+- **ADR-0016** ([`docs/adr/0016-core-erp-agnostique.md`](docs/adr/0016-core-erp-agnostique.md)) — `core/` ne dépend plus d'aucun ERP. Tout l'Odoo migre vers `electricore/integrations/odoo/` (lecteurs, query builder, modèles Pandera, helpers, orchestrations).
+- **Refactor `core/` → `integrations/odoo/`** — `OdooReader`, `OdooQuery`, `OdooWriter`, helpers (`commandes`, `factures`, `lignes_factures_du_mois`…) et modèles (`FactureOdoo`, `CommandeVenteOdoo`…) sortis de `core/`. Imports `from electricore.integrations.odoo import …` (breaking).
+- **Orchestrations Odoo** — `rapprocher_facturation_mensuelle`, `calculer_cta_detail`, `accise_par_contrat` déplacées dans `integrations/odoo/`. `core/pipelines/` reste strictement Polars/DuckDB.
+- **Test architectural** ([`tests/architecture/test_core_erp_agnostique.py`](tests/architecture/test_core_erp_agnostique.py)) — verrouille le contrat : aucun import Odoo détectable dans `core/`.
+- **`integrations/odoo/decorators.py`** — décorateur `@with_odoo` qui encapsule l'ouverture/fermeture d'`OdooReader` au call-site et l'injecte en 1er argument. Services `taxes_service` / `facturation_service` deviennent des pass-through purs de sérialisation.
+- **`api/serializers/`** — extraction des sérialiseurs XLSX, Arrow, ZIP hors des services pour les rendre réutilisables.
+- **Glossaire / ADR / README / CLAUDE alignés** sur la nouvelle frontière `core/` ↔ `integrations/`.
+
+#### Déploiement — ADR-0017 (script-first)
+
+- **ADR-0017** ([`docs/adr/0017-deploiement-script-first.md`](docs/adr/0017-deploiement-script-first.md)) — layout `/srv/<INSTANCE_SLUG>/`, user dédié, bind-mount backups, `INSTANCE_SLUG` au cœur du provisioning.
+- **`deploy/install.sh`** — installateur idempotent (mode fresh + mode `reconfigure`) avec helpers Bash modulaires dans [`deploy/lib/`](deploy/lib/). Tests unitaires + e2e (`deploy/tests/`).
+- **Auto-refresh `lib/` en mode reconfigure** (#62) — élimine le piège « stale lib » lors des migrations rcN → rcN+1. Refactor : `fetch_lib_files`, `main()` guard, `_source_lib` pour permettre le sourcing dans les tests.
+- **`--version` pilote le ref Git** — `latest` → `main`, sinon le tag exact ; `ELECTRICORE_VERSION` et `nano` par défaut dans l'env généré.
+- **Doc déploiement** ([`docs/deploiement.md`](docs/deploiement.md)) réécrite script-first ([#50](https://github.com/Energie-De-Nantes/electricore/issues/50)).
+
+#### API épaisse — splits rapport / détail (convention `.extension`)
+
+- **#56 — Accise** : split en `rapport_accise` (agrégé, métier) + `accise_par_contrat` (détail brut, audit). Endpoint `/taxes/accise/{rapport,detail}.{xlsx,arrow}`.
+- **#63 — CTA** : split en `rapport_cta` (par contrat-mois) + `cta_par_contrat` (détail brut Odoo). Même convention d'endpoints.
+- **#64 — Facturation** : split en `rapport_facturation` (proposition mensuelle) + `facturation_du_mois` (lignes brutes Odoo avec flags `a_facturer`/`a_supprimer`).
+- **#65 — Convention `.extension` étendue à `/flux/*`** : `/flux/c15/entrees.xlsx`, `/flux/c15/sorties.xlsx`, `/flux/{table}.xlsx`, `/flux/{table}.arrow`. Anciens paths segmentés supprimés (404). Documentation inline sur l'ordre des routes FastAPI (les paths à extension doivent précéder le catch-all).
+- **#67 — `@with_odoo`** : collapse des 7 services pass-through (4 taxes + 3 facturation), qui n'avaient plus qu'un rôle d'ouverture/fermeture d'`OdooReader`.
+
+#### DuckDB query builder
+
+- **#52 — Retry-on-lock baked in** — `DuckDBQuery` gère le retry transparent sur `IO Error: Could not set lock`, plus besoin de wrappers ad hoc.
+- **#53 — `c15().entrees()` / `c15().sorties()`** — méthodes builder dédiées (typage + auto-complétion) qui factorisent les filtres `evenement_declencheur`.
+- **#54 — SQL injection killée** — `query_table` valide les filtres via `FluxSchema` (whitelist colonnes + opérateurs).
+
+#### Client HTTP & Notebooks
+
+- **Notebooks de prod migrés vers `ElectricoreClient`** — le notebook `facturation.py` consomme exclusivement l'API HTTP (`client.facturation(mois)`, `client.lignes_factures_du_mois(...)`) au lieu d'instancier `OdooReader` localement. Sépare proprement le déploiement notebook du déploiement core/ETL.
+
+#### Fixes
+
+- **`api_version` dynamique** ([#73](https://github.com/Energie-De-Nantes/electricore/pull/73)) — `/health` retournait `0.1.0` quel que soit le tag. Lue maintenant via `importlib.metadata.version("electricore")`, override `API_VERSION` toujours possible mais retiré de `.env.example`.
+- **`deploy/install.sh`** — `latest` → ref `main`, ownership préservé par `substitute_env`/`caddyfile`/prepend, `prepend_errors_to_env` ne réécrase plus le `.env`, auto-bootstrap de `lib/` si absent.
+
+#### Sécurité / CI
+
+- **Scan secrets en pre-commit + avant push GHCR** — TruffleHog ajouté localement et dans le job release.
+- **Pre-commit pytest hook** sur stage `pre-push` — évite de pousser un main rouge.
+- Bumps `actions/checkout@6`, `docker/setup-buildx-action@4`, `docker/build-push-action@7`, `docker/login-action@4`.
+
+#### Breaking changes
+
+- **Imports Odoo** : `from electricore.core.loaders.odoo import …` → `from electricore.integrations.odoo import …` (ADR-0016).
+- **`/flux/*` endpoints** : `/flux/c15/entrees/xlsx` → `/flux/c15/entrees.xlsx` (et équivalents). Anciens paths renvoient 404 (#65).
+
+#### Tests
+
+- 455 passed, 35 skipped.
+
+---
+
 ## [1.6.1] - 2026-06-05
 
 ### 🔒 Sécurité + multi-instance + ContexteFacturation
