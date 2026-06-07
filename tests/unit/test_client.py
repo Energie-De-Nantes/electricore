@@ -109,7 +109,7 @@ def test_cta_round_trip_via_endpoint(monkeypatch):
 
 
 def test_flux_round_trip_via_endpoint(monkeypatch):
-    """`client.flux(table_name)` round-trip un DataFrame servi par /flux/{name}/arrow."""
+    """`client.flux(table_name)` round-trip un DataFrame servi par /flux/{name}.arrow."""
     df_attendu = pl.DataFrame(
         {
             "pdl": ["12345678901234"],

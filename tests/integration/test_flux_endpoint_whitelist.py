@@ -24,9 +24,9 @@ class TestUnknownTableReturns404:
         assert response.status_code == 404
 
     def test_get_flux_xlsx_unknown(self, client):
-        response = client.get("/flux/totalement_inexistant/xlsx")
+        response = client.get("/flux/totalement_inexistant.xlsx")
         assert response.status_code == 404
 
     def test_get_flux_arrow_unknown(self, client):
-        response = client.get("/flux/totalement_inexistant/arrow")
+        response = client.get("/flux/totalement_inexistant.arrow")
         assert response.status_code == 404

@@ -59,7 +59,7 @@ class ElectricoreClient:
         params: dict[str, str | int] = {"limit": limit}
         if prm:
             params["prm"] = prm
-        return self._get_arrow(f"/flux/{table_name}/arrow", params)
+        return self._get_arrow(f"/flux/{table_name}.arrow", params)
 
     def facturation(self, mois: str | None = None) -> pl.DataFrame:
         """Récupère `lignes_facture_rapprochees` pour le mois donné.
