@@ -6,6 +6,7 @@ endpoints de consommer les orchestrations sans répéter le `with` block.
 """
 
 import functools
+import inspect
 from collections.abc import Callable
 from typing import Any
 
@@ -34,4 +35,6 @@ def with_odoo[T](func: Callable[..., T]) -> Callable[..., T]:
         with OdooReader(config=settings.get_odoo_config()) as odoo:
             return func(odoo, *args, **kwargs)
 
+    sig = inspect.signature(func)
+    wrapper.__signature__ = sig.replace(parameters=list(sig.parameters.values())[1:])
     return wrapper

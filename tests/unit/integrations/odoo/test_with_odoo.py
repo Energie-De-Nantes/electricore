@@ -87,6 +87,48 @@ def test_with_odoo_preserves_name_and_doc():
     assert calculer_accise_detail.__doc__ == "Docstring originale."
 
 
+def test_with_odoo_strips_odoo_from_exposed_signature():
+    """`inspect.signature(decorated)` ne doit pas exposer `odoo` (issue #74).
+
+    FastAPI introspecte les signatures pour binder query/path params. Si `odoo`
+    reste visible, FastAPI tente de l'injecter depuis l'URL et casse l'endpoint
+    quand on stacke `@xlsx_endpoint` au-dessus de `@with_odoo`.
+    """
+    import inspect
+
+    from electricore.integrations.odoo.decorators import with_odoo
+
+    @with_odoo
+    def export_quelque_chose(odoo, trimestre: str | None = None) -> bytes:
+        return b""
+
+    sig = inspect.signature(export_quelque_chose)
+    assert "odoo" not in sig.parameters
+    assert "trimestre" in sig.parameters
+
+
+def test_with_odoo_preserves_defaults_and_annotations_on_remaining_params():
+    """Les params restants gardent default + annotation après stripping d'`odoo`.
+
+    FastAPI utilise les defaults pour distinguer params requis / optionnels et
+    les annotations pour la validation. Régression typique d'un
+    `Signature.replace(parameters=[...])` mal écrit.
+    """
+    import inspect
+
+    from electricore.integrations.odoo.decorators import with_odoo
+
+    @with_odoo
+    def f(odoo, trimestre: str | None = None, limit: int = 100) -> bytes:
+        return b""
+
+    sig = inspect.signature(f)
+    assert sig.parameters["trimestre"].default is None
+    assert sig.parameters["trimestre"].annotation == (str | None)
+    assert sig.parameters["limit"].default == 100
+    assert sig.parameters["limit"].annotation is int
+
+
 def test_with_odoo_uses_settings_get_odoo_config(monkeypatch):
     """Le décorateur appelle `settings.get_odoo_config()` à chaque invocation."""
     from electricore.integrations.odoo.decorators import with_odoo
