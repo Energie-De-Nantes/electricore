@@ -143,7 +143,7 @@ async def root():
     }
 
 
-@xlsx_endpoint(app, "/flux/c15/entrees/xlsx", filename="entrees_c15.xlsx", error_status=500, tags=["flux"])
+@xlsx_endpoint(app, "/flux/c15/entrees.xlsx", filename="entrees_c15.xlsx", error_status=500, tags=["flux"])
 def get_entrees_xlsx(
     limit: int = Query(10000, le=100000, description="Nombre maximum de lignes"),
 ) -> bytes:
@@ -155,7 +155,7 @@ def get_entrees_xlsx(
     return xlsx_multi_sheet({"entrees": df})
 
 
-@xlsx_endpoint(app, "/flux/c15/sorties/xlsx", filename="sorties_c15.xlsx", error_status=500, tags=["flux"])
+@xlsx_endpoint(app, "/flux/c15/sorties.xlsx", filename="sorties_c15.xlsx", error_status=500, tags=["flux"])
 def get_sorties_xlsx(
     limit: int = Query(10000, le=100000, description="Nombre maximum de lignes"),
 ) -> bytes:
@@ -188,36 +188,12 @@ def _load_flux_df(table_name: str, prm: str | None, limit: int):
     return query.limit(limit).collect()
 
 
-@app.get("/flux/{table_name}", tags=["flux"])
-async def get_flux(
-    table_name: str,
-    prm: str | None = Query(None, description="Filtrer par pdl (Point de Livraison)"),
-    limit: int = Query(100, le=1000, description="Nombre maximum de lignes à retourner"),
-    offset: int = Query(0, ge=0, description="Nombre de lignes à ignorer (pagination)"),
-    api_key: str = Depends(get_current_api_key),
-):
-    """
-    Endpoint générique pour lire n'importe quel flux Enedis.
-
-    **Authentification requise** - Utilisez votre clé API.
-
-    Exemples:
-    - /flux/r151 : Relevés quotidiens
-    - /flux/c15 : Changements contractuels
-    - /flux/r64 : Relevés demandés sur SGE
-    - /flux/f15 : Facturation Enedis détaillée
-    """
-    df = _load_flux_df(table_name, prm, limit + offset)
-    rows = df.slice(offset, limit).to_dicts()
-    return {
-        "table": f"flux_{table_name}",
-        "filters": {"pdl": prm} if prm else None,
-        "pagination": {"limit": limit, "offset": offset, "returned": len(rows)},
-        "data": rows,
-    }
+# IMPORTANT — ordre de déclaration : les routes `.xlsx` / `.arrow` et `/info`
+# (sous-ressource) DOIVENT précéder la route catch-all `/flux/{table_name}`,
+# sinon `{table_name}` capture `c15.xlsx` et la requête est mal routée.
 
 
-@xlsx_endpoint(app, "/flux/{table_name}/xlsx", filename="flux_{table_name}.xlsx", error_status=500, tags=["flux"])
+@xlsx_endpoint(app, "/flux/{table_name}.xlsx", filename="flux_{table_name}.xlsx", error_status=500, tags=["flux"])
 def get_flux_xlsx(
     table_name: str,
     prm: str | None = Query(None, description="Filtrer par pdl (Point de Livraison)"),
@@ -230,7 +206,7 @@ def get_flux_xlsx(
     return xlsx_multi_sheet({table_name: df})
 
 
-@arrow_endpoint(app, "/flux/{table_name}/arrow", tags=["flux"])
+@arrow_endpoint(app, "/flux/{table_name}.arrow", tags=["flux"])
 def get_flux_arrow(
     table_name: str,
     prm: str | None = Query(None, description="Filtrer par pdl (Point de Livraison)"),
@@ -268,6 +244,37 @@ async def get_table_info(table_name: str, api_key: str = Depends(get_current_api
     except Exception:
         available_tables = duckdb_service.list_tables()
         raise HTTPException(404, f"Table '{table_name}' non trouvée. Tables disponibles: {available_tables}")
+
+
+# `/flux/{table_name}` (JSON) déclaré APRÈS les routes plus spécifiques pour que
+# `/flux/c15.xlsx` matche bien l'endpoint XLSX et pas le catch-all.
+@app.get("/flux/{table_name}", tags=["flux"])
+async def get_flux(
+    table_name: str,
+    prm: str | None = Query(None, description="Filtrer par pdl (Point de Livraison)"),
+    limit: int = Query(100, le=1000, description="Nombre maximum de lignes à retourner"),
+    offset: int = Query(0, ge=0, description="Nombre de lignes à ignorer (pagination)"),
+    api_key: str = Depends(get_current_api_key),
+):
+    """
+    Endpoint générique pour lire n'importe quel flux Enedis (réponse JSON).
+
+    **Authentification requise** - Utilisez votre clé API.
+
+    Exemples:
+    - /flux/r151 : Relevés quotidiens
+    - /flux/c15 : Changements contractuels
+    - /flux/r64 : Relevés demandés sur SGE
+    - /flux/f15 : Facturation Enedis détaillée
+    """
+    df = _load_flux_df(table_name, prm, limit + offset)
+    rows = df.slice(offset, limit).to_dicts()
+    return {
+        "table": f"flux_{table_name}",
+        "filters": {"pdl": prm} if prm else None,
+        "pagination": {"limit": limit, "offset": offset, "returned": len(rows)},
+        "data": rows,
+    }
 
 
 @app.get("/health", tags=["public"])
