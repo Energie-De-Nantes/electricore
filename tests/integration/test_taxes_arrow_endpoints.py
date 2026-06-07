@@ -212,7 +212,7 @@ def test_cta_detail_arrow_retourne_arrow_ipc_stream(monkeypatch, _mock_odoo_read
     """L'endpoint sert le détail CTA en Arrow IPC."""
     app.dependency_overrides[get_current_api_key] = lambda: "test-key"
     monkeypatch.setattr(
-        "electricore.api.services.taxes_service.cta_par_contrat",
+        "electricore.api.main.cta_par_contrat",
         lambda odoo, trimestre=None: df_cta_detail,
     )
 
@@ -242,7 +242,7 @@ def test_cta_detail_arrow_propage_trimestre(monkeypatch, _mock_odoo_reader, df_c
         appels.append(trimestre)
         return df_cta_detail
 
-    monkeypatch.setattr("electricore.api.services.taxes_service.cta_par_contrat", _capture)
+    monkeypatch.setattr("electricore.api.main.cta_par_contrat", _capture)
 
     try:
         response = TestClient(app).get("/taxes/cta/detail.arrow", params={"trimestre": "2025-T2"})
@@ -262,7 +262,7 @@ def test_cta_detail_xlsx_retourne_xlsx_mono_onglet(monkeypatch, _mock_odoo_reade
     """L'endpoint sert le détail CTA en XLSX mono-onglet."""
     app.dependency_overrides[get_current_api_key] = lambda: "test-key"
     monkeypatch.setattr(
-        "electricore.api.services.taxes_service.cta_par_contrat",
+        "electricore.api.main.cta_par_contrat",
         lambda odoo, trimestre=None: df_cta_detail,
     )
 
@@ -320,7 +320,7 @@ def test_cta_rapport_xlsx_retourne_xlsx_multi_onglets(monkeypatch, _mock_odoo_re
     """L'endpoint sert le rapport multi-onglets (Résumé / Par taux / Détail)."""
     app.dependency_overrides[get_current_api_key] = lambda: "test-key"
     monkeypatch.setattr(
-        "electricore.api.services.taxes_service.rapport_cta",
+        "electricore.api.main.rapport_cta",
         lambda odoo, trimestre=None: fake_rapport_cta,
     )
 
@@ -343,7 +343,7 @@ def test_cta_rapport_xlsx_propage_trimestre(monkeypatch, _mock_odoo_reader, fake
         appels.append(trimestre)
         return fake_rapport_cta
 
-    monkeypatch.setattr("electricore.api.services.taxes_service.rapport_cta", _capture)
+    monkeypatch.setattr("electricore.api.main.rapport_cta", _capture)
 
     try:
         response = TestClient(app).get("/taxes/cta/rapport.xlsx", params={"trimestre": "2025-T2"})

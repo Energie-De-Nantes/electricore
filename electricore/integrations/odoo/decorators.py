@@ -22,12 +22,12 @@ def with_odoo[T](func: Callable[..., T]) -> Callable[..., T]:
     expose la signature publique sans ce paramètre (utile pour FastAPI).
 
     Example:
+        @xlsx_endpoint(app, "/taxes/accise/detail.xlsx", ...)
         @with_odoo
-        def calculer_accise_detail(odoo, trimestre=None):
-            return accise_par_contrat(odoo, trimestre)
+        def export_accise_detail_xlsx(odoo, trimestre=None) -> bytes:
+            return xlsx_multi_sheet({"Détail": accise_par_contrat(odoo, trimestre)})
 
-        # Au call-site :
-        df = calculer_accise_detail(trimestre="2025-T1")  # odoo injecté
+        # FastAPI ne voit que `trimestre` dans la signature exposée (cf. issue #74).
     """
 
     @functools.wraps(func)

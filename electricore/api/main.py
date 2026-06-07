@@ -21,20 +21,20 @@ from electricore.api.services import duckdb_service, etl_service
 from electricore.api.services.check_facturation_service import verifier_odoo
 from electricore.api.services.facturation_service import (
     generer_documents_facturation,
-    generer_facturation_detail_arrow,
-    generer_facturation_detail_xlsx,
-    generer_facturation_rapport_xlsx,
-)
-from electricore.api.services.taxes_service import (
-    generer_cta_detail_arrow,
-    generer_cta_detail_xlsx,
-    generer_cta_rapport_xlsx,
 )
 from electricore.integrations.odoo.decorators import with_odoo
+from electricore.integrations.odoo.facturation import (
+    facturation_du_mois,
+    feuilles_rapport_facturation,
+    rapport_facturation,
+)
 from electricore.integrations.odoo.taxes import (
     accise_par_contrat,
+    cta_par_contrat,
     feuilles_rapport_accise,
+    feuilles_rapport_cta,
     rapport_accise,
+    rapport_cta,
 )
 
 logger = logging.getLogger(__name__)
@@ -477,7 +477,9 @@ def export_accise_detail_arrow(
 @xlsx_endpoint(
     app, "/taxes/cta/rapport.xlsx", filename="cta_rapport{trimestre}.xlsx", requires_odoo=True, tags=["taxes"]
 )
+@with_odoo
 def export_cta_rapport_xlsx(
+    odoo,
     trimestre: str | None = Query(
         default=None,
         examples=["2025-T1"],
@@ -485,11 +487,13 @@ def export_cta_rapport_xlsx(
     ),
 ) -> bytes:
     """Livrable facturiste : CTA en XLSX multi-onglets (Résumé / Par taux / Détail)."""
-    return generer_cta_rapport_xlsx(trimestre)
+    return xlsx_multi_sheet(feuilles_rapport_cta(rapport_cta(odoo, trimestre)))
 
 
 @xlsx_endpoint(app, "/taxes/cta/detail.xlsx", filename="cta_detail{trimestre}.xlsx", requires_odoo=True, tags=["taxes"])
+@with_odoo
 def export_cta_detail_xlsx(
+    odoo,
     trimestre: str | None = Query(
         default=None,
         examples=["2025-T1"],
@@ -497,11 +501,13 @@ def export_cta_detail_xlsx(
     ),
 ) -> bytes:
     """Détail CTA mensuel en XLSX mono-onglet (PDL × mois, cas technique)."""
-    return generer_cta_detail_xlsx(trimestre)
+    return xlsx_multi_sheet({"Détail": cta_par_contrat(odoo, trimestre)})
 
 
 @arrow_endpoint(app, "/taxes/cta/detail.arrow", requires_odoo=True, tags=["taxes"])
+@with_odoo
 def export_cta_detail_arrow(
+    odoo,
     trimestre: str | None = Query(
         default=None,
         examples=["2025-T1"],
@@ -509,7 +515,7 @@ def export_cta_detail_arrow(
     ),
 ) -> bytes:
     """Détail CTA mensuel en Arrow IPC stream (PDL × mois, cas technique)."""
-    return generer_cta_detail_arrow(trimestre)
+    return arrow_stream(cta_par_contrat(odoo, trimestre))
 
 
 @xlsx_endpoint(
@@ -519,7 +525,9 @@ def export_cta_detail_arrow(
     requires_odoo=True,
     tags=["facturation"],
 )
+@with_odoo
 def export_facturation_rapport_xlsx(
+    odoo,
     mois: str | None = Query(
         default=None,
         examples=["2025-01-01"],
@@ -527,7 +535,7 @@ def export_facturation_rapport_xlsx(
     ),
 ) -> bytes:
     """Livrable facturiste : 3 onglets (Résumé / Lignes / Changements puissance)."""
-    return generer_facturation_rapport_xlsx(mois)
+    return xlsx_multi_sheet(feuilles_rapport_facturation(rapport_facturation(odoo, mois)))
 
 
 @xlsx_endpoint(
@@ -537,7 +545,9 @@ def export_facturation_rapport_xlsx(
     requires_odoo=True,
     tags=["facturation"],
 )
+@with_odoo
 def export_facturation_detail_xlsx(
+    odoo,
     mois: str | None = Query(
         default=None,
         examples=["2025-01-01"],
@@ -545,11 +555,13 @@ def export_facturation_detail_xlsx(
     ),
 ) -> bytes:
     """Lignes brutes du rapprochement Odoo↔Enedis en XLSX mono-onglet (cas technique)."""
-    return generer_facturation_detail_xlsx(mois)
+    return xlsx_multi_sheet({"Détail": facturation_du_mois(odoo, mois)})
 
 
 @arrow_endpoint(app, "/facturation/detail.arrow", requires_odoo=True, tags=["facturation"])
+@with_odoo
 def export_facturation_detail_arrow(
+    odoo,
     mois: str | None = Query(
         default=None,
         examples=["2025-01-01"],
@@ -557,7 +569,7 @@ def export_facturation_detail_arrow(
     ),
 ) -> bytes:
     """Lignes brutes du rapprochement Odoo↔Enedis en Arrow IPC stream (cas technique)."""
-    return generer_facturation_detail_arrow(mois)
+    return arrow_stream(facturation_du_mois(odoo, mois))
 
 
 @app.get("/facturation/check/odoo", tags=["facturation"])
