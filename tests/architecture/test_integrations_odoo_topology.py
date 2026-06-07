@@ -15,13 +15,9 @@ TYPES = ("OdooConfig", "FieldsCache", "OdooReader", "OdooQuery", "OdooWriter")
 
 HELPERS = (
     "query",
-    "factures",
     "lignes_factures",
     "commandes",
-    "partenaires",
-    "commandes_factures",
     "commandes_lignes",
-    "consommations_mensuelles",
     "lignes_factures_du_mois",
     "flags_etat_facturation",
 )
@@ -120,3 +116,23 @@ def test_core_writers_no_longer_exposes_odoo_writer() -> None:
     """C : `electricore.core.writers` n'expose plus `OdooWriter`."""
     module = importlib.import_module("electricore.core.writers")
     assert not hasattr(module, "OdooWriter")
+
+
+# Helpers supprimés en #85 : 4 helpers à 0 caller retirés pour amincir la surface publique.
+# - `factures`, `partenaires`, `commandes_factures` : 0 caller (presets shallow et navigation dead code)
+# - `consommations_mensuelles` : était un alias explicite de `commandes_lignes`
+REMOVED_HELPERS = (
+    "factures",
+    "partenaires",
+    "consommations_mensuelles",
+    "commandes_factures",
+)
+
+
+@pytest.mark.parametrize("name", REMOVED_HELPERS)
+def test_removed_helper_no_longer_exposed(name: str) -> None:
+    """D : les helpers retirés en #85 ne sont plus importables depuis `integrations.odoo`."""
+    module = importlib.import_module("electricore.integrations.odoo")
+    assert not hasattr(module, name), (
+        f"{name} reste exposé par electricore.integrations.odoo — devrait avoir été retiré (#85)"
+    )

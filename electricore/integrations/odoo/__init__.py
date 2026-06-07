@@ -6,14 +6,10 @@ Adaptateur ERP pour Odoo. Voir [ADR-0016](../../../docs/adr/0016-core-erp-agnost
 from .config import FieldsCache, OdooConfig
 from .helpers import (
     commandes,
-    commandes_factures,
     commandes_lignes,
-    consommations_mensuelles,
-    factures,
     flags_etat_facturation,
     lignes_factures,
     lignes_factures_du_mois,
-    partenaires,
     query,
 )
 from .query import OdooQuery
@@ -36,13 +32,9 @@ __all__ = [
     "OdooQuery",
     "OdooWriter",
     "query",
-    "factures",
     "lignes_factures",
     "commandes",
-    "partenaires",
-    "commandes_factures",
     "commandes_lignes",
-    "consommations_mensuelles",
     "lignes_factures_du_mois",
     "flags_etat_facturation",
     "normalize_many2one_fields",
