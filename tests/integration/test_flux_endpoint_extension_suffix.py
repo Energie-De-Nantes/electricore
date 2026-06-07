@@ -31,7 +31,27 @@ def client():
         app.dependency_overrides.clear()
 
 
-def test_c15_entrees_xlsx_extension_suffix_returns_200(client):
+@pytest.fixture
+def _mock_c15(monkeypatch):
+    """Court-circuite `c15().entrees()/.sorties().limit().collect()` (CI sans DuckDB)."""
+
+    class _FakeBuilder:
+        def entrees(self):
+            return self
+
+        def sorties(self):
+            return self
+
+        def limit(self, _n):
+            return self
+
+        def collect(self):
+            return pl.DataFrame({"pdl": ["X"], "evenement_declencheur": ["MES"]})
+
+    monkeypatch.setattr("electricore.core.loaders.duckdb.c15", lambda: _FakeBuilder())
+
+
+def test_c15_entrees_xlsx_extension_suffix_returns_200(client, _mock_c15):
     """`GET /flux/c15/entrees.xlsx` sert le XLSX (PMES, MES, CFNE)."""
     response = client.get("/flux/c15/entrees.xlsx")
 
@@ -40,7 +60,7 @@ def test_c15_entrees_xlsx_extension_suffix_returns_200(client):
     assert "attachment" in response.headers.get("content-disposition", "")
 
 
-def test_c15_sorties_xlsx_extension_suffix_returns_200(client):
+def test_c15_sorties_xlsx_extension_suffix_returns_200(client, _mock_c15):
     """`GET /flux/c15/sorties.xlsx` sert le XLSX (RES, CFNS)."""
     response = client.get("/flux/c15/sorties.xlsx")
 
