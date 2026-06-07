@@ -93,10 +93,13 @@ class ElectriCoreClient:
             r.raise_for_status()
             return r.content
 
-    async def get_facturation_documents(self, mois: str | None = None) -> bytes:
+    async def get_facturation_documents_xlsx(self, mois: str | None = None) -> bytes:
+        """Livrable XLSX multi-onglets des documents de campagne facturation (cf. #78)."""
         params = {"mois": mois} if mois else {}
         async with httpx.AsyncClient() as c:
-            r = await c.get(f"{self._base}/facturation/documents", headers=self._headers, params=params, timeout=300)
+            r = await c.get(
+                f"{self._base}/facturation/documents.xlsx", headers=self._headers, params=params, timeout=300
+            )
             r.raise_for_status()
             return r.content
 

@@ -197,5 +197,9 @@ Export structuré destiné à un consommateur métier (facturiste, audit). Un li
 _Éviter_ : export (trop générique), fichier.
 
 **Feuilles** :
-Onglets d'un *Livrable* XLSX. La fonction `feuilles_rapport_*(r) -> dict[str, DataFrame]` transforme un `Rapport*` en mapping consommable par `xlsx_multi_sheet`. Co-localisée avec la fonction `rapport_*` correspondante (même module). Les clés du dict sont les libellés d'onglets affichés à l'utilisateur (FR : `Résumé`, `Par taux`, `Détail`).
+Onglets d'un *Livrable* XLSX, matérialisés par un `dict[str, DataFrame]` consommable par `xlsx_multi_sheet`. Les clés du dict sont les libellés d'onglets affichés à l'utilisateur (FR : `Résumé`, `Par taux`, `Détail`, `F15 complet`, `Changements puissance`…). Deux formes de production coexistent :
+
+- **À partir d'un `Rapport*`** : `feuilles_rapport_*(r) -> dict[str, DataFrame]` co-localisée avec le `rapport_*` correspondant (cas Accise, CTA, facturation rapport).
+- **Directement par une orchestration** : `documents_facturation_du_mois(odoo, mois) -> tuple[dict[str, DataFrame], str]` (cas `/facturation/documents.xlsx` — pas de NamedTuple intermédiaire, la forme du livrable est directement assemblée par l'orchestration).
+
 _Éviter_ : onglets (anglicisme), sheets.

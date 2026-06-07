@@ -1,12 +1,11 @@
-"""Sérialiseurs des artefacts API (XLSX multi-onglets, Arrow IPC, ZIP CSV) — issue #41.
+"""Sérialiseurs des artefacts API (XLSX multi-onglets, Arrow IPC) — issue #41.
 
-Factorisent les patterns de sérialisation dupliqués entre les services pour
-que les `api/services/*.py` se réduisent à `df = orchestration(...)` →
-`return serialize(df)`.
+Consommés directement par les endpoints stackant `@xlsx_endpoint`/`@arrow_endpoint`
+au-dessus des orchestrations de `integrations.odoo`. `zip_csv` a été supprimé en
+#78 (plus aucun caller — `/facturation/documents` migré en XLSX multi-onglets).
 """
 
 import io
-import zipfile
 
 import polars as pl
 import xlsxwriter
@@ -47,21 +46,4 @@ def arrow_stream(df: pl.DataFrame) -> bytes:
     return buf.getvalue()
 
 
-def zip_csv(documents: dict[str, pl.DataFrame]) -> bytes:
-    """Construit un ZIP (deflated) où chaque entrée est un CSV Polars.
-
-    Args:
-        documents: dict `{nom_fichier_dans_le_zip: DataFrame}`. Chaque DataFrame
-            est sérialisé via `df.write_csv()`.
-
-    Returns:
-        Bytes du ZIP.
-    """
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for nom, df in documents.items():
-            zf.writestr(nom, df.write_csv())
-    return buf.getvalue()
-
-
-__all__ = ["xlsx_multi_sheet", "arrow_stream", "zip_csv"]
+__all__ = ["xlsx_multi_sheet", "arrow_stream"]

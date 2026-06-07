@@ -318,16 +318,16 @@ async def cmd_facturation(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     client = ElectriCoreClient()
     try:
-        zip_bytes = await client.get_facturation_documents(mois)
+        xlsx_bytes = await client.get_facturation_documents_xlsx(mois)
     except Exception as e:
         await update.effective_message.reply_text(f"❌ Erreur : {e}")
         return
 
     suffix = f"_{mois[:7]}" if mois else ""
     await update.effective_message.reply_document(
-        document=io.BytesIO(zip_bytes),
-        filename=f"facturation{suffix}.zip",
-        caption=f"Documents facturation Odoo ↔ Enedis{periode} (6 CSV)",
+        document=io.BytesIO(xlsx_bytes),
+        filename=f"facturation{suffix}.xlsx",
+        caption=f"Documents facturation Odoo ↔ Enedis{periode} (6 onglets)",
     )
 
 

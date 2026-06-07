@@ -47,21 +47,3 @@ def test_arrow_stream_produit_flux_relisable_avec_donnees_identiques() -> None:
 
     df_round_trip = pl.read_ipc_stream(io.BytesIO(output))
     assert_frame_equal(df_round_trip, df)
-
-
-def test_zip_csv_produit_zip_avec_chaque_csv_nomme_et_non_vide() -> None:
-    """`zip_csv({nom: df, ...})` produit un ZIP avec un CSV par entrée, contenu = CSV Polars."""
-    from electricore.api.serializers import zip_csv
-
-    documents = {
-        "tableau_a.csv": pl.DataFrame({"x": [1, 2]}),
-        "tableau_b.csv": pl.DataFrame({"y": ["a"]}),
-    }
-    output = zip_csv(documents)
-
-    assert isinstance(output, bytes)
-    with zipfile.ZipFile(io.BytesIO(output)) as zf:
-        assert set(zf.namelist()) == set(documents.keys())
-        # Chaque entrée contient le CSV Polars correspondant
-        for nom, df in documents.items():
-            assert zf.read(nom).decode("utf-8") == df.write_csv()

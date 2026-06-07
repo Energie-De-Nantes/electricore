@@ -192,3 +192,67 @@ def test_anciens_endpoints_facturation_404(_mock_odoo_reader):
     for path in ("/facturation/xlsx", "/facturation/arrow"):
         response = TestClient(app).get(path)
         assert response.status_code == 404, f"{path} devrait être 404"
+
+
+# =============================================================================
+# /facturation/documents.xlsx — livrable XLSX multi-onglets (issue #78)
+# =============================================================================
+
+
+@pytest.fixture
+def documents_facturation_attendus(lignes_rapprochees_attendues) -> tuple[dict[str, pl.DataFrame], str]:
+    """Documents synthétiques retournés par `documents_facturation_du_mois` (clés FR éditoriales)."""
+    return (
+        {
+            "F15 complet": lignes_rapprochees_attendues.head(0),
+            "F15 prestations": lignes_rapprochees_attendues.head(0),
+            "C15 complet": lignes_rapprochees_attendues.head(0),
+            "C15 sorties": lignes_rapprochees_attendues.head(0),
+            "Réconciliation": lignes_rapprochees_attendues,
+            "Changements puissance": lignes_rapprochees_attendues.head(0),
+        },
+        "2025-03",
+    )
+
+
+def test_documents_xlsx_retourne_xlsx_multi_onglets(monkeypatch, _mock_odoo_reader, documents_facturation_attendus):
+    """L'endpoint sert un XLSX multi-onglets (6 onglets FR), filename suffixé par `mois`."""
+    app.dependency_overrides[get_current_api_key] = lambda: "test-key"
+    monkeypatch.setattr(
+        "electricore.api.main.documents_facturation_du_mois",
+        lambda odoo, mois=None: documents_facturation_attendus,
+    )
+    try:
+        response = TestClient(app).get("/facturation/documents.xlsx", params={"mois": "2025-03-01"})
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith(XLSX_MIME)
+    assert "attachment" in response.headers.get("content-disposition", "")
+    assert "2025-03-01" in response.headers["content-disposition"]
+
+
+def test_documents_xlsx_propage_mois(monkeypatch, _mock_odoo_reader, documents_facturation_attendus):
+    """Le query param `mois` est propagé jusqu'à `documents_facturation_du_mois`."""
+    app.dependency_overrides[get_current_api_key] = lambda: "test-key"
+    appels: list[str | None] = []
+
+    def _capture(odoo, mois=None):
+        appels.append(mois)
+        return documents_facturation_attendus
+
+    monkeypatch.setattr("electricore.api.main.documents_facturation_du_mois", _capture)
+    try:
+        response = TestClient(app).get("/facturation/documents.xlsx", params={"mois": "2025-03-01"})
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert appels == ["2025-03-01"]
+
+
+def test_ancien_endpoint_documents_zip_404():
+    """L'ancien path `/facturation/documents` (ZIP) est supprimé."""
+    response = TestClient(app).get("/facturation/documents")
+    assert response.status_code == 404
