@@ -84,12 +84,32 @@ assert_fail "parse_args sans --domain"    parse_args --slug edn
 assert_fail "parse_args flag inconnu"     parse_args --slug edn --domain edn.fr --foo
 
 echo
+echo "→ config.sh / map_version_to_git_ref"
+assert_eq "$(map_version_to_git_ref latest)"      "main"       "latest → main (alias Docker)"
+assert_eq "$(map_version_to_git_ref 1.7.0rc2)"    "v1.7.0rc2"  "rc → v-prefixed tag"
+assert_eq "$(map_version_to_git_ref 1.6.1)"       "v1.6.1"     "stable → v-prefixed tag"
+assert_eq "$(map_version_to_git_ref 2.0.0)"       "v2.0.0"     "major bump → v-prefixé"
+assert_eq "$(map_version_to_git_ref 1.8.0a1)"     "v1.8.0a1"   "alpha PEP 440"
+assert_eq "$(map_version_to_git_ref main)"        "main"       "branche main inchangée"
+assert_eq "$(map_version_to_git_ref dev)"         "dev"        "branche dev inchangée"
+assert_eq "$(map_version_to_git_ref abc1234)"     "abc1234"    "SHA inchangé"
+
+echo
 echo "→ config.sh / substitute_*"
 tmp_env=$(mktemp)
 cp "${FIXTURES_DIR}/env-template" "$tmp_env"
 substitute_env "$tmp_env" "edn"
 grep -q "^INSTANCE_SLUG=edn$" "$tmp_env" && ok "substitute_env: INSTANCE_SLUG=edn" || ko "substitute_env INSTANCE_SLUG"
 grep -q "^BACKUPS_PATH=/srv/edn/backups$" "$tmp_env" && ok "substitute_env: BACKUPS_PATH=/srv/edn/backups" || ko "substitute_env BACKUPS_PATH"
+grep -q "^ELECTRICORE_VERSION=latest$" "$tmp_env" && ok "substitute_env: ELECTRICORE_VERSION inchangée si non passée" || ko "substitute_env touche ELECTRICORE_VERSION sans argument"
+rm -f "$tmp_env"
+
+# substitute_env avec version explicite
+tmp_env=$(mktemp)
+cp "${FIXTURES_DIR}/env-template" "$tmp_env"
+substitute_env "$tmp_env" "edn" "1.7.0rc3"
+grep -q "^ELECTRICORE_VERSION=1.7.0rc3$" "$tmp_env" && ok "substitute_env: ELECTRICORE_VERSION=1.7.0rc3 (3e arg)" || ko "substitute_env n'écrit pas ELECTRICORE_VERSION"
+grep -q "^INSTANCE_SLUG=edn$" "$tmp_env" && ok "substitute_env: INSTANCE_SLUG préservé avec version" || ko "substitute_env INSTANCE_SLUG cassé avec version"
 rm -f "$tmp_env"
 
 tmp_caddy=$(mktemp)
