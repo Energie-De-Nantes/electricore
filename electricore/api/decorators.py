@@ -15,7 +15,7 @@ import asyncio
 import inspect
 import logging
 
-from fastapi import Depends, FastAPI, HTTPException, Response
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Response
 
 from electricore.api.config import settings
 from electricore.api.security import get_current_api_key
@@ -48,7 +48,7 @@ class _DefaultEmpty(dict):
 
 
 def binary_endpoint(
-    app: FastAPI,
+    target: FastAPI | APIRouter,
     path: str,
     *,
     media_type: str,
@@ -60,14 +60,17 @@ def binary_endpoint(
     """Enregistre un handler retournant `bytes` comme endpoint binaire générique.
 
     Args:
-        app: instance FastAPI sur laquelle enregistrer la route.
+        target: cible d'enregistrement de la route — instance `FastAPI` ou
+            `APIRouter`. Les deux exposent `.get(path, *, tags, dependencies)`
+            avec la même signature ; le décorateur ne distingue pas.
         path: chemin HTTP de l'endpoint (`GET`).
         media_type: type MIME de la réponse (XLSX, Arrow stream, ZIP…).
         filename: template du `Content-Disposition` (placeholders `{nom_arg}`
             résolus depuis les arguments du handler). Si `None`, pas de
             header `Content-Disposition` (cas Arrow streaming).
         requires_odoo: si `True`, retourne `501` quand Odoo n'est pas configuré.
-        tags: tags OpenAPI optionnels.
+        tags: tags OpenAPI optionnels (s'ajoutent à ceux déclarés sur l'`APIRouter`
+            si la cible est un router).
     """
 
     def decorator(handler):
@@ -98,14 +101,14 @@ def binary_endpoint(
         wrapper.__signature__ = inspect.signature(handler)  # type: ignore[attr-defined]
         wrapper.__name__ = handler.__name__
 
-        app.get(path, tags=tags, dependencies=[Depends(get_current_api_key)])(wrapper)
+        target.get(path, tags=tags, dependencies=[Depends(get_current_api_key)])(wrapper)
         return wrapper
 
     return decorator
 
 
 def xlsx_endpoint(
-    app: FastAPI,
+    target: FastAPI | APIRouter,
     path: str,
     *,
     filename: str,
@@ -115,7 +118,7 @@ def xlsx_endpoint(
 ):
     """Wrapper convenance de `binary_endpoint` pour les exports XLSX."""
     return binary_endpoint(
-        app,
+        target,
         path,
         media_type=XLSX_MEDIA_TYPE,
         filename=filename,
@@ -126,7 +129,7 @@ def xlsx_endpoint(
 
 
 def arrow_endpoint(
-    app: FastAPI,
+    target: FastAPI | APIRouter,
     path: str,
     *,
     requires_odoo: bool = False,
@@ -137,12 +140,12 @@ def arrow_endpoint(
     Pas de `Content-Disposition` — le flux est consommé en mémoire par le client.
     """
     return binary_endpoint(
-        app, path, media_type=ARROW_MEDIA_TYPE, filename=None, requires_odoo=requires_odoo, tags=tags
+        target, path, media_type=ARROW_MEDIA_TYPE, filename=None, requires_odoo=requires_odoo, tags=tags
     )
 
 
 def zip_endpoint(
-    app: FastAPI,
+    target: FastAPI | APIRouter,
     path: str,
     *,
     filename: str,
@@ -151,5 +154,5 @@ def zip_endpoint(
 ):
     """Wrapper convenance de `binary_endpoint` pour les archives ZIP."""
     return binary_endpoint(
-        app, path, media_type=ZIP_MEDIA_TYPE, filename=filename, requires_odoo=requires_odoo, tags=tags
+        target, path, media_type=ZIP_MEDIA_TYPE, filename=filename, requires_odoo=requires_odoo, tags=tags
     )
