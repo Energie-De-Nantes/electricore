@@ -10,7 +10,6 @@ from contextlib import asynccontextmanager
 from urllib.parse import urlparse
 
 from fastapi import Depends, FastAPI, HTTPException, Query
-from fastapi.responses import Response
 
 from electricore.api.config import settings
 from electricore.api.decorators import arrow_endpoint, xlsx_endpoint
@@ -19,11 +18,9 @@ from electricore.api.security import APIKeyInfo, get_api_key_info, get_current_a
 from electricore.api.serializers import arrow_stream, xlsx_multi_sheet
 from electricore.api.services import duckdb_service, etl_service
 from electricore.api.services.check_facturation_service import verifier_odoo
-from electricore.api.services.facturation_service import (
-    generer_documents_facturation,
-)
 from electricore.integrations.odoo.decorators import with_odoo
 from electricore.integrations.odoo.facturation import (
+    documents_facturation_du_mois,
     facturation_du_mois,
     feuilles_rapport_facturation,
     rapport_facturation,
@@ -600,40 +597,32 @@ async def check_facturation_odoo(api_key: str = Depends(get_current_api_key)):
     return result
 
 
-@app.get("/facturation/documents", tags=["facturation"])
-async def export_facturation_documents(
+@xlsx_endpoint(
+    app,
+    "/facturation/documents.xlsx",
+    filename="facturation{mois}.xlsx",
+    requires_odoo=True,
+    tags=["facturation"],
+)
+@with_odoo
+def export_facturation_documents(
+    odoo,
     mois: str | None = Query(
         default=None,
         examples=["2025-01-01"],
         description="Mois au format YYYY-MM-DD (défaut : dernier mois disponible dans les données)",
     ),
-    api_key: str = Depends(get_current_api_key),
-):
-    """
-    Export ZIP de tous les documents utiles pour la facturation.
+) -> bytes:
+    """Livrable XLSX multi-onglets de tous les documents utiles pour la facturation (cf. #78).
 
-    **Authentification requise. Nécessite Odoo (ODOO_*) et DuckDB configurés.**
+    Onglets :
 
-    Le ZIP contient :
-    - **f15_complet.csv** : flux F15 du mois
-    - **f15_prestas.csv** : F15 filtré sur les prestations (unite = 'UNITE')
-    - **c15_complet.csv** : flux C15 du mois
-    - **c15_sorties.csv** : C15 filtré sur les sorties (RES + CFNS)
-    - **reconciliation.csv** : réconciliation Odoo ↔ Enedis
-    - **changements_puissance.csv** : lignes avec changement de puissance
+    - **F15 complet** : flux F15 du mois
+    - **F15 prestations** : F15 filtré sur les prestations (unite = 'UNITE')
+    - **C15 complet** : flux C15 du mois
+    - **C15 sorties** : C15 filtré sur les sorties (RES + CFNS)
+    - **Réconciliation** : réconciliation Odoo ↔ Enedis
+    - **Changements puissance** : lignes avec changement de puissance
     """
-    if not settings.is_odoo_configured:
-        raise HTTPException(
-            501,
-            f"Odoo [{settings.odoo_env}] non configuré. Définissez ODOO_{settings.odoo_env.upper()}_URL/DB/USERNAME/PASSWORD dans .env",
-        )
-    try:
-        zip_bytes, suffix = await asyncio.get_event_loop().run_in_executor(None, generer_documents_facturation, mois)
-    except Exception as e:
-        logger.exception("Erreur facturation/documents")
-        raise HTTPException(503, f"Erreur lors de la génération des documents facturation : {e}")
-    return Response(
-        content=zip_bytes,
-        media_type="application/zip",
-        headers={"Content-Disposition": f"attachment; filename=facturation_{suffix}.zip"},
-    )
+    documents, _suffix = documents_facturation_du_mois(odoo, mois)
+    return xlsx_multi_sheet(documents)

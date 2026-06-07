@@ -119,24 +119,24 @@ def feuilles_rapport_facturation(r: RapportFacturation) -> dict[str, pl.DataFram
 def documents_facturation_du_mois(odoo: OdooReader, mois: str | None = None) -> tuple[dict[str, pl.DataFrame], str]:
     """Documents utiles à la campagne de facturation mensuelle (audit + injection).
 
-    Produit 6 DataFrames consommés par le ZIP de l'endpoint
-    `/facturation/documents` et par les notebooks d'opérateur :
+    Produit 6 DataFrames consommés par l'endpoint
+    `/facturation/documents.xlsx` (livrable XLSX multi-onglets, cf. #78) :
 
-    - `f15_complet.csv` : flux F15 brut du mois (audit TURPE distributeur)
-    - `f15_prestas.csv` : F15 filtré sur `unite = "UNITE"` (prestations)
-    - `c15_complet.csv` : flux C15 brut du mois (audit événements)
-    - `c15_sorties.csv` : C15 filtré sur `RES` + `CFNS` (résiliations / sorties)
-    - `reconciliation.csv` : sortie de `facturation_du_mois`
-    - `changements_puissance.csv` : reconciliation filtrée sur `memo_puissance`
+    - `F15 complet` : flux F15 brut du mois (audit TURPE distributeur)
+    - `F15 prestations` : F15 filtré sur `unite = "UNITE"` (prestations)
+    - `C15 complet` : flux C15 brut du mois (audit événements)
+    - `C15 sorties` : C15 filtré sur `RES` + `CFNS` (résiliations / sorties)
+    - `Réconciliation` : sortie de `facturation_du_mois`
+    - `Changements puissance` : reconciliation filtrée sur `memo_puissance`
 
     Args:
         odoo: `OdooReader` déjà ouvert.
         mois: format "YYYY-MM-DD". `None` = dernier mois des données.
 
     Returns:
-        `(documents, suffix)` — dict `{nom_fichier: DataFrame}` et `suffix` au
-        format "YYYY-MM" pour la nomenclature du ZIP. La sérialisation
-        (ZIP/CSV) reste à charge du caller.
+        `(documents, suffix)` — dict `{libellé_onglet: DataFrame}` consommable
+        directement par `xlsx_multi_sheet`, et `suffix` au format "YYYY-MM"
+        pour la nomenclature du fichier final.
     """
     contexte = charger_contexte_facturation(mois)
     suffix = contexte.mois[:7]
@@ -158,11 +158,11 @@ def documents_facturation_du_mois(odoo: OdooReader, mois: str | None = None) -> 
     c15_sorties = c15_df.filter(pl.col("evenement_declencheur").is_in(["RES", "CFNS"]))
 
     documents = {
-        "f15_complet.csv": f15_df,
-        "f15_prestas.csv": f15_prestas,
-        "c15_complet.csv": c15_df,
-        "c15_sorties.csv": c15_sorties,
-        "reconciliation.csv": reconciliation,
-        "changements_puissance.csv": changements_puissance,
+        "F15 complet": f15_df,
+        "F15 prestations": f15_prestas,
+        "C15 complet": c15_df,
+        "C15 sorties": c15_sorties,
+        "Réconciliation": reconciliation,
+        "Changements puissance": changements_puissance,
     }
     return documents, suffix
