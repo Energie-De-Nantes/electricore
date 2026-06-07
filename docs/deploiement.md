@@ -235,6 +235,12 @@ Couvre les cas :
 - Changement de domaine (`--domain nouveau.electricore.fr`)
 - Ajout/retrait de Telegram, Odoo, etc.
 
+> **Auto-refresh des helpers `lib/`** : en mode reconfigure, le script
+> re-télécharge inconditionnellement les helpers de `deploy/lib/` (#62). Évite
+> le piège stale-lib où un `install.sh` à jour sourçait un `lib/` figé sur une
+> version antérieure (cas reproduit lors de la migration rc2 → rc3). Override
+> possible via `INSTALL_BASE_URL` pour pinner sur un tag spécifique en dev.
+
 ## Accès distant depuis un notebook Python
 
 Depuis la v1.5, l'API expose les résultats des pipelines opérationnels en flux
