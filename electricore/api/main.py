@@ -16,6 +16,7 @@ from electricore.api.config import settings
 from electricore.api.decorators import arrow_endpoint, xlsx_endpoint
 from electricore.api.models import ETLJobResponse, ETLRunRequest
 from electricore.api.security import APIKeyInfo, get_api_key_info, get_current_api_key
+from electricore.api.serializers import arrow_stream, xlsx_multi_sheet
 from electricore.api.services import duckdb_service, etl_service
 from electricore.api.services.check_facturation_service import verifier_odoo
 from electricore.api.services.facturation_service import (
@@ -25,12 +26,15 @@ from electricore.api.services.facturation_service import (
     generer_facturation_rapport_xlsx,
 )
 from electricore.api.services.taxes_service import (
-    generer_accise_detail_arrow,
-    generer_accise_detail_xlsx,
-    generer_accise_rapport_xlsx,
     generer_cta_detail_arrow,
     generer_cta_detail_xlsx,
     generer_cta_rapport_xlsx,
+)
+from electricore.integrations.odoo.decorators import with_odoo
+from electricore.integrations.odoo.taxes import (
+    accise_par_contrat,
+    feuilles_rapport_accise,
+    rapport_accise,
 )
 
 logger = logging.getLogger(__name__)
@@ -427,7 +431,9 @@ async def list_api_keys(api_key: str = Depends(get_current_api_key), key_info: A
 @xlsx_endpoint(
     app, "/taxes/accise/rapport.xlsx", filename="accise_rapport{trimestre}.xlsx", requires_odoo=True, tags=["taxes"]
 )
+@with_odoo
 def export_accise_rapport_xlsx(
+    odoo,
     trimestre: str | None = Query(
         default=None,
         examples=["2025-T1"],
@@ -435,13 +441,15 @@ def export_accise_rapport_xlsx(
     ),
 ) -> bytes:
     """Livrable facturiste : Accise TICFE en XLSX multi-onglets (Résumé / Par taux / Détail)."""
-    return generer_accise_rapport_xlsx(trimestre)
+    return xlsx_multi_sheet(feuilles_rapport_accise(rapport_accise(odoo, trimestre)))
 
 
 @xlsx_endpoint(
     app, "/taxes/accise/detail.xlsx", filename="accise_detail{trimestre}.xlsx", requires_odoo=True, tags=["taxes"]
 )
+@with_odoo
 def export_accise_detail_xlsx(
+    odoo,
     trimestre: str | None = Query(
         default=None,
         examples=["2025-T1"],
@@ -449,11 +457,13 @@ def export_accise_detail_xlsx(
     ),
 ) -> bytes:
     """Détail Accise TICFE en XLSX mono-onglet (table PDL × mois, cas technique)."""
-    return generer_accise_detail_xlsx(trimestre)
+    return xlsx_multi_sheet({"Détail": accise_par_contrat(odoo, trimestre)})
 
 
 @arrow_endpoint(app, "/taxes/accise/detail.arrow", requires_odoo=True, tags=["taxes"])
+@with_odoo
 def export_accise_detail_arrow(
+    odoo,
     trimestre: str | None = Query(
         default=None,
         examples=["2025-T1"],
@@ -461,7 +471,7 @@ def export_accise_detail_arrow(
     ),
 ) -> bytes:
     """Détail Accise TICFE en Arrow IPC stream (table PDL × mois, cas technique)."""
-    return generer_accise_detail_arrow(trimestre)
+    return arrow_stream(accise_par_contrat(odoo, trimestre))
 
 
 @xlsx_endpoint(

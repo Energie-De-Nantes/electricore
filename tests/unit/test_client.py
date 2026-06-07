@@ -60,6 +60,8 @@ def test_facturation_retourne_le_dataframe_servi_par_endpoint(client_electricore
 
 def test_accise_round_trip_via_endpoint(monkeypatch):
     """`client.accise(trimestre)` round-trip un DataFrame servi par /taxes/accise/detail.arrow."""
+    from contextlib import contextmanager
+
     df_attendu = pl.DataFrame(
         {
             "pdl": ["12345678901234"],
@@ -68,9 +70,18 @@ def test_accise_round_trip_via_endpoint(monkeypatch):
             "accise_eur": [33.75],
         }
     )
+
+    # Depuis #75, l'endpoint stacke @xlsx_endpoint + @with_odoo : il faut
+    # court-circuiter `OdooReader` *et* mocker `accise_par_contrat` au point
+    # d'import dans `main.py`.
+    @contextmanager
+    def _fake_reader(config):
+        yield None
+
+    monkeypatch.setattr("electricore.integrations.odoo.decorators.OdooReader", _fake_reader)
     monkeypatch.setattr(
-        "electricore.api.services.taxes_service.calculer_accise_detail",
-        lambda trimestre=None: df_attendu,
+        "electricore.api.main.accise_par_contrat",
+        lambda odoo, trimestre=None: df_attendu,
     )
     app.dependency_overrides[get_current_api_key] = lambda: "test-key"
     try:

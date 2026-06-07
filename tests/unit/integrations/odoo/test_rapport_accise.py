@@ -125,15 +125,23 @@ class TestRapportAccise:
         assert hasattr(result, "par_taux")
         assert hasattr(result, "detail")
 
-    def test_detail_is_identity_of_accise_par_contrat(self, monkeypatch):
-        """`rapport.detail` est exactement la sortie de `accise_par_contrat`."""
+    def test_detail_contains_same_rows_as_accise_par_contrat(self, monkeypatch):
+        """`rapport.detail` contient les mêmes lignes que `accise_par_contrat` (réordonnées).
+
+        Depuis #75, `rapport_accise` trie son `detail` par `(pdl, mois_consommation)`.
+        Les colonnes et l'ensemble des lignes restent identiques.
+        """
         from electricore.integrations.odoo import taxes
 
-        detail_attendu = _detail_synthetique()
-        monkeypatch.setattr(taxes, "accise_par_contrat", lambda odoo, trimestre=None: detail_attendu)
+        detail_source = _detail_synthetique()
+        monkeypatch.setattr(taxes, "accise_par_contrat", lambda odoo, trimestre=None: detail_source)
         result = taxes.rapport_accise(odoo=None)
 
-        assert_frame_equal(result.detail, detail_attendu)
+        # Mêmes colonnes, mêmes lignes (après tri par pdl puis mois).
+        assert_frame_equal(
+            result.detail,
+            detail_source.sort(["pdl", "mois_consommation"]),
+        )
 
     def test_par_taux_groups_by_taux_descending(self, monkeypatch):
         """`par_taux` groupé par taux décroissant avec sommes + n_unique(pdl) corrects."""
@@ -163,6 +171,32 @@ class TestRapportAccise:
         assert result.resume["nb_pdl"].to_list() == [2, 2]
         assert result.resume["energie_mwh_total"].to_list() == [6.0, 9.0]
         assert result.resume["accise_eur_total"].to_list() == [135.0, 225.0]
+
+    def test_detail_is_sorted_by_pdl_then_mois_consommation(self, monkeypatch):
+        """Invariant : `rapport_accise(...).detail` est trié `(pdl, mois_consommation)` (issue #75).
+
+        Le tri de présentation du livrable devient un contrat porté par
+        `rapport_accise` lui-même — plus une convenance de la couche service.
+        """
+        from electricore.integrations.odoo import taxes
+
+        # Détail volontairement désordonné en entrée.
+        detail_desordonne = pl.DataFrame(
+            {
+                "pdl": ["B", "A", "B", "A"],
+                "mois_consommation": ["2025-02", "2025-02", "2025-01", "2025-01"],
+                "trimestre": ["2025-T1"] * 4,
+                "taux_accise_eur_mwh": [22.5] * 4,
+                "energie_mwh": [1.0, 2.0, 3.0, 4.0],
+                "accise_eur": [22.5, 45.0, 67.5, 90.0],
+            }
+        )
+        monkeypatch.setattr(taxes, "accise_par_contrat", lambda odoo, trimestre=None: detail_desordonne)
+
+        result = taxes.rapport_accise(odoo=None)
+
+        assert result.detail["pdl"].to_list() == ["A", "A", "B", "B"]
+        assert result.detail["mois_consommation"].to_list() == ["2025-01", "2025-02", "2025-01", "2025-02"]
 
     def test_rapport_accise_propagates_trimestre_filter(self, monkeypatch):
         """`rapport_accise(odoo, trimestre)` propage le filtre à `accise_par_contrat`."""
