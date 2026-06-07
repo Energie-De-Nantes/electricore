@@ -23,15 +23,14 @@ def _mock_odoo_configured(monkeypatch):
 
 @pytest.fixture
 def _mock_odoo_reader(monkeypatch):
-    """Court-circuite `OdooReader` (les tests mockent directement `accise_par_contrat`)."""
+    """Court-circuite `OdooReader` au sein du décorateur `@with_odoo` (#67)."""
     from contextlib import contextmanager
 
     @contextmanager
     def _fake_reader(config):
         yield None
 
-    monkeypatch.setattr("electricore.integrations.odoo.OdooReader", _fake_reader)
-    monkeypatch.setattr("electricore.api.services.taxes_service.OdooReader", _fake_reader)
+    monkeypatch.setattr("electricore.integrations.odoo.decorators.OdooReader", _fake_reader)
 
 
 @pytest.fixture

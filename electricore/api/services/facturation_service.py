@@ -3,19 +3,19 @@
 Le calcul et l'orchestration métier vivent dans
 `electricore.integrations.odoo.facturation`. Ce service ne fait que :
 
-1. Ouvrir la connexion `OdooReader` (responsabilité HTTP)
-2. Déléguer à `facturation_du_mois` ou `rapport_facturation`
-3. Sérialiser le résultat via `api/serializers/` (XLSX / Arrow IPC / ZIP)
+1. Ouvrir la connexion Odoo via `@with_odoo` (cf. issue #67)
+2. Déléguer à `facturation_du_mois`, `rapport_facturation` ou
+   `documents_facturation_du_mois`
+3. Sérialiser le résultat (XLSX / Arrow IPC / ZIP)
 
-La shape du livrable (`Résumé` / `Lignes` / `Changements puissance`) vit
-désormais dans `integrations.odoo.facturation.rapport_facturation` (#64).
+La shape des livrables (`Résumé` / `Lignes` / `Changements puissance`) vit
+dans `integrations.odoo.facturation.rapport_facturation` (#64).
 """
 
 import polars as pl
 
-from electricore.api.config import settings
 from electricore.api.serializers import arrow_stream, xlsx_multi_sheet, zip_csv
-from electricore.integrations.odoo import OdooReader
+from electricore.integrations.odoo.decorators import with_odoo
 from electricore.integrations.odoo.facturation import (
     documents_facturation_du_mois,
     facturation_du_mois,
@@ -23,10 +23,10 @@ from electricore.integrations.odoo.facturation import (
 )
 
 
-def calculer_lignes_facture_rapprochees(mois: str | None = None) -> pl.DataFrame:
-    """Binding HTTP : ouvre Odoo + délègue à `facturation_du_mois`."""
-    with OdooReader(config=settings.get_odoo_config()) as odoo:
-        return facturation_du_mois(odoo, mois)
+@with_odoo
+def calculer_lignes_facture_rapprochees(odoo, mois: str | None = None) -> pl.DataFrame:
+    """Binding HTTP : délègue à `facturation_du_mois` avec OdooReader auto-géré."""
+    return facturation_du_mois(odoo, mois)
 
 
 def generer_facturation_detail_arrow(mois: str | None = None) -> bytes:
@@ -39,10 +39,14 @@ def generer_facturation_detail_xlsx(mois: str | None = None) -> bytes:
     return xlsx_multi_sheet({"Détail": calculer_lignes_facture_rapprochees(mois)})
 
 
+@with_odoo
+def _facturation_rapport(odoo, mois: str | None = None):
+    return rapport_facturation(odoo, mois)
+
+
 def generer_facturation_rapport_xlsx(mois: str | None = None) -> bytes:
     """Livrable facturiste : 3 onglets (Résumé / Lignes / Changements puissance)."""
-    with OdooReader(config=settings.get_odoo_config()) as odoo:
-        r = rapport_facturation(odoo, mois)
+    r = _facturation_rapport(mois)
     return xlsx_multi_sheet(
         {
             "Résumé": r.resume,
@@ -50,6 +54,11 @@ def generer_facturation_rapport_xlsx(mois: str | None = None) -> bytes:
             "Changements puissance": r.changements_puissance,
         }
     )
+
+
+@with_odoo
+def _documents_facturation(odoo, mois: str | None = None):
+    return documents_facturation_du_mois(odoo, mois)
 
 
 def generer_documents_facturation(mois: str | None = None) -> tuple[bytes, str]:
@@ -61,6 +70,5 @@ def generer_documents_facturation(mois: str | None = None) -> tuple[bytes, str]:
     Returns:
         Tuple (zip_bytes, suffix) — suffix au format "YYYY-MM" pour le nom du fichier.
     """
-    with OdooReader(config=settings.get_odoo_config()) as odoo:
-        documents, suffix = documents_facturation_du_mois(odoo, mois)
+    documents, suffix = _documents_facturation(mois)
     return zip_csv(documents), suffix
