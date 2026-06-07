@@ -17,6 +17,11 @@ source "${LIB_DIR}/config.sh"
 # shellcheck source=../lib/env_validate.sh
 source "${LIB_DIR}/env_validate.sh"
 
+# `install.sh` est protégé par un guard `main` ; le sourcer expose
+# `fetch_lib_files` sans déclencher l'exécution du script.
+# shellcheck source=../install.sh
+source "${SCRIPT_DIR}/../install.sh"
+
 PASS=0; FAIL=0
 ok() { printf '  \033[32m✓\033[0m %s\n' "$1"; PASS=$((PASS+1)); }
 ko() { printf '  \033[31m✗\033[0m %s\n' "$1"; FAIL=$((FAIL+1)); }
@@ -82,6 +87,22 @@ echo "→ cli.sh / parse_args"
 assert_fail "parse_args sans --slug"      parse_args --domain edn.fr
 assert_fail "parse_args sans --domain"    parse_args --slug edn
 assert_fail "parse_args flag inconnu"     parse_args --slug edn --domain edn.fr --foo
+
+echo
+echo "→ install.sh / fetch_lib_files"
+tmp_target=$(mktemp -d)
+fetch_lib_files "file://${FIXTURES_DIR}/fake_lib" "$tmp_target"
+[[ -f "${tmp_target}/log.sh" && -f "${tmp_target}/cli.sh" && -f "${tmp_target}/config.sh" ]] \
+    && ok "fetch_lib_files: les 11 helpers sont téléchargés au 1er appel" \
+    || ko "fetch_lib_files: helpers manquants après 1er appel"
+# 2e appel idempotent (les fichiers existent déjà, doit re-télécharger sans erreur)
+fetch_lib_files "file://${FIXTURES_DIR}/fake_lib" "$tmp_target"
+[[ -f "${tmp_target}/log.sh" ]] && ok "fetch_lib_files: idempotent (2e appel ne casse rien)" \
+    || ko "fetch_lib_files: 2e appel a effacé les fichiers"
+# URL invalide → exit non-zero pour signaler l'échec
+fetch_lib_files "file:///tmp/nonexistent-dir-$$" "$tmp_target" 2>/dev/null && ko "fetch_lib_files: URL invalide devrait échouer" \
+    || ok "fetch_lib_files: URL invalide → exit non-zero"
+rm -rf "$tmp_target"
 
 echo
 echo "→ config.sh / map_version_to_git_ref"
