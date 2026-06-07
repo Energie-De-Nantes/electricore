@@ -123,6 +123,32 @@ def test_xlsx_endpoint_supporte_handler_synchrone():
     assert response.content == b"PK\x03\x04sync"
 
 
+def test_xlsx_endpoint_accepte_un_apirouter_via_target_kwarg():
+    """Le décorateur accepte un `APIRouter` (pas seulement `FastAPI`) via le kwarg `target` (issue #81).
+
+    Prérequis du split de `api/main.py` en routers per-domaine : `xlsx_endpoint`
+    doit pouvoir enregistrer ses routes sur un `APIRouter` aussi bien que sur
+    une instance `FastAPI`.
+    """
+    from fastapi import APIRouter
+
+    router = APIRouter()
+
+    @xlsx_endpoint(target=router, path="/test/router.xlsx", filename="depuis_router.xlsx")
+    async def handler() -> bytes:
+        return b"PK\x03\x04depuis_router"
+
+    app = _app_avec_auth_neutralisee()
+    app.include_router(router)
+
+    response = TestClient(app).get("/test/router.xlsx")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    assert "depuis_router.xlsx" in response.headers["content-disposition"]
+    assert response.content == b"PK\x03\x04depuis_router"
+
+
 def test_arrow_endpoint_emballe_handler_en_arrow_ipc_sans_content_disposition():
     """`@arrow_endpoint` jumelle de `@xlsx_endpoint` pour le streaming Arrow IPC.
 
@@ -141,3 +167,23 @@ def test_arrow_endpoint_emballe_handler_en_arrow_ipc_sans_content_disposition():
     assert response.headers["content-type"] == "application/vnd.apache.arrow.stream"
     assert "content-disposition" not in response.headers
     assert response.content == b"ARROW1\x00\x00fake"
+
+
+def test_arrow_endpoint_accepte_un_apirouter_via_target_kwarg():
+    """`@arrow_endpoint` accepte aussi un `APIRouter` via `target=` (cf. #81)."""
+    from fastapi import APIRouter
+
+    router = APIRouter()
+
+    @arrow_endpoint(target=router, path="/test/arrow_router")
+    async def handler() -> bytes:
+        return b"ARROW1\x00\x00from_router"
+
+    app = _app_avec_auth_neutralisee()
+    app.include_router(router)
+
+    response = TestClient(app).get("/test/arrow_router")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/vnd.apache.arrow.stream"
+    assert response.content == b"ARROW1\x00\x00from_router"
