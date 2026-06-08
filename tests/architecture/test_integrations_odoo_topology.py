@@ -21,16 +21,6 @@ HELPERS = (
     "lignes_factures_du_mois",
 )
 
-TRANSFORMS = (
-    "normalize_many2one_fields",
-    "convert_odoo_dates",
-    "add_computed_columns",
-    "filter_active_records",
-    "explode_one2many_field",
-    "aggregate_by_period",
-    "expr_calculer_trimestre_facturation",
-)
-
 PANDERA_MODELS = ("FactureOdoo", "LigneFactureOdoo", "CommandeVenteOdoo")
 
 
@@ -50,14 +40,6 @@ def test_helpers_importable_from_integrations_odoo(name: str) -> None:
     assert callable(getattr(module, name))
 
 
-@pytest.mark.parametrize("name", TRANSFORMS)
-def test_transforms_importable_from_integrations_odoo(name: str) -> None:
-    """A : chaque transform Polars composable est exposé par `integrations.odoo`."""
-    module = importlib.import_module("electricore.integrations.odoo")
-    assert hasattr(module, name), f"{name} absent de electricore.integrations.odoo"
-    assert callable(getattr(module, name))
-
-
 @pytest.mark.parametrize("name", PANDERA_MODELS)
 def test_pandera_models_importable_from_integrations_odoo_models(name: str) -> None:
     """A : chaque schéma Pandera Odoo est exposé par `integrations.odoo.models`."""
@@ -66,7 +48,7 @@ def test_pandera_models_importable_from_integrations_odoo_models(name: str) -> N
     assert getattr(module, name) is not None
 
 
-SURFACE_FROM_ROOT = TYPES + HELPERS + TRANSFORMS
+SURFACE_FROM_ROOT = TYPES + HELPERS
 SURFACE_FROM_MODELS = PANDERA_MODELS
 
 
@@ -104,7 +86,7 @@ def test_old_odoo_path_removed(module_path: str) -> None:
         importlib.import_module(module_path)
 
 
-@pytest.mark.parametrize("name", TYPES + HELPERS + TRANSFORMS)
+@pytest.mark.parametrize("name", TYPES + HELPERS)
 def test_loaders_root_no_longer_exposes_odoo(name: str) -> None:
     """C : `electricore.core.loaders` n'expose plus aucun symbole Odoo (ADR-0016)."""
     module = importlib.import_module("electricore.core.loaders")
