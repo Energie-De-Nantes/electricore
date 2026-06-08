@@ -1,8 +1,12 @@
-"""Tests unitaires de `rapprocher_facturation_mensuelle`.
+"""Tests unitaires de `rapprocher` (orchestrations.contexte_mensuel).
 
-Le rapprochement facturation mensuelle joint les lignes de facture Odoo
-(déjà tagguées avec `x_ref_situation_contractuelle`) à la facturation Enedis
-du mois ciblé, et calcule `quantite_enedis` selon la catégorie de produit.
+Le rapprochement facturation mensuelle joint les *lignes de facture*
+(shape agnostique `LignesFacture`) à la facturation Enedis du mois porté
+par le `ContexteMensuel`, et calcule `quantite_enedis` selon
+`categorie_produit`. Les flags ADR-0014 (`a_facturer`, `a_supprimer`)
+sont **dérivés en core** depuis `est_brouillon` + `quantite`.
+
+Voir `core/CONTEXT.md` (entrée *Rapprochement facturation mensuelle*).
 """
 
 from datetime import datetime
@@ -12,32 +16,32 @@ import polars as pl
 import pytest
 
 from electricore.core.models.lignes_facture_rapprochees import LignesFactureRapprochees
-from electricore.core.pipelines.facturation import rapprocher_facturation_mensuelle
+from electricore.core.orchestrations.contexte_mensuel import ContexteMensuel, rapprocher
 
 
-def _ligne_odoo(
+def _ligne(
     *,
     rsc: str = "RSC001",
     categorie: str = "HP",
-    pdl: str = "12345678901234",
+    quantite: float = 0.0,
+    est_brouillon: bool = False,
     invoice_line_ids: int = 101,
-    quantity: float = 0.0,
-    memo_puissance: str = "",
-    a_facturer: bool = True,
-    a_supprimer: bool = False,
+    pdl: str = "12345678901234",
 ) -> pl.DataFrame:
+    """Construit une `LignesFacture`-conforme avec passe-plat ERP (Odoo-style)."""
     return pl.DataFrame(
         {
-            "x_ref_situation_contractuelle": [rsc],
+            # Clés métier renommées (les 4 colonnes du contrat minimal)
+            "ref_situation_contractuelle": [rsc],
+            "categorie_produit": [categorie],
+            "quantite": [quantite],
+            "est_brouillon": [est_brouillon],
+            # ERP passe-plat
             "invoice_line_ids": [invoice_line_ids],
             "x_pdl": [pdl],
             "x_lisse": [False],
             "name_account_move": ["INV/2025/0001"],
-            "name_product_category": [categorie],
             "name_product_product": [f"Énergie {categorie}"],
-            "quantity": [quantity],
-            "a_facturer": [a_facturer],
-            "a_supprimer": [a_supprimer],
         }
     )
 
@@ -56,8 +60,8 @@ def _fact_mensuelle(
     turpe_variable_eur: float = 0.0,
     data_complete: bool = True,
     memo_puissance: str = "",
-) -> pl.LazyFrame:
-    return pl.LazyFrame(
+) -> pl.DataFrame:
+    return pl.DataFrame(
         {
             "ref_situation_contractuelle": [rsc],
             "pdl": [pdl],
@@ -94,16 +98,33 @@ def _historique(
     )
 
 
+def _ctx(
+    *,
+    fact_mensuelle: pl.DataFrame,
+    historique: pl.LazyFrame,
+    mois: str = "2025-01-01",
+) -> ContexteMensuel:
+    """Construit un `ContexteMensuel` minimal pour les tests de `rapprocher()`.
+
+    Seuls `mois`, `facturation_mensuelle` et `historique_enrichi` sont consommés
+    par `rapprocher()` ; `abonnements` et `energie` sont des placeholders.
+    """
+    return ContexteMensuel(
+        mois=mois,
+        historique_enrichi=historique,
+        abonnements=pl.LazyFrame(),
+        energie=pl.LazyFrame(),
+        facturation_mensuelle=fact_mensuelle,
+    )
+
+
 class TestMappingCategories:
-    """quantite_enedis dépend de name_product_category."""
+    """`quantite_enedis` dépend de `categorie_produit`."""
 
     def test_hp_recupere_energie_hp_kwh(self):
-        lignes = _ligne_odoo(categorie="HP")
-        fact = _fact_mensuelle(energie_hp_kwh=123.45)
+        ctx = _ctx(fact_mensuelle=_fact_mensuelle(energie_hp_kwh=123.45), historique=_historique())
 
-        resultat = rapprocher_facturation_mensuelle(
-            lignes_odoo=lignes, fact_mensuelle=fact, historique=_historique(), mois="2025-01-01"
-        )
+        resultat = rapprocher(ctx, _ligne(categorie="HP"))
 
         assert resultat["quantite_enedis"].item() == 123.45
 
@@ -116,60 +137,45 @@ class TestMappingCategories:
         ],
     )
     def test_autres_categories_recuperent_colonne_correspondante(self, categorie, kwargs_fact, attendu):
-        lignes = _ligne_odoo(categorie=categorie)
-        fact = _fact_mensuelle(**kwargs_fact)
+        ctx = _ctx(fact_mensuelle=_fact_mensuelle(**kwargs_fact), historique=_historique())
 
-        resultat = rapprocher_facturation_mensuelle(
-            lignes_odoo=lignes, fact_mensuelle=fact, historique=_historique(), mois="2025-01-01"
-        )
+        resultat = rapprocher(ctx, _ligne(categorie=categorie))
 
         assert resultat["quantite_enedis"].item() == attendu
 
-    def test_categorie_inconnue_donne_quantite_enedis_null(self):
-        """Une catégorie hors mapping connu ne renseigne pas quantite_enedis."""
-        lignes = _ligne_odoo(categorie="CategorieDouteuse")
-        fact = _fact_mensuelle(energie_hp_kwh=999.0, energie_hc_kwh=999.0)
 
-        resultat = rapprocher_facturation_mensuelle(
-            lignes_odoo=lignes, fact_mensuelle=fact, historique=_historique(), mois="2025-01-01"
-        )
+class TestSelectionMois:
+    """`rapprocher` filtre `ctx.facturation_mensuelle` sur `ctx.mois`."""
 
-        assert resultat["quantite_enedis"].item() is None
-
-
-class TestFiltreMois:
-    """Sélection du mois de facturation à rapprocher."""
-
-    def test_mois_none_selectionne_dernier_mois_disponible(self):
-        """Sans mois explicite, on retient le dernier mois présent dans fact_mensuelle."""
-        lignes = _ligne_odoo(categorie="HP")
+    def test_mois_du_contexte_selectionne_la_bonne_ligne(self):
         fact = pl.concat(
             [
                 _fact_mensuelle(mois=datetime(2025, 1, 1), fin=datetime(2025, 2, 1), energie_hp_kwh=100.0),
                 _fact_mensuelle(mois=datetime(2025, 2, 1), fin=datetime(2025, 3, 1), energie_hp_kwh=200.0),
             ]
         )
+        ctx = _ctx(fact_mensuelle=fact, historique=_historique(), mois="2025-02-01")
 
-        resultat = rapprocher_facturation_mensuelle(
-            lignes_odoo=lignes, fact_mensuelle=fact, historique=_historique(), mois=None
-        )
+        resultat = rapprocher(ctx, _ligne(categorie="HP"))
 
         assert resultat["quantite_enedis"].item() == 200.0
 
 
 class TestColonnesSortie:
-    """Le DataFrame `lignes_facture_rapprochees` a un schéma figé."""
+    """`LignesFactureRapprochees` a un schéma figé avec les colonnes renommées."""
 
     COLONNES_ATTENDUES = frozenset(
         [
-            # Identifiants Odoo + quantité
+            # Identifiants ERP passe-plat
             "invoice_line_ids",
             "x_pdl",
             "x_lisse",
             "name_account_move",
-            "name_product_category",
             "name_product_product",
-            "quantity",
+            # Clés métier renommées
+            "categorie_produit",
+            "quantite",
+            # Quantité Enedis + mémo
             "quantite_enedis",
             "memo_puissance",
             # Méta-période Enedis
@@ -183,90 +189,94 @@ class TestColonnesSortie:
             # Identifiants compteur
             "num_compteur",
             "type_compteur",
-            # Flags d'état de facturation (ADR-0014)
+            # Flags ADR-0014 dérivés en core
             "a_facturer",
             "a_supprimer",
         ]
     )
 
     def test_sortie_contient_les_colonnes_attendues(self):
-        lignes = _ligne_odoo(categorie="HP")
-        fact = _fact_mensuelle(energie_hp_kwh=10.0)
-        hist = _historique()
+        ctx = _ctx(fact_mensuelle=_fact_mensuelle(energie_hp_kwh=10.0), historique=_historique())
 
-        resultat = rapprocher_facturation_mensuelle(
-            lignes_odoo=lignes, fact_mensuelle=fact, historique=hist, mois="2025-01-01"
-        )
+        resultat = rapprocher(ctx, _ligne(categorie="HP"))
 
         assert frozenset(resultat.columns) == self.COLONNES_ATTENDUES
 
 
-class TestPropagationFlags:
-    """`a_facturer` et `a_supprimer` venant de lignes_odoo doivent traverser le rapprochement."""
+class TestDerivationFlagsADR0014:
+    """`a_facturer` et `a_supprimer` sont dérivés en core depuis `est_brouillon` + `quantite`."""
 
-    def test_propage_a_facturer_et_a_supprimer(self):
-        lignes = _ligne_odoo(categorie="HP").with_columns(
-            [
-                pl.lit(True).alias("a_facturer"),
-                pl.lit(False).alias("a_supprimer"),
-            ]
-        )
-        fact = _fact_mensuelle(energie_hp_kwh=10.0)
+    def test_brouillon_et_qte_positive_donne_a_facturer(self):
+        ctx = _ctx(fact_mensuelle=_fact_mensuelle(energie_hp_kwh=10.0), historique=_historique())
 
-        resultat = rapprocher_facturation_mensuelle(
-            lignes_odoo=lignes, fact_mensuelle=fact, historique=_historique(), mois="2025-01-01"
-        )
+        resultat = rapprocher(ctx, _ligne(est_brouillon=True, quantite=42.0))
 
         assert resultat["a_facturer"].item() is True
         assert resultat["a_supprimer"].item() is False
 
+    def test_brouillon_et_qte_zero_donne_a_supprimer(self):
+        ctx = _ctx(fact_mensuelle=_fact_mensuelle(energie_hp_kwh=10.0), historique=_historique())
+
+        resultat = rapprocher(ctx, _ligne(est_brouillon=True, quantite=0.0))
+
+        assert resultat["a_facturer"].item() is False
+        assert resultat["a_supprimer"].item() is True
+
+    def test_non_brouillon_donne_les_deux_flags_a_false(self):
+        ctx = _ctx(fact_mensuelle=_fact_mensuelle(energie_hp_kwh=10.0), historique=_historique())
+
+        # Même avec qte > 0 : si pas brouillon, rien à facturer (la ligne n'est pas une draft)
+        resultat = rapprocher(ctx, _ligne(est_brouillon=False, quantite=42.0))
+
+        assert resultat["a_facturer"].item() is False
+        assert resultat["a_supprimer"].item() is False
+
 
 class TestJoinHistorique:
-    """num_compteur et type_compteur sont projetés depuis l'Historique."""
+    """`num_compteur` et `type_compteur` sont projetés depuis `ctx.historique_enrichi`."""
 
     def test_compteur_provient_de_historique(self):
-        lignes = _ligne_odoo(rsc="RSC001", categorie="HP")
-        fact = _fact_mensuelle(rsc="RSC001", energie_hp_kwh=10.0)
-        hist = _historique(rsc="RSC001", num_compteur="87654321", type_compteur="CBE")
-
-        resultat = rapprocher_facturation_mensuelle(
-            lignes_odoo=lignes, fact_mensuelle=fact, historique=hist, mois="2025-01-01"
+        ctx = _ctx(
+            fact_mensuelle=_fact_mensuelle(rsc="RSC001", energie_hp_kwh=10.0),
+            historique=_historique(rsc="RSC001", num_compteur="87654321", type_compteur="CBE"),
         )
+
+        resultat = rapprocher(ctx, _ligne(rsc="RSC001", categorie="HP"))
 
         assert resultat["num_compteur"].item() == "87654321"
         assert resultat["type_compteur"].item() == "CBE"
 
     def test_compteur_null_si_rsc_absent_de_historique(self):
-        lignes = _ligne_odoo(rsc="RSC001", categorie="HP")
-        fact = _fact_mensuelle(rsc="RSC001", energie_hp_kwh=10.0)
-        hist = _historique(rsc="AUTRE_RSC", num_compteur="ZZZ", type_compteur="ZZZ")
-
-        resultat = rapprocher_facturation_mensuelle(
-            lignes_odoo=lignes, fact_mensuelle=fact, historique=hist, mois="2025-01-01"
+        ctx = _ctx(
+            fact_mensuelle=_fact_mensuelle(rsc="RSC001", energie_hp_kwh=10.0),
+            historique=_historique(rsc="AUTRE_RSC", num_compteur="ZZZ", type_compteur="ZZZ"),
         )
+
+        resultat = rapprocher(ctx, _ligne(rsc="RSC001", categorie="HP"))
 
         assert resultat["num_compteur"].item() is None
         assert resultat["type_compteur"].item() is None
 
 
 class TestSchemaLignesFactureRapprochees:
-    """Le modèle Pandera transporte aussi les méta-données Enedis et compteur."""
+    """Le modèle Pandera transporte les méta-données Enedis et compteur (colonnes renommées)."""
 
     def test_modele_accepte_les_colonnes_etendues(self):
-        """Le modèle accepte 9 colonnes Odoo + 9 méta Enedis/compteur + 2 flags."""
         df = pl.DataFrame(
             {
-                # 9 colonnes existantes (Odoo + quantité Enedis)
+                # Identifiants ERP passe-plat
                 "invoice_line_ids": [101],
                 "x_pdl": ["12345678901234"],
                 "x_lisse": [False],
                 "name_account_move": ["INV/2025/0001"],
-                "name_product_category": ["HP"],
                 "name_product_product": ["Énergie HP"],
-                "quantity": [100.0],
+                # Clés métier renommées
+                "categorie_produit": ["HP"],
+                "quantite": [100.0],
+                # Quantité Enedis + mémo
                 "quantite_enedis": [123.45],
                 "memo_puissance": [""],
-                # 9 colonnes méta Enedis + identifiants compteur
+                # Méta-période Enedis
                 "ref_situation_contractuelle": ["RSC001"],
                 "pdl": ["12345678901234"],
                 "data_complete": [True],
@@ -274,65 +284,28 @@ class TestSchemaLignesFactureRapprochees:
                 "fin": [datetime(2025, 1, 31, tzinfo=ZoneInfo("Europe/Paris"))],
                 "turpe_fixe_eur": [12.34],
                 "turpe_variable_eur": [56.78],
+                # Identifiants compteur
                 "num_compteur": ["12345678"],
                 "type_compteur": ["LINKY"],
-                # 2 flags (cf. ADR-0014)
+                # Flags ADR-0014
                 "a_facturer": [True],
                 "a_supprimer": [False],
             }
-        )
-
-        # Ne doit pas lever
-        LignesFactureRapprochees.validate(df)
-
-    def test_modele_tolere_nulls_sur_les_colonnes_etendues(self):
-        """Les colonnes étendues sont nullable (ligne Odoo sans match Enedis)."""
-        df = pl.DataFrame(
-            {
-                "invoice_line_ids": [102],
-                "x_pdl": ["99999999999999"],
-                "x_lisse": [False],
-                "name_account_move": ["INV/2025/0002"],
-                "name_product_category": ["HP"],
-                "name_product_product": ["Énergie HP"],
-                "quantity": [0.0],
-                "quantite_enedis": [None],
-                "memo_puissance": [None],
-                "ref_situation_contractuelle": [None],
-                "pdl": [None],
-                "data_complete": [None],
-                "debut": [None],
-                "fin": [None],
-                "turpe_fixe_eur": [None],
-                "turpe_variable_eur": [None],
-                "num_compteur": [None],
-                "type_compteur": [None],
-            },
-            schema_overrides={
-                "debut": pl.Datetime("us", "Europe/Paris"),
-                "fin": pl.Datetime("us", "Europe/Paris"),
-                "quantite_enedis": pl.Float64,
-                "turpe_fixe_eur": pl.Float64,
-                "turpe_variable_eur": pl.Float64,
-                "data_complete": pl.Boolean,
-            },
         )
 
         LignesFactureRapprochees.validate(df)
 
 
 class TestLeftJoin:
-    """Les lignes Odoo sans match RSC dans fact_mensuelle restent dans le résultat."""
+    """Les lignes sans match RSC dans `facturation_mensuelle` restent dans le résultat."""
 
     def test_ligne_sans_match_rsc_est_conservee_avec_quantite_null(self):
-        lignes_avec_match = _ligne_odoo(rsc="RSC001", categorie="HP", invoice_line_ids=101)
-        lignes_sans_match = _ligne_odoo(rsc="RSC_ABSENT", categorie="HP", invoice_line_ids=102)
-        lignes = pl.concat([lignes_avec_match, lignes_sans_match])
-        fact = _fact_mensuelle(rsc="RSC001", energie_hp_kwh=123.45)
+        ligne_avec_match = _ligne(rsc="RSC001", categorie="HP", invoice_line_ids=101)
+        ligne_sans_match = _ligne(rsc="RSC_ABSENT", categorie="HP", invoice_line_ids=102)
+        lignes = pl.concat([ligne_avec_match, ligne_sans_match])
+        ctx = _ctx(fact_mensuelle=_fact_mensuelle(rsc="RSC001", energie_hp_kwh=123.45), historique=_historique())
 
-        resultat = rapprocher_facturation_mensuelle(
-            lignes_odoo=lignes, fact_mensuelle=fact, historique=_historique(), mois="2025-01-01"
-        ).sort("invoice_line_ids")
+        resultat = rapprocher(ctx, lignes).sort("invoice_line_ids")
 
         assert len(resultat) == 2
         assert resultat["invoice_line_ids"].to_list() == [101, 102]

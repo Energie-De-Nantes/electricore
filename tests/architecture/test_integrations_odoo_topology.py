@@ -19,7 +19,6 @@ HELPERS = (
     "commandes",
     "commandes_lignes",
     "lignes_factures_du_mois",
-    "flags_etat_facturation",
 )
 
 TRANSFORMS = (

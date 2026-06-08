@@ -45,9 +45,9 @@ def _lignes_synthetique() -> pl.DataFrame:
             "x_pdl": ["A", "A", "B", "C", "B"],
             "x_lisse": [False, False, True, False, True],
             "name_account_move": ["INV/1", "INV/1", "INV/2", "INV/3", "INV/2"],
-            "name_product_category": ["Base", "HP", "Base", "Base", "Base"],
+            "categorie_produit": ["Base", "HP", "Base", "Base", "Base"],
             "name_product_product": ["P1", "P2", "P1", "P1", "P1"],
-            "quantity": [100.0, 50.0, 80.0, 60.0, 0.0],
+            "quantite": [100.0, 50.0, 80.0, 60.0, 0.0],
             "quantite_enedis": [100.0, 50.0, 80.0, 60.0, 0.0],
             # Spécificité : 2 lignes avec memo_puissance non vide (B sur 2 lignes)
             "memo_puissance": ["", "", "", "", "Hausse 6 → 9 kVA"],

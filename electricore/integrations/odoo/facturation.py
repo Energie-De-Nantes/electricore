@@ -19,10 +19,9 @@ from typing import NamedTuple
 
 import polars as pl
 
-from electricore.core.loaders import c15, f15
-from electricore.core.loaders.contexte_mensuel import charger_contexte_facturation
+from electricore.core.loaders import c15, f15, releves_harmonises
 from electricore.core.models.lignes_facture_rapprochees import LignesFactureRapprochees
-from electricore.core.pipelines.facturation import rapprocher_facturation_mensuelle
+from electricore.core.orchestrations.contexte_mensuel import charger, rapprocher
 
 from .helpers import lignes_factures_du_mois
 from .models.rapport_facturation import RapportFacturationResume
@@ -59,14 +58,9 @@ def facturation_du_mois(odoo: OdooReader, mois: str | None = None) -> pl.DataFra
         enrichie des données Enedis et des flags `a_facturer` / `a_supprimer`
         (cf. ADR-0014).
     """
-    contexte = charger_contexte_facturation(mois)
+    contexte = charger(c15().lazy(), releves_harmonises().lazy(), mois=mois)
     lignes_df = lignes_factures_du_mois(odoo, contexte.mois).collect()
-    return rapprocher_facturation_mensuelle(
-        lignes_odoo=lignes_df,
-        fact_mensuelle=contexte.facturation_mensuelle.lazy(),
-        historique=contexte.historique_enrichi,
-        mois=contexte.mois,
-    )
+    return rapprocher(contexte, lignes_df)
 
 
 def rapport_facturation(odoo: OdooReader, mois: str | None = None) -> RapportFacturation:
@@ -138,17 +132,12 @@ def documents_facturation_du_mois(odoo: OdooReader, mois: str | None = None) -> 
         directement par `xlsx_multi_sheet`, et `suffix` au format "YYYY-MM"
         pour la nomenclature du fichier final.
     """
-    contexte = charger_contexte_facturation(mois)
+    contexte = charger(c15().lazy(), releves_harmonises().lazy(), mois=mois)
     suffix = contexte.mois[:7]
     mois_date = pl.lit(contexte.mois).str.to_date()
 
     lignes_df = lignes_factures_du_mois(odoo, contexte.mois).collect()
-    reconciliation = rapprocher_facturation_mensuelle(
-        lignes_odoo=lignes_df,
-        fact_mensuelle=contexte.facturation_mensuelle.lazy(),
-        historique=contexte.historique_enrichi,
-        mois=contexte.mois,
-    )
+    reconciliation = rapprocher(contexte, lignes_df)
     changements_puissance = reconciliation.filter(pl.col("memo_puissance") != "")
 
     f15_df = f15().lazy().filter(pl.col("date_facture").dt.truncate("1mo").dt.date() == mois_date).collect()
