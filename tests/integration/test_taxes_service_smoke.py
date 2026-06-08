@@ -60,6 +60,12 @@ def test_cta_par_contrat_delegue_a_charger(monkeypatch, df_facturation_mensuelle
 
     monkeypatch.setattr(taxes_orchestration, "charger", _capture_charger)
 
+    # Les loaders sont évalués côté caller AVANT `charger()` (nouvelle topologie #87).
+    # On les stub pour éviter d'ouvrir la DuckDB qui n'existe pas en CI. Le retour
+    # n'est pas inspecté car `_capture_charger` ignore ses arguments.
+    monkeypatch.setattr(taxes_orchestration, "c15", lambda: pl.LazyFrame())
+    monkeypatch.setattr(taxes_orchestration, "releves_harmonises", lambda: pl.LazyFrame())
+
     # Stubs Odoo (l'orchestration charge encore les PDLs depuis sale.order).
     class _OdooReaderMock:
         def __enter__(self):
