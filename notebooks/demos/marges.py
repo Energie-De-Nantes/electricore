@@ -23,8 +23,8 @@ with app.setup(hide_code=True):
     from electricore.core.loaders import (
         c15, releves_harmonises
     )
-    from electricore.core.pipelines.orchestration import (
-        facturation
+    from electricore.core.orchestrations import (
+        charger
     )
     from electricore.core.pipelines.facturation import (
         expr_calculer_trimestre
@@ -135,7 +135,9 @@ def _():
 
 @app.cell
 def _(lf_historique, lf_releves):
-    _,_,df_energies,df_facturation = facturation(historique=lf_historique, releves=lf_releves)
+    _ctx = charger(historique=lf_historique, releves=lf_releves)
+    df_energies = _ctx.energie
+    df_facturation = _ctx.facturation_mensuelle
     df_facturation
     return df_energies, df_facturation
 

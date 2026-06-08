@@ -15,7 +15,7 @@ with app.setup(hide_code=True):
         sys.path.append(str(project_root))
 
     from electricore.core.loaders import c15, releves_harmonises
-    from electricore.core.pipelines.orchestration import facturation
+    from electricore.core.orchestrations import charger
 
 
 @app.cell(hide_code=True)
@@ -38,10 +38,11 @@ def _():
 
 @app.cell
 def _(lf_historique, lf_releves):
-    hist, abo, energie, fact = facturation(
-        historique=lf_historique,
-        releves=lf_releves,
-    )
+    ctx = charger(historique=lf_historique, releves=lf_releves)
+    hist = ctx.historique_enrichi
+    abo = ctx.abonnements
+    energie = ctx.energie
+    fact = ctx.facturation_mensuelle
     return abo, energie, fact, hist
 
 

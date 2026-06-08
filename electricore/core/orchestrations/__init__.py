@@ -6,6 +6,6 @@ d'I/O — l'appelant (adapter ERP, router API) charge les LazyFrames via
 `core/loaders/` puis les transmet aux fonctions d'orchestration.
 """
 
-from electricore.core.orchestrations.contexte_mensuel import ContexteMensuel, charger, rapprocher
+from electricore.core.orchestrations.contexte_mensuel import ContexteMensuel, charger, documents, rapprocher
 
-__all__ = ["ContexteMensuel", "charger", "rapprocher"]
+__all__ = ["ContexteMensuel", "charger", "documents", "rapprocher"]

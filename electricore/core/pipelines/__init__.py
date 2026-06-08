@@ -3,15 +3,16 @@ Pipelines de traitement ElectriCore utilisant Polars.
 
 Ce module contient les implémentations fonctionnelles des pipelines
 de traitement de données énergétiques utilisant les expressions Polars.
+
+La composition `facturation()` (et son container `ResultatFacturationPolars`)
+a été déplacée dans `electricore.core.orchestrations.contexte_mensuel`
+(cf. slice 3 de la refonte Contexte mensuel, issue #89).
 """
 
-# Lazy imports pour éviter de charger facturation.py (qui nécessite Pandera)
-# lors de l'import de modules indépendants comme turpe.py.
+# Lazy imports pour éviter de charger Pandera lors d'imports de modules
+# indépendants comme turpe.py.
 
 __all__ = [
-    "ResultatFacturationPolars",
-    "facturation",
-    # Pipeline Accise
     "pipeline_accise",
     "load_accise_rules",
     "agreger_consommations_mensuelles",
@@ -20,14 +21,8 @@ __all__ = [
 
 
 def __getattr__(name: str):
-    """
-    Lazy import pour éviter de charger automatiquement orchestration/facturation.
-
-    Permet d'importer turpe.py sans déclencher l'import de Pandera via facturation.py.
-    Les imports de orchestration ne se font que si explicitement demandés.
-    """
-    # Pipeline Accise (pas de Pandera)
-    if name in ["pipeline_accise", "load_accise_rules", "agreger_consommations_mensuelles", "ajouter_accise"]:
+    """Lazy import pour `pipeline_accise` & co."""
+    if name in __all__:
         from .accise import agreger_consommations_mensuelles, ajouter_accise, load_accise_rules, pipeline_accise
 
         return {
@@ -35,15 +30,6 @@ def __getattr__(name: str):
             "load_accise_rules": load_accise_rules,
             "agreger_consommations_mensuelles": agreger_consommations_mensuelles,
             "ajouter_accise": ajouter_accise,
-        }[name]
-
-    # Pipeline orchestration/facturation (avec Pandera)
-    if name in __all__:
-        from .orchestration import ResultatFacturationPolars, facturation
-
-        return {
-            "ResultatFacturationPolars": ResultatFacturationPolars,
-            "facturation": facturation,
         }[name]
 
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
