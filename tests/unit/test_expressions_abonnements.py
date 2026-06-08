@@ -181,22 +181,39 @@ def test_calculer_periodes_abonnement_pipeline(sample_historique):
 
 
 def test_generer_periodes_abonnement_filtre_correctement():
-    """Teste que la génération filtre correctement les événements."""
-    # Créer des données avec des événements qui n'impactent pas l'abonnement
-    historique_mixte = pl.DataFrame(
+    """Teste que la génération filtre correctement les événements.
+
+    L'entrée doit être conforme au schéma `Historique` (enrichi) — la fonction
+    est décorée `@pa.check_types`.
+    """
+    from zoneinfo import ZoneInfo
+
+    paris = ZoneInfo("Europe/Paris")
+    historique_mixte = pl.LazyFrame(
         {
-            "ref_situation_contractuelle": ["PDL001", "PDL001", "PDL001"],
+            "ref_situation_contractuelle": ["REF001", "REF001", "REF001"],
             "pdl": ["12345", "12345", "12345"],
             "date_evenement": [
-                datetime(2024, 1, 1),
-                datetime(2024, 2, 1),
-                datetime(2024, 3, 1),
+                datetime(2024, 1, 1, tzinfo=paris),
+                datetime(2024, 2, 1, tzinfo=paris),
+                datetime(2024, 3, 1, tzinfo=paris),
             ],
+            "segment_clientele": ["C5", "C5", "C5"],
+            "etat_contractuel": ["EN SERVICE", "EN SERVICE", "EN SERVICE"],
+            "evenement_declencheur": ["MES", "MCT", "MCT"],
+            "type_evenement": ["contractuel", "contractuel", "contractuel"],
             "formule_tarifaire_acheminement": ["BTINFCU4", "BTINFCU4", "BTINFMU4"],
             "puissance_souscrite_kva": [6.0, 6.0, 9.0],
+            "type_compteur": ["LINKY", "LINKY", "LINKY"],
+            "num_compteur": ["123", "123", "123"],
             "impacte_abonnement": [True, False, True],  # Le 2ème n'impacte pas
-        }
-    ).lazy()
+            "impacte_energie": [True, False, True],
+            "resume_modification": ["MES", "Aucun", "MCT FTA"],
+        },
+        schema_overrides={
+            "date_evenement": pl.Datetime(time_unit="us", time_zone="Europe/Paris"),
+        },
+    )
 
     result = generer_periodes_abonnement(historique_mixte).collect()
 

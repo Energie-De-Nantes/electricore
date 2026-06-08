@@ -6,7 +6,12 @@ fonctionnelle de Polars. Les expressions sont des transformations pures
 qui peuvent être composées entre elles pour générer les périodes d'abonnement.
 """
 
+import pandera.polars as pa
 import polars as pl
+from pandera.typing.polars import LazyFrame
+
+from electricore.core.models.historique import Historique
+from electricore.core.models.periode_abonnement import PeriodeAbonnement
 
 # =============================================================================
 # EXPRESSIONS PURES ATOMIQUES
@@ -208,7 +213,8 @@ def calculer_periodes_abonnement(lf: pl.LazyFrame) -> pl.LazyFrame:
     )
 
 
-def generer_periodes_abonnement(historique: pl.LazyFrame) -> pl.LazyFrame:
+@pa.check_types(lazy=True)
+def generer_periodes_abonnement(historique: LazyFrame[Historique]) -> LazyFrame[PeriodeAbonnement]:
     """
     Génère les périodes homogènes d'abonnement à partir de l'historique enrichi.
 
@@ -233,7 +239,8 @@ def generer_periodes_abonnement(historique: pl.LazyFrame) -> pl.LazyFrame:
     )
 
 
-def pipeline_abonnements(historique: pl.LazyFrame) -> pl.LazyFrame:
+@pa.check_types(lazy=True)
+def pipeline_abonnements(historique: LazyFrame[Historique]) -> LazyFrame[PeriodeAbonnement]:
     """
     Pipeline principal pour générer les périodes d'abonnement avec TURPE fixe.
 

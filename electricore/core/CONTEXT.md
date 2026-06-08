@@ -197,6 +197,9 @@ Booléen marquant les relevés dont la date a été décalée pendant l'harmonis
 **Contrat lissé** :
 Modalité de facturation où le client paie un montant mensuel constant basé sur une estimation annuelle, plutôt qu'au prorata de la consommation réelle du mois. Régularisation annuelle. S'oppose au contrat *réel* (facturation au prorata).
 
+**Contrat de pipeline** :
+Tout `pipeline_*` (et la fonction de premier niveau qu'il compose, ex : `generer_periodes_abonnement`, `calculer_periodes_energie`) est décoré `@pa.check_types(lazy=True)` avec entrée *et* sortie typées par un schéma Pandera. Les violations de contrat apparaissent au *seam* (avec un message nommant la colonne fautive) plutôt qu'au fond d'une stack-trace. Discipline héritée de l'ère pandas (commit `b066b98`, août 2025) et restaurée pour Polars après le creux laissé par la migration `052c99f` ; la version *eff3d19* n'avait restauré que les agrégateurs de `pipeline_facturation`. Conséquence directe : aucun *self-repair silencieux* dans un pipeline — si l'entrée n'est pas conforme, on échoue au seam, pas en se rattrapant.
+
 ---
 
 ## Exports et livrables
