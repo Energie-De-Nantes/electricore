@@ -19,7 +19,8 @@ from typing import NamedTuple
 
 import polars as pl
 
-from electricore.core.loaders.contexte_mensuel import charger_contexte_facturation
+from electricore.core.loaders import c15, releves_harmonises
+from electricore.core.orchestrations.contexte_mensuel import charger
 from electricore.core.pipelines.accise import pipeline_accise
 from electricore.core.pipelines.cta import ajouter_cta
 from electricore.core.pipelines.facturation import expr_calculer_trimestre
@@ -163,7 +164,7 @@ def cta_par_contrat(odoo: OdooReader, trimestre: str | None = None) -> pl.DataFr
 
     # CTA opère sur tous les mois (filtrage par trimestre en aval) — `mois=None`
     # déclenche la résolution interne mais le champ `contexte.mois` n'est pas utilisé ici.
-    contexte = charger_contexte_facturation(None)
+    contexte = charger(c15().lazy(), releves_harmonises().lazy(), mois=None)
 
     df_mensuel = (
         ajouter_cta(

@@ -1,11 +1,13 @@
 """Tests smoke de `cta_par_contrat` (orchestration CTA).
 
 Garantit que l'orchestration délègue le chargement de la facturation à
-`charger_contexte_facturation` (issue #19) plutôt que de reconstruire la
+`core.orchestrations.contexte_mensuel.charger` plutôt que de reconstruire la
 trio `c15 + releves_harmonises + facturation()`.
 
 Depuis #77, `taxes_service.calculer_cta_detail` a disparu — l'endpoint
 appelle directement `cta_par_contrat` côté `integrations.odoo.taxes`.
+Depuis #87 (slice 1), la délégation passe par la nouvelle orchestration
+`core/orchestrations/contexte_mensuel.py`.
 """
 
 from contextlib import contextmanager
@@ -14,7 +16,7 @@ from datetime import datetime
 import polars as pl
 import pytest
 
-from electricore.core.loaders.contexte_mensuel import ContexteFacturation
+from electricore.core.orchestrations.contexte_mensuel import ContexteMensuel
 from electricore.integrations.odoo import taxes as taxes_orchestration
 
 
@@ -37,24 +39,26 @@ def df_facturation_mensuelle_cta() -> pl.DataFrame:
     )
 
 
-def test_cta_par_contrat_delegue_a_charger_contexte_facturation(monkeypatch, df_facturation_mensuelle_cta):
-    """`cta_par_contrat` consomme `ContexteFacturation` (issue #19 + #40, ADR-0016).
+def test_cta_par_contrat_delegue_a_charger(monkeypatch, df_facturation_mensuelle_cta):
+    """`cta_par_contrat` consomme `ContexteMensuel` via `charger()` (ADR-0016, #87).
 
-    Invariant : l'orchestration délègue à `charger_contexte_facturation`
-    plutôt que de reconstruire la trio `c15 + releves + facturation()`.
+    Invariant : l'orchestration délègue la composition à l'orchestration
+    partagée du `core/`, sans reconstruire `c15 + releves + facturation()`.
     """
-    contexte_prefab = ContexteFacturation(
+    contexte_prefab = ContexteMensuel(
         mois="2025-01-01",
         historique_enrichi=pl.LazyFrame(),
+        abonnements=pl.LazyFrame(),
+        energie=pl.LazyFrame(),
         facturation_mensuelle=df_facturation_mensuelle_cta,
     )
-    appels_charger: list[str | None] = []
+    appels_charger: list[tuple[object, object, object]] = []
 
-    def _capture_charger(mois):
-        appels_charger.append(mois)
+    def _capture_charger(historique, releves, mois=None):
+        appels_charger.append((historique, releves, mois))
         return contexte_prefab
 
-    monkeypatch.setattr(taxes_orchestration, "charger_contexte_facturation", _capture_charger)
+    monkeypatch.setattr(taxes_orchestration, "charger", _capture_charger)
 
     # Stubs Odoo (l'orchestration charge encore les PDLs depuis sale.order).
     class _OdooReaderMock:
@@ -93,6 +97,7 @@ def test_cta_par_contrat_delegue_a_charger_contexte_facturation(monkeypatch, df_
     with _fake_reader(config={}) as odoo:
         result = taxes_orchestration.cta_par_contrat(odoo)
 
-    assert appels_charger == [None], "charger_contexte_facturation doit être appelé une fois"
+    assert len(appels_charger) == 1, "charger() doit être appelé exactement une fois"
+    assert appels_charger[0][2] is None, "charger() doit être appelé avec mois=None"
     assert isinstance(result, pl.DataFrame)
     assert "cta_eur" in result.columns
