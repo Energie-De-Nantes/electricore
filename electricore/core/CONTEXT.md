@@ -176,6 +176,18 @@ Intervalle entre deux relevés d'index, support du calcul de consommation et du 
 **Méta-période mensuelle** :
 Agrégation d'abonnements + périodes d'énergie sur un mois calendaire, unité de la facturation client mensuelle.
 
+**Contexte mensuel de facturation** :
+Bundle immutable des éléments dérivés une seule fois pour produire la facturation d'un mois donné : `historique_enrichi`, `abonnements`, `energie`, `facturation_mensuelle` (méta-périodes du mois). Construit par `charger()` dans `core/orchestrations/contexte_mensuel.py` ; partagé par les orchestrations qui touchent au même mois (rapprochement, documents de campagne, taxes mensuelles) pour ne déclencher le pipeline `facturation()` qu'une seule fois.
+_Éviter_ : résultat de facturation (trop vague), contexte tout court (sans qualificatif).
+
+**Rapprochement facturation mensuelle** :
+Jointure des *lignes de facture* (côté ERP) avec la méta-période mensuelle Enedis du même mois, enrichie des identifiants compteur (`num_compteur`, `type_compteur`) et des flags `a_facturer` / `a_supprimer` (cf. [ADR-0014](../../docs/adr/0014-lignes-factures-du-mois-avec-flags.md)). Implémenté par `rapprocher()` dans `core/orchestrations/contexte_mensuel.py`. Produit une `LignesFactureRapprochees`.
+_Éviter_ : matching, reconciliation (anglicisme).
+
+**Ligne de facture** :
+Unité de facturation côté ERP : un produit, une période, une quantité, un PDL. Schéma agnostique `LignesFacture` (`core/models/`) — **contrat minimal** de ce sur quoi `rapprocher()` branche : `ref_situation_contractuelle`, `categorie_produit ∈ {Base, HP, HC, Abonnements}`, `quantite`, `est_brouillon`. Toute autre colonne (`pdl`, `est_lisse`, identifiants ERP `invoice_line_ids` / `name_account_move` / `name_product_product`, etc.) est acceptée en passe-plat (`strict=False`) et préservée dans la sortie. Chaque adaptateur ERP renomme ses clés métier vers ces 4 noms ; les flags ADR-0014 (`a_facturer` / `a_supprimer`) sont dérivés en core depuis `est_brouillon` + `quantite`.
+_Éviter_ : ligne Odoo (le concept est agnostique), ligne facture client (`account.move` est la facture entière).
+
 **Harmonisation des relevés** :
 Alignement des sources de relevés (R151, R15, R64) sur la convention de date « début de journée ». Implémenté dans `releves_harmonises()` — voir [ADR-0003](../../docs/adr/0003-r151-date-harmonisation.md).
 
