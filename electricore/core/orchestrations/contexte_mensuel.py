@@ -68,7 +68,7 @@ def _composer(
     # `pipeline_abonnements` / `pipeline_energie` retournent des LazyFrame génériques
     # validés à l'exécution par les décorateurs Pandera ; pipeline_facturation attend
     # des LazyFrame typés mais le contrat tient.
-    facturation_mensuelle = pipeline_facturation(abonnements, energie)  # type: ignore[arg-type]
+    facturation_mensuelle = pipeline_facturation(abonnements, energie)
     return historique_enrichi, abonnements, energie, facturation_mensuelle
 
 
