@@ -21,7 +21,7 @@ import polars as pl
 
 from electricore.core.loaders import c15, f15, releves_harmonises
 from electricore.core.models.lignes_facture_rapprochees import LignesFactureRapprochees
-from electricore.core.orchestrations.contexte_mensuel import charger, rapprocher
+from electricore.core.orchestrations.contexte_mensuel import charger, documents, rapprocher
 
 from .helpers import lignes_factures_du_mois
 from .models.rapport_facturation import RapportFacturationResume
@@ -133,25 +133,5 @@ def documents_facturation_du_mois(odoo: OdooReader, mois: str | None = None) -> 
         pour la nomenclature du fichier final.
     """
     contexte = charger(c15().lazy(), releves_harmonises().lazy(), mois=mois)
-    suffix = contexte.mois[:7]
-    mois_date = pl.lit(contexte.mois).str.to_date()
-
     lignes_df = lignes_factures_du_mois(odoo, contexte.mois).collect()
-    reconciliation = rapprocher(contexte, lignes_df)
-    changements_puissance = reconciliation.filter(pl.col("memo_puissance") != "")
-
-    f15_df = f15().lazy().filter(pl.col("date_facture").dt.truncate("1mo").dt.date() == mois_date).collect()
-    f15_prestas = f15_df.filter(pl.col("unite") == "UNITE")
-
-    c15_df = c15().lazy().filter(pl.col("date_evenement").dt.truncate("1mo").dt.date() == mois_date).collect()
-    c15_sorties = c15_df.filter(pl.col("evenement_declencheur").is_in(["RES", "CFNS"]))
-
-    documents = {
-        "F15 complet": f15_df,
-        "F15 prestations": f15_prestas,
-        "C15 complet": c15_df,
-        "C15 sorties": c15_sorties,
-        "Réconciliation": reconciliation,
-        "Changements puissance": changements_puissance,
-    }
-    return documents, suffix
+    return documents(contexte, lignes_df, f15=f15().lazy(), c15=c15().lazy())

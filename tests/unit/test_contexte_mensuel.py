@@ -5,10 +5,10 @@ de facturation pour un mois donné. Les loaders restent à la charge de l'appela
 (adapter ERP), conformément à la nouvelle topologie ; le module
 d'orchestration ne déclenche jamais d'I/O.
 
-Stratégie : on stub `facturation()` (la composition de pipelines déléguée) pour
-isoler la valeur ajoutée de `charger()` (résolution du mois + emballage en
-`ContexteMensuel`). Le chemin pipeline réel reste couvert par les tests des
-pipelines individuels et le smoke test CTA d'intégration.
+Stratégie : on stub le helper privé `_composer` (la séquence des 4 pipelines)
+pour isoler la valeur ajoutée de `charger()` (résolution du mois + emballage
+en `ContexteMensuel`). Le chemin pipeline réel reste couvert par les tests
+des pipelines individuels et le smoke test CTA d'intégration.
 """
 
 from datetime import datetime
@@ -18,38 +18,39 @@ import polars as pl
 import pytest
 
 from electricore.core.orchestrations.contexte_mensuel import ContexteMensuel, charger
-from electricore.core.pipelines.orchestration import ResultatFacturationPolars
 
 TZ = ZoneInfo("Europe/Paris")
 
 
-def _make_stub_resultat(*, debuts_mois: list[datetime]) -> ResultatFacturationPolars:
-    """Construit un `ResultatFacturationPolars` contrôlé pour les tests.
+def _make_stub_composition(
+    *, debuts_mois: list[datetime]
+) -> tuple[pl.LazyFrame, pl.LazyFrame, pl.LazyFrame, pl.DataFrame]:
+    """Construit le tuple de 4 frames renvoyé par `_composer`.
 
-    `debuts_mois` peuple `facturation.debut` — c'est l'unique colonne dont
-    `charger()` se sert pour résoudre le mois par défaut.
+    `debuts_mois` peuple `facturation_mensuelle.debut` — c'est l'unique colonne
+    dont `charger()` se sert pour résoudre le mois par défaut.
     """
     facturation_df = pl.DataFrame({"debut": debuts_mois}).with_columns(
         pl.col("debut").dt.replace_time_zone("Europe/Paris")
     )
-    return ResultatFacturationPolars(
-        historique_enrichi=pl.LazyFrame({"sentinel": [1]}),
-        abonnements=pl.LazyFrame({"sentinel": [2]}),
-        energie=pl.LazyFrame({"sentinel": [3]}),
-        facturation=facturation_df,
+    return (
+        pl.LazyFrame({"sentinel": [1]}),
+        pl.LazyFrame({"sentinel": [2]}),
+        pl.LazyFrame({"sentinel": [3]}),
+        facturation_df,
     )
 
 
 @pytest.fixture
-def stub_facturation(monkeypatch):
-    """Remplace `facturation` importée par `contexte_mensuel` par un stub configurable.
+def stub_composer(monkeypatch):
+    """Remplace `_composer` par un stub configurable.
 
-    Retourne une fonction qui prend le `ResultatFacturationPolars` à renvoyer.
+    Retourne une fonction qui prend le tuple à renvoyer.
     """
 
-    def _install(resultat: ResultatFacturationPolars):
+    def _install(resultat):
         monkeypatch.setattr(
-            "electricore.core.orchestrations.contexte_mensuel.facturation",
+            "electricore.core.orchestrations.contexte_mensuel._composer",
             lambda historique, releves: resultat,
         )
 
@@ -59,8 +60,8 @@ def stub_facturation(monkeypatch):
 class TestChargerMoisExplicite:
     """Quand `mois` est fourni, `charger()` doit le propager tel quel sans rejouer la résolution."""
 
-    def test_propage_le_mois_fourni(self, stub_facturation):
-        stub_facturation(_make_stub_resultat(debuts_mois=[datetime(2024, 1, 1)]))
+    def test_propage_le_mois_fourni(self, stub_composer):
+        stub_composer(_make_stub_composition(debuts_mois=[datetime(2024, 1, 1)]))
 
         ctx = charger(
             historique=pl.LazyFrame({}),
@@ -75,10 +76,10 @@ class TestChargerMoisExplicite:
 class TestChargerMoisParDefaut:
     """Quand `mois=None`, `charger()` doit prendre le dernier `debut` tronqué au mois."""
 
-    def test_resout_le_dernier_mois_depuis_facturation(self, stub_facturation):
+    def test_resout_le_dernier_mois_depuis_facturation(self, stub_composer):
         # `debut` au milieu du mois pour vérifier la troncature
-        stub_facturation(
-            _make_stub_resultat(
+        stub_composer(
+            _make_stub_composition(
                 debuts_mois=[
                     datetime(2024, 1, 15),
                     datetime(2024, 3, 10),
@@ -94,11 +95,11 @@ class TestChargerMoisParDefaut:
 
 
 class TestChargerFramesQuiPassent:
-    """`ContexteMensuel` doit exposer les 4 frames produits par `facturation()`."""
+    """`ContexteMensuel` doit exposer les 4 frames produits par la composition des pipelines."""
 
-    def test_expose_les_quatre_frames_du_resultat(self, stub_facturation):
+    def test_expose_les_quatre_frames_du_resultat(self, stub_composer):
         # Sentinelles distinctes pour identifier chaque frame en sortie
-        stub_facturation(_make_stub_resultat(debuts_mois=[datetime(2024, 1, 1)]))
+        stub_composer(_make_stub_composition(debuts_mois=[datetime(2024, 1, 1)]))
 
         ctx = charger(historique=pl.LazyFrame({}), releves=pl.LazyFrame({}), mois="2024-01-01")
 
