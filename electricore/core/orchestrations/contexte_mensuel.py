@@ -68,7 +68,7 @@ def _composer(
     # `pipeline_abonnements` / `pipeline_energie` retournent des LazyFrame génériques
     # validés à l'exécution par les décorateurs Pandera ; pipeline_facturation attend
     # des LazyFrame typés mais le contrat tient.
-    facturation_mensuelle = pipeline_facturation(abonnements, energie)
+    facturation_mensuelle = pipeline_facturation(abonnements, energie)  # type: ignore[arg-type]
     return historique_enrichi, abonnements, energie, facturation_mensuelle
 
 
@@ -135,6 +135,8 @@ def rapprocher(
     a_facturer_expr = (pl.col("est_brouillon") & (pl.col("quantite") > 0)).alias("a_facturer")
     a_supprimer_expr = (pl.col("est_brouillon") & (pl.col("quantite") == 0)).alias("a_supprimer")
 
+    # Le `.collect()` final retourne un `pl.DataFrame` ; le décorateur
+    # `@pa.check_types` valide qu'il matche `LignesFactureRapprochees`.
     return (
         lignes.lazy()
         .join(fact_mois, on="ref_situation_contractuelle", how="left")
@@ -170,7 +172,7 @@ def rapprocher(
                 "a_supprimer",
             ]
         )
-        .collect()
+        .collect()  # type: ignore[return-value]
     )
 
 
@@ -199,7 +201,9 @@ def documents(
     """
     mois_date = pl.lit(ctx.mois).str.to_date()
 
-    reconciliation = rapprocher(ctx, lignes)
+    # `lignes` est typée `pl.DataFrame` à la frontière publique ; `rapprocher`
+    # exige le marqueur Pandera mais la validation reste effective.
+    reconciliation = rapprocher(ctx, lignes)  # type: ignore[arg-type]
     changements_puissance = reconciliation.filter(pl.col("memo_puissance") != "")
 
     f15_df = f15.filter(pl.col("date_facture").dt.truncate("1mo").dt.date() == mois_date).collect()
