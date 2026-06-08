@@ -153,7 +153,7 @@ python_version = "3.12"
 files = [
     "electricore/core/loaders",
     "electricore/core/writers",
-    "electricore/core/pipelines/orchestration.py",
+    "electricore/core/orchestrations",
 ]
 # external libs without complete stubs — skip "module not found" noise
 ignore_missing_imports = true
@@ -165,7 +165,7 @@ warn_unused_ignores = true
 module = [
     "electricore.core.loaders.*",
     "electricore.core.writers.*",
-    "electricore.core.pipelines.orchestration",
+    "electricore.core.orchestrations.*",
 ]
 disallow_untyped_defs = true        # all defs must be annotated
 check_untyped_defs = true           # check bodies even if signature is untyped
