@@ -64,11 +64,11 @@ def _composer(
     """
     historique_enrichi = pipeline_historique(historique)
     abonnements = pipeline_abonnements(historique_enrichi)
-    energie = pipeline_energie(historique_enrichi, releves)
-    # `pipeline_abonnements` / `pipeline_energie` retournent des LazyFrame génériques
-    # validés à l'exécution par les décorateurs Pandera ; pipeline_facturation attend
-    # des LazyFrame typés mais le contrat tient.
-    facturation_mensuelle = pipeline_facturation(abonnements, energie)  # type: ignore[arg-type]
+    # `releves` arrive en `pl.LazyFrame` brut depuis l'appelant (DuckDB) ; la
+    # conformité à `RelevéIndex` est garantie à l'exécution par le décorateur
+    # Pandera de `pipeline_energie`.
+    energie = pipeline_energie(historique_enrichi, releves)  # type: ignore[arg-type]
+    facturation_mensuelle = pipeline_facturation(abonnements, energie)
     return historique_enrichi, abonnements, energie, facturation_mensuelle
 
 
