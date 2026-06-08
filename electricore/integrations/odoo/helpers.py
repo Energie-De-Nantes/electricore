@@ -151,38 +151,25 @@ def commandes_lignes(odoo: OdooReader, domain: list | None = None) -> OdooQuery:
     )
 
 
-def flags_etat_facturation(lf: pl.LazyFrame) -> pl.LazyFrame:
-    """Ajoute les colonnes booléennes `a_facturer` et `a_supprimer` (cf. ADR-0014).
+def _expr_est_brouillon() -> pl.Expr:
+    """Expression : `est_brouillon = x_invoicing_state == 'draft' ∧ account.move.state == 'draft'`.
 
-    Les deux flags sont mutuellement exclusifs sur le sous-ensemble draft :
-
-    - `a_facturer` : ligne en attente d'injection de quantité Enedis
-      (x_invoicing_state == 'draft' AND state_account_move == 'draft' AND quantity > 0).
-    - `a_supprimer` : ligne brouillon à quantité nulle, candidate à `unlink`
-      (mêmes conditions avec quantity == 0).
-
-    Args:
-        lf: LazyFrame contenant les colonnes `x_invoicing_state`, `state_account_move`,
-            `quantity`.
-
-    Returns:
-        LazyFrame enrichi des deux colonnes booléennes.
+    Surface le statut « brouillon facturable » côté Odoo vers la colonne agnostique
+    consommée par `core.orchestrations.contexte_mensuel.rapprocher` (cf. ADR-0014 +
+    slice 2 de la refonte Contexte mensuel). Les flags dérivés (`a_facturer`,
+    `a_supprimer`) sont calculés en core depuis cet `est_brouillon` et `quantite`.
     """
-    drafts = (pl.col("x_invoicing_state") == "draft") & (pl.col("state_account_move") == "draft")
-    return lf.with_columns(
-        [
-            (drafts & (pl.col("quantity") > 0)).alias("a_facturer"),
-            (drafts & (pl.col("quantity") == 0)).alias("a_supprimer"),
-        ]
-    )
+    return ((pl.col("x_invoicing_state") == "draft") & (pl.col("state_account_move") == "draft")).alias("est_brouillon")
 
 
 def lignes_factures_du_mois(odoo: OdooReader, mois: str, domain: list | None = None) -> pl.LazyFrame:
     """Toutes les lignes de factures Odoo dont `invoice_date` tombe dans le mois cible.
 
     Aucun filtre sur `x_invoicing_state` ni `account.move.state` côté Odoo : les
-    distinctions métier sont matérialisées par les flags `a_facturer` et `a_supprimer`
-    ajoutés en sortie (cf. ADR-0014). Remplace `lignes_a_facturer` et `lignes_quantite_zero`.
+    distinctions métier sont matérialisées en core, à partir de `est_brouillon` et
+    `quantite` (cf. ADR-0014). La sortie respecte le schéma agnostique `LignesFacture` :
+    clés métier renommées (`ref_situation_contractuelle`, `categorie_produit`,
+    `quantite`, `est_brouillon`) et identifiants ERP passe-plat conservés tels quels.
 
     Args:
         odoo: Instance OdooReader connectée.
@@ -190,14 +177,14 @@ def lignes_factures_du_mois(odoo: OdooReader, mois: str, domain: list | None = N
         domain: Filtres additionnels sur `sale.order`.
 
     Returns:
-        LazyFrame Polars avec une ligne par `account.move.line` du mois cible
-        et les colonnes `a_facturer`, `a_supprimer`.
+        LazyFrame Polars `LignesFacture`-compatible : une ligne par
+        `account.move.line` du mois cible.
     """
     d = date.fromisoformat(mois)
     mois_suivant = (date(d.year + 1, 1, 1) if d.month == 12 else date(d.year, d.month + 1, 1)).isoformat()
     base_domain = [("state", "=", "sale")] + (domain or [])
 
-    return flags_etat_facturation(
+    return (
         query(
             odoo,
             "sale.order",
@@ -221,4 +208,12 @@ def lignes_factures_du_mois(odoo: OdooReader, mois: str, domain: list | None = N
         .follow("product_id", fields=["name", "categ_id"])
         .enrich("categ_id", fields=["name"])
         .lazy()
+        .with_columns(_expr_est_brouillon())
+        .rename(
+            {
+                "x_ref_situation_contractuelle": "ref_situation_contractuelle",
+                "name_product_category": "categorie_produit",
+                "quantity": "quantite",
+            }
+        )
     )

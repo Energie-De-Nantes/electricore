@@ -11,10 +11,10 @@ def test_documents_facturation_du_mois_returns_fr_sheet_names(monkeypatch):
 
     import polars as pl
 
-    from electricore.core.loaders.contexte_mensuel import ContexteFacturation
+    from electricore.core.orchestrations.contexte_mensuel import ContexteMensuel
     from electricore.integrations.odoo import facturation as facturation_orchestration
 
-    lf_fact_mensuelle = pl.LazyFrame(
+    df_fact_mensuelle = pl.DataFrame(
         {
             "ref_situation_contractuelle": ["RSC001"],
             "pdl": ["12345678901234"],
@@ -34,7 +34,7 @@ def test_documents_facturation_du_mois_returns_fr_sheet_names(monkeypatch):
         pl.col("fin").dt.replace_time_zone("Europe/Paris"),
     )
 
-    contexte_prefab = ContexteFacturation(
+    contexte_prefab = ContexteMensuel(
         mois="2025-01-01",
         historique_enrichi=pl.LazyFrame(
             {
@@ -43,22 +43,28 @@ def test_documents_facturation_du_mois_returns_fr_sheet_names(monkeypatch):
                 "type_compteur": ["LINKY"],
             }
         ),
-        facturation_mensuelle=lf_fact_mensuelle.collect(),
+        abonnements=pl.LazyFrame(),
+        energie=pl.LazyFrame(),
+        facturation_mensuelle=df_fact_mensuelle,
     )
-    monkeypatch.setattr(facturation_orchestration, "charger_contexte_facturation", lambda mois: contexte_prefab)
+    monkeypatch.setattr(facturation_orchestration, "charger", lambda historique, releves, mois=None: contexte_prefab)
+
+    # Les loaders sont évalués côté caller AVANT charger() (topologie #87).
+    monkeypatch.setattr(facturation_orchestration, "releves_harmonises", lambda: pl.LazyFrame())
 
     df_lignes_odoo = pl.DataFrame(
         {
-            "x_ref_situation_contractuelle": ["RSC001"],
+            # Schéma LignesFacture (slice 2 de la refonte) : clés renommées + est_brouillon
+            "ref_situation_contractuelle": ["RSC001"],
+            "categorie_produit": ["HP"],
+            "quantite": [100.0],
+            "est_brouillon": [True],
+            # ERP passe-plat
             "invoice_line_ids": [101],
             "x_pdl": ["12345678901234"],
             "x_lisse": [False],
             "name_account_move": ["INV/2025/0001"],
-            "name_product_category": ["HP"],
             "name_product_product": ["Énergie HP"],
-            "quantity": [100.0],
-            "a_facturer": [True],
-            "a_supprimer": [False],
         }
     )
 

@@ -7,7 +7,6 @@ from .config import FieldsCache, OdooConfig
 from .helpers import (
     commandes,
     commandes_lignes,
-    flags_etat_facturation,
     lignes_factures,
     lignes_factures_du_mois,
     query,
@@ -36,7 +35,6 @@ __all__ = [
     "commandes",
     "commandes_lignes",
     "lignes_factures_du_mois",
-    "flags_etat_facturation",
     "normalize_many2one_fields",
     "convert_odoo_dates",
     "add_computed_columns",

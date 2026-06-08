@@ -12,14 +12,16 @@ from pandera.engines.polars_engine import DateTime
 class LignesFactureRapprochees(pa.DataFrameModel):
     """Lignes de facture Odoo enrichies des données Enedis du mois (quantité, méta-période, compteur)."""
 
-    # Identifiants Odoo
+    # Identifiants ERP passe-plat (conservés tels quels)
     invoice_line_ids: pl.Int64 = pa.Field(nullable=False)
     x_pdl: pl.Utf8 | None = pa.Field(nullable=True)
     x_lisse: pl.Boolean | None = pa.Field(nullable=True)  # défaut Odoo = null, à fill_null(False) côté consommateur
     name_account_move: pl.Utf8 = pa.Field(nullable=False)
-    name_product_category: pl.Utf8 | None = pa.Field(nullable=True)
     name_product_product: pl.Utf8 | None = pa.Field(nullable=True)
-    quantity: pl.Float64 = pa.Field(nullable=False)
+
+    # Clés métier renommées (cf. slice 2 de la refonte Contexte mensuel)
+    categorie_produit: pl.Utf8 = pa.Field(nullable=False, isin=["Base", "HP", "HC", "Abonnements"])
+    quantite: pl.Float64 = pa.Field(nullable=False)
 
     # Quantité Enedis + mémo
     quantite_enedis: pl.Float64 | None = pa.Field(nullable=True)
