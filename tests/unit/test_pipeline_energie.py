@@ -266,12 +266,23 @@ class TestReconstituerChronologieRelevesPolars:
 
 
 def test_propagation_flags_releve_manquant():
-    """Test que les flags releve_manquant sont bien propagés dans les périodes."""
+    """Test que les flags releve_manquant sont bien propagés dans les périodes.
+
+    `calculer_periodes_energie` est décoré `@pa.check_types` et exige une sortie
+    conforme à `PeriodeEnergie` (debut/fin tz-aware Europe/Paris).
+    """
+    from zoneinfo import ZoneInfo
+
+    paris = ZoneInfo("Europe/Paris")
     releves = pl.LazyFrame(
         {
             "pdl": ["PDL001", "PDL001", "PDL001"],
             "ref_situation_contractuelle": ["REF001", "REF001", "REF001"],
-            "date_releve": [datetime(2024, 1, 1), datetime(2024, 2, 1), datetime(2024, 3, 1)],
+            "date_releve": [
+                datetime(2024, 1, 1, tzinfo=paris),
+                datetime(2024, 2, 1, tzinfo=paris),
+                datetime(2024, 3, 1, tzinfo=paris),
+            ],
             "source": ["flux_C15", "flux_R151", "flux_R151"],
             "index_base_kwh": [1000.0, 2000.0, 3000.0],
             "index_hp_kwh": [500.0, 1000.0, 1500.0],
@@ -282,7 +293,10 @@ def test_propagation_flags_releve_manquant():
             "index_hcb_kwh": [120.0, 240.0, 360.0],
             "releve_manquant": [None, False, True],  # C15: null, R151 trouvé: False, R151 manquant: True
             "ordre_index": [0, 0, 0],
-        }
+        },
+        schema_overrides={
+            "date_releve": pl.Datetime(time_unit="us", time_zone="Europe/Paris"),
+        },
     )
 
     result = calculer_periodes_energie(releves).collect()
@@ -292,13 +306,13 @@ def test_propagation_flags_releve_manquant():
     assert len(periodes) == 2
 
     # Première période : début=C15 (null), fin=R151 (False)
-    periode1 = periodes.filter(pl.col("fin") == datetime(2024, 2, 1))
+    periode1 = periodes.filter(pl.col("fin") == datetime(2024, 2, 1, tzinfo=paris))
     assert len(periode1) == 1
     assert periode1["releve_manquant_debut"][0] is None  # C15 n'a pas de flag
     assert periode1["releve_manquant_fin"][0] is False  # R151 trouvé
 
     # Deuxième période : début=R151 (False), fin=R151 (True)
-    periode2 = periodes.filter(pl.col("fin") == datetime(2024, 3, 1))
+    periode2 = periodes.filter(pl.col("fin") == datetime(2024, 3, 1, tzinfo=paris))
     assert len(periode2) == 1
     assert periode2["releve_manquant_debut"][0] is False  # R151 trouvé
     assert periode2["releve_manquant_fin"][0] is True  # R151 manquant

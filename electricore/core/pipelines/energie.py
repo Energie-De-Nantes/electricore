@@ -6,7 +6,13 @@ fonctionnelle de Polars. Les expressions sont des transformations pures
 qui peuvent être composées entre elles pour générer les périodes d'énergie.
 """
 
+import pandera.polars as pa
 import polars as pl
+from pandera.typing.polars import LazyFrame
+
+from electricore.core.models.historique import Historique
+from electricore.core.models.periode_energie import PeriodeEnergie
+from electricore.core.models.releve_index import RelevéIndex
 
 # Import du calcul TURPE variable
 from electricore.core.pipelines.turpe import ajouter_turpe_variable
@@ -516,7 +522,8 @@ def reconstituer_chronologie_releves(evenements: pl.LazyFrame, releves: pl.LazyF
     )
 
 
-def calculer_periodes_energie(lf: pl.LazyFrame) -> pl.LazyFrame:
+@pa.check_types(lazy=True)
+def calculer_periodes_energie(lf: pl.LazyFrame) -> LazyFrame[PeriodeEnergie]:
     """
     Pipeline de calcul des périodes d'énergie avec approche fonctionnelle Polars.
 
@@ -578,16 +585,16 @@ def calculer_periodes_energie(lf: pl.LazyFrame) -> pl.LazyFrame:
     )
 
 
-def pipeline_energie(historique: pl.LazyFrame, releves: pl.LazyFrame) -> pl.LazyFrame:
+@pa.check_types(lazy=True)
+def pipeline_energie(historique: LazyFrame[Historique], releves: LazyFrame[RelevéIndex]) -> LazyFrame[PeriodeEnergie]:
     """
     Pipeline principal pour générer les périodes d'énergie avec TURPE variable.
 
     Ce pipeline orchestre :
-    1. L'enrichissement de l'historique (si nécessaire)
-    2. Le filtrage des événements impactant l'énergie
-    3. La reconstitution de chronologie des relevés
-    4. Le calcul des périodes d'énergie
-    5. L'enrichissement avec calcul TURPE variable
+    1. Le filtrage des événements impactant l'énergie
+    2. La reconstitution de chronologie des relevés
+    3. Le calcul des périodes d'énergie
+    4. L'enrichissement avec calcul TURPE variable
 
     Args:
         historique: LazyFrame contenant l'historique des événements contractuels
@@ -600,13 +607,6 @@ def pipeline_energie(historique: pl.LazyFrame, releves: pl.LazyFrame) -> pl.Lazy
         >>> periodes_energie = pipeline_energie(historique_lf, releves_lf)
         >>> df = periodes_energie.collect()
     """
-    from .historique import detecter_points_de_rupture
-
-    schema_columns = historique.collect_schema().names()
-
-    if "impacte_energie" not in schema_columns:
-        historique = detecter_points_de_rupture(historique)
-
     return (
         historique.filter(pl.col("impacte_energie"))
         .pipe(reconstituer_chronologie_releves, releves)
