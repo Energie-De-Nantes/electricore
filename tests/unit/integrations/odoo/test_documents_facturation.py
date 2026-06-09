@@ -11,7 +11,7 @@ def test_documents_facturation_du_mois_returns_fr_sheet_names(monkeypatch):
 
     import polars as pl
 
-    from electricore.core.orchestrations.contexte_mensuel import ContexteMensuel
+    from electricore.core.builds.contexte_mensuel import ContexteMensuel
     from electricore.integrations.odoo import facturation as facturation_orchestration
 
     df_fact_mensuelle = pl.DataFrame(

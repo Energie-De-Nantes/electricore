@@ -1,13 +1,13 @@
 """Tests smoke de `cta_par_contrat` (orchestration CTA).
 
 Garantit que l'orchestration délègue le chargement de la facturation à
-`core.orchestrations.contexte_mensuel.charger` plutôt que de reconstruire la
+`core.builds.contexte_mensuel.charger` plutôt que de reconstruire la
 trio `c15 + releves_harmonises + facturation()`.
 
 Depuis #77, `taxes_service.calculer_cta_detail` a disparu — l'endpoint
 appelle directement `cta_par_contrat` côté `integrations.odoo.taxes`.
 Depuis #87 (slice 1), la délégation passe par la nouvelle orchestration
-`core/orchestrations/contexte_mensuel.py`.
+`core/builds/contexte_mensuel.py`.
 """
 
 from contextlib import contextmanager
@@ -16,7 +16,7 @@ from datetime import datetime
 import polars as pl
 import pytest
 
-from electricore.core.orchestrations.contexte_mensuel import ContexteMensuel
+from electricore.core.builds.contexte_mensuel import ContexteMensuel
 from electricore.integrations.odoo import taxes as taxes_orchestration
 
 

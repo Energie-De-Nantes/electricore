@@ -15,7 +15,7 @@ with app.setup(hide_code=True):
         sys.path.append(str(project_root))
 
     from electricore.core.loaders import c15, releves_harmonises
-    from electricore.core.orchestrations import charger
+    from electricore.core.builds import charger
 
 
 @app.cell(hide_code=True)

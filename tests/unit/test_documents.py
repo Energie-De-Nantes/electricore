@@ -1,4 +1,4 @@
-"""Tests unitaires de `documents()` (orchestrations.contexte_mensuel).
+"""Tests unitaires de `documents()` (builds.contexte_mensuel).
 
 `documents()` assemble le livrable XLSX multi-onglets de campagne mensuelle :
 filtre F15 / C15 sur `ctx.mois`, applique `rapprocher()`, extrait
@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo
 
 import polars as pl
 
-from electricore.core.orchestrations.contexte_mensuel import ContexteMensuel, documents
+from electricore.core.builds.contexte_mensuel import ContexteMensuel, documents
 
 TZ = ZoneInfo("Europe/Paris")
 

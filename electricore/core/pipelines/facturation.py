@@ -424,7 +424,7 @@ def pipeline_facturation(
 
 
 # `rapprocher_facturation_mensuelle` a été déplacée vers
-# `core.orchestrations.contexte_mensuel.rapprocher` (cf. slice 2 de la refonte
+# `core.builds.contexte_mensuel.rapprocher` (cf. slice 2 de la refonte
 # Contexte mensuel, issue #88). Le mapping catégorie → colonne Enedis est
 # maintenant interne à `rapprocher()`.
 

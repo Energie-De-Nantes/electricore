@@ -1,4 +1,4 @@
-"""Tests unitaires de `rapprocher` (orchestrations.contexte_mensuel).
+"""Tests unitaires de `rapprocher` (builds.contexte_mensuel).
 
 Le rapprochement facturation mensuelle joint les *lignes de facture*
 (shape agnostique `LignesFacture`) à la facturation Enedis du mois porté
@@ -15,8 +15,8 @@ from zoneinfo import ZoneInfo
 import polars as pl
 import pytest
 
+from electricore.core.builds.contexte_mensuel import ContexteMensuel, rapprocher
 from electricore.core.models.lignes_facture_rapprochees import LignesFactureRapprochees
-from electricore.core.orchestrations.contexte_mensuel import ContexteMensuel, rapprocher
 
 
 def _ligne(
