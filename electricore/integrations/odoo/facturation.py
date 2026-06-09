@@ -15,7 +15,7 @@ EDN-shaped aujourd'hui ; sert de prototype pour un futur module Odoo libre
 couvrant les fournisseurs alternatifs (cf. CONTEXT.md, ADR-0016).
 """
 
-from typing import NamedTuple
+from dataclasses import dataclass
 
 import polars as pl
 
@@ -28,7 +28,8 @@ from .models.rapport_facturation import RapportFacturationResume
 from .reader import OdooReader
 
 
-class RapportFacturation(NamedTuple):
+@dataclass(frozen=True, slots=True)
+class RapportFacturation:
     """Livrable mensuel de facturation (= les 3 onglets de l'XLSX facturiste).
 
     - `resume` : totaux du mois (1 ligne).
