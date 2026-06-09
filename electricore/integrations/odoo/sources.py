@@ -43,10 +43,8 @@ def mapping_pdl_order(odoo: OdooReader) -> pl.DataFrame:
         query(odoo, "sale.order", domain=[("x_pdl", "!=", False)], fields=["name", "x_pdl"])
         .filter(pl.col("x_pdl").is_not_null())
         .select(
-            [
-                pl.col("x_pdl").str.strip_chars().alias("pdl"),
-                pl.col("name").alias("order_name"),
-            ]
+            pl.col("x_pdl").str.strip_chars().alias("pdl"),
+            pl.col("name").alias("order_name"),
         )
         .collect()
         .unique("pdl")
