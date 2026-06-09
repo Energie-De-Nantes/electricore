@@ -8,7 +8,7 @@ aux serveurs Odoo dans un style fonctionnel immutable.
 from dataclasses import dataclass
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class OdooConfig:
     """
     Configuration immutable pour les connexions Odoo.

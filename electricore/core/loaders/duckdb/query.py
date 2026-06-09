@@ -25,7 +25,7 @@ from .sql import FluxSchema, build_base_query
 # =============================================================================
 
 
-@dataclass(frozen=True)  # Immutable
+@dataclass(frozen=True, slots=True)
 class QueryConfig:
     """
     Configuration immutable d'une requête flux.
@@ -46,7 +46,7 @@ class QueryConfig:
 # =============================================================================
 
 
-@dataclass(frozen=True)  # Immutable
+@dataclass(frozen=True, slots=True)
 class DuckDBQuery:
     """
     Builder fonctionnel immutable pour construire et exécuter des requêtes DuckDB.

@@ -51,7 +51,7 @@ _jobs: OrderedDict[str, "ETLJob"] = OrderedDict()
 _MAX_JOBS = 50
 
 
-@dataclass
+@dataclass(slots=True)
 class ETLJob:
     id: str
     mode: ETLMode
