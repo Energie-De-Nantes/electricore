@@ -3,6 +3,8 @@ Système de sécurité pour l'API ElectriCore.
 Gestion de l'authentification par clés API via header X-API-Key uniquement.
 """
 
+from dataclasses import dataclass
+
 from fastapi import HTTPException, Security, status
 from fastapi.security import APIKeyHeader
 
@@ -57,28 +59,22 @@ def is_public_endpoint(path: str) -> bool:
     return path in settings.public_endpoints
 
 
+@dataclass(frozen=True, slots=True)
 class APIKeyInfo:
-    """
-    Informations sur une clé API utilisée (pour logging/monitoring).
-    """
+    """Informations sur une clé API utilisée (pour logging/monitoring)."""
 
-    def __init__(self, key: str):
-        self.key_preview = f"{key[:8]}..." if len(key) > 8 else "***"
-        self.source = "header"  # Toujours header maintenant
-        self.is_valid = settings.is_valid_api_key(key)
+    key_preview: str
+    is_valid: bool
+    source: str = "header"
 
-    def __repr__(self):
-        return f"APIKeyInfo(key='{self.key_preview}', source='{self.source}', valid={self.is_valid})"
+    @classmethod
+    def from_key(cls, key: str) -> "APIKeyInfo":
+        return cls(
+            key_preview=f"{key[:8]}..." if len(key) > 8 else "***",
+            is_valid=settings.is_valid_api_key(key),
+        )
 
 
 def get_api_key_info(api_key: str = Security(get_api_key)) -> APIKeyInfo:
-    """
-    Obtient les informations sur la clé API utilisée (pour monitoring).
-
-    Args:
-        api_key: Clé API validée du header
-
-    Returns:
-        APIKeyInfo: Informations sur la clé API
-    """
-    return APIKeyInfo(api_key)
+    """Obtient les informations sur la clé API utilisée (pour monitoring)."""
+    return APIKeyInfo.from_key(api_key)
