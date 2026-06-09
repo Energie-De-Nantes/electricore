@@ -11,7 +11,7 @@ import importlib
 
 import pytest
 
-TYPES = ("OdooConfig", "FieldsCache", "OdooReader", "OdooQuery", "OdooWriter")
+TYPES = ("OdooConfig", "FieldsCache", "OdooReader", "OdooQuery", "OdooWriter", "ResultatVerification")
 
 HELPERS = (
     "query",
@@ -19,6 +19,9 @@ HELPERS = (
     "commandes",
     "commandes_lignes",
     "lignes_factures_du_mois",
+    "verifier",
+    "url_pour_enregistrement",
+    "enrichir_liens",
 )
 
 PANDERA_MODELS = ("FactureOdoo", "LigneFactureOdoo", "CommandeVenteOdoo")

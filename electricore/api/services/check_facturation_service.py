@@ -1,6 +1,7 @@
 """
-Vérifications pré-facturation : détecte les anomalies sur les données Odoo
-(et plus tard Enedis, croisé) avant de lancer la campagne mensuelle.
+Vérifications pré-facturation : binding HTTP + sérialisation XLSX.
+
+La logique métier vit dans `integrations.odoo.verification`.
 """
 
 import io
@@ -9,122 +10,29 @@ import polars as pl
 import xlsxwriter
 
 from electricore.api.config import settings
-from electricore.integrations.odoo import OdooReader, query
-
-
-def _odoo_link(model: str, record_id: int) -> str:
-    base = settings.get_odoo_config()["url"].rstrip("/")
-    return f"{base}/web#id={record_id}&model={model}&view_type=form"
-
-
-def _rows_with_links(df: pl.DataFrame, model: str) -> list[dict]:
-    if df.is_empty():
-        return []
-    id_col = f"{model.replace('.', '_')}_id"
-    return [{**row, "url": _odoo_link(model, row[id_col])} for row in df.to_dicts()]
+from electricore.integrations.odoo import OdooReader, enrichir_liens, verifier
 
 
 def verifier_odoo() -> dict:
-    """
-    Vérifie l'état des données Odoo avant facturation.
-
-    Périmètre : tous les sale.order avec state='sale'.
-
-    Returns:
-        dict avec 5 clés :
-        - rsc_manquante : sale.order sans x_ref_situation_contractuelle
-        - cfne_manquante : sale.order sans x_date_cfne
-        - invoicing_state_counts : {state: count} pour x_invoicing_state
-        - factures_draft : factures encore en draft (anomalie après campagne)
-        - lisses_quantite_1 : sale.order lissés avec une ligne énergie (Base/HP/HC) à qty=1
-    """
-    with OdooReader(config=settings.get_odoo_config()) as odoo:
-        rsc_df = query(
-            odoo,
-            "sale.order",
-            domain=[("state", "=", "sale"), ("x_ref_situation_contractuelle", "=", False)],
-            fields=["name", "x_pdl"],
-        ).collect()
-
-        cfne_df = query(
-            odoo,
-            "sale.order",
-            domain=[("state", "=", "sale"), ("x_date_cfne", "=", False)],
-            fields=["name", "x_pdl"],
-        ).collect()
-
-        states_df = query(
-            odoo,
-            "sale.order",
-            domain=[("state", "=", "sale")],
-            fields=["x_invoicing_state"],
-        ).collect()
-
-        factures_df = (
-            query(
-                odoo,
-                "sale.order",
-                domain=[("state", "=", "sale")],
-                fields=["name", "invoice_ids"],
-            )
-            .follow("invoice_ids", domain=[("state", "=", "draft")], fields=["name"])
-            .collect()
-        )
-
-        lisses_qty1_df = (
-            query(
-                odoo,
-                "sale.order",
-                domain=[("state", "=", "sale"), ("x_lisse", "=", True)],
-                fields=["name", "order_line"],
-            )
-            .follow("order_line", domain=[("product_uom_qty", "=", 1)], fields=["product_id", "product_uom_qty"])
-            .follow("product_id", fields=["name", "categ_id"])
-            .enrich("categ_id", fields=["name"])
-            .filter(pl.col("name_product_category").is_in(["Base", "HP", "HC"]))
-            .collect()
-        )
-
-    state_col = pl.col("x_invoicing_state").fill_null("(non défini)")
-    counts = dict(states_df.group_by(state_col.alias("state")).agg(pl.len().alias("n")).sort("state").iter_rows())
-
-    factures_records = []
-    if not factures_df.is_empty():
-        factures_records = [
-            {
-                "sale_order_id": row["sale_order_id"],
-                "sale_order_name": row["name"],
-                "invoice_id": row["invoice_ids"],
-                "invoice_name": row["name_account_move"],
-                "url": _odoo_link("account.move", row["invoice_ids"]),
-            }
-            for row in factures_df.to_dicts()
-        ]
-
-    lisses_qty1_records = []
-    if not lisses_qty1_df.is_empty():
-        grouped = (
-            lisses_qty1_df.group_by(["sale_order_id", "name"])
-            .agg(pl.col("name_product_category").unique().sort().alias("categ_names"))
-            .sort("name")
-        )
-        lisses_qty1_records = [
-            {
-                "sale_order_id": row["sale_order_id"],
-                "sale_order_name": row["name"],
-                "categ_names": row["categ_names"],
-                "url": _odoo_link("sale.order", row["sale_order_id"]),
-            }
-            for row in grouped.to_dicts()
-        ]
-
+    """Vérifie l'état des données Odoo avant facturation et sérialise en dict JSON."""
+    odoo_cfg = settings.get_odoo_config()
+    base_url = odoo_cfg["url"]
+    with OdooReader(config=odoo_cfg) as odoo:
+        r = verifier(odoo)
     return {
-        "rsc_manquante": _rows_with_links(rsc_df, "sale.order"),
-        "cfne_manquante": _rows_with_links(cfne_df, "sale.order"),
-        "invoicing_state_counts": counts,
-        "factures_draft": factures_records,
-        "lisses_quantite_1": lisses_qty1_records,
+        "rsc_manquante": enrichir_liens(r.rsc_manquante, base_url, "sale.order").to_dicts(),
+        "cfne_manquante": enrichir_liens(r.cfne_manquante, base_url, "sale.order").to_dicts(),
+        "invoicing_state_counts": dict(r.invoicing_state_counts.iter_rows()),
+        "factures_draft": enrichir_liens(r.factures_draft, base_url, "account.move").to_dicts(),
+        "lisses_quantite_1": _serialize_lisses(r.lisses_quantite_1, base_url),
     }
+
+
+def _serialize_lisses(df: pl.DataFrame, base_url: str) -> list[dict]:
+    if df.is_empty():
+        return []
+    enriched = enrichir_liens(df, base_url, "sale.order")
+    return [{**row, "categ_names": list(row["categ_names"])} for row in enriched.to_dicts()]
 
 
 def generer_check_odoo_xlsx(result: dict) -> bytes:
