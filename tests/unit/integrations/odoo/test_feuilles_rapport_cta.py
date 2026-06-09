@@ -1,7 +1,7 @@
-"""Tests pour `feuilles_rapport_cta` (issue #77).
+"""Tests pour `feuilles_rapport_taxe` côté CTA (ADR-0019, issue #108).
 
-Transforme un `RapportCta` en `dict[str, DataFrame]` consommable par
-`xlsx_multi_sheet`. Fonction pure — pas de dépendance Odoo.
+Symétrique de `test_feuilles_rapport_accise.py` — les deux livrent les mêmes
+3 onglets FR via `feuilles_rapport_taxe`.
 """
 
 import polars as pl
@@ -9,10 +9,9 @@ from polars.testing import assert_frame_equal
 
 
 def _rapport_synthetique():
-    """`RapportCta` minimal pour tester la sérialisation en feuilles."""
-    from electricore.integrations.odoo.taxes import RapportCta
+    from electricore.core.builds.rapport_taxe import RapportTaxe
 
-    return RapportCta(
+    return RapportTaxe(
         resume=pl.DataFrame(
             {
                 "trimestre": ["2025-T1"],
@@ -42,22 +41,20 @@ def _rapport_synthetique():
     )
 
 
-def test_feuilles_rapport_cta_returns_three_keyed_dict():
-    """La fonction retourne un dict avec les 3 onglets standards du livrable."""
-    from electricore.integrations.odoo.taxes import feuilles_rapport_cta
+def test_feuilles_rapport_taxe_returns_three_keyed_dict():
+    from electricore.core.builds.rapport_taxe import feuilles_rapport_taxe
 
     rapport = _rapport_synthetique()
-    feuilles = feuilles_rapport_cta(rapport)
+    feuilles = feuilles_rapport_taxe(rapport)
 
     assert set(feuilles.keys()) == {"Résumé", "Par taux", "Détail"}
 
 
-def test_feuilles_rapport_cta_maps_each_frame_to_its_sheet():
-    """Chaque feuille pointe vers le DataFrame correspondant du rapport, sans transformation."""
-    from electricore.integrations.odoo.taxes import feuilles_rapport_cta
+def test_feuilles_rapport_taxe_maps_each_frame_to_its_sheet():
+    from electricore.core.builds.rapport_taxe import feuilles_rapport_taxe
 
     rapport = _rapport_synthetique()
-    feuilles = feuilles_rapport_cta(rapport)
+    feuilles = feuilles_rapport_taxe(rapport)
 
     assert_frame_equal(feuilles["Résumé"], rapport.resume)
     assert_frame_equal(feuilles["Par taux"], rapport.par_taux)

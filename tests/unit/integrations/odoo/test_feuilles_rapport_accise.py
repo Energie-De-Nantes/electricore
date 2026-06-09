@@ -1,7 +1,8 @@
-"""Tests pour `feuilles_rapport_accise` (issue #75).
+"""Tests pour `feuilles_rapport_taxe` côté accise (ADR-0019, issue #108).
 
-Transforme un `RapportAccise` en `dict[str, DataFrame]` consommable par
-`xlsx_multi_sheet`. Fonction pure — pas de dépendance Odoo.
+`feuilles_rapport_taxe` remplace `feuilles_rapport_accise` et `feuilles_rapport_cta`.
+Ces tests vérifient que la fonction partagée sert bien les 3 onglets FR standards.
+Tests plus complets dans `tests/unit/test_rapport_taxe.py::TestFeuillesRapportTaxe`.
 """
 
 import polars as pl
@@ -9,10 +10,9 @@ from polars.testing import assert_frame_equal
 
 
 def _rapport_synthetique():
-    """`RapportAccise` minimal pour tester la sérialisation en feuilles."""
-    from electricore.integrations.odoo.taxes import RapportAccise
+    from electricore.core.builds.rapport_taxe import RapportTaxe
 
-    return RapportAccise(
+    return RapportTaxe(
         resume=pl.DataFrame(
             {"trimestre": ["2025-T1"], "nb_pdl": [2], "energie_mwh_total": [6.0], "accise_eur_total": [135.0]}
         ),
@@ -32,22 +32,20 @@ def _rapport_synthetique():
     )
 
 
-def test_feuilles_rapport_accise_returns_three_keyed_dict():
-    """La fonction retourne un dict avec les 3 onglets standards du livrable."""
-    from electricore.integrations.odoo.taxes import feuilles_rapport_accise
+def test_feuilles_rapport_taxe_returns_three_keyed_dict():
+    from electricore.core.builds.rapport_taxe import feuilles_rapport_taxe
 
     rapport = _rapport_synthetique()
-    feuilles = feuilles_rapport_accise(rapport)
+    feuilles = feuilles_rapport_taxe(rapport)
 
     assert set(feuilles.keys()) == {"Résumé", "Par taux", "Détail"}
 
 
-def test_feuilles_rapport_accise_maps_each_frame_to_its_sheet():
-    """Chaque feuille pointe vers le DataFrame correspondant du rapport, sans transformation."""
-    from electricore.integrations.odoo.taxes import feuilles_rapport_accise
+def test_feuilles_rapport_taxe_maps_each_frame_to_its_sheet():
+    from electricore.core.builds.rapport_taxe import feuilles_rapport_taxe
 
     rapport = _rapport_synthetique()
-    feuilles = feuilles_rapport_accise(rapport)
+    feuilles = feuilles_rapport_taxe(rapport)
 
     assert_frame_equal(feuilles["Résumé"], rapport.resume)
     assert_frame_equal(feuilles["Par taux"], rapport.par_taux)

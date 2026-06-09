@@ -4,15 +4,14 @@ from fastapi import APIRouter, Query
 
 from electricore.api.decorators import arrow_endpoint, xlsx_endpoint
 from electricore.api.serializers import arrow_stream, xlsx_multi_sheet
-from electricore.integrations.odoo.decorators import with_odoo
-from electricore.integrations.odoo.taxes import (
-    accise_par_contrat,
-    cta_par_contrat,
-    feuilles_rapport_accise,
-    feuilles_rapport_cta,
-    rapport_accise,
-    rapport_cta,
+from electricore.api.services.taxes_service import (
+    accise_par_contrat_service,
+    cta_par_contrat_service,
+    rapport_accise_service,
+    rapport_cta_service,
 )
+from electricore.core.builds.rapport_taxe import feuilles_rapport_taxe
+from electricore.integrations.odoo.decorators import with_odoo
 
 router = APIRouter(tags=["taxes"])
 
@@ -33,7 +32,7 @@ def export_accise_rapport_xlsx(
     ),
 ) -> bytes:
     """Livrable facturiste : Accise TICFE en XLSX multi-onglets (Résumé / Par taux / Détail)."""
-    return xlsx_multi_sheet(feuilles_rapport_accise(rapport_accise(odoo, trimestre)))
+    return xlsx_multi_sheet(feuilles_rapport_taxe(rapport_accise_service(odoo, trimestre)))
 
 
 @xlsx_endpoint(router, "/taxes/accise/detail.xlsx", filename="accise_detail{trimestre}.xlsx", requires_odoo=True)
@@ -47,7 +46,7 @@ def export_accise_detail_xlsx(
     ),
 ) -> bytes:
     """Détail Accise TICFE en XLSX mono-onglet (table PDL × mois, cas technique)."""
-    return xlsx_multi_sheet({"Détail": accise_par_contrat(odoo, trimestre)})
+    return xlsx_multi_sheet({"Détail": accise_par_contrat_service(odoo, trimestre)})
 
 
 @arrow_endpoint(router, "/taxes/accise/detail.arrow", requires_odoo=True)
@@ -61,7 +60,7 @@ def export_accise_detail_arrow(
     ),
 ) -> bytes:
     """Détail Accise TICFE en Arrow IPC stream (table PDL × mois, cas technique)."""
-    return arrow_stream(accise_par_contrat(odoo, trimestre))
+    return arrow_stream(accise_par_contrat_service(odoo, trimestre))
 
 
 # =============================================================================
@@ -80,7 +79,7 @@ def export_cta_rapport_xlsx(
     ),
 ) -> bytes:
     """Livrable facturiste : CTA en XLSX multi-onglets (Résumé / Par taux / Détail)."""
-    return xlsx_multi_sheet(feuilles_rapport_cta(rapport_cta(odoo, trimestre)))
+    return xlsx_multi_sheet(feuilles_rapport_taxe(rapport_cta_service(odoo, trimestre)))
 
 
 @xlsx_endpoint(router, "/taxes/cta/detail.xlsx", filename="cta_detail{trimestre}.xlsx", requires_odoo=True)
@@ -94,7 +93,7 @@ def export_cta_detail_xlsx(
     ),
 ) -> bytes:
     """Détail CTA mensuel en XLSX mono-onglet (PDL × mois, cas technique)."""
-    return xlsx_multi_sheet({"Détail": cta_par_contrat(odoo, trimestre)})
+    return xlsx_multi_sheet({"Détail": cta_par_contrat_service(odoo, trimestre)})
 
 
 @arrow_endpoint(router, "/taxes/cta/detail.arrow", requires_odoo=True)
@@ -108,4 +107,4 @@ def export_cta_detail_arrow(
     ),
 ) -> bytes:
     """Détail CTA mensuel en Arrow IPC stream (PDL × mois, cas technique)."""
-    return arrow_stream(cta_par_contrat(odoo, trimestre))
+    return arrow_stream(cta_par_contrat_service(odoo, trimestre))

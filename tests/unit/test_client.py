@@ -91,7 +91,7 @@ def test_accise_round_trip_via_endpoint(monkeypatch):
 
     monkeypatch.setattr("electricore.integrations.odoo.decorators.OdooReader", _fake_reader)
     monkeypatch.setattr(
-        "electricore.api.routers.taxes.accise_par_contrat",
+        "electricore.api.routers.taxes.accise_par_contrat_service",
         lambda odoo, trimestre=None: df_attendu,
     )
     app.dependency_overrides[get_current_api_key] = lambda: "test-key"
@@ -127,7 +127,7 @@ def test_cta_round_trip_via_endpoint(monkeypatch):
 
     monkeypatch.setattr("electricore.integrations.odoo.decorators.OdooReader", _fake_reader)
     monkeypatch.setattr(
-        "electricore.api.routers.taxes.cta_par_contrat",
+        "electricore.api.routers.taxes.cta_par_contrat_service",
         lambda odoo, trimestre=None: df_attendu,
     )
     app.dependency_overrides[get_current_api_key] = lambda: "test-key"
