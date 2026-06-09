@@ -19,8 +19,8 @@ from typing import NamedTuple
 
 import polars as pl
 
+from electricore.core.builds.contexte_mensuel import charger
 from electricore.core.loaders import c15, releves_harmonises
-from electricore.core.orchestrations.contexte_mensuel import charger
 from electricore.core.pipelines.accise import pipeline_accise
 from electricore.core.pipelines.cta import ajouter_cta
 from electricore.core.pipelines.facturation import expr_calculer_trimestre

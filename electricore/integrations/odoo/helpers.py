@@ -142,7 +142,7 @@ def _expr_est_brouillon() -> pl.Expr:
     """Expression : `est_brouillon = x_invoicing_state == 'draft' ∧ account.move.state == 'draft'`.
 
     Surface le statut « brouillon facturable » côté Odoo vers la colonne agnostique
-    consommée par `core.orchestrations.contexte_mensuel.rapprocher` (cf. ADR-0014 +
+    consommée par `core.builds.contexte_mensuel.rapprocher` (cf. ADR-0014 +
     slice 2 de la refonte Contexte mensuel). Les flags dérivés (`a_facturer`,
     `a_supprimer`) sont calculés en core depuis cet `est_brouillon` et `quantite`.
     """

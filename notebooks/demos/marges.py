@@ -23,7 +23,7 @@ with app.setup(hide_code=True):
     from electricore.core.loaders import (
         c15, releves_harmonises
     )
-    from electricore.core.orchestrations import (
+    from electricore.core.builds import (
         charger
     )
     from electricore.core.pipelines.facturation import (

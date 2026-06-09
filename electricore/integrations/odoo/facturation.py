@@ -19,9 +19,9 @@ from dataclasses import dataclass
 
 import polars as pl
 
+from electricore.core.builds.contexte_mensuel import charger, documents, rapprocher
 from electricore.core.loaders import c15, f15, releves_harmonises
 from electricore.core.models.lignes_facture_rapprochees import LignesFactureRapprochees
-from electricore.core.orchestrations.contexte_mensuel import charger, documents, rapprocher
 
 from .helpers import lignes_factures_du_mois
 from .models.rapport_facturation import RapportFacturationResume

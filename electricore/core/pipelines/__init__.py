@@ -5,7 +5,7 @@ Ce module contient les implémentations fonctionnelles des pipelines
 de traitement de données énergétiques utilisant les expressions Polars.
 
 La composition `facturation()` (et son container `ResultatFacturationPolars`)
-a été déplacée dans `electricore.core.orchestrations.contexte_mensuel`
+a été déplacée dans `electricore.core.builds.contexte_mensuel`
 (cf. slice 3 de la refonte Contexte mensuel, issue #89).
 """
 

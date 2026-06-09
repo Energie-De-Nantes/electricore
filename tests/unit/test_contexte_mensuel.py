@@ -1,9 +1,9 @@
-"""Tests unitaires du module d'orchestration `contexte_mensuel`.
+"""Tests unitaires du module de build `contexte_mensuel`.
 
 Couvre `ContexteMensuel` + `charger()` — la composition pure des pipelines
 de facturation pour un mois donné. Les loaders restent à la charge de l'appelant
 (adapter ERP), conformément à la nouvelle topologie ; le module
-d'orchestration ne déclenche jamais d'I/O.
+de build ne déclenche jamais d'I/O.
 
 Stratégie : on stub le helper privé `_composer` (la séquence des 4 pipelines)
 pour isoler la valeur ajoutée de `charger()` (résolution du mois + emballage
@@ -17,7 +17,7 @@ from zoneinfo import ZoneInfo
 import polars as pl
 import pytest
 
-from electricore.core.orchestrations.contexte_mensuel import ContexteMensuel, charger
+from electricore.core.builds.contexte_mensuel import ContexteMensuel, charger
 
 TZ = ZoneInfo("Europe/Paris")
 
@@ -50,7 +50,7 @@ def stub_composer(monkeypatch):
 
     def _install(resultat):
         monkeypatch.setattr(
-            "electricore.core.orchestrations.contexte_mensuel._composer",
+            "electricore.core.builds.contexte_mensuel._composer",
             lambda historique, releves: resultat,
         )
 

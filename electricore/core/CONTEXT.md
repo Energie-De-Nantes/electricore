@@ -154,6 +154,32 @@ Limite contractuelle en kVA. Un seul champ en C5 (`puissance_souscrite_kva`), qu
 
 ---
 
+## Rôles des dossiers
+
+Voir [ADR-0019](../../docs/adr/0019-roles-loaders-pipelines-builds-integrations.md) pour le cadre complet (règles d'import, garde-fou, alternatives écartées). Vocabulaire canonique :
+
+**Loader** :
+Source interne (DuckDB, fichiers, configs). `core/loaders/`. Lit une table, un fichier ou un query builder et retourne un `LazyFrame[Schema core]`. Aucune logique métier.
+
+**Pipeline** :
+Transformation pure. `core/pipelines/`. Prend N frames Pandera-typés (souvent du même domaine métier, mais multi-sources autorisé tant que le domaine reste cohérent) et retourne 1 frame Pandera-typé. **Aucune I/O, aucun import d'`integrations/`.** Le `.collect()` est porté par le build ou le caller, pas par le pipeline.
+_Éviter_ : confondre avec « pipeline » au sens DAG scheduling (Airflow, Dagster jobs) — ici un pipeline est une *suite d'opérations composables*, pas un graphe planifié.
+
+**Build** :
+Producteur de livrable. `core/builds/`. Compose pipelines + loaders pour produire un *bundle dataclass* (`RapportTaxe`, `ContexteMensuel`) ou un side-effect via writer. **Ne peut pas importer `integrations/`** — les sources ERP sont injectées par le caller (typiquement `api/services/`). Anciennement `core/orchestrations/` (renommé pour éviter la collision avec le sens industriel de « orchestration » = scheduling).
+_Éviter_ : orchestration (mot réservé pour le jour où un vrai scheduler est ajouté).
+
+**Writer** :
+Sink interne (DuckDB, fichiers). `core/writers/`. Symétrique de loader côté écriture. Aucune logique métier.
+
+**Integration** (`integrations/<erp>/`) :
+Source et sink ERP. Expose des fonctions qui retournent des `LazyFrame[Schema core]` (lecture) ou consomment des `DataFrame` (écriture). **Pas d'assemblage de livrable, pas d'orchestration métier** — un fichier comme `integrations/odoo/taxes.py` qui produirait un `RapportTaxe` est une violation : l'assemblage descend en `core/builds/`.
+
+**Service API** (`api/services/`) :
+Wire-up non-trivial ou stateful entre sources (loaders + integrations) et builds. Lieu où les sources ERP rencontrent les builds core. Routeur reste pur transport.
+
+---
+
 ## Concepts pipeline
 
 **Historique** :
@@ -177,11 +203,11 @@ Intervalle entre deux relevés d'index, support du calcul de consommation et du 
 Agrégation d'abonnements + périodes d'énergie sur un mois calendaire, unité de la facturation client mensuelle.
 
 **Contexte mensuel de facturation** :
-Bundle immutable des éléments dérivés une seule fois pour produire la facturation d'un mois donné : `historique_enrichi`, `abonnements`, `energie`, `facturation_mensuelle` (méta-périodes du mois). Construit par `charger()` dans `core/orchestrations/contexte_mensuel.py` ; partagé par les orchestrations qui touchent au même mois (rapprochement, documents de campagne, taxes mensuelles) pour ne déclencher le pipeline `facturation()` qu'une seule fois.
+Bundle immutable des éléments dérivés une seule fois pour produire la facturation d'un mois donné : `historique_enrichi`, `abonnements`, `energie`, `facturation_mensuelle` (méta-périodes du mois). Construit par `charger()` dans `core/builds/contexte_mensuel.py` (cf. [ADR-0019](../../docs/adr/0019-roles-loaders-pipelines-builds-integrations.md)) ; partagé par les builds qui touchent au même mois (rapprochement, documents de campagne, taxes mensuelles) pour ne déclencher le pipeline `facturation()` qu'une seule fois.
 _Éviter_ : résultat de facturation (trop vague), contexte tout court (sans qualificatif).
 
 **Rapprochement facturation mensuelle** :
-Jointure des *lignes de facture* (côté ERP) avec la méta-période mensuelle Enedis du même mois, enrichie des identifiants compteur (`num_compteur`, `type_compteur`) et des flags `a_facturer` / `a_supprimer` (cf. [ADR-0014](../../docs/adr/0014-lignes-factures-du-mois-avec-flags.md)). Implémenté par `rapprocher()` dans `core/orchestrations/contexte_mensuel.py`. Produit une `LignesFactureRapprochees`.
+Jointure des *lignes de facture* (côté ERP) avec la méta-période mensuelle Enedis du même mois, enrichie des identifiants compteur (`num_compteur`, `type_compteur`) et des flags `a_facturer` / `a_supprimer` (cf. [ADR-0014](../../docs/adr/0014-lignes-factures-du-mois-avec-flags.md)). Implémenté par `rapprocher()` dans `core/builds/contexte_mensuel.py`. Produit une `LignesFactureRapprochees`.
 _Éviter_ : matching, reconciliation (anglicisme).
 
 **Ligne de facture** :
@@ -205,7 +231,7 @@ Tout `pipeline_*` (et la fonction de premier niveau qu'il compose, ex : `generer
 ## Exports et livrables
 
 **Rapport** :
-Structure de données (NamedTuple) regroupant les DataFrames qu'un pipeline d'orchestration produit pour un domaine (Accise, CTA, facturation). Exemple : `RapportAccise(resume, par_taux, detail)`. Pré-trié et prêt à consommer — l'ordre des lignes est porté par la fonction `rapport_*` elle-même, pas par les consommateurs.
+Structure de données (`@dataclass(frozen=True, slots=True)`, cf. [ADR-0018](../../docs/adr/0018-classes-justifiees-par-l-etat.md)) regroupant les DataFrames qu'un *build* (cf. [ADR-0019](../../docs/adr/0019-roles-loaders-pipelines-builds-integrations.md)) produit pour un domaine (Accise, CTA, facturation). Exemple : `RapportAccise(resume, par_taux, detail)`. Pré-trié et prêt à consommer — l'ordre des lignes est porté par la fonction `rapport_*` elle-même, pas par les consommateurs.
 
 **Livrable** :
 Export structuré destiné à un consommateur métier (facturiste, audit). Un livrable matérialise un *Rapport* sous une forme attendue par son destinataire — typiquement un XLSX multi-onglets (`Résumé` / `Par taux` / `Détail`). Distinct du *détail brut* (table unique exportée en XLSX mono-onglet ou Arrow IPC, format technique).
@@ -215,6 +241,6 @@ _Éviter_ : export (trop générique), fichier.
 Onglets d'un *Livrable* XLSX, matérialisés par un `dict[str, DataFrame]` consommable par `xlsx_multi_sheet`. Les clés du dict sont les libellés d'onglets affichés à l'utilisateur (FR : `Résumé`, `Par taux`, `Détail`, `F15 complet`, `Changements puissance`…). Deux formes de production coexistent :
 
 - **À partir d'un `Rapport*`** : `feuilles_rapport_*(r) -> dict[str, DataFrame]` co-localisée avec le `rapport_*` correspondant (cas Accise, CTA, facturation rapport).
-- **Directement par une orchestration** : `documents_facturation_du_mois(odoo, mois) -> tuple[dict[str, DataFrame], str]` (cas `/facturation/documents.xlsx` — pas de NamedTuple intermédiaire, la forme du livrable est directement assemblée par l'orchestration).
+- **Directement par un build** : `documents_facturation_du_mois(odoo, mois) -> tuple[dict[str, DataFrame], str]` (cas `/facturation/documents.xlsx` — pas de dataclass intermédiaire, la forme du livrable est directement assemblée par le build).
 
 _Éviter_ : onglets (anglicisme), sheets.
