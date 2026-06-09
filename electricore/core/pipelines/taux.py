@@ -10,7 +10,7 @@ configurent uniquement le nom de la colonne de taux et la colonne de date.
 
 import polars as pl
 
-from electricore.core.models.historique_taux import HistoriqueTaux
+from electricore.core.models.historique_taux import historique_taux_schema
 
 
 def ajouter_taux_en_vigueur(
@@ -27,7 +27,7 @@ def ajouter_taux_en_vigueur(
     d'un nouveau taux à `start`, qui remplace le précédent jusqu'à la ligne
     suivante (la dernière s'étend indéfiniment).
     """
-    HistoriqueTaux.to_schema(taux_col).validate(historique)
+    historique_taux_schema(taux_col).validate(historique)
 
     joint = (
         df.sort(date_col)
