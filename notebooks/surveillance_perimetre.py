@@ -32,7 +32,7 @@ def _():
 
 @app.cell
 def _():
-    _config = DuckDBConfig()
+    _config = DuckDBConfig.from_env()
     with duckdb_readonly_conn(_config.database_path) as _conn:
         _entrees = _conn.execute("""
             SELECT pdl, ref_situation_contractuelle, MIN(date_evenement)::DATE AS date_entree
@@ -79,7 +79,7 @@ def _(periodes):
 
 @app.cell
 def _():
-    _config = DuckDBConfig()
+    _config = DuckDBConfig.from_env()
     with duckdb_readonly_conn(_config.database_path) as _conn:
         r64_mois = _conn.execute("""
             SELECT DISTINCT pdl, DATE_TRUNC('month', date_releve::DATE)::DATE AS debut_mois

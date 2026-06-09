@@ -265,7 +265,7 @@ class DuckDBQuery:
             FileNotFoundError: Si la base DuckDB n'existe pas
         """
         # Configuration
-        config = DuckDBConfig(self.database_path)
+        config = DuckDBConfig.from_path(self.database_path)
 
         if not config.database_path.exists():
             raise FileNotFoundError(f"Base DuckDB non trouvée : {config.database_path}")
