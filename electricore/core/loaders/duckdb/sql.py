@@ -15,7 +15,7 @@ from dataclasses import dataclass
 # =============================================================================
 
 
-@dataclass(frozen=True)  # Immutable
+@dataclass(frozen=True, slots=True)
 class Column:
     """
     Définition immutable d'une colonne SQL.
@@ -40,7 +40,7 @@ class Column:
         return self.sql_expr
 
 
-@dataclass(frozen=True)  # Immutable
+@dataclass(frozen=True, slots=True)
 class FluxSchema:
     """
     Schéma immutable complet d'un flux Enedis.

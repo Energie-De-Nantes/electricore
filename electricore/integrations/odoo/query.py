@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class OdooQuery:
     """
     Query builder immutable pour chaîner les opérations Odoo + Polars.

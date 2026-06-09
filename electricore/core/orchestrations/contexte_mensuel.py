@@ -38,7 +38,7 @@ _MAPPING_CATEGORIE_COLONNE: dict[str, str] = {
 }
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ContexteMensuel:
     """Bundle immutable des 4 frames dérivés pour produire la facturation d'un mois.
 
