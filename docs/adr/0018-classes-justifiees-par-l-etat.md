@@ -15,21 +15,19 @@ Plusieurs incidents légers dans `electricore/` ont rendu cette tension visible 
 
 ## Décision
 
-**Une classe n'existe que si son état interne est justifié.** Trois justifications sont reconnues — toutes les autres situations s'expriment en fonctions de module.
+**Forme par défaut pour toute donnée structurée : `@dataclass(frozen=True, slots=True)`.**
 
-### Les trois justifications
+Cette forme couvre les value objects purs *et* les builders compositionnels. Un *builder* (`OdooQuery`, `DuckDBQuery`) n'est pas une exception — c'est un `@dataclass(frozen=True, slots=True)` dont les méthodes retournent une nouvelle instance plutôt que de muter. Forme identique, contenu différent.
 
-1. **Cycle de vie d'une connexion** — l'objet encapsule une ressource externe qui requiert un `__enter__` / `__exit__` (session XML-RPC, pool HTTP, fichier ouvert, transaction). Exemples : [`OdooReader`](../../electricore/integrations/odoo/reader.py), [`OdooWriter`](../../electricore/integrations/odoo/writers.py).
+Trois cas seulement s'écartent de la forme par défaut, et chacun pour une raison concrète :
 
-2. **Builder compositionnel** — l'objet accumule du sens à travers une chaîne d'appels (`.filter().follow().enrich()`) que les appels individuels ne portent pas. Forme imposée : `@dataclass(frozen=True, slots=True)` + méthodes retournant une **nouvelle instance** (pas de mutation). Exemples : [`OdooQuery`](../../electricore/integrations/odoo/query.py), [`DuckDBQuery`](../../electricore/core/loaders/duckdb/query.py).
+1. **Cycle de vie d'une connexion ou d'une ressource externe** — la machinerie `@dataclass` ne sait pas porter `__enter__` / `__exit__`, pool de connexions, état transactionnel. Forme : **classe régulière** avec `__init__` + protocole context manager. Exemples : [`OdooReader`](../../electricore/integrations/odoo/reader.py), [`OdooWriter`](../../electricore/integrations/odoo/writers.py).
 
-3. **Cache ou job mutable** — l'état EST le point : un cache (`FieldsCache`) ou un job dont le statut évolue dans le temps (`ETLJob`). Forme : classe avec `__init__` pour les caches, `@dataclass(slots=True)` (non-frozen) pour les jobs.
+2. **Cache mutable avec invariants custom** — l'état EST le point, et les invariants (clé composite, expiration, `get/set/clear`) sont trop riches pour des champs nus. Forme : **classe régulière** avec `__init__` + méthodes d'accès. Exemple : [`FieldsCache`](../../electricore/integrations/odoo/config.py).
 
-### Tous les autres cas
+3. **État évoluant dans le temps (job, statut)** — l'instance vit, ses champs changent au fil du cycle de vie. Forme : `@dataclass(slots=True)` **non-frozen**. Exemple : [`ETLJob`](../../electricore/api/services/etl_service.py).
 
-- **Value object pur** (DataFrame bundle, configuration, snapshot de paramètres) → `@dataclass(frozen=True, slots=True)`. Pas de méthodes, pas de logique. Si un comportement est nécessaire, c'est une fonction du module qui prend la valeur en argument.
-
-- **Namespace de fonctions liées** → **module Python**, jamais une classe. Pas de `class Foo: @staticmethod def bar(...)`. Si `bar()` n'a besoin d'aucun état, c'est une fonction de premier niveau dans le module.
+**Jamais** : la classe-namespace (`class Foo: @staticmethod def bar(...)`). Si `bar()` n'a besoin d'aucun état, c'est une **fonction de premier niveau** dans le module — pas une méthode statique d'une classe vide.
 
 ### Pourquoi `@dataclass(frozen=True, slots=True)` plutôt que `NamedTuple`
 
@@ -41,16 +39,32 @@ Choix retenu pour tous les value objects de la codebase, y compris ceux qui reto
 - **État de l'art moderne** : `attrs`, `pydantic v2`, `msgspec` utilisent tous des records nommés, jamais des tuples. `NamedTuple` était l'idiome 3.5–3.7 ; depuis 3.7 (`dataclasses`) et 3.10 (`slots=True`), `@dataclass(frozen=True, slots=True)` est le choix canonique.
 - **`slots=True`** est gratuit dès 3.10 : économie mémoire (pas de `__dict__`), détection de typo (`instance.lignes_typo = ...` lève `AttributeError`), accès attribut plus rapide. Python 3.12+ (requis par ce projet) supporte sans réserve.
 
+### Arbre de décision
+
+```
+La donnée est-elle structurée (= un record nommé) ?
+├── Non → fonction(s) de module, jamais de classe-namespace
+└── Oui
+    ├── Requiert __enter__/__exit__, pool, ou invariants riches ?
+    │   ├── Connexion/ressource externe → classe régulière + context manager
+    │   └── Cache avec API custom    → classe régulière + __init__/get/set
+    ├── L'état évolue dans le temps (statut, lifecycle) ?
+    │   └── Oui → @dataclass(slots=True)  (mutable, non-frozen)
+    └── Sinon (default)
+        └── @dataclass(frozen=True, slots=True)
+            ├── Sans méthodes → value object pur
+            └── Avec méthodes retournant une nouvelle instance → builder
+```
+
 ### Tableau récapitulatif
 
 | Cas d'usage | Convention | Exemples canoniques |
 |---|---|---|
-| Cycle de vie d'une connexion | classe + `__enter__`/`__exit__` | `OdooReader`, `OdooWriter` |
-| Builder compositionnel | `@dataclass(frozen=True, slots=True)` + méthodes retournant une nouvelle instance | `OdooQuery`, `DuckDBQuery` |
-| Cache mutable | classe avec `__init__` | `FieldsCache` |
-| Job avec état évoluant | `@dataclass(slots=True)` | `ETLJob` |
-| Value object pur | `@dataclass(frozen=True, slots=True)` | `OdooConfig`, `ContexteMensuel`, `QueryConfig`, `Column`, `FluxSchema` |
-| Namespace de fonctions | **module Python**, pas de classe | (contre-exemple : `HistoriqueTaux`) |
+| **Forme par défaut** | `@dataclass(frozen=True, slots=True)` | Value objects : `OdooConfig`, `ContexteMensuel`, `QueryConfig`, `Column`, `FluxSchema`. Builders : `OdooQuery`, `DuckDBQuery` |
+| Cycle de vie d'une connexion / ressource | classe régulière + `__enter__`/`__exit__` | `OdooReader`, `OdooWriter` |
+| Cache mutable avec invariants custom | classe régulière avec `__init__` + accès | `FieldsCache` |
+| État évoluant dans le temps | `@dataclass(slots=True)` (non-frozen) | `ETLJob` |
+| Namespace de fonctions | **module Python**, jamais de classe | (contre-exemple : `HistoriqueTaux`) |
 
 Les modèles Pandera (`pa.DataFrameModel`) et Pydantic (`BaseModel`) sortent de cette convention — ils ont leur propre machinerie de déclaration de schéma et ne sont pas des dataclasses.
 
@@ -58,7 +72,7 @@ Les modèles Pandera (`pa.DataFrameModel`) et Pydantic (`BaseModel`) sortent de 
 
 Trois facteurs cumulés :
 
-1. **Coût cognitif d'une classe vs fonction.** Lire un module de fonctions est linéaire — chaque fonction porte sa signature et son corps. Lire une classe oblige à reconstituer mentalement le cycle de vie : quand est-ce instancié, qui appelle quoi dans quel ordre, quels invariants sont maintenus entre les méthodes. Quand il n'y a pas d'état à porter, ce coût est gratuit. Les justifications (1)-(2)-(3) sont exactement les cas où l'état porte un sens que la fonction de module ne peut pas porter aussi clairement.
+1. **Coût cognitif d'une classe régulière vs `@dataclass` vs fonction.** Lire un module de fonctions est linéaire — chaque fonction porte sa signature et son corps. Lire un `@dataclass(frozen=True, slots=True)` est quasi-linéaire : les champs déclarés *sont* l'interface, les méthodes éventuelles sont des transformations explicites. Lire une classe régulière oblige à reconstituer mentalement le cycle de vie : quand est-ce instancié, quels invariants sont maintenus entre les méthodes, dans quel ordre les appels sont permis. Ce coût est justifié *seulement* quand la machinerie `@dataclass` est insuffisante (lifecycle de ressource, cache avec invariants riches).
 
 2. **L'AI-navigability et la testabilité y gagnent en miroir.** Une fonction pure est testable sans `setUp`, sans fixture de classe, sans réflexion sur l'ordre d'appel. Un agent (humain ou LLM) qui lit `enrichir_liens(df, base_url, model) -> pl.DataFrame` voit l'entrée et la sortie d'un coup d'œil. La version `LinkBuilder(...).enrich(df, model)` exige de lire le constructeur et l'état partagé avant de comprendre l'appel — coût pur, gain nul.
 
