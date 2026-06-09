@@ -10,6 +10,7 @@ import os
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 
 import duckdb
@@ -21,33 +22,36 @@ logger = logging.getLogger(__name__)
 _LOCK_RETRY_ATTEMPTS = 3
 _LOCK_RETRY_BACKOFF_S = 1.0
 
+# Mapping documentaire des tables DuckDB vers schémas métier (non utilisé en runtime).
+_TABLE_MAPPINGS = {
+    "historique": {
+        "source_tables": ["flux_enedis.flux_c15"],
+        "description": "Historique des événements contractuels avec relevés avant/après",
+    },
+    "releves": {
+        "source_tables": ["flux_enedis.flux_r151", "flux_enedis.flux_r15"],
+        "description": "Relevés de compteurs unifiés depuis R151 et R15",
+    },
+}
 
+_DEFAULT_DB_PATH = "electricore/etl/flux_enedis_pipeline.duckdb"
+
+
+@dataclass(frozen=True, slots=True)
 class DuckDBConfig:
     """Configuration pour les connexions DuckDB."""
 
-    def __init__(self, database_path: str | Path | None = None):
-        """
-        Initialise la configuration DuckDB.
+    database_path: Path
 
-        Args:
-            database_path: Chemin vers la base DuckDB. Si None, utilise la config par défaut.
-        """
-        if database_path is None:
-            self.database_path = Path(os.getenv("DUCKDB_PATH", "electricore/etl/flux_enedis_pipeline.duckdb"))
-        else:
-            self.database_path = Path(database_path)
+    @classmethod
+    def from_env(cls) -> "DuckDBConfig":
+        return cls(Path(os.getenv("DUCKDB_PATH", _DEFAULT_DB_PATH)))
 
-        # Mapping des tables DuckDB vers schémas métier
-        self.table_mappings = {
-            "historique": {
-                "source_tables": ["flux_enedis.flux_c15"],
-                "description": "Historique des événements contractuels avec relevés avant/après",
-            },
-            "releves": {
-                "source_tables": ["flux_enedis.flux_r151", "flux_enedis.flux_r15"],
-                "description": "Relevés de compteurs unifiés depuis R151 et R15",
-            },
-        }
+    @classmethod
+    def from_path(cls, path: str | Path | None) -> "DuckDBConfig":
+        if path is None:
+            return cls.from_env()
+        return cls(Path(path))
 
 
 def _is_lock_error(exc: duckdb.IOException) -> bool:

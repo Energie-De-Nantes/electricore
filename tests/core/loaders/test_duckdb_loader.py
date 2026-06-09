@@ -23,6 +23,7 @@ from electricore.core.loaders.duckdb import (
     load_releves,
     releves,
 )
+from electricore.core.loaders.duckdb.config import _TABLE_MAPPINGS
 
 # Import des transformations depuis le module interne
 from electricore.core.loaders.duckdb.transforms import (
@@ -34,29 +35,29 @@ from electricore.core.loaders.duckdb.transforms import (
 
 
 class TestDuckDBConfig:
-    """Tests pour la classe DuckDBConfig."""
+    """Tests pour DuckDBConfig et ses factories."""
 
-    def test_config_default_path(self):
-        """Test de la configuration par défaut."""
-        config = DuckDBConfig()
+    def test_from_env_default_path(self):
+        """from_env() sans variable d'env retourne le chemin par défaut."""
+        config = DuckDBConfig.from_env()
         assert config.database_path == Path("electricore/etl/flux_enedis_pipeline.duckdb")
 
-    def test_config_custom_path(self):
-        """Test avec un chemin personnalisé."""
+    def test_from_path_custom_path(self):
+        """from_path() avec un chemin explicite le convertit en Path."""
         custom_path = "/custom/path/db.duckdb"
-        config = DuckDBConfig(custom_path)
+        config = DuckDBConfig.from_path(custom_path)
         assert config.database_path == Path(custom_path)
 
+    def test_from_path_none_falls_back_to_env(self):
+        """from_path(None) équivaut à from_env()."""
+        config = DuckDBConfig.from_path(None)
+        assert config.database_path == DuckDBConfig.from_env().database_path
+
     def test_table_mappings_structure(self):
-        """Test de la structure des mappings de tables."""
-        config = DuckDBConfig()
-
-        # Vérifier que les mappings essentiels existent
-        assert "historique" in config.table_mappings
-        assert "releves" in config.table_mappings
-
-        # Vérifier la structure des mappings
-        hist_mapping = config.table_mappings["historique"]
+        """_TABLE_MAPPINGS documente les tables métier essentielles."""
+        assert "historique" in _TABLE_MAPPINGS
+        assert "releves" in _TABLE_MAPPINGS
+        hist_mapping = _TABLE_MAPPINGS["historique"]
         assert "source_tables" in hist_mapping
         assert "description" in hist_mapping
 

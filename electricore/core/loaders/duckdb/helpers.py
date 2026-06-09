@@ -280,7 +280,7 @@ def get_available_tables(database_path: str | Path | None = None) -> list[str]:
     Returns:
         Liste des noms de tables avec schéma (ex: ["flux_enedis.flux_c15"])
     """
-    config = DuckDBConfig(database_path)
+    config = DuckDBConfig.from_path(database_path)
 
     with duckdb_readonly_conn(config.database_path) as conn:
         result = conn.execute("""
@@ -307,7 +307,7 @@ def execute_custom_query(
     Returns:
         DataFrame ou LazyFrame selon le paramètre lazy
     """
-    config = DuckDBConfig(database_path)
+    config = DuckDBConfig.from_path(database_path)
 
     with duckdb_readonly_conn(config.database_path) as conn:
         if lazy:
