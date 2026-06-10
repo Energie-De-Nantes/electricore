@@ -54,13 +54,15 @@ class ContexteMensuel:
 
 def _composer(
     historique: pl.LazyFrame, releves: pl.LazyFrame
-) -> tuple[pl.LazyFrame, pl.LazyFrame, pl.LazyFrame, pl.DataFrame]:
+) -> tuple[pl.LazyFrame, pl.LazyFrame, pl.LazyFrame, pl.LazyFrame]:
     """Compose la séquence canonique des pipelines de facturation.
 
     `pipeline_historique` (1 fois) → `pipeline_abonnements` +
     `pipeline_energie` (sur l'historique enrichi) → `pipeline_facturation`
-    (agrégation mensuelle collectée). Retourne les 4 frames dans l'ordre
-    `(historique_enrichi, abonnements, energie, facturation_mensuelle)`.
+    (agrégation mensuelle, toujours lazy). Retourne les 4 LazyFrames dans
+    l'ordre `(historique_enrichi, abonnements, energie, facturation_mensuelle)`.
+    La matérialisation de `facturation_mensuelle` est portée par `charger()`,
+    au boundary du build (ADR-0019).
     """
     historique_enrichi = pipeline_historique(historique)
     abonnements = pipeline_abonnements(historique_enrichi)
@@ -85,7 +87,11 @@ def charger(
         mois: format `YYYY-MM-DD` (premier jour du mois). `None` → dernier mois
             disponible dans `facturation_mensuelle`.
     """
-    historique_enrichi, abonnements, energie, facturation_mensuelle = _composer(historique, releves)
+    historique_enrichi, abonnements, energie, facturation_mensuelle_lf = _composer(historique, releves)
+
+    # Matérialisation au boundary du build (ADR-0019) : pipeline_facturation
+    # reste lazy, le build collecte pour stocker dans le bundle ContexteMensuel.
+    facturation_mensuelle = facturation_mensuelle_lf.collect()
 
     if mois is None:
         debut_mois_expr = pl.col("debut").dt.truncate("1mo").dt.date()
