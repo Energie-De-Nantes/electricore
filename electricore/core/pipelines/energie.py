@@ -10,6 +10,7 @@ import pandera.polars as pa
 import polars as pl
 from pandera.typing.polars import LazyFrame
 
+from electricore.core.models.cadrans import CADRANS, SOUS_CADRANS, col_energie, col_index
 from electricore.core.models.historique import Historique
 from electricore.core.models.periode_energie import PeriodeEnergie
 from electricore.core.models.releve_index import RelevéIndex
@@ -144,28 +145,16 @@ def expr_enrichir_cadrans_principaux() -> list[pl.Expr]:
     Example:
         >>> df.with_columns(expr_enrichir_cadrans_principaux())
     """
-    return [
-        # Étape 1 : Synthèse hc depuis les sous-cadrans hch et hcb
-        pl.sum_horizontal([pl.col("energie_hc_kwh"), pl.col("energie_hch_kwh"), pl.col("energie_hcb_kwh")]).alias(
-            "energie_hc_kwh"
-        ),
-        # Étape 2 : Synthèse hp depuis les sous-cadrans hph et hpb
-        pl.sum_horizontal([pl.col("energie_hp_kwh"), pl.col("energie_hph_kwh"), pl.col("energie_hpb_kwh")]).alias(
-            "energie_hp_kwh"
-        ),
-        # Étape 3 : Synthèse base depuis TOUS les cadrans (évite le problème d'évaluation parallèle)
-        pl.sum_horizontal(
-            [
-                pl.col("energie_base_kwh"),
-                pl.col("energie_hp_kwh"),
-                pl.col("energie_hc_kwh"),
-                pl.col("energie_hph_kwh"),
-                pl.col("energie_hpb_kwh"),
-                pl.col("energie_hch_kwh"),
-                pl.col("energie_hcb_kwh"),
-            ]
-        ).alias("energie_base_kwh"),
+    # Toutes les expressions s'évaluent sur les colonnes d'origine (un seul
+    # with_columns) : base somme les 7 cadrans bruts, pas les synthèses.
+    syntheses_principaux = [
+        pl.sum_horizontal([pl.col(col_energie(principal)), *(pl.col(col_energie(s)) for s in sous)]).alias(
+            col_energie(principal)
+        )
+        for principal, sous in SOUS_CADRANS.items()
     ]
+    synthese_base = pl.sum_horizontal([pl.col(col_energie(c)) for c in CADRANS]).alias(col_energie("base"))
+    return [*syntheses_principaux, synthese_base]
 
 
 def expr_nb_jours() -> pl.Expr:
@@ -498,10 +487,8 @@ def calculer_periodes_energie(lf: pl.LazyFrame) -> LazyFrame[PeriodeEnergie]:
     Example:
         >>> periodes = calculer_periodes_energie(releves_lf).collect()
     """
-    # Cadrans d'index électriques standard
-    cadrans = ["base", "hp", "hc", "hph", "hpb", "hcb", "hch"]
-    # Construire les noms de colonnes complets (index_{cadran}_kwh)
-    colonnes_index = [f"index_{c}_kwh" for c in cadrans]
+    # Colonnes d'index des cadrans canoniques (index_{cadran}_kwh)
+    colonnes_index = [col_index(c) for c in CADRANS]
 
     return (
         lf

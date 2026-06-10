@@ -53,7 +53,7 @@ Sites BT > 36 kVA. Tertiaire et industriel léger ; quatre puissances souscrites
 ## Cadrans temporels
 
 **Cadran** :
-Plage tarifaire temporelle (heures × saison) groupant des périodes au même tarif. Le découpage en cadrans est fixé par le *calendrier distributeur*.
+Plage tarifaire temporelle (heures × saison) groupant des périodes au même tarif. Le découpage en cadrans est fixé par le *calendrier distributeur*. La liste canonique des 7 cadrans, la relation de synthèse (hp ← hph+hpb, hc ← hch+hcb) et les constructeurs de noms de colonnes (`grandeur_cadran_unité`) vivent dans `core/models/cadrans.py`.
 _Éviter_ : créneau, plage tarifaire.
 
 **Base** :

@@ -10,20 +10,14 @@ pour construire des pipelines de transformation complexes.
 
 import polars as pl
 
+from electricore.core.models.cadrans import CADRANS, col_index
+
 # =============================================================================
 # CONSTANTES IMMUTABLES
 # =============================================================================
 
 # Colonnes d'index énergétiques (tuple = immutable) - Format: index_cadran_kwh
-INDEX_COLS = (
-    "index_base_kwh",
-    "index_hp_kwh",
-    "index_hc_kwh",
-    "index_hph_kwh",
-    "index_hpb_kwh",
-    "index_hcb_kwh",
-    "index_hch_kwh",
-)
+INDEX_COLS = tuple(col_index(c) for c in CADRANS)
 
 # Colonnes de dates pour chaque type de flux
 DATE_COLS_HISTORIQUE = ("date_evenement", "avant_date_releve", "apres_date_releve")

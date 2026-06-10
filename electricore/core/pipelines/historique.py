@@ -14,6 +14,7 @@ import pandera.polars as pa
 import polars as pl
 from pandera.typing.polars import LazyFrame
 
+from electricore.core.models.cadrans import CADRANS, col_index
 from electricore.core.models.historique import Historique
 
 
@@ -152,12 +153,8 @@ def expr_changement_index() -> pl.Expr:
         ...     expr_changement_index().alias("index_change")
         ... )
     """
-    index_cols = ["base", "hp", "hc", "hph", "hch", "hpb", "hcb"]
-
-    # Créer une expression pour chaque colonne d'index
-    changements = [
-        expr_changement_avant_apres(f"avant_index_{col}_kwh", f"apres_index_{col}_kwh") for col in index_cols
-    ]
+    # Créer une expression pour chaque colonne d'index (un cadran = un index)
+    changements = [expr_changement_avant_apres(f"avant_{col_index(c)}", f"apres_{col_index(c)}") for c in CADRANS]
 
     # Retourner True si au moins un changement est détecté
     return pl.any_horizontal(changements)
