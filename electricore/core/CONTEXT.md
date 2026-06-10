@@ -200,7 +200,13 @@ Période continue entre deux événements contractuels où la configuration (FTA
 Intervalle entre deux relevés d'index, support du calcul de consommation et du TURPE variable.
 
 **Méta-période mensuelle** :
-Agrégation d'abonnements + périodes d'énergie sur un mois calendaire, unité de la facturation client mensuelle.
+Agrégation d'abonnements + périodes d'énergie sur un mois calendaire, unité de la facturation client mensuelle. Grain : une ligne par **(situation contractuelle, mois)** — pas par PDL : un PDL qui change de RSC en cours de mois porte deux méta-périodes ce mois-là (le TURPE fixe est facturé par situation).
+
+**`mois_annee`** (champ) :
+Mois calendaire d'une période (abonnement, énergie, méta-période), au format libellé français `"mars 2025"`. Sert aujourd'hui de clé de group_by dans la facturation **et** de libellé d'affichage dans les livrables — fuite de présentation dans le calcul, normalisation visée vers `"YYYY-MM"` (issue #115).
+
+**`mois_consommation`** (champ) :
+Mois de consommation côté Accise, au format calculable `"YYYY-MM"`, dérivé de la date de facture (M − 1 : la facture du mois M porte la consommation de M−1). Même concept métier que `mois_annee` sous un autre format ; convergence prévue par l'issue #115.
 
 **Contexte mensuel de facturation** :
 Bundle immutable des éléments dérivés une seule fois pour produire la facturation d'un mois donné : `historique_enrichi`, `abonnements`, `energie`, `facturation_mensuelle` (méta-périodes du mois). Construit par `charger()` dans `core/builds/contexte_mensuel.py` (cf. [ADR-0019](../../docs/adr/0019-roles-loaders-pipelines-builds-integrations.md)) ; partagé par les builds qui touchent au même mois (rapprochement, documents de campagne, taxes mensuelles) pour ne déclencher le pipeline `facturation()` qu'une seule fois.

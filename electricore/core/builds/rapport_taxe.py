@@ -1,9 +1,14 @@
-"""Producteurs de livrables taxes (Accise TICFE, CTA) — builds purs (ADR-0019, issue #108).
+"""Producteurs de livrables taxes (Accise TICFE, CTA) — builds purs (ADR-0019, issues #108, #116).
 
 `rapport_accise` et `rapport_cta` sont ERP-agnostiques : ils reçoivent leurs
 sources en paramètre (LazyFrame Enedis ou DataFrame Odoo-normalisé) et ne
 font aucune I/O. Les sources Odoo sont à la charge du caller
 (`api/services/taxes_service.py` ou tests).
+
+Les builds composent les pipelines (`pipeline_accise`, `pipeline_cta`) et
+**valident leurs trois onglets** avant de construire le `RapportTaxe` —
+l'interface du build est la surface de test, tout caller reçoit un bundle
+garanti conforme (schémas dans `core/models/rapport_taxe.py`).
 
 Les primitives partagées `agreger_par_taux` et `agreger_resume` capturent le
 seam commun entre Accise et CTA : même sortie (Résumé / Par taux / Détail),
@@ -16,9 +21,16 @@ from dataclasses import dataclass
 
 import polars as pl
 
+from electricore.core.models.accise_mensuel import AcciseMensuel
+from electricore.core.models.rapport_taxe import (
+    RapportAcciseParTaux,
+    RapportAcciseResume,
+    RapportCtaDetail,
+    RapportCtaParTaux,
+    RapportCtaResume,
+)
 from electricore.core.pipelines.accise import pipeline_accise
-from electricore.core.pipelines.cta import ajouter_cta
-from electricore.core.pipelines.facturation import expr_calculer_trimestre
+from electricore.core.pipelines.cta import pipeline_cta
 
 
 @dataclass(frozen=True, slots=True)
@@ -124,6 +136,13 @@ def rapport_accise(lignes_factures: pl.LazyFrame, trimestre: str | None = None) 
         nom_assiette_total="energie_mwh_total",
         nom_montant_total="accise_eur_total",
     )
+
+    # Le build porte la validation de ses onglets (issue #116) ; l'onglet
+    # Détail est la sortie du pipeline, validée par AcciseMensuel (dont le
+    # check d'unicité (pdl, mois_consommation), effectif sur DataFrame).
+    RapportAcciseResume.validate(resume)
+    RapportAcciseParTaux.validate(par_taux)
+    AcciseMensuel.validate(detail)
     return RapportTaxe(resume=resume, par_taux=par_taux, detail=detail)
 
 
@@ -144,14 +163,9 @@ def rapport_cta(
         `RapportTaxe(resume, par_taux, detail)` où `detail` est aggrégé par PDL
         (pas mensuel brut) avec `taux_cta_appliques` (taux successifs string-joined).
     """
-    df_mensuel = (
-        ajouter_cta(
-            facturation_mensuelle.join(pdl_mapping.select(["pdl", "order_name"]), on="pdl", how="inner").lazy(),
-            regles,
-        )
-        .with_columns(expr_calculer_trimestre().alias("trimestre"))
-        .collect()
-    )
+    # Collect au boundary du build (ADR-0019) ; le filtre trimestre reste au
+    # caller du pipeline (décision #116, pipelines symétriques accise/CTA).
+    df_mensuel = pipeline_cta(facturation_mensuelle.lazy(), pdl_mapping.lazy(), regles).collect()
 
     if trimestre is not None:
         df_mensuel = df_mensuel.filter(pl.col("trimestre") == trimestre)
@@ -189,4 +203,8 @@ def rapport_cta(
         .drop("_taux_list")
     )
 
+    # Le build porte la validation de ses onglets (issue #116).
+    RapportCtaResume.validate(resume)
+    RapportCtaParTaux.validate(par_taux)
+    RapportCtaDetail.validate(detail)
     return RapportTaxe(resume=resume, par_taux=par_taux, detail=detail)

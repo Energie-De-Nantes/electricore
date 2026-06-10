@@ -22,12 +22,14 @@ TZ = ZoneInfo("Europe/Paris")
 
 
 def _detail_accise_synthetique() -> pl.DataFrame:
-    """Sortie de `pipeline_accise` : 3 PDL × 2 trimestres × 2 taux."""
+    """Sortie de `pipeline_accise` (shape `AcciseMensuel`) : 3 PDL × 2 trimestres × 2 taux."""
     return pl.DataFrame(
         {
             "pdl": ["A", "A", "B", "B", "C"],
             "mois_consommation": ["2025-01", "2025-02", "2025-01", "2025-04", "2025-04"],
             "trimestre": ["2025-T1", "2025-T1", "2025-T1", "2025-T2", "2025-T2"],
+            "order_name": ["SO/1", "SO/1", "SO/2", "SO/2", "SO/3"],
+            "energie_kwh": [1000.0, 2000.0, 3000.0, 4000.0, 5000.0],
             "taux_accise_eur_mwh": [22.5, 22.5, 22.5, 25.0, 25.0],
             "energie_mwh": [1.0, 2.0, 3.0, 4.0, 5.0],
             "accise_eur": [22.5, 45.0, 67.5, 100.0, 125.0],
@@ -36,10 +38,12 @@ def _detail_accise_synthetique() -> pl.DataFrame:
 
 
 def _detail_cta_synthetique() -> pl.DataFrame:
-    """Sortie d'`ajouter_cta` + `expr_calculer_trimestre` : 2 PDL × 2 mois."""
+    """Sortie de `pipeline_cta` (shape `CtaMensuel`) : 2 PDL × 2 mois."""
     return pl.DataFrame(
         {
+            "ref_situation_contractuelle": ["RSC-A", "RSC-A", "RSC-B", "RSC-B"],
             "pdl": ["A", "A", "B", "B"],
+            "mois_annee": ["janvier 2025", "février 2025", "janvier 2025", "avril 2025"],
             "order_name": ["SO/1", "SO/1", "SO/2", "SO/2"],
             "trimestre": ["2025-T1", "2025-T1", "2025-T1", "2025-T2"],
             "taux_cta_pct": [3.0, 3.0, 3.0, 5.0],
@@ -348,10 +352,12 @@ class TestRapportAcciseBuild:
 
 
 def _facturation_mensuelle_synthetique() -> pl.DataFrame:
-    """Minimal facturation mensuelle (champs requis par ajouter_cta)."""
+    """Minimal facturation mensuelle (champs requis par pipeline_cta)."""
     return pl.DataFrame(
         {
+            "ref_situation_contractuelle": ["RSC-A", "RSC-A", "RSC-B"],
             "pdl": ["A", "A", "B"],
+            "mois_annee": ["janvier 2025", "février 2025", "janvier 2025"],
             "debut": ["2025-01-01", "2025-02-01", "2025-01-01"],
             "turpe_fixe_eur": [100.0, 100.0, 200.0],
         }
@@ -368,17 +374,7 @@ class TestRapportCtaBuild:
     def test_returns_rapport_taxe(self, monkeypatch):
         from electricore.core.builds import rapport_taxe as mod
 
-        monkeypatch.setattr(
-            mod,
-            "ajouter_cta",
-            lambda lf, r=None: lf.with_columns(
-                [
-                    pl.lit(3.0).alias("taux_cta_pct"),
-                    pl.lit(3.0).alias("cta_eur"),
-                ]
-            ),
-        )
-        monkeypatch.setattr(mod, "expr_calculer_trimestre", lambda: pl.lit("2025-T1"))
+        monkeypatch.setattr(mod, "pipeline_cta", lambda fact, mapping, regles=None: _detail_cta_synthetique().lazy())
 
         result = mod.rapport_cta(_facturation_mensuelle_synthetique(), _mapping_pdl_synthetique())
 
@@ -390,39 +386,17 @@ class TestRapportCtaBuild:
         """CTA detail est aggrégé par PDL (pas mensuel brut)."""
         from electricore.core.builds import rapport_taxe as mod
 
-        monkeypatch.setattr(
-            mod,
-            "ajouter_cta",
-            lambda lf, r=None: lf.with_columns(
-                [
-                    pl.lit(3.0).alias("taux_cta_pct"),
-                    pl.lit(3.0).alias("cta_eur"),
-                ]
-            ),
-        )
-        monkeypatch.setattr(mod, "expr_calculer_trimestre", lambda: pl.lit("2025-T1"))
+        monkeypatch.setattr(mod, "pipeline_cta", lambda fact, mapping, regles=None: _detail_cta_synthetique().lazy())
 
         result = mod.rapport_cta(_facturation_mensuelle_synthetique(), _mapping_pdl_synthetique())
 
-        # detail aggrégé par PDL : 2 PDL, pas 3 lignes mensuelles
+        # detail aggrégé par PDL : 2 PDL, pas 4 lignes mensuelles
         assert result.detail["pdl"].n_unique() == result.detail.height
 
     def test_trimestre_filter_applied(self, monkeypatch):
         from electricore.core.builds import rapport_taxe as mod
 
-        def fake_ajouter_cta(lf, r=None):
-            return lf.with_columns(
-                [
-                    pl.lit(3.0).alias("taux_cta_pct"),
-                    pl.lit(3.0).alias("cta_eur"),
-                ]
-            )
-
-        def fake_expr():
-            return pl.lit("2025-T1")
-
-        monkeypatch.setattr(mod, "ajouter_cta", fake_ajouter_cta)
-        monkeypatch.setattr(mod, "expr_calculer_trimestre", fake_expr)
+        monkeypatch.setattr(mod, "pipeline_cta", lambda fact, mapping, regles=None: _detail_cta_synthetique().lazy())
 
         result = mod.rapport_cta(
             _facturation_mensuelle_synthetique(),
@@ -430,7 +404,8 @@ class TestRapportCtaBuild:
             trimestre="2025-T1",
         )
 
-        assert isinstance(result.resume, pl.DataFrame)
+        # PDL B n'a qu'une ligne T2 sur 2 ; le filtre exclut sa ligne d'avril
+        assert set(result.par_taux["trimestre"].to_list()) == {"2025-T1"}
 
 
 # ---------------------------------------------------------------------------
@@ -457,12 +432,16 @@ def regles_cta_synthetiques_rapport() -> pl.LazyFrame:
 def facturation_2026_synthetique() -> pl.DataFrame:
     """PDL A sur 2026-T1 (3 mois) + PDL B sur 2021-T3 (1 mois)."""
     rows = [
-        {"pdl": "A", "debut": datetime(2026, 1, 1, tzinfo=TZ), "turpe_fixe_eur": 100.0},
-        {"pdl": "A", "debut": datetime(2026, 2, 1, tzinfo=TZ), "turpe_fixe_eur": 100.0},
-        {"pdl": "A", "debut": datetime(2026, 3, 1, tzinfo=TZ), "turpe_fixe_eur": 100.0},
-        {"pdl": "B", "debut": datetime(2021, 8, 1, tzinfo=TZ), "turpe_fixe_eur": 50.0},
+        {"rsc": "RSC-A", "mois_annee": "janvier 2026", "pdl": "A", "debut": datetime(2026, 1, 1, tzinfo=TZ)},
+        {"rsc": "RSC-A", "mois_annee": "février 2026", "pdl": "A", "debut": datetime(2026, 2, 1, tzinfo=TZ)},
+        {"rsc": "RSC-A", "mois_annee": "mars 2026", "pdl": "A", "debut": datetime(2026, 3, 1, tzinfo=TZ)},
+        {"rsc": "RSC-B", "mois_annee": "août 2021", "pdl": "B", "debut": datetime(2021, 8, 1, tzinfo=TZ)},
     ]
-    return pl.DataFrame(rows)
+    return (
+        pl.DataFrame(rows)
+        .with_columns(pl.when(pl.col("pdl") == "A").then(100.0).otherwise(50.0).alias("turpe_fixe_eur"))
+        .rename({"rsc": "ref_situation_contractuelle"})
+    )
 
 
 @pytest.fixture
@@ -574,8 +553,20 @@ class TestRapportCtaValeurs:
 
         df_fact = pl.DataFrame(
             [
-                {"pdl": "A", "debut": datetime(2025, 1, 1, tzinfo=TZ), "turpe_fixe_eur": 100.0},
-                {"pdl": "ORPHAN", "debut": datetime(2025, 1, 1, tzinfo=TZ), "turpe_fixe_eur": 100.0},
+                {
+                    "ref_situation_contractuelle": "RSC-A",
+                    "mois_annee": "janvier 2025",
+                    "pdl": "A",
+                    "debut": datetime(2025, 1, 1, tzinfo=TZ),
+                    "turpe_fixe_eur": 100.0,
+                },
+                {
+                    "ref_situation_contractuelle": "RSC-ORPHAN",
+                    "mois_annee": "janvier 2025",
+                    "pdl": "ORPHAN",
+                    "debut": datetime(2025, 1, 1, tzinfo=TZ),
+                    "turpe_fixe_eur": 100.0,
+                },
             ]
         )
         df_mapping = pl.DataFrame({"pdl": ["A"], "order_name": ["SO-A"]})
