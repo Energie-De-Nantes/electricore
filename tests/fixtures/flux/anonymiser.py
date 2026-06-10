@@ -181,7 +181,11 @@ def anonymiser_r64_zip(source: Path, destination: Path) -> None:
 
     fichiers = extract_files_from_zip(dechiffre, ".json")
     if not fichiers:
-        raise SystemExit("aucun .json dans le ZIP déchiffré")
+        import io
+        import zipfile
+
+        noms = zipfile.ZipFile(io.BytesIO(dechiffre)).namelist()
+        raise ValueError(f"aucun .json dans le ZIP déchiffré (contenu : {noms})")
     nom, contenu = fichiers[0]
     if len(fichiers) > 1:
         print(f"⚠️ {len(fichiers)} JSON dans le ZIP — seul {nom} est utilisé")
