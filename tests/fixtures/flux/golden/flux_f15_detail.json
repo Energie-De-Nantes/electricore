@@ -1,0 +1,25 @@
+[
+  {
+    "type_facturation": "EVNT",
+    "pdl": "99510061232830",
+    "ref_situation_contractuelle": "833195558",
+    "type_compteur": "CCB",
+    "id_ev": "DCOUP_PEN",
+    "nature_ev": "03",
+    "taux_tva_applicable": "NS",
+    "unite": "UNITE",
+    "prix_unitaire": "-24.0",
+    "quantite": "2.0",
+    "montant_ht": "-48.00",
+    "date_debut": "2025-01-17",
+    "date_fin": "2025-01-17",
+    "libelle_ev": "Pénalité pour coupure réseau",
+    "flux": "F15",
+    "num_facture": "3210619182009",
+    "date_facture": "2025-02-05",
+    "_source_zip": "fixture.zip",
+    "_flux_type": "F15",
+    "_xml_name": "f15.xml",
+    "modification_date": "2026-01-01T00:00:00"
+  }
+]
