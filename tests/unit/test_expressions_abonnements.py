@@ -85,36 +85,17 @@ def test_expr_nb_jours():
     assert result["nb_jours"].to_list() == expected
 
 
-def test_expr_date_formatee_fr_complet():
-    """Teste le formatage complet des dates en français."""
+def test_expr_date_formatee_fr():
+    """Teste le formatage français des champs d'affichage (« 15 mars 2024 »)."""
     df = pl.DataFrame(
         {
             "ma_date": [datetime(2024, 3, 15), datetime(2024, 12, 25)],
         }
     ).lazy()
 
-    result = df.with_columns(expr_date_formatee_fr("ma_date", "complet").alias("date_fr")).collect()
+    result = df.with_columns(expr_date_formatee_fr("ma_date").alias("date_fr")).collect()
 
-    # Note: Les tests dépendent de la locale système
-    # On vérifie juste que les dates sont formatées
-    dates_fr = result["date_fr"].to_list()
-    assert "15" in dates_fr[0]  # Jour présent
-    assert "25" in dates_fr[1]  # Jour présent
-    assert len(dates_fr[0]) > 5  # Format étendu
-
-
-def test_expr_date_formatee_fr_mois_annee():
-    """Teste le formatage mois-année des dates."""
-    df = pl.DataFrame(
-        {
-            "ma_date": [datetime(2024, 3, 15)],
-        }
-    ).lazy()
-
-    result = df.with_columns(expr_date_formatee_fr("ma_date", "mois_annee").alias("mois_annee")).collect()
-
-    mois_annee = result["mois_annee"].to_list()[0]
-    assert "2024" in mois_annee
+    assert result["date_fr"].to_list() == ["15 mars 2024", "25 décembre 2024"]
 
 
 def test_expr_fin_lisible():
@@ -180,6 +161,19 @@ def test_calculer_periodes_abonnement_pipeline(sample_historique):
     assert all(fin is not None for fin in result["fin"].to_list() if fin is not None)
 
 
+def test_mois_annee_au_format_cle_calculable(sample_historique):
+    """`mois_annee` est une clé calculable `YYYY-MM`, pas un libellé d'affichage (issue #115).
+
+    Le libellé français reste porté par `debut_lisible` / `fin_lisible`.
+    """
+    result = calculer_periodes_abonnement(sample_historique).collect()
+
+    assert result.filter(pl.col("ref_situation_contractuelle") == "PDL001")["mois_annee"].to_list() == [
+        "2024-01",
+        "2024-02",
+    ]
+
+
 def test_generer_periodes_abonnement_filtre_correctement():
     """Teste que la génération filtre correctement les événements.
 
@@ -220,18 +214,6 @@ def test_generer_periodes_abonnement_filtre_correctement():
     # Seuls les événements impactant l'abonnement doivent être traités
     # Donc 2 événements -> 1 période (la dernière n'aura pas de fin)
     assert len(result) <= 2  # Dépend du filtrage des périodes valides
-
-
-def test_format_date_invalide():
-    """Teste la gestion des formats de date invalides."""
-    df = pl.DataFrame(
-        {
-            "ma_date": [datetime(2024, 3, 15)],
-        }
-    ).lazy()
-
-    with pytest.raises(ValueError, match="Format non supporté"):
-        df.with_columns(expr_date_formatee_fr("ma_date", "format_inexistant")).collect()
 
 
 def test_composition_expressions():

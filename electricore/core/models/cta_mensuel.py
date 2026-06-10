@@ -23,7 +23,7 @@ class CtaMensuel(pa.DataFrameModel):
 
     ref_situation_contractuelle: pl.Utf8 = pa.Field(nullable=False)
     pdl: pl.Utf8 = pa.Field(nullable=False)
-    mois_annee: pl.Utf8 = pa.Field(nullable=False)  # ex: "mars 2025" (cf. issue #115)
+    mois_annee: pl.Utf8 = pa.Field(nullable=False, str_matches=r"^\d{4}-\d{2}$")  # ex: "2025-03"
     order_name: pl.Utf8 = pa.Field(nullable=False)
     turpe_fixe_eur: pl.Float64 | None = pa.Field(nullable=True, ge=0.0)
     taux_cta_pct: pl.Float64 | None = pa.Field(nullable=True, ge=0.0)

@@ -18,7 +18,7 @@ class AcciseMensuel(pa.DataFrameModel):
     """Accise TICFE au grain mensuel : une ligne par (PDL, mois de consommation)."""
 
     pdl: pl.Utf8 = pa.Field(nullable=False)
-    mois_consommation: pl.Utf8 = pa.Field(nullable=False)  # ex: "2025-03"
+    mois_annee: pl.Utf8 = pa.Field(nullable=False, str_matches=r"^\d{4}-\d{2}$")  # ex: "2025-03"
     trimestre: pl.Utf8 = pa.Field(nullable=False)  # ex: "2025-T1"
     order_name: pl.Utf8 = pa.Field(nullable=False)
     energie_kwh: pl.Float64 = pa.Field(nullable=False, ge=0.0)
@@ -29,4 +29,4 @@ class AcciseMensuel(pa.DataFrameModel):
     class Config:
         strict = False
         coerce = True
-        unique = ["pdl", "mois_consommation"]
+        unique = ["pdl", "mois_annee"]

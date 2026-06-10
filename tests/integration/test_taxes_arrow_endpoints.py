@@ -39,7 +39,7 @@ def df_accise_detail() -> pl.DataFrame:
     return pl.DataFrame(
         {
             "pdl": ["12345678901234", "12345678901234"],
-            "mois_consommation": ["2025-01", "2025-02"],
+            "mois_annee": ["2025-01", "2025-02"],
             "trimestre": ["2025-T1", "2025-T1"],
             "energie_mwh": [1.234, 2.345],
             "taux_accise_eur_mwh": [22.5, 22.5],

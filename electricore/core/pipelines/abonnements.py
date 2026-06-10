@@ -53,22 +53,22 @@ def expr_nb_jours() -> pl.Expr:
     return (pl.col("fin").dt.date() - pl.col("debut").dt.date()).dt.total_days().cast(pl.Int32)
 
 
-def expr_date_formatee_fr(col: str, format_type: str = "complet") -> pl.Expr:
+def expr_date_formatee_fr(col: str) -> pl.Expr:
     """
-    Formate une colonne de date en français.
+    Formate une colonne de date en libellé français « 1 mars 2025 ».
 
-    Cette expression formate les dates selon différents formats français
-    en utilisant les capacités de formatage de Polars avec des remplacements multiples.
+    Réservé aux champs d'affichage (`debut_lisible`, `fin_lisible`) — les clés
+    de calcul utilisent le format `YYYY-MM` (issue #115). Copie unique partagée
+    par les pipelines abonnements et énergie.
 
     Args:
         col: Nom de la colonne à formater
-        format_type: Type de format ("complet", "mois_annee")
 
     Returns:
         Expression Polars retournant la date formatée
 
     Example:
-        >>> df.with_columns(expr_date_formatee_fr("debut", "complet").alias("debut_lisible"))
+        >>> df.with_columns(expr_date_formatee_fr("debut").alias("debut_lisible"))
     """
     # Dictionnaire de correspondance anglais -> français
     mois_mapping = {
@@ -86,28 +86,10 @@ def expr_date_formatee_fr(col: str, format_type: str = "complet") -> pl.Expr:
         "December": "décembre",
     }
 
-    if format_type == "complet":
-        # Format "1 mars 2025"
-        expr = pl.col(col).dt.strftime("%d %B %Y")
-
-        # Appliquer les remplacements séquentiellement
-        for en_mois, fr_mois in mois_mapping.items():
-            expr = expr.str.replace_all(en_mois, fr_mois)
-
-        return expr
-
-    elif format_type == "mois_annee":
-        # Format "mars 2025"
-        expr = pl.col(col).dt.strftime("%B %Y")
-
-        # Appliquer les remplacements séquentiellement
-        for en_mois, fr_mois in mois_mapping.items():
-            expr = expr.str.replace_all(en_mois, fr_mois)
-
-        return expr
-
-    else:
-        raise ValueError(f"Format non supporté : {format_type}")
+    expr = pl.col(col).dt.strftime("%d %B %Y")
+    for en_mois, fr_mois in mois_mapping.items():
+        expr = expr.str.replace_all(en_mois, fr_mois)
+    return expr
 
 
 def expr_fin_lisible() -> pl.Expr:
@@ -123,7 +105,7 @@ def expr_fin_lisible() -> pl.Expr:
     Example:
         >>> df.with_columns(expr_fin_lisible().alias("fin_lisible"))
     """
-    return pl.when(pl.col("fin").is_null()).then(pl.lit("en cours")).otherwise(expr_date_formatee_fr("fin", "complet"))
+    return pl.when(pl.col("fin").is_null()).then(pl.lit("en cours")).otherwise(expr_date_formatee_fr("fin"))
 
 
 def expr_periode_valide() -> pl.Expr:
@@ -187,10 +169,11 @@ def calculer_periodes_abonnement(lf: pl.LazyFrame) -> pl.LazyFrame:
             [
                 # Durée en jours (dépend de debut/fin)
                 expr_nb_jours().alias("nb_jours"),
-                # Formatage des dates en français
-                expr_date_formatee_fr("debut", "complet").alias("debut_lisible"),
+                # Formatage des dates en français (champs d'affichage)
+                expr_date_formatee_fr("debut").alias("debut_lisible"),
                 expr_fin_lisible().alias("fin_lisible"),
-                expr_date_formatee_fr("debut", "mois_annee").alias("mois_annee"),
+                # Clé calculable YYYY-MM, triable (issue #115)
+                pl.col("debut").dt.strftime("%Y-%m").alias("mois_annee"),
             ]
         )
         # 5. Filtrage des périodes valides

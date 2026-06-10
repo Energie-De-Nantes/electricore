@@ -14,6 +14,9 @@ from electricore.core.models.historique import Historique
 from electricore.core.models.periode_energie import PeriodeEnergie
 from electricore.core.models.releve_index import RelevéIndex
 
+# Formatage français des champs d'affichage (copie unique, cf. abonnements)
+from electricore.core.pipelines.abonnements import expr_date_formatee_fr
+
 # Import du calcul TURPE variable
 from electricore.core.pipelines.turpe import ajouter_turpe_variable
 
@@ -248,63 +251,6 @@ def expr_selectionner_colonnes_finales():
     selection.append(pl.col("^energie_.*_kwh$"))
 
     return selection
-
-
-def expr_date_formatee_fr(col: str, format_type: str = "complet") -> pl.Expr:
-    """
-    Formate une colonne de date en français.
-
-    Cette expression reprend le formatage français du pipeline abonnements
-    pour assurer la cohérence entre les différents pipelines.
-
-    Args:
-        col: Nom de la colonne à formater
-        format_type: Type de format ("complet", "mois_annee")
-
-    Returns:
-        Expression Polars retournant la date formatée
-
-    Example:
-        >>> df.with_columns(expr_date_formatee_fr("debut", "complet").alias("debut_lisible"))
-    """
-    # Dictionnaire de correspondance anglais -> français
-    mois_mapping = {
-        "January": "janvier",
-        "February": "février",
-        "March": "mars",
-        "April": "avril",
-        "May": "mai",
-        "June": "juin",
-        "July": "juillet",
-        "August": "août",
-        "September": "septembre",
-        "October": "octobre",
-        "November": "novembre",
-        "December": "décembre",
-    }
-
-    if format_type == "complet":
-        # Format "1 mars 2025"
-        expr = pl.col(col).dt.strftime("%d %B %Y")
-
-        # Appliquer les remplacements séquentiellement
-        for en_mois, fr_mois in mois_mapping.items():
-            expr = expr.str.replace_all(en_mois, fr_mois)
-
-        return expr
-
-    elif format_type == "mois_annee":
-        # Format "mars 2025"
-        expr = pl.col(col).dt.strftime("%B %Y")
-
-        # Appliquer les remplacements séquentiellement
-        for en_mois, fr_mois in mois_mapping.items():
-            expr = expr.str.replace_all(en_mois, fr_mois)
-
-        return expr
-
-    else:
-        raise ValueError(f"Format non supporté : {format_type}")
 
 
 # =============================================================================
@@ -575,9 +521,10 @@ def calculer_periodes_energie(lf: pl.LazyFrame) -> LazyFrame[PeriodeEnergie]:
         # post traitement
         .with_columns(
             [
-                expr_date_formatee_fr("debut", "complet").alias("debut_lisible"),
-                expr_date_formatee_fr("fin", "complet").alias("fin_lisible"),
-                expr_date_formatee_fr("debut", "mois_annee").alias("mois_annee"),
+                expr_date_formatee_fr("debut").alias("debut_lisible"),
+                expr_date_formatee_fr("fin").alias("fin_lisible"),
+                # Clé calculable YYYY-MM, triable (issue #115)
+                pl.col("debut").dt.strftime("%Y-%m").alias("mois_annee"),
                 *expr_enrichir_cadrans_principaux(),
             ]
         )

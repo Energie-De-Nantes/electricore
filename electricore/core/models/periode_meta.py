@@ -27,7 +27,7 @@ class PeriodeMeta(pa.DataFrameModel):
     # Identifiants principaux
     ref_situation_contractuelle: pl.Utf8 = pa.Field(nullable=False)
     pdl: pl.Utf8 = pa.Field(nullable=False)
-    mois_annee: pl.Utf8 = pa.Field(nullable=False)  # ex: "mars 2025"
+    mois_annee: pl.Utf8 = pa.Field(nullable=False, str_matches=r"^\d{4}-\d{2}$")  # ex: "2025-03"
 
     # Bornes temporelles de la méta-période (timezone Europe/Paris)
     debut: DateTime = pa.Field(nullable=False, dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"})
