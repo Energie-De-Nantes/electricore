@@ -24,7 +24,7 @@ class PeriodeEnergie(pa.DataFrameModel):
     # Dates lisibles (optionnelles)
     debut_lisible: pl.Utf8 | None = pa.Field(nullable=True)
     fin_lisible: pl.Utf8 | None = pa.Field(nullable=True)
-    mois_annee: pl.Utf8 | None = pa.Field(nullable=True)
+    mois_annee: pl.Utf8 | None = pa.Field(nullable=True, str_matches=r"^\d{4}-\d{2}$")
 
     # Sources des relevés
     source_avant: pl.Utf8 = pa.Field(nullable=False)

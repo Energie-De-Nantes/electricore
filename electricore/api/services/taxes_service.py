@@ -50,7 +50,7 @@ def accise_par_contrat_service(odoo: OdooReader, trimestre: str | None = None) -
         trimestre: format "YYYY-TX". `None` = pas de filtre.
 
     Returns:
-        `DataFrame` shape `AcciseMensuel` (grain (pdl, mois_consommation) garanti).
+        `DataFrame` shape `AcciseMensuel` (grain (pdl, mois_annee) garanti).
     """
     # Collect au boundary du service (ADR-0019) ; filtre trimestre au caller
     # du pipeline (décision #116).

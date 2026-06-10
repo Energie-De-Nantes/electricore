@@ -26,7 +26,7 @@ def _detail_accise_synthetique() -> pl.DataFrame:
     return pl.DataFrame(
         {
             "pdl": ["A", "A", "B", "B", "C"],
-            "mois_consommation": ["2025-01", "2025-02", "2025-01", "2025-04", "2025-04"],
+            "mois_annee": ["2025-01", "2025-02", "2025-01", "2025-04", "2025-04"],
             "trimestre": ["2025-T1", "2025-T1", "2025-T1", "2025-T2", "2025-T2"],
             "order_name": ["SO/1", "SO/1", "SO/2", "SO/2", "SO/3"],
             "energie_kwh": [1000.0, 2000.0, 3000.0, 4000.0, 5000.0],
@@ -43,7 +43,7 @@ def _detail_cta_synthetique() -> pl.DataFrame:
         {
             "ref_situation_contractuelle": ["RSC-A", "RSC-A", "RSC-B", "RSC-B"],
             "pdl": ["A", "A", "B", "B"],
-            "mois_annee": ["janvier 2025", "février 2025", "janvier 2025", "avril 2025"],
+            "mois_annee": ["2025-01", "2025-02", "2025-01", "2025-04"],
             "order_name": ["SO/1", "SO/1", "SO/2", "SO/2"],
             "trimestre": ["2025-T1", "2025-T1", "2025-T1", "2025-T2"],
             "taux_cta_pct": [3.0, 3.0, 3.0, 5.0],
@@ -271,7 +271,7 @@ def _lignes_factures_synthetiques() -> pl.LazyFrame:
     return pl.DataFrame(
         {
             "pdl": ["A", "A", "B", "B", "C"],
-            "mois_consommation": ["2025-01", "2025-02", "2025-01", "2025-04", "2025-04"],
+            "mois_annee": ["2025-01", "2025-02", "2025-01", "2025-04", "2025-04"],
             "trimestre": ["2025-T1", "2025-T1", "2025-T1", "2025-T2", "2025-T2"],
             "taux_accise_eur_mwh": [22.5, 22.5, 22.5, 25.0, 25.0],
             "energie_mwh": [1.0, 2.0, 3.0, 4.0, 5.0],
@@ -357,7 +357,7 @@ def _facturation_mensuelle_synthetique() -> pl.DataFrame:
         {
             "ref_situation_contractuelle": ["RSC-A", "RSC-A", "RSC-B"],
             "pdl": ["A", "A", "B"],
-            "mois_annee": ["janvier 2025", "février 2025", "janvier 2025"],
+            "mois_annee": ["2025-01", "2025-02", "2025-01"],
             "debut": ["2025-01-01", "2025-02-01", "2025-01-01"],
             "turpe_fixe_eur": [100.0, 100.0, 200.0],
         }
@@ -432,10 +432,10 @@ def regles_cta_synthetiques_rapport() -> pl.LazyFrame:
 def facturation_2026_synthetique() -> pl.DataFrame:
     """PDL A sur 2026-T1 (3 mois) + PDL B sur 2021-T3 (1 mois)."""
     rows = [
-        {"rsc": "RSC-A", "mois_annee": "janvier 2026", "pdl": "A", "debut": datetime(2026, 1, 1, tzinfo=TZ)},
-        {"rsc": "RSC-A", "mois_annee": "février 2026", "pdl": "A", "debut": datetime(2026, 2, 1, tzinfo=TZ)},
-        {"rsc": "RSC-A", "mois_annee": "mars 2026", "pdl": "A", "debut": datetime(2026, 3, 1, tzinfo=TZ)},
-        {"rsc": "RSC-B", "mois_annee": "août 2021", "pdl": "B", "debut": datetime(2021, 8, 1, tzinfo=TZ)},
+        {"rsc": "RSC-A", "mois_annee": "2026-01", "pdl": "A", "debut": datetime(2026, 1, 1, tzinfo=TZ)},
+        {"rsc": "RSC-A", "mois_annee": "2026-02", "pdl": "A", "debut": datetime(2026, 2, 1, tzinfo=TZ)},
+        {"rsc": "RSC-A", "mois_annee": "2026-03", "pdl": "A", "debut": datetime(2026, 3, 1, tzinfo=TZ)},
+        {"rsc": "RSC-B", "mois_annee": "2021-08", "pdl": "B", "debut": datetime(2021, 8, 1, tzinfo=TZ)},
     ]
     return (
         pl.DataFrame(rows)
@@ -555,14 +555,14 @@ class TestRapportCtaValeurs:
             [
                 {
                     "ref_situation_contractuelle": "RSC-A",
-                    "mois_annee": "janvier 2025",
+                    "mois_annee": "2025-01",
                     "pdl": "A",
                     "debut": datetime(2025, 1, 1, tzinfo=TZ),
                     "turpe_fixe_eur": 100.0,
                 },
                 {
                     "ref_situation_contractuelle": "RSC-ORPHAN",
-                    "mois_annee": "janvier 2025",
+                    "mois_annee": "2025-01",
                     "pdl": "ORPHAN",
                     "debut": datetime(2025, 1, 1, tzinfo=TZ),
                     "turpe_fixe_eur": 100.0,

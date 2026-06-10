@@ -318,6 +318,45 @@ def test_propagation_flags_releve_manquant():
     assert periode2["releve_manquant_fin"][0] is True  # R151 manquant
 
 
+def test_mois_annee_au_format_cle_calculable():
+    """`mois_annee` est une clé calculable `YYYY-MM`, pas un libellé d'affichage (issue #115).
+
+    Le libellé français reste porté par `debut_lisible` / `fin_lisible`.
+    """
+    from zoneinfo import ZoneInfo
+
+    paris = ZoneInfo("Europe/Paris")
+    releves = pl.LazyFrame(
+        {
+            "pdl": ["PDL001", "PDL001", "PDL001"],
+            "ref_situation_contractuelle": ["REF001", "REF001", "REF001"],
+            "date_releve": [
+                datetime(2024, 1, 1, tzinfo=paris),
+                datetime(2024, 2, 1, tzinfo=paris),
+                datetime(2024, 3, 1, tzinfo=paris),
+            ],
+            "source": ["flux_C15", "flux_R151", "flux_R151"],
+            "index_base_kwh": [1000.0, 2000.0, 3000.0],
+            "index_hp_kwh": [500.0, 1000.0, 1500.0],
+            "index_hc_kwh": [200.0, 400.0, 600.0],
+            "index_hph_kwh": [100.0, 200.0, 300.0],
+            "index_hpb_kwh": [150.0, 300.0, 450.0],
+            "index_hch_kwh": [80.0, 160.0, 240.0],
+            "index_hcb_kwh": [120.0, 240.0, 360.0],
+            "releve_manquant": [None, False, False],
+            "ordre_index": [0, 0, 0],
+        },
+        schema_overrides={
+            "date_releve": pl.Datetime(time_unit="us", time_zone="Europe/Paris"),
+        },
+    )
+
+    result = calculer_periodes_energie(releves).collect()
+
+    periodes = result.filter(pl.col("debut").is_not_null()).sort("debut")
+    assert periodes["mois_annee"].to_list() == ["2024-01", "2024-02"]
+
+
 def test_expr_arrondir_index_kwh():
     """Teste l'arrondi des index à l'entier inférieur."""
     df = pl.DataFrame(
@@ -377,7 +416,7 @@ def test_expr_date_formatee_fr():
 
     from electricore.core.pipelines.energie import expr_date_formatee_fr
 
-    result = df.with_columns(expr_date_formatee_fr("ma_date", "complet").alias("date_fr")).collect()
+    result = df.with_columns(expr_date_formatee_fr("ma_date").alias("date_fr")).collect()
 
     # Vérifier que les dates contiennent les éléments français
     dates_fr = result["date_fr"].to_list()

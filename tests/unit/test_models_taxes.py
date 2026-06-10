@@ -12,7 +12,7 @@ import polars as pl
 import pytest
 
 # ---------------------------------------------------------------------------
-# AcciseMensuel — contrat de pipeline_accise, grain (pdl, mois_consommation)
+# AcciseMensuel — contrat de pipeline_accise, grain (pdl, mois_annee)
 # ---------------------------------------------------------------------------
 
 
@@ -21,7 +21,7 @@ def _accise_mensuel_frame(mois: list[str]) -> pl.DataFrame:
     return pl.DataFrame(
         {
             "pdl": ["A"] * n,
-            "mois_consommation": mois,
+            "mois_annee": mois,
             "trimestre": ["2025-T1"] * n,
             "order_name": ["SO/1"] * n,
             "energie_kwh": [1000.0] * n,
@@ -39,11 +39,18 @@ class TestAcciseMensuel:
         AcciseMensuel.validate(_accise_mensuel_frame(["2025-01", "2025-02"]))
 
     def test_rejects_duplicate_grain(self):
-        """Le grain (pdl, mois_consommation) est garanti par Config.unique."""
+        """Le grain (pdl, mois_annee) est garanti par Config.unique."""
         from electricore.core.models.accise_mensuel import AcciseMensuel
 
         with pytest.raises(pandera.errors.SchemaError, match="unique"):
             AcciseMensuel.validate(_accise_mensuel_frame(["2025-01", "2025-01"]))
+
+    def test_rejects_libelle_francais(self):
+        """`mois_annee` est une clé calculable YYYY-MM, pas un libellé d'affichage (issue #115)."""
+        from electricore.core.models.accise_mensuel import AcciseMensuel
+
+        with pytest.raises(pandera.errors.SchemaError):
+            AcciseMensuel.validate(_accise_mensuel_frame(["janvier 2025"]))
 
 
 # ---------------------------------------------------------------------------
@@ -71,20 +78,27 @@ class TestCtaMensuel:
     def test_validates_correct_frame(self):
         from electricore.core.models.cta_mensuel import CtaMensuel
 
-        CtaMensuel.validate(_cta_mensuel_frame(["janvier 2025", "février 2025"]))
+        CtaMensuel.validate(_cta_mensuel_frame(["2025-01", "2025-02"]))
 
     def test_rejects_duplicate_grain(self):
         """Le grain (RSC, mois_annee) est garanti — détecte aussi un fan-out du join pdl_mapping."""
         from electricore.core.models.cta_mensuel import CtaMensuel
 
         with pytest.raises(pandera.errors.SchemaError, match="unique"):
-            CtaMensuel.validate(_cta_mensuel_frame(["janvier 2025", "janvier 2025"]))
+            CtaMensuel.validate(_cta_mensuel_frame(["2025-01", "2025-01"]))
+
+    def test_rejects_libelle_francais(self):
+        """`mois_annee` est une clé calculable YYYY-MM, pas un libellé d'affichage (issue #115)."""
+        from electricore.core.models.cta_mensuel import CtaMensuel
+
+        with pytest.raises(pandera.errors.SchemaError):
+            CtaMensuel.validate(_cta_mensuel_frame(["janvier 2025"]))
 
     def test_montants_nullables_pour_periodes_incompletes(self):
         """Une méta-période incomplète (turpe null → cta null) reste valide."""
         from electricore.core.models.cta_mensuel import CtaMensuel
 
-        df = _cta_mensuel_frame(["janvier 2025"]).with_columns(
+        df = _cta_mensuel_frame(["2025-01"]).with_columns(
             pl.lit(None, dtype=pl.Float64).alias("turpe_fixe_eur"),
             pl.lit(None, dtype=pl.Float64).alias("cta_eur"),
         )

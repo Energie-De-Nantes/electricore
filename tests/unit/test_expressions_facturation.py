@@ -32,7 +32,7 @@ class TestExpressionsAtomiques:
             {
                 "ref_situation_contractuelle": ["REF1", "REF1"],
                 "pdl": ["PDL1", "PDL1"],
-                "mois_annee": ["mars 2025", "mars 2025"],
+                "mois_annee": ["2025-03", "2025-03"],
                 "puissance_souscrite_kva": [6.0, 9.0],
                 "nb_jours": [10, 20],  # 10j à 6kVA + 20j à 9kVA
             }
@@ -48,7 +48,7 @@ class TestExpressionsAtomiques:
             {
                 "ref_situation_contractuelle": ["REF1"],
                 "pdl": ["PDL1"],
-                "mois_annee": ["mars 2025"],
+                "mois_annee": ["2025-03"],
                 "puissance_moyenne_kva": [8.0],
             }
         )
@@ -105,7 +105,7 @@ class TestAgregatioAbonnements:
             {
                 "ref_situation_contractuelle": ["REF1"],
                 "pdl": ["PDL1"],
-                "mois_annee": ["mars 2025"],
+                "mois_annee": ["2025-03"],
                 "puissance_souscrite_kva": [6.0],
                 "nb_jours": [31],
                 "turpe_fixe_eur": [50.0],
@@ -136,7 +136,7 @@ class TestAgregatioAbonnements:
             {
                 "ref_situation_contractuelle": ["REF1", "REF1"],
                 "pdl": ["PDL1", "PDL1"],
-                "mois_annee": ["mars 2025", "mars 2025"],
+                "mois_annee": ["2025-03", "2025-03"],
                 "puissance_souscrite_kva": [6.0, 9.0],
                 "nb_jours": [15, 16],
                 "turpe_fixe_eur": [25.0, 30.0],
@@ -174,7 +174,7 @@ class TestAgregatioEnergies:
             {
                 "ref_situation_contractuelle": ["REF1"],
                 "pdl": ["PDL1"],
-                "mois_annee": ["mars 2025"],
+                "mois_annee": ["2025-03"],
                 "energie_base_kwh": [1000.0],
                 "energie_hp_kwh": [500.0],
                 "energie_hc_kwh": [300.0],
@@ -209,7 +209,7 @@ class TestAgregatioEnergies:
             {
                 "ref_situation_contractuelle": ["REF1", "REF1"],
                 "pdl": ["PDL1", "PDL1"],
-                "mois_annee": ["mars 2025", "mars 2025"],
+                "mois_annee": ["2025-03", "2025-03"],
                 "energie_base_kwh": [500.0, 800.0],
                 "energie_hp_kwh": [200.0, 300.0],
                 "energie_hc_kwh": [100.0, 200.0],
@@ -250,7 +250,7 @@ class TestJointureMetaPeriodes:
             {
                 "ref_situation_contractuelle": ["REF1"],
                 "pdl": ["PDL1"],
-                "mois_annee": ["mars 2025"],
+                "mois_annee": ["2025-03"],
                 "puissance_moyenne_kva": [6.0],
                 "nb_jours": [31],
                 "turpe_fixe_eur": [50.0],
@@ -270,7 +270,7 @@ class TestJointureMetaPeriodes:
             {
                 "ref_situation_contractuelle": ["REF1"],
                 "pdl": ["PDL1"],
-                "mois_annee": ["mars 2025"],
+                "mois_annee": ["2025-03"],
                 "energie_base_kwh": [1000.0],
                 "energie_hp_kwh": [500.0],
                 "energie_hc_kwh": [300.0],
@@ -302,7 +302,7 @@ class TestJointureMetaPeriodes:
             {
                 "ref_situation_contractuelle": ["REF1"],
                 "pdl": ["PDL1"],
-                "mois_annee": ["mars 2025"],
+                "mois_annee": ["2025-03"],
                 "puissance_moyenne_kva": [6.0],
                 "nb_jours": [31],
                 "turpe_fixe_eur": [50.0],
@@ -322,7 +322,7 @@ class TestJointureMetaPeriodes:
             {
                 "ref_situation_contractuelle": ["REF1"],
                 "pdl": ["PDL1"],
-                "mois_annee": ["avril 2025"],  # Mois différent
+                "mois_annee": ["2025-04"],  # Mois différent
                 "energie_base_kwh": [1000.0],
                 "energie_hp_kwh": [500.0],
                 "energie_hc_kwh": [300.0],
@@ -343,13 +343,13 @@ class TestJointureMetaPeriodes:
         assert len(collected) == 2
 
         # Ligne mars : abo présent, énergie null
-        ligne_mars = collected.filter(pl.col("mois_annee") == "mars 2025")
+        ligne_mars = collected.filter(pl.col("mois_annee") == "2025-03")
         assert len(ligne_mars) == 1
         assert ligne_mars["puissance_moyenne_kva"][0] == 6.0
         assert ligne_mars["energie_base_kwh"][0] == 0.0  # Fill null
 
         # Ligne avril : abo null, énergie présente
-        ligne_avril = collected.filter(pl.col("mois_annee") == "avril 2025")
+        ligne_avril = collected.filter(pl.col("mois_annee") == "2025-04")
         assert len(ligne_avril) == 1
         assert ligne_avril["puissance_moyenne_kva"][0] == 0.0  # Fill null
         assert ligne_avril["energie_base_kwh"][0] == 1000.0
@@ -360,7 +360,7 @@ class TestJointureMetaPeriodes:
             {
                 "ref_situation_contractuelle": ["REF1", "REF2"],
                 "pdl": ["PDL1", "PDL2"],
-                "mois_annee": ["mars 2025", "mars 2025"],
+                "mois_annee": ["2025-03", "2025-03"],
                 "puissance_moyenne_kva": [6.0, 9.0],
                 "nb_jours": [31, 31],
                 "turpe_fixe_eur": [50.0, 75.0],
@@ -381,7 +381,7 @@ class TestJointureMetaPeriodes:
             {
                 "ref_situation_contractuelle": ["REF1"],
                 "pdl": ["PDL1"],
-                "mois_annee": ["mars 2025"],
+                "mois_annee": ["2025-03"],
                 "energie_base_kwh": [1000.0],
                 "energie_hp_kwh": [500.0],
                 "energie_hc_kwh": [300.0],
@@ -412,3 +412,39 @@ class TestJointureMetaPeriodes:
         assert len(pdl2) == 1
         assert pdl2["puissance_moyenne_kva"][0] == 9.0
         assert pdl2["energie_base_kwh"][0] == 0.0  # Fill null
+
+
+class TestTriChronologique:
+    """La motivation de l'issue #115 : mois_annee est triable chronologiquement.
+
+    L'ancien format libellé français triait `avril 2025` avant `décembre 2024`
+    (ordre alphabétique). Le test compose le pipeline abonnements (production
+    réelle de mois_annee) avec l'agrégation facturation.
+    """
+
+    def test_sort_par_mois_annee_est_chronologique(self):
+        from datetime import UTC
+
+        from electricore.core.pipelines.abonnements import calculer_periodes_abonnement
+
+        historique = pl.LazyFrame(
+            {
+                "ref_situation_contractuelle": ["RSC1", "RSC1", "RSC1"],
+                "pdl": ["PDL1", "PDL1", "PDL1"],
+                "date_evenement": [
+                    datetime(2024, 12, 1, tzinfo=UTC),
+                    datetime(2025, 4, 1, tzinfo=UTC),
+                    datetime(2025, 5, 1, tzinfo=UTC),
+                ],
+                "formule_tarifaire_acheminement": ["BTINFCU4"] * 3,
+                "puissance_souscrite_kva": [6.0, 6.0, 6.0],
+                "impacte_abonnement": [True, True, True],
+            }
+        )
+
+        # turpe_fixe_eur est normalement ajouté par ajouter_turpe_fixe entre
+        # les deux pipelines — stub ici, hors du comportement testé.
+        periodes = calculer_periodes_abonnement(historique).with_columns(pl.lit(10.0).alias("turpe_fixe_eur"))
+        meta = agreger_abonnements_mensuel(periodes).collect()
+
+        assert meta.sort("mois_annee")["mois_annee"].to_list() == ["2024-12", "2025-04"]

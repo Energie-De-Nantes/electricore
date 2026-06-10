@@ -45,7 +45,7 @@ def load_accise_rules() -> pl.LazyFrame:
 # =============================================================================
 
 
-def expr_calculer_mois_consommation() -> pl.Expr:
+def expr_calculer_mois_annee() -> pl.Expr:
     """
     Expression pour calculer le mois de consommation à partir de invoice_date.
 
@@ -56,7 +56,7 @@ def expr_calculer_mois_consommation() -> pl.Expr:
         Expression Polars retournant le mois de consommation au format "YYYY-MM"
 
     Example:
-        >>> df.with_columns(expr_calculer_mois_consommation().alias('mois_consommation'))
+        >>> df.with_columns(expr_calculer_mois_annee().alias('mois_annee'))
     """
     # Parser invoice_date, décaler -1 mois, formater en YYYY-MM
     date_conso = pl.col("invoice_date").str.to_date("%Y-%m-%d").dt.offset_by("-1mo")
@@ -97,7 +97,7 @@ def agreger_consommations_mensuelles(lignes_factures: pl.LazyFrame) -> pl.LazyFr
         lignes_factures: LazyFrame issu de commandes_lignes() ou équivalent
 
     Returns:
-        LazyFrame agrégé avec colonnes: pdl, order_name, mois_consommation,
+        LazyFrame agrégé avec colonnes: pdl, order_name, mois_annee,
         trimestre, energie_kwh
 
     Example:
@@ -115,12 +115,12 @@ def agreger_consommations_mensuelles(lignes_factures: pl.LazyFrame) -> pl.LazyFr
         # Calculer mois et trimestre de consommation
         .with_columns(
             [
-                expr_calculer_mois_consommation().alias("mois_consommation"),
+                expr_calculer_mois_annee().alias("mois_annee"),
                 expr_calculer_trimestre_consommation().alias("trimestre"),
             ]
         )
         # Agréger par PDL et mois de consommation
-        .group_by(["x_pdl", "mois_consommation", "trimestre"])
+        .group_by(["x_pdl", "mois_annee", "trimestre"])
         .agg([pl.col("quantity").sum().alias("energie_kwh"), pl.col("name").first().alias("order_name")])
         # Renommer x_pdl en pdl
         .rename({"x_pdl": "pdl"})
@@ -137,7 +137,7 @@ def ajouter_accise(consommations: pl.LazyFrame, regles: pl.LazyFrame | None = No
     Ajoute le taux d'Accise en vigueur et le montant calculé aux consommations.
 
     Args:
-        consommations: LazyFrame avec au moins `mois_consommation` (str "YYYY-MM")
+        consommations: LazyFrame avec au moins `mois_annee` (str "YYYY-MM")
             et `energie_kwh` (Float64).
         regles: Historique des taux Accise. Chargé via `load_accise_rules()` si None.
 
@@ -150,10 +150,10 @@ def ajouter_accise(consommations: pl.LazyFrame, regles: pl.LazyFrame | None = No
 
     colonnes_originales = consommations.collect_schema().names()
 
-    # `mois_consommation` est une string "YYYY-MM" ; conversion en datetime TZ Paris
+    # `mois_annee` est une string "YYYY-MM" ; conversion en datetime TZ Paris
     # pour matcher la précondition de `ajouter_taux_en_vigueur`.
     consommations_datees = consommations.with_columns(
-        pl.col("mois_consommation").str.to_datetime("%Y-%m").dt.replace_time_zone("Europe/Paris").alias("_date_taux")
+        pl.col("mois_annee").str.to_datetime("%Y-%m").dt.replace_time_zone("Europe/Paris").alias("_date_taux")
     )
 
     return (
@@ -189,7 +189,7 @@ def pipeline_accise(lignes_factures: pl.LazyFrame, regles: pl.LazyFrame | None =
         regles: LazyFrame des règles Accise (optionnel, sera chargé si None)
 
     Returns:
-        LazyFrame[AcciseDetail] trié `(pdl, mois_consommation)` avec toutes
+        LazyFrame[AcciseDetail] trié `(pdl, mois_annee)` avec toutes
         les consommations et leur Accise calculée. Matérialisation à la charge
         du caller (typiquement un build ou un service, cf. ADR-0019).
 
@@ -208,13 +208,13 @@ def pipeline_accise(lignes_factures: pl.LazyFrame, regles: pl.LazyFrame | None =
     consos_avec_accise = ajouter_accise(consos_mensuelles, regles)
 
     # Étape 3 : Tri (lazy ; le .collect() est à la charge du caller, ADR-0019)
-    return consos_avec_accise.sort(["pdl", "mois_consommation"])
+    return consos_avec_accise.sort(["pdl", "mois_annee"])
 
 
 # Export des fonctions principales
 __all__ = [
     "load_accise_rules",
-    "expr_calculer_mois_consommation",
+    "expr_calculer_mois_annee",
     "expr_calculer_trimestre_consommation",
     "agreger_consommations_mensuelles",
     "ajouter_accise",

@@ -6,7 +6,7 @@ consommation, et l'agrégation par PDL via `pipeline_accise`.
 
 La sélection du taux en vigueur à la date est testée séparément dans
 `test_taux.py` — ici on vérifie le wire-through Accise spécifique : conversion
-du `mois_consommation` (string) en datetime, formule `× / 1000` et arrondi.
+du `mois_annee` (string) en datetime, formule `× / 1000` et arrondi.
 """
 
 from datetime import datetime
@@ -66,7 +66,7 @@ class TestAjouterAccise:
     """Wire-through Accise : conversion du mois, formule, arrondi."""
 
     def test_colonnes_ajoutees(self, regles_accise_synthetiques):
-        consos = _consommations([{"pdl": "A", "mois_consommation": "2024-06", "energie_kwh": 1000.0}])
+        consos = _consommations([{"pdl": "A", "mois_annee": "2024-06", "energie_kwh": 1000.0}])
         result = ajouter_accise(consos, regles_accise_synthetiques).collect()
         assert "taux_accise_eur_mwh" in result.columns
         assert "energie_mwh" in result.columns
@@ -74,19 +74,19 @@ class TestAjouterAccise:
 
     def test_conversion_mwh(self, regles_accise_synthetiques):
         """energie_kwh doit être converti en MWh (÷ 1000)."""
-        consos = _consommations([{"pdl": "A", "mois_consommation": "2024-06", "energie_kwh": 2500.0}])
+        consos = _consommations([{"pdl": "A", "mois_annee": "2024-06", "energie_kwh": 2500.0}])
         result = ajouter_accise(consos, regles_accise_synthetiques).collect()
         assert result["energie_mwh"].item() == 2.5
 
     def test_calcul_accise_eur(self, regles_accise_synthetiques):
         """1 MWh × 21 €/MWh = 21.00 €."""
-        consos = _consommations([{"pdl": "A", "mois_consommation": "2024-06", "energie_kwh": 1000.0}])
+        consos = _consommations([{"pdl": "A", "mois_annee": "2024-06", "energie_kwh": 1000.0}])
         result = ajouter_accise(consos, regles_accise_synthetiques).collect()
         assert result["accise_eur"].item() == 21.0
 
     def test_arrondi_2_decimales(self, regles_accise_synthetiques):
         """1234 kWh × 33.7 €/MWh = 41.5858 € → arrondi 41.59 €."""
-        consos = _consommations([{"pdl": "A", "mois_consommation": "2025-09", "energie_kwh": 1234.0}])
+        consos = _consommations([{"pdl": "A", "mois_annee": "2025-09", "energie_kwh": 1234.0}])
         result = ajouter_accise(consos, regles_accise_synthetiques).collect()
         assert result["accise_eur"].item() == pytest.approx(41.59, abs=1e-9)
 
@@ -98,7 +98,7 @@ class TestAjouterAccise:
                     "pdl": "A",
                     "order_name": "SO1",
                     "trimestre": "2024-T2",
-                    "mois_consommation": "2024-06",
+                    "mois_annee": "2024-06",
                     "energie_kwh": 1000.0,
                 }
             ]
@@ -112,12 +112,12 @@ class TestAjouterAccise:
         """Avant juillet 2025 : 21 €/MWh ; à partir de juillet 2025 : 33.7 €/MWh."""
         consos = _consommations(
             [
-                {"pdl": "A", "mois_consommation": "2025-06", "energie_kwh": 1000.0},
-                {"pdl": "A", "mois_consommation": "2025-07", "energie_kwh": 1000.0},
-                {"pdl": "A", "mois_consommation": "2025-08", "energie_kwh": 1000.0},
+                {"pdl": "A", "mois_annee": "2025-06", "energie_kwh": 1000.0},
+                {"pdl": "A", "mois_annee": "2025-07", "energie_kwh": 1000.0},
+                {"pdl": "A", "mois_annee": "2025-08", "energie_kwh": 1000.0},
             ]
         )
-        result = ajouter_accise(consos, regles_accise_synthetiques).collect().sort("mois_consommation")
+        result = ajouter_accise(consos, regles_accise_synthetiques).collect().sort("mois_annee")
         assert result["taux_accise_eur_mwh"].to_list() == [21.0, 33.7, 33.7]
         assert result["accise_eur"].to_list() == [21.0, 33.7, 33.7]
 
@@ -132,7 +132,7 @@ class TestPipelineAccise:
 
         invoice_date est la date de facture (mois M+1 par rapport à la conso).
         Le pipeline filtre sur les catégories d'énergie (Base, HP, HC) et
-        agrège par PDL + mois_consommation.
+        agrège par PDL + mois_annee.
         """
         return pl.LazyFrame(
             [
@@ -162,6 +162,16 @@ class TestPipelineAccise:
             ]
         )
 
+    def test_mois_annee_nom_canonique(self, lignes_factures_synthetiques, regles_accise_synthetiques):
+        """Le mois de consommation porte le nom canonique `mois_annee` (issue #115).
+
+        Même concept que côté facturation/CTA, même format `YYYY-MM` —
+        `mois_consommation` disparaît.
+        """
+        result = pipeline_accise(lignes_factures_synthetiques, regles_accise_synthetiques).collect()
+        assert "mois_consommation" not in result.columns
+        assert result.filter(pl.col("pdl") == "A")["mois_annee"].to_list() == ["2024-06"]
+
     def test_filtre_categories_energie(self, lignes_factures_synthetiques, regles_accise_synthetiques):
         """Les lignes "Abonnements" ne doivent pas contribuer à l'énergie."""
         result = pipeline_accise(lignes_factures_synthetiques, regles_accise_synthetiques).collect()
@@ -173,14 +183,14 @@ class TestPipelineAccise:
         """1 MWh × 21 €/MWh = 21.00 €."""
         result = pipeline_accise(lignes_factures_synthetiques, regles_accise_synthetiques).collect()
         row = result.filter(pl.col("pdl") == "A").row(0, named=True)
-        assert row["mois_consommation"] == "2024-06"
+        assert row["mois_annee"] == "2024-06"
         assert row["energie_mwh"] == 1.0
         assert row["accise_eur"] == 21.0
 
     def test_lignes_sans_invoice_date_sont_exclues(self, regles_accise_synthetiques):
         """Les lignes de factures draft (sans invoice_date) ne sont pas dans l'assiette.
 
-        Sinon, leur `mois_consommation` est null et le pipeline lève une ValueError
+        Sinon, leur `mois_annee` est null et le pipeline lève une ValueError
         sur la sélection du taux en vigueur (date null < tout start de l'historique).
         """
         lignes = pl.LazyFrame(

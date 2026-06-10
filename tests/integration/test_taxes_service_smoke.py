@@ -28,7 +28,7 @@ def test_cta_par_contrat_service_delegue_a_charger(monkeypatch):
             "ref_situation_contractuelle": ["RSC001"],
             "debut": [datetime(2025, 1, 1)],
             "fin": [datetime(2025, 2, 1)],
-            "mois_annee": ["janvier 2025"],
+            "mois_annee": ["2025-01"],
             "turpe_fixe_eur": [42.50],
             "nb_jours": [31],
         }

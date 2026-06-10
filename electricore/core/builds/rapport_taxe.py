@@ -115,9 +115,9 @@ def rapport_accise(lignes_factures: pl.LazyFrame, trimestre: str | None = None) 
 
     Returns:
         `RapportTaxe(resume, par_taux, detail)` où `detail` est trié
-        `(pdl, mois_consommation)`.
+        `(pdl, mois_annee)`.
     """
-    # pipeline_accise retourne déjà un LazyFrame trié (pdl, mois_consommation).
+    # pipeline_accise retourne déjà un LazyFrame trié (pdl, mois_annee).
     # Collect au boundary du build (ADR-0019) pour stocker dans RapportTaxe.
     detail = pipeline_accise(lignes_factures).collect()
     if trimestre is not None:
@@ -139,7 +139,7 @@ def rapport_accise(lignes_factures: pl.LazyFrame, trimestre: str | None = None) 
 
     # Le build porte la validation de ses onglets (issue #116) ; l'onglet
     # Détail est la sortie du pipeline, validée par AcciseMensuel (dont le
-    # check d'unicité (pdl, mois_consommation), effectif sur DataFrame).
+    # check d'unicité (pdl, mois_annee), effectif sur DataFrame).
     RapportAcciseResume.validate(resume)
     RapportAcciseParTaux.validate(par_taux)
     AcciseMensuel.validate(detail)

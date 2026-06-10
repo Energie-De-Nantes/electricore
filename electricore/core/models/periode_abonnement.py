@@ -24,7 +24,7 @@ class PeriodeAbonnement(pa.DataFrameModel):
     pdl: pl.Utf8 = pa.Field(nullable=False)
 
     # Métadonnées de période
-    mois_annee: pl.Utf8 = pa.Field(nullable=False)  # ex: "mars 2025"
+    mois_annee: pl.Utf8 = pa.Field(nullable=False, str_matches=r"^\d{4}-\d{2}$")  # ex: "2025-03"
     debut_lisible: pl.Utf8 = pa.Field(nullable=False)  # ex: "1 mars 2025"
     fin_lisible: pl.Utf8 = pa.Field(nullable=False)  # ex: "31 mars 2025" ou "en cours"
 
