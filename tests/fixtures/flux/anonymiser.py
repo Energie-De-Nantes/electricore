@@ -21,6 +21,12 @@ mappée diffère de la source.
 Usage :
     uv run python tests/fixtures/flux/anonymiser.py SOURCE.xml DESTINATION.xml
     uv run python tests/fixtures/flux/anonymiser.py --verifier SOURCE.xml FIXTURE.xml
+    uv run python tests/fixtures/flux/anonymiser.py --r64-zip SOURCE.zip DESTINATION.json
+
+Le mode `--r64-zip` fait la chaîne complète sur un R64 chiffré : déchiffrement
+AES (clés lues dans AES__CURRENT__KEY / AES__CURRENT__IV, jamais persistées),
+extraction ZIP, anonymisation JSON, et rapport d'audit (clés rencontrées +
+alarmes sur valeurs suspectes non mappées) pour la relecture.
 
 ⚠️ Relecture humaine du résultat obligatoire avant commit (HITL, cf. #121).
 """
@@ -122,6 +128,78 @@ def anonymiser(xml_bytes: bytes) -> tuple[bytes, dict[str, int]]:
     return etree.tostring(root, xml_declaration=True, encoding="UTF-8", pretty_print=True), rapport
 
 
+# Clés JSON R64 → pseudonymisation (mêmes stratégies que les balises XML)
+PSEUDONYMES_JSON = {
+    "idPrm": _pseudo_pdl,
+    "idDemande": _pseudo_chiffres,
+    "siDemandeur": _pseudo_chiffres,
+    "idAffaire": _pseudo_chiffres,
+}
+
+_MOTIFS_SUSPECTS = (r"^\d{14}$", r"^0[1-9]\d{8}$", r"@")
+
+
+def anonymiser_r64(json_bytes: bytes) -> tuple[bytes, dict[str, int], list[tuple[str, str]]]:
+    """Anonymise un document JSON R64.
+
+    Returns:
+        (json_anonymisé, rapport clé→nb, alarmes [(clé, valeur suspecte non mappée)])
+    """
+    import json as json_module
+    import re
+
+    data = json_module.loads(json_bytes.decode("utf-8"))
+    rapport: dict[str, int] = {}
+    alarmes: list[tuple[str, str]] = []
+
+    def _walk(node):
+        if isinstance(node, dict):
+            for cle, valeur in node.items():
+                if cle in PSEUDONYMES_JSON and isinstance(valeur, str) and valeur.strip():
+                    node[cle] = PSEUDONYMES_JSON[cle](valeur.strip())
+                    rapport[cle] = rapport.get(cle, 0) + 1
+                elif isinstance(valeur, str) and any(re.search(m, valeur) for m in _MOTIFS_SUSPECTS):
+                    alarmes.append((cle, valeur))
+                else:
+                    _walk(valeur)
+        elif isinstance(node, list):
+            for item in node:
+                _walk(item)
+
+    _walk(data)
+    return json_module.dumps(data, ensure_ascii=False, indent=2).encode() + b"\n", rapport, alarmes
+
+
+def anonymiser_r64_zip(source: Path, destination: Path) -> None:
+    """Chaîne complète sur un R64 chiffré : AES → unzip → anonymisation → audit."""
+    from electricore.etl.transformers.archive import extract_files_from_zip
+    from electricore.etl.transformers.crypto import decrypt_with_key_chain, load_aes_key_chain
+
+    chain = load_aes_key_chain()
+    dechiffre, cle = decrypt_with_key_chain(source.read_bytes(), chain)
+    print(f"déchiffré avec la clé '{cle}'")
+
+    fichiers = extract_files_from_zip(dechiffre, ".json")
+    if not fichiers:
+        raise SystemExit("aucun .json dans le ZIP déchiffré")
+    nom, contenu = fichiers[0]
+    if len(fichiers) > 1:
+        print(f"⚠️ {len(fichiers)} JSON dans le ZIP — seul {nom} est utilisé")
+
+    anonyme, rapport, alarmes = anonymiser_r64(contenu)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_bytes(anonyme)
+    print(f"{nom} → {destination}")
+    for cle_json, nb in sorted(rapport.items()):
+        print(f"  {cle_json}: {nb} occurrence(s) anonymisée(s)")
+    if alarmes:
+        print("\n🚨 VALEURS SUSPECTES NON MAPPÉES — ne pas committer sans arbitrage :")
+        for cle_json, valeur in alarmes:
+            print(f"  {cle_json}: {valeur!r}")
+    else:
+        print("✅ aucune valeur suspecte hors clés mappées")
+
+
 def verifier(source: Path, fixture: Path) -> bool:
     """Prouve, balise mappée par balise mappée, que la fixture diffère de la source.
 
@@ -147,6 +225,9 @@ def verifier(source: Path, fixture: Path) -> bool:
 def main() -> None:
     if sys.argv[1] == "--verifier":
         sys.exit(0 if verifier(Path(sys.argv[2]), Path(sys.argv[3])) else 1)
+    if sys.argv[1] == "--r64-zip":
+        anonymiser_r64_zip(Path(sys.argv[2]), Path(sys.argv[3]))
+        return
 
     source, destination = Path(sys.argv[1]), Path(sys.argv[2])
     contenu, rapport = anonymiser(source.read_bytes())
