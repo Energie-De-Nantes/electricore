@@ -14,7 +14,7 @@ import pandera.polars as pa
 import polars as pl
 from pandera.typing.polars import LazyFrame
 
-from electricore.core.models.accise_detail import AcciseDetail
+from electricore.core.models.accise_mensuel import AcciseMensuel
 from electricore.core.pipelines.taux import ajouter_taux_en_vigueur
 
 # =============================================================================
@@ -174,7 +174,7 @@ def ajouter_accise(consommations: pl.LazyFrame, regles: pl.LazyFrame | None = No
 
 
 @pa.check_types(lazy=True)
-def pipeline_accise(lignes_factures: pl.LazyFrame, regles: pl.LazyFrame | None = None) -> LazyFrame[AcciseDetail]:
+def pipeline_accise(lignes_factures: pl.LazyFrame, regles: pl.LazyFrame | None = None) -> LazyFrame[AcciseMensuel]:
     """
     Pipeline complet de calcul de l'Accise depuis les lignes de factures.
 
