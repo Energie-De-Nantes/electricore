@@ -277,7 +277,7 @@ class TestRapportAcciseBuild:
     def test_returns_rapport_taxe(self, monkeypatch):
         from electricore.core.builds import rapport_taxe as mod
 
-        monkeypatch.setattr(mod, "pipeline_accise", lambda lf: _detail_accise_synthetique())
+        monkeypatch.setattr(mod, "pipeline_accise", lambda lf: _detail_accise_synthetique().lazy())
 
         result = mod.rapport_accise(_lignes_factures_synthetiques())
 
@@ -288,7 +288,7 @@ class TestRapportAcciseBuild:
     def test_detail_sorted_pdl_mois(self, monkeypatch):
         from electricore.core.builds import rapport_taxe as mod
 
-        monkeypatch.setattr(mod, "pipeline_accise", lambda lf: _detail_accise_synthetique())
+        monkeypatch.setattr(mod, "pipeline_accise", lambda lf: _detail_accise_synthetique().lazy())
 
         result = mod.rapport_accise(_lignes_factures_synthetiques())
 
@@ -297,7 +297,7 @@ class TestRapportAcciseBuild:
     def test_trimestre_filter_applied(self, monkeypatch):
         from electricore.core.builds import rapport_taxe as mod
 
-        monkeypatch.setattr(mod, "pipeline_accise", lambda lf: _detail_accise_synthetique())
+        monkeypatch.setattr(mod, "pipeline_accise", lambda lf: _detail_accise_synthetique().lazy())
 
         result = mod.rapport_accise(_lignes_factures_synthetiques(), trimestre="2025-T1")
 
@@ -306,7 +306,7 @@ class TestRapportAcciseBuild:
     def test_par_taux_groups_correctly(self, monkeypatch):
         from electricore.core.builds import rapport_taxe as mod
 
-        monkeypatch.setattr(mod, "pipeline_accise", lambda lf: _detail_accise_synthetique())
+        monkeypatch.setattr(mod, "pipeline_accise", lambda lf: _detail_accise_synthetique().lazy())
 
         result = mod.rapport_accise(_lignes_factures_synthetiques())
 
@@ -315,7 +315,7 @@ class TestRapportAcciseBuild:
     def test_resume_has_trimestre_totals(self, monkeypatch):
         from electricore.core.builds import rapport_taxe as mod
 
-        monkeypatch.setattr(mod, "pipeline_accise", lambda lf: _detail_accise_synthetique())
+        monkeypatch.setattr(mod, "pipeline_accise", lambda lf: _detail_accise_synthetique().lazy())
 
         result = mod.rapport_accise(_lignes_factures_synthetiques())
 

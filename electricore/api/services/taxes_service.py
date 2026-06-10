@@ -60,7 +60,9 @@ def accise_par_contrat_service(odoo: OdooReader, trimestre: str | None = None) -
     """
     from electricore.core.pipelines.accise import pipeline_accise
 
-    detail = pipeline_accise(lignes_factures_taxe(odoo))
+    # pipeline_accise est lazy (ADR-0019) — collect au boundary du service avant
+    # filtre et retour DataFrame (consommé par les sérialiseurs XLSX/Arrow).
+    detail = pipeline_accise(lignes_factures_taxe(odoo)).collect()
     if trimestre is not None:
         detail = detail.filter(pl.col("trimestre") == trimestre)
     return detail

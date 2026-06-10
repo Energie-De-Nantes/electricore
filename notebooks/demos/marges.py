@@ -220,8 +220,8 @@ def _(df_lignes):
 
 @app.cell
 def _(df_lignes):
-    # Pipeline complet : agrégation + calcul Accise
-    df_accise = pipeline_accise(df_lignes.lazy())
+    # Pipeline complet : agrégation + calcul Accise (lazy depuis ADR-0019, collect ici)
+    df_accise = pipeline_accise(df_lignes.lazy()).collect()
     df_accise
     return (df_accise,)
 
