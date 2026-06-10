@@ -13,6 +13,8 @@ from pathlib import Path
 
 import polars as pl
 
+from electricore.core.models.cadrans import CADRANS, col_energie
+
 # =============================================================================
 # CHARGEMENT DES RÈGLES TURPE
 # =============================================================================
@@ -216,7 +218,7 @@ def expr_calculer_turpe_cadran(cadran: str) -> pl.Expr:
     Example:
         >>> df.with_columns(expr_calculer_turpe_cadran("base").alias("turpe_base"))
     """
-    energie_col = f"energie_{cadran}_kwh"
+    energie_col = col_energie(cadran)
     tarif_col = f"c_{cadran}"  # Nomenclature CRE officielle
 
     return (
@@ -236,9 +238,7 @@ def expr_calculer_turpe_contributions_cadrans() -> list[pl.Expr]:
     Example:
         >>> df.with_columns(expr_calculer_turpe_contributions_cadrans())
     """
-    cadrans = ["hph", "hch", "hpb", "hcb", "hp", "hc", "base"]
-
-    return [expr_calculer_turpe_cadran(cadran).alias(f"turpe_{cadran}") for cadran in cadrans]
+    return [expr_calculer_turpe_cadran(cadran).alias(f"turpe_{cadran}") for cadran in CADRANS]
 
 
 def expr_sommer_turpe_cadrans() -> pl.Expr:
@@ -253,8 +253,7 @@ def expr_sommer_turpe_cadrans() -> pl.Expr:
     Example:
         >>> df.with_columns(expr_sommer_turpe_cadrans().alias("turpe_variable"))
     """
-    cadrans = ["hph", "hch", "hpb", "hcb", "hp", "hc", "base"]
-    contributions_cols = [f"turpe_{cadran}" for cadran in cadrans]
+    contributions_cols = [f"turpe_{cadran}" for cadran in CADRANS]
 
     return pl.sum_horizontal([pl.col(col) for col in contributions_cols]).round(2)
 
@@ -489,12 +488,11 @@ def debug_turpe_variable(lf: pl.LazyFrame) -> pl.LazyFrame:
         >>> df_debug = debug_turpe_variable(df)
         >>> print(df_debug.collect())
     """
-    cadrans = ["hph", "hch", "hpb", "hcb", "hp", "hc", "base"]
     debug_expressions = []
 
     # Ajouter les détails par cadran
-    for cadran in cadrans:
-        energie_col = f"energie_{cadran}_kwh"
+    for cadran in CADRANS:
+        energie_col = col_energie(cadran)
         tarif_col = f"c_{cadran}"  # Nomenclature CRE officielle
         debug_expressions.extend(
             [

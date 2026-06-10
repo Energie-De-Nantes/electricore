@@ -23,6 +23,7 @@ import pandera.polars as pa
 import polars as pl
 from pandera.typing.polars import DataFrame
 
+from electricore.core.models.cadrans import col_energie
 from electricore.core.models.lignes_facture import LignesFacture
 from electricore.core.models.lignes_facture_rapprochees import LignesFactureRapprochees
 from electricore.core.pipelines.abonnements import pipeline_abonnements
@@ -30,10 +31,13 @@ from electricore.core.pipelines.energie import pipeline_energie
 from electricore.core.pipelines.facturation import pipeline_facturation
 from electricore.core.pipelines.historique import pipeline_historique
 
+# Les clés sont des *catégories produit* (labels ERP, cf. LignesFacture) —
+# concept distinct des cadrans malgré l'homonymie ; seules les valeurs
+# (noms de colonnes Enedis) viennent de la convention cadran.
 _MAPPING_CATEGORIE_COLONNE: dict[str, str] = {
-    "HP": "energie_hp_kwh",
-    "HC": "energie_hc_kwh",
-    "Base": "energie_base_kwh",
+    "HP": col_energie("hp"),
+    "HC": col_energie("hc"),
+    "Base": col_energie("base"),
     "Abonnements": "nb_jours",
 }
 
