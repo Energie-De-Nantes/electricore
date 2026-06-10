@@ -39,11 +39,10 @@ def mask_password_in_url(url: str) -> str:
 
 
 # Imports des transformers modulaires
+from electricore.etl.parsing import ConfigFluxXml
 from electricore.etl.transformers.archive import create_unzip_transformer
 from electricore.etl.transformers.crypto import create_decrypt_transformer
 from electricore.etl.transformers.parsers import (
-    create_csv_parser_transformer,
-    create_json_parser_transformer,
     create_json_r64_transformer,
     create_xml_parser_transformer,
 )
@@ -136,12 +135,9 @@ def flux_enedis(flux_config: dict, max_files: int = None):
                 # 2. Transformer unzip configuré pour ce flux
                 unzip_transformer = create_unzip_transformer(".xml", file_regex)
 
-                # 3. Transformer XML parser configuré
+                # 3. Transformer XML parser configuré (typos YAML détectées ici)
                 xml_parser = create_xml_parser_transformer(
-                    row_level=xml_config["row_level"],
-                    metadata_fields=xml_config.get("metadata_fields", {}),
-                    data_fields=xml_config.get("data_fields", {}),
-                    nested_fields=xml_config.get("nested_fields", []),
+                    config=ConfigFluxXml.depuis_yaml(xml_config),
                     flux_type=flux_type,
                 )
 
@@ -153,34 +149,7 @@ def flux_enedis(flux_config: dict, max_files: int = None):
                 xml_pipeline.apply_hints(write_disposition="append")
                 yield xml_pipeline
 
-        # === FLUX CSV ===
-        if "csv_configs" in flux_config_data:
-            for csv_config in flux_config_data["csv_configs"]:
-                table_name = csv_config["name"]
-                file_regex = csv_config.get("file_regex", "*.csv")
-                delimiter = csv_config.get("delimiter", ",")
-                encoding = csv_config.get("encoding", "utf-8")
-                primary_key = csv_config.get("primary_key", [])
-                column_mapping = csv_config.get("column_mapping", {})
-
-                sftp_resource = create_sftp_resource(flux_type, table_name, file_pattern, sftp_url, max_files)
-                unzip_transformer = create_unzip_transformer(".csv", file_regex)
-                csv_parser = create_csv_parser_transformer(
-                    delimiter=delimiter, encoding=encoding, flux_type=flux_type, column_mapping=column_mapping
-                )
-
-                csv_pipeline = (sftp_resource | decrypt_transformer | unzip_transformer | csv_parser).with_name(
-                    table_name
-                )
-
-                if primary_key:
-                    csv_pipeline.apply_hints(primary_key=primary_key, write_disposition="merge")
-                else:
-                    csv_pipeline.apply_hints(write_disposition="append")
-
-                yield csv_pipeline
-
-        # === FLUX JSON ===
+        # === FLUX JSON (R64 uniquement — pas de linéarisation JSON générique, cf. #121) ===
         if "json_configs" in flux_config_data:
             for json_config in flux_config_data["json_configs"]:
                 table_name = json_config["name"]
@@ -188,19 +157,15 @@ def flux_enedis(flux_config: dict, max_files: int = None):
                 transformer_type = json_config.get("transformer_type", "standard")
                 primary_key = json_config.get("primary_key", [])
 
+                if transformer_type != "r64_timeseries":
+                    raise ValueError(
+                        f"transformer_type {transformer_type!r} non supporté pour {table_name} "
+                        "(seul 'r64_timeseries' existe — le parser JSON générique a été retiré, cf. #121)"
+                    )
+
                 sftp_resource = create_sftp_resource(flux_type, table_name, file_pattern, sftp_url, max_files)
                 unzip_transformer = create_unzip_transformer(".json", file_regex)
-
-                if transformer_type == "r64_timeseries":
-                    json_parser = create_json_r64_transformer(flux_type=flux_type)
-                else:
-                    json_parser = create_json_parser_transformer(
-                        record_path=json_config["record_path"],
-                        metadata_fields=json_config.get("metadata_fields", {}),
-                        data_fields=json_config.get("data_fields", {}),
-                        nested_fields=json_config.get("nested_fields", []),
-                        flux_type=flux_type,
-                    )
+                json_parser = create_json_r64_transformer(flux_type=flux_type)
 
                 json_pipeline = (sftp_resource | decrypt_transformer | unzip_transformer | json_parser).with_name(
                     table_name
