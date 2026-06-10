@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from electricore.etl.parsing import ConfigFluxXml, TracabiliteFlux, parser_flux_xml
+from electricore.etl.parsing import ConfigFluxXml, TracabiliteFlux, parser_flux_r64, parser_flux_xml
 
 FIXTURES = Path(__file__).parents[1] / "fixtures" / "flux"
 RACINE = Path(__file__).parents[2]
@@ -99,6 +99,27 @@ def test_r151_extrait_les_4_cadrans_et_ignore_le_calendrier_inconnu(config_flux)
     (record,) = records
     cadrans = {k for k in record if k.startswith("index_")}
     assert {"index_hph_kwh", "index_hch_kwh", "index_hpb_kwh", "index_hcb_kwh"} <= cadrans
+
+
+def test_r64_golden():
+    """La linéarisation R64 (JSON wide) est figée au record près."""
+    records = list(parser_flux_r64((FIXTURES / "r64.json").read_bytes(), _tracabilite("r64.json", "R64")))
+    attendu = json.loads((FIXTURES / "golden" / "flux_r64.json").read_text())
+    assert records == attendu
+
+
+def test_r64_ne_garde_que_les_calendriers_distributeur():
+    """Les classes des calendriers fournisseur (FC*) sont filtrées : seuls les
+    cadrans distributeur (DI*) produisent des colonnes index_*.
+
+    La fixture contient BASE/HP/HC sous calendriers FC02203x — aucun ne doit
+    apparaître ; les 4 cadrans saisonniers DI000003 doivent tous y être.
+    """
+    records = list(parser_flux_r64((FIXTURES / "r64.json").read_bytes(), _tracabilite("r64.json", "R64")))
+    assert len(records) == 2
+    for r in records:
+        index = {k for k in r if k.startswith("index_")}
+        assert index == {"index_hph_kwh", "index_hch_kwh", "index_hpb_kwh", "index_hcb_kwh"}
 
 
 def test_tracabilite_presente_dans_chaque_record(config_flux):

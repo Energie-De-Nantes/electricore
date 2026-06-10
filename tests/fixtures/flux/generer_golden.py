@@ -14,7 +14,7 @@ from pathlib import Path
 
 import yaml
 
-from electricore.etl.parsing import ConfigFluxXml, TracabiliteFlux, parser_flux_xml
+from electricore.etl.parsing import ConfigFluxXml, TracabiliteFlux, parser_flux_r64, parser_flux_xml
 
 ICI = Path(__file__).parent
 RACINE = ICI.parents[2]
@@ -51,6 +51,12 @@ def main() -> None:
         cible = dossier_golden / f"{entry['name']}.json"
         cible.write_text(json.dumps(records, ensure_ascii=False, indent=2) + "\n")
         print(f"{cible.name}: {len(records)} record(s) depuis {nom}")
+
+    # R64 : parser JSON spécialisé, pas de ConfigFluxXml
+    records = list(parser_flux_r64((ICI / "r64.json").read_bytes(), tracabilite("r64.json", "R64")))
+    cible = dossier_golden / "flux_r64.json"
+    cible.write_text(json.dumps(records, ensure_ascii=False, indent=2) + "\n")
+    print(f"{cible.name}: {len(records)} record(s) depuis r64.json")
 
 
 if __name__ == "__main__":
