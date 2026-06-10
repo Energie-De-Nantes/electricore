@@ -7,9 +7,14 @@ Les builds sont purs (aucun import `integrations/`) — les sources Odoo sont
 injectées par le caller (service ou test).
 """
 
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 import polars as pl
 import pytest
 from polars.testing import assert_frame_equal
+
+TZ = ZoneInfo("Europe/Paris")
 
 # ---------------------------------------------------------------------------
 # Fixtures synthétiques partagées
@@ -366,7 +371,7 @@ class TestRapportCtaBuild:
         monkeypatch.setattr(
             mod,
             "ajouter_cta",
-            lambda lf: lf.with_columns(
+            lambda lf, r=None: lf.with_columns(
                 [
                     pl.lit(3.0).alias("taux_cta_pct"),
                     pl.lit(3.0).alias("cta_eur"),
@@ -388,7 +393,7 @@ class TestRapportCtaBuild:
         monkeypatch.setattr(
             mod,
             "ajouter_cta",
-            lambda lf: lf.with_columns(
+            lambda lf, r=None: lf.with_columns(
                 [
                     pl.lit(3.0).alias("taux_cta_pct"),
                     pl.lit(3.0).alias("cta_eur"),
@@ -405,7 +410,7 @@ class TestRapportCtaBuild:
     def test_trimestre_filter_applied(self, monkeypatch):
         from electricore.core.builds import rapport_taxe as mod
 
-        def fake_ajouter_cta(lf):
+        def fake_ajouter_cta(lf, r=None):
             return lf.with_columns(
                 [
                     pl.lit(3.0).alias("taux_cta_pct"),
@@ -426,3 +431,153 @@ class TestRapportCtaBuild:
         )
 
         assert isinstance(result.resume, pl.DataFrame)
+
+
+# ---------------------------------------------------------------------------
+# rapport_cta — invariants de valeur (issue #112 : migration depuis TestPipelineCta)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def regles_cta_synthetiques_rapport() -> pl.LazyFrame:
+    """Historique CTA synthétique : deux changements de taux (même que test_cta.py)."""
+    return pl.LazyFrame(
+        {
+            "start": [
+                datetime(2020, 1, 1, tzinfo=TZ),
+                datetime(2021, 8, 1, tzinfo=TZ),
+                datetime(2026, 2, 1, tzinfo=TZ),
+            ],
+            "taux_cta_pct": [27.04, 21.93, 15.00],
+        }
+    )
+
+
+@pytest.fixture
+def facturation_2026_synthetique() -> pl.DataFrame:
+    """PDL A sur 2026-T1 (3 mois) + PDL B sur 2021-T3 (1 mois)."""
+    rows = [
+        {"pdl": "A", "debut": datetime(2026, 1, 1, tzinfo=TZ), "turpe_fixe_eur": 100.0},
+        {"pdl": "A", "debut": datetime(2026, 2, 1, tzinfo=TZ), "turpe_fixe_eur": 100.0},
+        {"pdl": "A", "debut": datetime(2026, 3, 1, tzinfo=TZ), "turpe_fixe_eur": 100.0},
+        {"pdl": "B", "debut": datetime(2021, 8, 1, tzinfo=TZ), "turpe_fixe_eur": 50.0},
+    ]
+    return pl.DataFrame(rows)
+
+
+@pytest.fixture
+def mapping_pdl_synthetique_rapport() -> pl.DataFrame:
+    return pl.DataFrame({"pdl": ["A", "B"], "order_name": ["SO-A", "SO-B"]})
+
+
+class TestRapportCtaValeurs:
+    """Invariants de valeur de rapport_cta — agrégation par PDL et changements de taux."""
+
+    def test_detail_colonnes(
+        self,
+        facturation_2026_synthetique,
+        mapping_pdl_synthetique_rapport,
+        regles_cta_synthetiques_rapport,
+    ):
+        from electricore.core.builds.rapport_taxe import rapport_cta
+
+        result = rapport_cta(
+            facturation_2026_synthetique,
+            mapping_pdl_synthetique_rapport,
+            regles=regles_cta_synthetiques_rapport,
+        )
+        assert set(result.detail.columns) == {
+            "pdl",
+            "order_name",
+            "turpe_fixe_total_eur",
+            "cta_total_eur",
+            "taux_cta_appliques",
+        }
+
+    def test_agregation_changement_taux_2026_t1(
+        self,
+        facturation_2026_synthetique,
+        mapping_pdl_synthetique_rapport,
+        regles_cta_synthetiques_rapport,
+    ):
+        """PDL A sur 2026-T1 : 100×21.93% + 100×15% + 100×15% = 51.93 €."""
+        from electricore.core.builds.rapport_taxe import rapport_cta
+
+        result = rapport_cta(
+            facturation_2026_synthetique,
+            mapping_pdl_synthetique_rapport,
+            trimestre="2026-T1",
+            regles=regles_cta_synthetiques_rapport,
+        )
+        row_a = result.detail.filter(pl.col("pdl") == "A")
+        assert row_a.height == 1
+        assert row_a["turpe_fixe_total_eur"].item() == 300.0
+        assert row_a["cta_total_eur"].item() == pytest.approx(51.93, abs=1e-9)
+        assert "21.93" in row_a["taux_cta_appliques"].item()
+        assert "15.0" in row_a["taux_cta_appliques"].item()
+
+    def test_taux_unique_quand_pas_de_changement(
+        self,
+        facturation_2026_synthetique,
+        mapping_pdl_synthetique_rapport,
+        regles_cta_synthetiques_rapport,
+    ):
+        """PDL B en 2021-T3 : un seul taux appliqué."""
+        from electricore.core.builds.rapport_taxe import rapport_cta
+
+        result = rapport_cta(
+            facturation_2026_synthetique,
+            mapping_pdl_synthetique_rapport,
+            trimestre="2021-T3",
+            regles=regles_cta_synthetiques_rapport,
+        )
+        row_b = result.detail.filter(pl.col("pdl") == "B")
+        assert row_b.height == 1
+        assert ";" not in row_b["taux_cta_appliques"].item()
+
+    def test_filtre_trimestre_exclusif(
+        self,
+        facturation_2026_synthetique,
+        mapping_pdl_synthetique_rapport,
+        regles_cta_synthetiques_rapport,
+    ):
+        """Filtrer sur 2026-T1 ne doit pas inclure PDL B (période 2021)."""
+        from electricore.core.builds.rapport_taxe import rapport_cta
+
+        result = rapport_cta(
+            facturation_2026_synthetique,
+            mapping_pdl_synthetique_rapport,
+            trimestre="2026-T1",
+            regles=regles_cta_synthetiques_rapport,
+        )
+        assert "B" not in result.detail["pdl"].to_list()
+
+    def test_detail_sort_cta_descending(
+        self,
+        facturation_2026_synthetique,
+        mapping_pdl_synthetique_rapport,
+        regles_cta_synthetiques_rapport,
+    ):
+        from electricore.core.builds.rapport_taxe import rapport_cta
+
+        result = rapport_cta(
+            facturation_2026_synthetique,
+            mapping_pdl_synthetique_rapport,
+            regles=regles_cta_synthetiques_rapport,
+        )
+        cta_values = result.detail["cta_total_eur"].to_list()
+        assert cta_values == sorted(cta_values, reverse=True)
+
+    def test_pdl_absent_de_mapping_exclu(self, regles_cta_synthetiques_rapport):
+        """PDL présent en facturation mais absent du mapping → exclu (inner join)."""
+        from electricore.core.builds.rapport_taxe import rapport_cta
+
+        df_fact = pl.DataFrame(
+            [
+                {"pdl": "A", "debut": datetime(2025, 1, 1, tzinfo=TZ), "turpe_fixe_eur": 100.0},
+                {"pdl": "ORPHAN", "debut": datetime(2025, 1, 1, tzinfo=TZ), "turpe_fixe_eur": 100.0},
+            ]
+        )
+        df_mapping = pl.DataFrame({"pdl": ["A"], "order_name": ["SO-A"]})
+        result = rapport_cta(df_fact, df_mapping, regles=regles_cta_synthetiques_rapport)
+        assert set(result.detail["pdl"].to_list()) == {"A"}

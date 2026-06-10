@@ -1,5 +1,5 @@
 """
-Pipeline de calcul de la CTA (Contribution Tarifaire d'Acheminement).
+Calcul de la CTA (Contribution Tarifaire d'Acheminement).
 
 La CTA est une taxe assise sur la part fixe du TURPE. Son taux est fixé par
 arrêté ministériel (avec avis de la CRE) et peut changer en cours d'année,
@@ -8,23 +8,13 @@ parfois en milieu de trimestre.
 Les règles sont chargées depuis electricore/config/cta_rules.csv qui définit
 les plages de validité de chaque taux (format identique à accise_rules.csv).
 
-Le calcul se fait au niveau mensuel (granularité de df_facturation) puis
-est agrégé par PDL. Cette granularité mensuelle gère automatiquement un
-changement de taux en cours de trimestre : chaque mois reçoit le taux
-applicable au 1er du mois, puis la somme mensuelle donne le total du
-trimestre.
-
 Formule : cta_eur = turpe_fixe_eur × taux_cta_pct / 100
 """
 
 from pathlib import Path
 
-import pandera.polars as pa
 import polars as pl
-from pandera.typing.polars import LazyFrame
 
-from electricore.core.models.cta_detail import CtaDetail
-from electricore.core.pipelines.facturation import expr_calculer_trimestre
 from electricore.core.pipelines.taux import ajouter_taux_en_vigueur
 
 # =============================================================================
@@ -89,61 +79,7 @@ def ajouter_cta(
     )
 
 
-# =============================================================================
-# PIPELINE AGRÉGÉ PAR PDL
-# =============================================================================
-
-
-@pa.check_types(lazy=True)
-def pipeline_cta(
-    df_facturation: pl.DataFrame,
-    df_pdl: pl.DataFrame,
-    trimestre: str | None = None,
-    regles: pl.LazyFrame | None = None,
-) -> LazyFrame[CtaDetail]:
-    """
-    Calcule la CTA par PDL sur la période choisie.
-
-    Les taux sont lus depuis `cta_rules.csv` et appliqués au niveau mensuel
-    puis sommés. Un changement de taux en milieu de trimestre est donc
-    géré correctement (ex. janvier 2026 à 21,93 % + février-mars 2026 à 15 %).
-
-    Args:
-        df_facturation: Sortie de `facturation().facturation`. Colonnes
-            requises : pdl, debut (datetime Europe/Paris), turpe_fixe_eur.
-        df_pdl: Mapping pdl → order_name (typiquement depuis Odoo).
-            Colonnes requises : pdl, order_name.
-        trimestre: Filtre optionnel au format "YYYY-TX" (ex. "2026-T1").
-        regles: LazyFrame des règles CTA (optionnel, utile pour les tests).
-
-    Returns:
-        LazyFrame[CtaDetail] trié par cta décroissant : une ligne par PDL
-        avec `turpe_fixe_total`, `cta`, et `taux_cta_appliques` (liste triée
-        des taux distincts ; > 1 valeur ⇒ changement de taux intra-période).
-        Matérialisation à la charge du caller (ADR-0019).
-    """
-    lf_jointure = df_facturation.join(df_pdl.select(["pdl", "order_name"]), on="pdl", how="inner").lazy()
-    lf = ajouter_cta(lf_jointure, regles).with_columns(expr_calculer_trimestre().alias("trimestre"))
-
-    if trimestre is not None:
-        lf = lf.filter(pl.col("trimestre") == trimestre)
-
-    return (
-        lf.group_by("pdl")
-        .agg(
-            [
-                pl.col("order_name").first(),
-                pl.col("turpe_fixe_eur").sum().alias("turpe_fixe_total"),
-                pl.col("cta_eur").sum().round(2).alias("cta"),
-                pl.col("taux_cta_pct").unique().sort().alias("taux_cta_appliques"),
-            ]
-        )
-        .sort("cta", descending=True)
-    )
-
-
 __all__ = [
     "load_cta_rules",
     "ajouter_cta",
-    "pipeline_cta",
 ]

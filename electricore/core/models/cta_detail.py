@@ -1,10 +1,4 @@
-"""Schéma Pandera Polars pour le détail CTA agrégé par PDL.
-
-Sortie de `pipeline_cta` (cf. ADR-0019, issue #110) : une ligne par PDL,
-avec sommes mensuelles `turpe_fixe_total` / `cta` et liste des taux distincts
-rencontrés sur la période (changement de taux intra-trimestre détectable
-quand la liste contient plus d'une valeur).
-"""
+"""Schéma Pandera Polars pour le détail CTA agrégé par PDL."""
 
 import pandera.polars as pa
 import polars as pl
