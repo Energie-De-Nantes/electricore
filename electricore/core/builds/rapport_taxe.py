@@ -131,6 +131,7 @@ def rapport_cta(
     facturation_mensuelle: pl.DataFrame,
     pdl_mapping: pl.DataFrame,
     trimestre: str | None = None,
+    regles: pl.LazyFrame | None = None,
 ) -> RapportTaxe:
     """Livrable CTA pur — sans I/O Odoo.
 
@@ -144,7 +145,10 @@ def rapport_cta(
         (pas mensuel brut) avec `taux_cta_appliques` (taux successifs string-joined).
     """
     df_mensuel = (
-        ajouter_cta(facturation_mensuelle.join(pdl_mapping.select(["pdl", "order_name"]), on="pdl", how="inner").lazy())
+        ajouter_cta(
+            facturation_mensuelle.join(pdl_mapping.select(["pdl", "order_name"]), on="pdl", how="inner").lazy(),
+            regles,
+        )
         .with_columns(expr_calculer_trimestre().alias("trimestre"))
         .collect()
     )
