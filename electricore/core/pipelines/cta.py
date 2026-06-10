@@ -19,8 +19,11 @@ Formule : cta_eur = turpe_fixe_eur × taux_cta_pct / 100
 
 from pathlib import Path
 
+import pandera.polars as pa
 import polars as pl
+from pandera.typing.polars import LazyFrame
 
+from electricore.core.models.cta_detail import CtaDetail
 from electricore.core.pipelines.facturation import expr_calculer_trimestre
 from electricore.core.pipelines.taux import ajouter_taux_en_vigueur
 
@@ -91,12 +94,13 @@ def ajouter_cta(
 # =============================================================================
 
 
+@pa.check_types(lazy=True)
 def pipeline_cta(
     df_facturation: pl.DataFrame,
     df_pdl: pl.DataFrame,
     trimestre: str | None = None,
     regles: pl.LazyFrame | None = None,
-) -> pl.DataFrame:
+) -> LazyFrame[CtaDetail]:
     """
     Calcule la CTA par PDL sur la période choisie.
 
@@ -113,10 +117,10 @@ def pipeline_cta(
         regles: LazyFrame des règles CTA (optionnel, utile pour les tests).
 
     Returns:
-        DataFrame trié par cta décroissant avec les colonnes :
-        pdl, order_name, turpe_fixe_total, cta, taux_cta_appliques.
-        `taux_cta_appliques` est la liste triée des taux distincts
-        rencontrés dans la période (plus d'une valeur ⇒ changement de taux).
+        LazyFrame[CtaDetail] trié par cta décroissant : une ligne par PDL
+        avec `turpe_fixe_total`, `cta`, et `taux_cta_appliques` (liste triée
+        des taux distincts ; > 1 valeur ⇒ changement de taux intra-période).
+        Matérialisation à la charge du caller (ADR-0019).
     """
     lf_jointure = df_facturation.join(df_pdl.select(["pdl", "order_name"]), on="pdl", how="inner").lazy()
     lf = ajouter_cta(lf_jointure, regles).with_columns(expr_calculer_trimestre().alias("trimestre"))
@@ -135,7 +139,6 @@ def pipeline_cta(
             ]
         )
         .sort("cta", descending=True)
-        .collect()
     )
 
 

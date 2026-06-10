@@ -186,7 +186,7 @@ class TestPipelineCta:
         return pl.DataFrame(rows).with_columns(pl.col("debut").dt.replace_time_zone("Europe/Paris"))
 
     def test_colonnes_sortie(self, df_facturation, df_pdl, regles_cta_synthetiques):
-        result = pipeline_cta(df_facturation, df_pdl, regles=regles_cta_synthetiques)
+        result = pipeline_cta(df_facturation, df_pdl, regles=regles_cta_synthetiques).collect()
         assert set(result.columns) == {
             "pdl",
             "order_name",
@@ -202,7 +202,7 @@ class TestPipelineCta:
             df_pdl,
             trimestre="2026-T1",
             regles=regles_cta_synthetiques,
-        )
+        ).collect()
         row_a = result.filter(pl.col("pdl") == "A")
         assert row_a.height == 1
         assert row_a["turpe_fixe_total"].item() == 300.0
@@ -216,7 +216,7 @@ class TestPipelineCta:
             df_pdl,
             trimestre="2021-T3",
             regles=regles_cta_synthetiques,
-        )
+        ).collect()
         row_b = result.filter(pl.col("pdl") == "B")
         assert row_b.height == 1
         assert row_b["taux_cta_appliques"].item().to_list() == [21.93]
@@ -228,15 +228,15 @@ class TestPipelineCta:
             df_pdl,
             trimestre="2026-T1",
             regles=regles_cta_synthetiques,
-        )
+        ).collect()
         assert "B" not in result["pdl"].to_list()
 
     def test_sans_filtre_tous_trimestres(self, df_facturation, df_pdl, regles_cta_synthetiques):
-        result = pipeline_cta(df_facturation, df_pdl, regles=regles_cta_synthetiques)
+        result = pipeline_cta(df_facturation, df_pdl, regles=regles_cta_synthetiques).collect()
         assert set(result["pdl"].to_list()) == {"A", "B"}
 
     def test_sort_cta_descending(self, df_facturation, df_pdl, regles_cta_synthetiques):
-        result = pipeline_cta(df_facturation, df_pdl, regles=regles_cta_synthetiques)
+        result = pipeline_cta(df_facturation, df_pdl, regles=regles_cta_synthetiques).collect()
         cta_values = result["cta"].to_list()
         assert cta_values == sorted(cta_values, reverse=True)
 
@@ -258,7 +258,7 @@ class TestCasLimites:
             }
         )
         df_pdl = pl.DataFrame({"pdl": ["A"], "order_name": ["SO-A"]})
-        result = pipeline_cta(df_fact, df_pdl, regles=regles_cta_synthetiques)
+        result = pipeline_cta(df_fact, df_pdl, regles=regles_cta_synthetiques).collect()
         assert result.height == 0
 
     def test_pdl_absent_de_df_pdl_exclu(self, regles_cta_synthetiques):
@@ -270,5 +270,5 @@ class TestCasLimites:
             ]
         ).with_columns(pl.col("debut").dt.replace_time_zone("Europe/Paris"))
         df_pdl = pl.DataFrame({"pdl": ["A"], "order_name": ["SO-A"]})
-        result = pipeline_cta(df_fact, df_pdl, regles=regles_cta_synthetiques)
+        result = pipeline_cta(df_fact, df_pdl, regles=regles_cta_synthetiques).collect()
         assert set(result["pdl"].to_list()) == {"A"}
