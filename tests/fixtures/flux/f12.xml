@@ -1,0 +1,174 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<Detail_Facturation>
+  <En_Tete_Flux>
+    <Identifiant_Flux>F12</Identifiant_Flux>
+    <Libelle_Flux>Flux de facture F12</Libelle_Flux>
+    <Version_XSD>1.10.3</Version_XSD>
+    <Identifiant_Emetteur>17XFICTIF8FCAFFX</Identifiant_Emetteur>
+    <Identifiant_Destinataire>17XFICTIFD235F9X</Identifiant_Destinataire>
+    <Date_Creation>2024-06-03T18:52:44Z</Date_Creation>
+  </En_Tete_Flux>
+  <Rappel_En_Tete>
+    <Num_Facture>066521624609</Num_Facture>
+    <Date_Facture>2024-06-03</Date_Facture>
+    <Devise>EUR</Devise>
+    <Agence_ERDF>0322</Agence_ERDF>
+  </Rappel_En_Tete>
+  <Sous_Lot>
+    <Num_Sous_Lot>426595745577</Num_Sous_Lot>
+    <Type_Facturation>EVNT</Type_Facturation>
+    <Id_PRM>99131010441308</Id_PRM>
+    <Code_Commune>00000</Code_Commune>
+    <Code_Departement>00</Code_Departement>
+    <Date_Sous_Lot>2024-06-03</Date_Sous_Lot>
+    <Code_Segmentation_ERDF>C2</Code_Segmentation_ERDF>
+    <Type_Relation_Contractuelle>1</Type_Relation_Contractuelle>
+    <Type_Utilisateur_Reseau>PRO</Type_Utilisateur_Reseau>
+    <Date_Anniversaire>2024-06-01</Date_Anniversaire>
+    <Puissance_Ponderee>7</Puissance_Ponderee>
+    <Tarif_Souscrit>HTACU5</Tarif_Souscrit>
+    <Num_Depannage>0000000000</Num_Depannage>
+    <CSPE_Appliquee>false</CSPE_Appliquee>
+    <PS_Poste_Horosaisonnier>
+      <Nom_Poste_Horosaisonnier>HCE</Nom_Poste_Horosaisonnier>
+      <Puissance_Souscrite>7</Puissance_Souscrite>
+    </PS_Poste_Horosaisonnier>
+    <PS_Poste_Horosaisonnier>
+      <Nom_Poste_Horosaisonnier>HCH</Nom_Poste_Horosaisonnier>
+      <Puissance_Souscrite>7</Puissance_Souscrite>
+    </PS_Poste_Horosaisonnier>
+    <PS_Poste_Horosaisonnier>
+      <Nom_Poste_Horosaisonnier>HPE</Nom_Poste_Horosaisonnier>
+      <Puissance_Souscrite>7</Puissance_Souscrite>
+    </PS_Poste_Horosaisonnier>
+    <PS_Poste_Horosaisonnier>
+      <Nom_Poste_Horosaisonnier>HPH</Nom_Poste_Horosaisonnier>
+      <Puissance_Souscrite>7</Puissance_Souscrite>
+    </PS_Poste_Horosaisonnier>
+    <PS_Poste_Horosaisonnier>
+      <Nom_Poste_Horosaisonnier>Pointe</Nom_Poste_Horosaisonnier>
+      <Puissance_Souscrite>7</Puissance_Souscrite>
+    </PS_Poste_Horosaisonnier>
+    <Element_Valorise>
+      <Id_EV>FCGEECHO</Id_EV>
+      <Libelle_EV>Composante gestion - Echoir</Libelle_EV>
+      <Code_Debit_Credit>Y</Code_Debit_Credit>
+      <CSPE_Applicable>false</CSPE_Applicable>
+      <Taux_TVA_Applicable>20.000</Taux_TVA_Applicable>
+      <Code_Recapitulatif>CGEST</Code_Recapitulatif>
+      <Acheminement>
+        <Date_Debut>2024-06-01</Date_Debut>
+        <Date_Fin>2024-06-30</Date_Fin>
+        <Quantite>30</Quantite>
+        <Unite_Quantite>c.j</Unite_Quantite>
+        <Prix_Unitaire>1.09148</Prix_Unitaire>
+        <Montant_HT>32.74</Montant_HT>
+        <Donnee_Sup>
+          <Code>NBCONTR</Code>
+          <Libelle>Nombre de points de livraison</Libelle>
+          <Valeur>1.0</Valeur>
+          <Unite_Quantite>unite</Unite_Quantite>
+        </Donnee_Sup>
+        <Donnee_Sup>
+          <Code>NBJECHO</Code>
+          <Libelle>Nombre de jours de la période à échoir</Libelle>
+          <Valeur>30.0</Valeur>
+          <Unite_Quantite>j</Unite_Quantite>
+        </Donnee_Sup>
+      </Acheminement>
+    </Element_Valorise>
+    <Element_Valorise>
+      <Id_EV>FCGUECHO</Id_EV>
+      <Libelle_EV>Composante gestion client CU - Echoir</Libelle_EV>
+      <Code_Debit_Credit>Z</Code_Debit_Credit>
+      <CSPE_Applicable>false</CSPE_Applicable>
+      <Taux_TVA_Applicable>20.000</Taux_TVA_Applicable>
+      <Code_Recapitulatif>CGCU</Code_Recapitulatif>
+      <Acheminement>
+        <Date_Debut>2024-06-01</Date_Debut>
+        <Date_Fin>2024-06-30</Date_Fin>
+        <Quantite>30</Quantite>
+        <Unite_Quantite>c.j</Unite_Quantite>
+        <Prix_Unitaire>-0.45694</Prix_Unitaire>
+        <Montant_HT>-13.71</Montant_HT>
+        <Donnee_Sup>
+          <Code>NBCONTR</Code>
+          <Libelle>Nombre de points de livraison</Libelle>
+          <Valeur>1.0</Valeur>
+          <Unite_Quantite>unite</Unite_Quantite>
+        </Donnee_Sup>
+        <Donnee_Sup>
+          <Code>NBJECHO</Code>
+          <Libelle>Nombre de jours de la période à échoir</Libelle>
+          <Valeur>30.0</Valeur>
+          <Unite_Quantite>j</Unite_Quantite>
+        </Donnee_Sup>
+      </Acheminement>
+    </Element_Valorise>
+    <Element_Valorise>
+      <Id_EV>FCCOECHO</Id_EV>
+      <Libelle_EV>Composante comptage - Echoir</Libelle_EV>
+      <Code_Debit_Credit>Y</Code_Debit_Credit>
+      <CSPE_Applicable>false</CSPE_Applicable>
+      <Taux_TVA_Applicable>20.000</Taux_TVA_Applicable>
+      <Code_Recapitulatif>CCOMP</Code_Recapitulatif>
+      <Acheminement>
+        <Date_Debut>2024-06-01</Date_Debut>
+        <Date_Fin>2024-06-30</Date_Fin>
+        <Quantite>30</Quantite>
+        <Unite_Quantite>p.j</Unite_Quantite>
+        <Prix_Unitaire>0.92885</Prix_Unitaire>
+        <Montant_HT>27.87</Montant_HT>
+        <Donnee_Sup>
+          <Code>NBCPTR</Code>
+          <Libelle>Nombre de compteurs</Libelle>
+          <Valeur>1.0</Valeur>
+          <Unite_Quantite>unite</Unite_Quantite>
+        </Donnee_Sup>
+        <Donnee_Sup>
+          <Code>NBJECHO</Code>
+          <Libelle>Nombre de jours de la période à échoir</Libelle>
+          <Valeur>30.0</Valeur>
+          <Unite_Quantite>j</Unite_Quantite>
+        </Donnee_Sup>
+      </Acheminement>
+    </Element_Valorise>
+    <Element_Valorise>
+      <Id_EV>FSOUECHO</Id_EV>
+      <Libelle_EV>Composante soutirage part fixe - Echoir</Libelle_EV>
+      <Code_Debit_Credit>Y</Code_Debit_Credit>
+      <CSPE_Applicable>false</CSPE_Applicable>
+      <Taux_TVA_Applicable>20.000</Taux_TVA_Applicable>
+      <Code_Recapitulatif>CSF</Code_Recapitulatif>
+      <Acheminement>
+        <Date_Debut>2024-06-01</Date_Debut>
+        <Date_Fin>2024-06-30</Date_Fin>
+        <Quantite>210</Quantite>
+        <Unite_Quantite>kW.j</Unite_Quantite>
+        <Prix_Unitaire>0.02765</Prix_Unitaire>
+        <Montant_HT>5.81</Montant_HT>
+        <Donnee_Sup>
+          <Code>NBJECHO</Code>
+          <Libelle>Nombre de jours de la période à échoir</Libelle>
+          <Valeur>30.0</Valeur>
+          <Unite_Quantite>j</Unite_Quantite>
+        </Donnee_Sup>
+        <Donnee_Sup>
+          <Code>PSPOND</Code>
+          <Libelle>Puissance souscrite pondérée ou puissance souscrite (SDT)</Libelle>
+          <Valeur>7.0</Valeur>
+          <Unite_Quantite>kW</Unite_Quantite>
+        </Donnee_Sup>
+      </Acheminement>
+    </Element_Valorise>
+    <Sous_Total>
+      <Montant_HT>52.71</Montant_HT>
+    </Sous_Total>
+  </Sous_Lot>
+  <Sous_Total_Fichier>
+    <Rang_Fichier>1</Rang_Fichier>
+    <Nb_Fichier>1</Nb_Fichier>
+    <Nb_Sous_Lot>1</Nb_Sous_Lot>
+    <Sous_Total_HT>52.71</Sous_Total_HT>
+  </Sous_Total_Fichier>
+</Detail_Facturation>

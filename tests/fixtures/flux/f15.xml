@@ -1,0 +1,50 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<F15_Detail_Facturation>
+   <En_Tete_Flux>
+      <Identifiant_Flux>F15</Identifiant_Flux>
+      <Libelle_Flux>Donnees de facturation des PRM</Libelle_Flux>
+      <Version_XSD>4.0.0</Version_XSD>
+      <Identifiant_Emetteur>17XFICTIFA42DFAX</Identifiant_Emetteur>
+      <Identifiant_Destinataire>17XFICTIFD235F9X</Identifiant_Destinataire>
+      <Date_Creation>2025-02-06T05:11:23+01:00</Date_Creation>
+      <Identifiant_Contrat>84115364</Identifiant_Contrat>
+      <Instance_GRD>0327</Instance_GRD>
+   </En_Tete_Flux>
+   <Rappel_En_Tete>
+      <Num_Facture>3210619182009</Num_Facture>
+      <Date_Facture>2025-02-05</Date_Facture>
+      <Devise>EUR</Devise>
+   </Rappel_En_Tete>
+   <Donnees_Valorisation>
+      <Num_Valorisation>17381405504114786</Num_Valorisation>
+      <Type_Facturation>EVNT</Type_Facturation>
+      <Total_Valorise_HT>-48.00</Total_Valorise_HT>
+      <Ref_Fournisseur>413143472440755094020905062955</Ref_Fournisseur>
+      <Date_Effet>2025-02-05</Date_Effet>
+      <Periode_Ante_Migration>0</Periode_Ante_Migration>
+      <Donnees_PRM>
+         <Id_PRM>99510061232830</Id_PRM>
+         <Code_Commune>00000</Code_Commune>
+         <Code_Departement>00</Code_Departement>
+         <Num_Depannage>0000000000</Num_Depannage>
+         <Raison_Sociale>FOURNISSEUR EXEMPLE</Raison_Sociale>
+         <Ref_Situation_Contractuelle>833195558</Ref_Situation_Contractuelle>
+         <Type_Compteur>CCB</Type_Compteur>
+      </Donnees_PRM>
+      <Groupe_Valorise>
+         <Nature_EV>03</Nature_EV>
+         <Element_Valorise>
+            <Id_EV>DCOUP_PEN</Id_EV>
+            <Libelle_EV>Pénalité pour coupure réseau</Libelle_EV>
+            <Date_Debut>2025-01-17</Date_Debut>
+            <Date_Fin>2025-01-17</Date_Fin>
+            <Quantite>2.0</Quantite>
+            <Unite_Quantite>UNITE</Unite_Quantite>
+            <Prix_Unitaire>-24.0</Prix_Unitaire>
+            <Montant_HT>-48.00</Montant_HT>
+            <Taux_TVA_Applicable>NS</Taux_TVA_Applicable>
+            <Date_TVA_Applicable>2025-01-17</Date_TVA_Applicable>
+         </Element_Valorise>
+      </Groupe_Valorise>
+   </Donnees_Valorisation>
+</F15_Detail_Facturation>
