@@ -164,14 +164,14 @@ class TestPipelineAccise:
 
     def test_filtre_categories_energie(self, lignes_factures_synthetiques, regles_accise_synthetiques):
         """Les lignes "Abonnements" ne doivent pas contribuer à l'énergie."""
-        result = pipeline_accise(lignes_factures_synthetiques, regles_accise_synthetiques)
+        result = pipeline_accise(lignes_factures_synthetiques, regles_accise_synthetiques).collect()
         row = result.filter(pl.col("pdl") == "A").row(0, named=True)
         # 600 + 400 = 1000 kWh, pas 1000 + 9999
         assert row["energie_kwh"] == 1000.0
 
     def test_agregation_et_accise(self, lignes_factures_synthetiques, regles_accise_synthetiques):
         """1 MWh × 21 €/MWh = 21.00 €."""
-        result = pipeline_accise(lignes_factures_synthetiques, regles_accise_synthetiques)
+        result = pipeline_accise(lignes_factures_synthetiques, regles_accise_synthetiques).collect()
         row = result.filter(pl.col("pdl") == "A").row(0, named=True)
         assert row["mois_consommation"] == "2024-06"
         assert row["energie_mwh"] == 1.0
@@ -203,7 +203,7 @@ class TestPipelineAccise:
             ]
         )
 
-        result = pipeline_accise(lignes, regles_accise_synthetiques)
+        result = pipeline_accise(lignes, regles_accise_synthetiques).collect()
 
         assert len(result) == 1
         row = result.row(0, named=True)

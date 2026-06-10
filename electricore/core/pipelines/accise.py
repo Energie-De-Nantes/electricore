@@ -10,8 +10,11 @@ les taux réglementaires en vigueur selon la période.
 
 from pathlib import Path
 
+import pandera.polars as pa
 import polars as pl
+from pandera.typing.polars import LazyFrame
 
+from electricore.core.models.accise_detail import AcciseDetail
 from electricore.core.pipelines.taux import ajouter_taux_en_vigueur
 
 # =============================================================================
@@ -170,7 +173,8 @@ def ajouter_accise(consommations: pl.LazyFrame, regles: pl.LazyFrame | None = No
     )
 
 
-def pipeline_accise(lignes_factures: pl.LazyFrame, regles: pl.LazyFrame | None = None) -> pl.DataFrame:
+@pa.check_types(lazy=True)
+def pipeline_accise(lignes_factures: pl.LazyFrame, regles: pl.LazyFrame | None = None) -> LazyFrame[AcciseDetail]:
     """
     Pipeline complet de calcul de l'Accise depuis les lignes de factures.
 
@@ -185,7 +189,9 @@ def pipeline_accise(lignes_factures: pl.LazyFrame, regles: pl.LazyFrame | None =
         regles: LazyFrame des règles Accise (optionnel, sera chargé si None)
 
     Returns:
-        DataFrame avec toutes les consommations et leur Accise calculée
+        LazyFrame[AcciseDetail] trié `(pdl, mois_consommation)` avec toutes
+        les consommations et leur Accise calculée. Matérialisation à la charge
+        du caller (typiquement un build ou un service, cf. ADR-0019).
 
     Example:
         >>> from electricore.integrations.odoo import OdooReader, commandes_lignes
@@ -193,7 +199,7 @@ def pipeline_accise(lignes_factures: pl.LazyFrame, regles: pl.LazyFrame | None =
         >>>
         >>> with OdooReader(config) as odoo:
         ...     lignes = commandes_lignes(odoo).collect().lazy()
-        ...     df_accise = pipeline_accise(lignes)
+        ...     df_accise = pipeline_accise(lignes).collect()
     """
     # Étape 1 : Agrégation mensuelle
     consos_mensuelles = agreger_consommations_mensuelles(lignes_factures)
@@ -201,8 +207,8 @@ def pipeline_accise(lignes_factures: pl.LazyFrame, regles: pl.LazyFrame | None =
     # Étape 2 : Calcul de l'Accise
     consos_avec_accise = ajouter_accise(consos_mensuelles, regles)
 
-    # Étape 3 : Collecte et tri
-    return consos_avec_accise.sort(["pdl", "mois_consommation"]).collect()
+    # Étape 3 : Tri (lazy ; le .collect() est à la charge du caller, ADR-0019)
+    return consos_avec_accise.sort(["pdl", "mois_consommation"])
 
 
 # Export des fonctions principales

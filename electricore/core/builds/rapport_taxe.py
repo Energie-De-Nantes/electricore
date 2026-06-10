@@ -105,7 +105,9 @@ def rapport_accise(lignes_factures: pl.LazyFrame, trimestre: str | None = None) 
         `RapportTaxe(resume, par_taux, detail)` où `detail` est trié
         `(pdl, mois_consommation)`.
     """
-    detail = pipeline_accise(lignes_factures).sort(["pdl", "mois_consommation"])
+    # pipeline_accise retourne déjà un LazyFrame trié (pdl, mois_consommation).
+    # Collect au boundary du build (ADR-0019) pour stocker dans RapportTaxe.
+    detail = pipeline_accise(lignes_factures).collect()
     if trimestre is not None:
         detail = detail.filter(pl.col("trimestre") == trimestre)
 
