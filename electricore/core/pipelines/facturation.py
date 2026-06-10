@@ -8,7 +8,7 @@ qui peuvent être composées entre elles pour générer les méta-périodes de f
 
 import pandera.polars as pa
 import polars as pl
-from pandera.typing.polars import DataFrame, LazyFrame
+from pandera.typing.polars import LazyFrame
 
 from electricore.core.models.aggregates import AbonnementMensuel, EnergieMensuel
 from electricore.core.models.periode_abonnement import PeriodeAbonnement
@@ -379,12 +379,12 @@ def joindre_meta_periodes(
 @pa.check_types(lazy=True)
 def pipeline_facturation(
     abonnements_lf: LazyFrame[PeriodeAbonnement], energies_lf: LazyFrame[PeriodeEnergie]
-) -> DataFrame[PeriodeMeta]:
+) -> LazyFrame[PeriodeMeta]:
     """
     Pipeline pur d'agrégation de facturation avec méta-périodes mensuelles - Version Polars.
 
     ⚠️  ATTEND des périodes déjà calculées (abonnements + énergie).
-        Pour l'orchestration complète, utiliser l'orchestration appropriée
+        Pour l'orchestration complète, utiliser le build approprié.
 
     Pipeline d'agrégation pur :
     1. Agrégation mensuelle des abonnements (puissance moyenne pondérée)
@@ -398,7 +398,8 @@ def pipeline_facturation(
         energies_lf: LazyFrame des périodes d'énergie avec TURPE variable
 
     Returns:
-        DataFrame[PeriodeMeta] avec les méta-périodes mensuelles de facturation
+        LazyFrame[PeriodeMeta] avec les méta-périodes mensuelles de facturation.
+        Matérialisation à la charge du caller (typiquement un build, cf. ADR-0019).
     """
     # Étape 1 : Agrégation mensuelle des abonnements
     abo_mensuel_lf = agreger_abonnements_mensuel(abonnements_lf)
@@ -419,8 +420,9 @@ def pipeline_facturation(
         ]
     ).sort(["ref_situation_contractuelle", "debut"])
 
-    # Étape 5 : Collecte et validation Pandera
-    return result_lf.collect()
+    # Validation Pandera au seam (lazy=True dans le décorateur).
+    # Pas de .collect() ici : matérialisation au boundary du caller (ADR-0019).
+    return result_lf
 
 
 # `rapprocher_facturation_mensuelle` a été déplacée vers

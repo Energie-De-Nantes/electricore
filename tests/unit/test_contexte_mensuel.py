@@ -24,20 +24,22 @@ TZ = ZoneInfo("Europe/Paris")
 
 def _make_stub_composition(
     *, debuts_mois: list[datetime]
-) -> tuple[pl.LazyFrame, pl.LazyFrame, pl.LazyFrame, pl.DataFrame]:
-    """Construit le tuple de 4 frames renvoyé par `_composer`.
+) -> tuple[pl.LazyFrame, pl.LazyFrame, pl.LazyFrame, pl.LazyFrame]:
+    """Construit le tuple de 4 LazyFrames renvoyé par `_composer`.
 
     `debuts_mois` peuple `facturation_mensuelle.debut` — c'est l'unique colonne
-    dont `charger()` se sert pour résoudre le mois par défaut.
+    dont `charger()` se sert pour résoudre le mois par défaut. Depuis ADR-0019
+    (#110), `pipeline_facturation` retourne un LazyFrame ; la matérialisation
+    est portée par `charger()` au boundary du build.
     """
-    facturation_df = pl.DataFrame({"debut": debuts_mois}).with_columns(
+    facturation_lf = pl.LazyFrame({"debut": debuts_mois}).with_columns(
         pl.col("debut").dt.replace_time_zone("Europe/Paris")
     )
     return (
         pl.LazyFrame({"sentinel": [1]}),
         pl.LazyFrame({"sentinel": [2]}),
         pl.LazyFrame({"sentinel": [3]}),
-        facturation_df,
+        facturation_lf,
     )
 
 
