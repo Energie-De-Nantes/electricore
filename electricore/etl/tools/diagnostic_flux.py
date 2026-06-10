@@ -55,12 +55,6 @@ def diagnostic_complet():
             for xml_config in config["xml_configs"]:
                 print(f"      - {xml_config['name']}")
 
-        if "csv_configs" in config:
-            nb_tables += len(config["csv_configs"])
-            print(f"   📊 {len(config['csv_configs'])} config(s) CSV")
-            for csv_config in config["csv_configs"]:
-                print(f"      - {csv_config['name']}")
-
         # Chercher les fichiers
         print("\n🔍 Recherche de fichiers...")
         try:
@@ -159,11 +153,6 @@ def diagnostic_complet():
                 if "xml_configs" in config:
                     for xml_config in config["xml_configs"]:
                         if xml_config["name"] == table_name:
-                            flux_found = flux_name
-                            break
-                if "csv_configs" in config:
-                    for csv_config in config["csv_configs"]:
-                        if csv_config["name"] == table_name:
                             flux_found = flux_name
                             break
                 if flux_found:

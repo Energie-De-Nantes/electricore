@@ -48,7 +48,7 @@ def extract_files_from_zip(zip_data: bytes, file_extension: str = ".xml") -> lis
 
 
 # Import de la fonction de matching depuis parsers
-from electricore.etl.transformers.parsers import match_xml_pattern
+from electricore.etl.parsing import match_xml_pattern
 
 # =============================================================================
 # TRANSFORMER DLT
@@ -125,8 +125,3 @@ def create_unzip_transformer(file_extension: str = ".xml", file_regex: str | Non
         return _unzip_transformer_base(decrypted_file, file_extension, file_regex)
 
     return configured_unzip_transformer
-
-
-# Transformers pré-configurés pour les cas courants
-unzip_xml_transformer = create_unzip_transformer(".xml")
-unzip_csv_transformer = create_unzip_transformer(".csv")
