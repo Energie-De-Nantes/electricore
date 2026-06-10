@@ -1,0 +1,241 @@
+{
+  "header": {
+    "idDemande": "62314283",
+    "siDemandeur": "501",
+    "typeDestinataire": "ACM",
+    "idDestinataire": "GRD-F139",
+    "codeFlux": "R64",
+    "modePublication": "P",
+    "idCanalContact": "Interne",
+    "format": "JSON",
+    "publicationCrp": "oui"
+  },
+  "mesures": [
+    {
+      "idPrm": "99103630318530",
+      "periode": {
+        "dateDebut": "2026-06-01 00:00:00",
+        "dateFin": "2026-06-02 00:00:00"
+      },
+      "contexte": [
+        {
+          "etapeMetier": "BRUT",
+          "contexteReleve": "COL",
+          "typeReleve": "AQ",
+          "grandeur": [
+            {
+              "grandeurMetier": "CONS",
+              "grandeurPhysique": "EA",
+              "unite": "Wh",
+              "calendrier": [
+                {
+                  "idCalendrier": "DI000003",
+                  "libelleCalendrier": "Avec diffÃ©renciation temporelle et saisonniÃ¤re",
+                  "libelleGrille": "Distributeur",
+                  "classeTemporelle": [
+                    {
+                      "idClasseTemporelle": "HPB",
+                      "libelleClasseTemporelle": "Heures Pleines Saison Basse",
+                      "codeCadran": "IDX_EAS_D2",
+                      "valeur": [
+                        {
+                          "d": "2026-06-01 00:00:00",
+                          "v": 2675549,
+                          "iv": 0
+                        }
+                      ]
+                    },
+                    {
+                      "idClasseTemporelle": "HPH",
+                      "libelleClasseTemporelle": "Heures Pleines Hiver / Saison Haute",
+                      "codeCadran": "IDX_EAS_D4",
+                      "valeur": [
+                        {
+                          "d": "2026-06-01 00:00:00",
+                          "v": 6038145,
+                          "iv": 0
+                        }
+                      ]
+                    },
+                    {
+                      "idClasseTemporelle": "HCH",
+                      "libelleClasseTemporelle": "Heures Creuses Hiver / Saison Haute",
+                      "codeCadran": "IDX_EAS_D3",
+                      "valeur": [
+                        {
+                          "d": "2026-06-01 00:00:00",
+                          "v": 1941120,
+                          "iv": 0
+                        }
+                      ]
+                    },
+                    {
+                      "idClasseTemporelle": "HCB",
+                      "libelleClasseTemporelle": "Heures Creuses Saison Basse",
+                      "codeCadran": "IDX_EAS_D1",
+                      "valeur": [
+                        {
+                          "d": "2026-06-01 00:00:00",
+                          "v": 789363,
+                          "iv": 0
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "idCalendrier": "FC022034",
+                  "libelleCalendrier": "Base",
+                  "libelleGrille": "Fournisseur",
+                  "classeTemporelle": [
+                    {
+                      "idClasseTemporelle": "BASE",
+                      "libelleClasseTemporelle": "Base",
+                      "codeCadran": "IDX_EAS_F1",
+                      "valeur": [
+                        {
+                          "d": "2026-06-01 00:00:00",
+                          "v": 3602078,
+                          "iv": 0
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "cadranTotalisateur": {
+                "codeCadran": "IDX_EAS_T",
+                "valeur": [
+                  {
+                    "d": "2026-06-01 00:00:00",
+                    "v": 11444177,
+                    "iv": 0
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "idPrm": "99331145115979",
+      "periode": {
+        "dateDebut": "2026-06-01 00:00:00",
+        "dateFin": "2026-06-02 00:00:00"
+      },
+      "contexte": [
+        {
+          "etapeMetier": "BRUT",
+          "contexteReleve": "COL",
+          "typeReleve": "AQ",
+          "grandeur": [
+            {
+              "grandeurMetier": "CONS",
+              "grandeurPhysique": "EA",
+              "unite": "Wh",
+              "calendrier": [
+                {
+                  "idCalendrier": "DI000003",
+                  "libelleCalendrier": "Avec diffÃ©renciation temporelle et saisonniÃ¤re",
+                  "libelleGrille": "Distributeur",
+                  "classeTemporelle": [
+                    {
+                      "idClasseTemporelle": "HPB",
+                      "libelleClasseTemporelle": "Heures Pleines Saison Basse",
+                      "codeCadran": "IDX_EAS_D2",
+                      "valeur": [
+                        {
+                          "d": "2026-06-01 00:00:00",
+                          "v": 15923474,
+                          "iv": 0
+                        }
+                      ]
+                    },
+                    {
+                      "idClasseTemporelle": "HPH",
+                      "libelleClasseTemporelle": "Heures Pleines Hiver / Saison Haute",
+                      "codeCadran": "IDX_EAS_D4",
+                      "valeur": [
+                        {
+                          "d": "2026-06-01 00:00:00",
+                          "v": 10497780,
+                          "iv": 0
+                        }
+                      ]
+                    },
+                    {
+                      "idClasseTemporelle": "HCH",
+                      "libelleClasseTemporelle": "Heures Creuses Hiver / Saison Haute",
+                      "codeCadran": "IDX_EAS_D3",
+                      "valeur": [
+                        {
+                          "d": "2026-06-01 00:00:00",
+                          "v": 7742696,
+                          "iv": 0
+                        }
+                      ]
+                    },
+                    {
+                      "idClasseTemporelle": "HCB",
+                      "libelleClasseTemporelle": "Heures Creuses Saison Basse",
+                      "codeCadran": "IDX_EAS_D1",
+                      "valeur": [
+                        {
+                          "d": "2026-06-01 00:00:00",
+                          "v": 13514462,
+                          "iv": 0
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "idCalendrier": "FC022035",
+                  "libelleCalendrier": "Heures Pleines/Creuses",
+                  "libelleGrille": "Fournisseur",
+                  "classeTemporelle": [
+                    {
+                      "idClasseTemporelle": "HP",
+                      "libelleClasseTemporelle": "Heures Pleines",
+                      "codeCadran": "IDX_EAS_F2",
+                      "valeur": [
+                        {
+                          "d": "2026-06-01 00:00:00",
+                          "v": 26419967,
+                          "iv": 0
+                        }
+                      ]
+                    },
+                    {
+                      "idClasseTemporelle": "HC",
+                      "libelleClasseTemporelle": "Heures Creuses",
+                      "codeCadran": "IDX_EAS_F1",
+                      "valeur": [
+                        {
+                          "d": "2026-06-01 00:00:00",
+                          "v": 21258445,
+                          "iv": 0
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "cadranTotalisateur": {
+                "codeCadran": "IDX_EAS_T",
+                "valeur": [
+                  {
+                    "d": "2026-06-01 00:00:00",
+                    "v": 47678412,
+                    "iv": 0
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
