@@ -115,7 +115,9 @@ def canonique(valeur: Any) -> Any:
             pass
     if _RE_DATE.match(texte):
         return ("d", texte)
-    return ("s", texte)
+    # Modulo espaces de bord : xml_vers_dict strip les feuilles, le legacy garde les
+    # espaces Enedis (« Composante de relevé résiduel  » a un espace final en source).
+    return ("s", texte.strip())
 
 
 def empreinte(record: dict) -> frozenset:
@@ -198,8 +200,23 @@ def comparer_cas(cas: CasComparaison, fichiers: list[str]) -> ResultatComparaiso
 
 
 def fichiers_du_flux(racine: Path, flux: str) -> list[str]:
-    """Les XML d'un flux dans une racine type cache réel (`<racine>/<FLUX>/**/*.xml`)."""
-    return sorted(glob.glob(str(racine / flux / "**" / "*.xml"), recursive=True))
+    """Les XML d'un flux dans une racine type cache réel (`<racine>/<FLUX>/**/*.xml`).
+
+    Dédoublonnés par nom de fichier : Enedis re-livre parfois le même XML dans
+    plusieurs zips (6 cas F15 observés, contenus identiques au bit près). Le landing
+    dbt dédoublonne par construction (merge sur file_name) ; le parseur legacy, lui,
+    double-compte ces re-livraisons — on compare le parsing, pas la politique de
+    livraison, donc chaque document unique n'entre qu'une fois.
+    """
+    fichiers = sorted(glob.glob(str(racine / flux / "**" / "*.xml"), recursive=True))
+    vus: set[str] = set()
+    uniques = []
+    for chemin in fichiers:
+        nom = Path(chemin).name
+        if nom not in vus:
+            vus.add(nom)
+            uniques.append(chemin)
+    return uniques
 
 
 def main() -> None:

@@ -72,7 +72,7 @@
         <Donnee_Sup>
           <Code>TEXTE</Code>
           <Libelle>TEXTE</Libelle>
-          <Valeur>4774</Valeur>
+          <Valeur>6994</Valeur>
           <Unite_Quantite>c.j</Unite_Quantite>
         </Donnee_Sup>
       </Acheminement>
@@ -98,7 +98,7 @@
         <Donnee_Sup>
           <Code>TEXTE</Code>
           <Libelle>TEXTE</Libelle>
-          <Valeur>4885</Valeur>
+          <Valeur>7105</Valeur>
           <Unite_Quantite>c.j</Unite_Quantite>
         </Donnee_Sup>
       </Acheminement>
@@ -165,7 +165,7 @@
         <Donnee_Sup>
           <Code>TEXTE</Code>
           <Libelle>TEXTE</Libelle>
-          <Valeur>4996</Valeur>
+          <Valeur>7216</Valeur>
           <Unite_Quantite>c.j</Unite_Quantite>
         </Donnee_Sup>
       </Acheminement>
@@ -191,7 +191,7 @@
         <Donnee_Sup>
           <Code>TEXTE</Code>
           <Libelle>TEXTE</Libelle>
-          <Valeur>5107</Valeur>
+          <Valeur>7327</Valeur>
           <Unite_Quantite>c.j</Unite_Quantite>
         </Donnee_Sup>
       </Acheminement>

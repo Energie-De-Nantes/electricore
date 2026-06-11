@@ -1,39 +1,38 @@
--- Linéarisation R15 autoconsommation : une ligne par PRM, énergies ea_* en colonnes.
+-- Linéarisation R15 autoconsommation : une ligne par RELEVÉ, énergies ea_* en colonnes.
 --
--- Même source brute que flux_r15, mais on extrait les classes d'autoconsommation
--- (Classe_Mesure 3 à 6, préfixées ea_autoproduite_/ea_alloproduite_/ea_autoconsommee_/
--- ea_surplus_) au lieu de l'index distributeur. Comme C15, le filtre sur la classe
--- impose d'extraire en colonnes nommées AVANT le WHERE (sinon pushdown DuckDB sous
--- l'unnest). Cas vide aujourd'hui (aucune donnée ACC locale) : le PIVOT ne produit
--- alors aucune colonne ea_*, la ligne plate est préservée par le left join.
+-- Même source que flux_r15 (staging au grain relevé), mais on extrait les classes
+-- d'autoconsommation (Classe_Mesure 3 à 6, préfixées ea_autoproduite_/ea_alloproduite_/
+-- ea_autoconsommee_/ea_surplus_) au lieu de l'index distributeur. Extraction en
+-- colonnes nommées avant le WHERE (anti-pushdown). Quand aucune donnée ACC : le PIVOT
+-- ne produit aucune colonne ea_*, la ligne plate est préservée par le left join.
 
 with flat as (
     select
-        prm_id,
-        prm ->> '$.Id_PRM'                                        as pdl,
-        cast(prm ->> '$.Donnees_Releve[0].Date_Releve' as timestamptz) as date_releve,
-        prm ->> '$.Donnees_Releve[0].Id_Calendrier'              as id_calendrier,
-        prm ->> '$.Donnees_Releve[0].Id_Calendrier_Distributeur' as id_calendrier_distributeur,
-        prm ->> '$.Donnees_Releve[0].Ref_Situation_Contractuelle' as ref_situation_contractuelle,
-        prm ->> '$.Donnees_Releve[0].Type_Compteur'             as type_compteur,
-        prm ->> '$.Donnees_Releve[0].Motif_Releve'             as motif_releve,
-        prm ->> '$.Donnees_Releve[0].Id_Affaire'              as id_affaire,
-        prm ->> '$.Donnees_Releve[0].Nature_Index'           as nature_index,
-        prm ->> '$.Donnees_Releve[0].Statut_Releve'          as statut_releve,
-        prm ->> '$.Donnees_Releve[0].Autoconsommation_Collective' as autoconsommation_collective,
+        releve_id,
+        pdl,
+        cast(releve ->> '$.Date_Releve' as timestamptz) as date_releve,
+        releve ->> '$.Id_Calendrier'                   as id_calendrier,
+        releve ->> '$.Id_Calendrier_Distributeur'      as id_calendrier_distributeur,
+        releve ->> '$.Ref_Situation_Contractuelle'     as ref_situation_contractuelle,
+        releve ->> '$.Type_Compteur'                   as type_compteur,
+        releve ->> '$.Motif_Releve'                    as motif_releve,
+        releve ->> '$.Id_Affaire'                      as id_affaire,
+        releve ->> '$.Nature_Index'                    as nature_index,
+        releve ->> '$.Statut_Releve'                   as statut_releve,
+        releve ->> '$.Autoconsommation_Collective'     as autoconsommation_collective,
         unite
     from {{ ref('stg_r15') }}
 ),
 
 classes as (
-    select prm_id, c.classe
+    select releve_id, c.classe
     from {{ ref('stg_r15') }},
-        unnest(cast(prm -> '$.Donnees_Releve[0].Classe_Temporelle_Distributeur' as json[])) as c(classe)
+        unnest(cast(releve -> '$.Classe_Temporelle_Distributeur' as json[])) as c(classe)
 ),
 
 extrait as (
     select
-        prm_id,
+        releve_id,
         classe ->> '$.Classe_Mesure'               as classe_mesure,
         lower(classe ->> '$.Id_Classe_Temporelle') as cadran,
         classe ->> '$.Valeur'                      as valeur
@@ -42,7 +41,7 @@ extrait as (
 
 ea as (
     select
-        prm_id,
+        releve_id,
         case classe_mesure
             when '3' then 'ea_autoproduite_'
             when '4' then 'ea_alloproduite_'
@@ -54,9 +53,8 @@ ea as (
     where classe_mesure in ('3', '4', '5', '6')
 ),
 
--- Pivot scopé par prm_id, comme flux_r15 (un PDL revient dans plusieurs fichiers).
 pivot_ea as (
-    pivot ea on ea_col using first(valeur) group by prm_id
+    pivot ea on ea_col using first(valeur) group by releve_id
 )
 
-select * exclude (prm_id) from flat left join pivot_ea using (prm_id)
+select * exclude (releve_id) from flat left join pivot_ea using (releve_id)
