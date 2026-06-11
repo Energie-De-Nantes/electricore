@@ -16,8 +16,7 @@ from electricore.bot.format import escape
 COMMANDES: list[tuple[str, str]] = [
     ("start", "Aide et instance servie"),
     ("help", "Aide et instance servie"),
-    ("etl", "Lancer l'ingestion ETL"),
-    ("status", "Statut des derniers jobs ETL"),
+    ("etl", "Ingestion : lancer, suivre, statut des jobs"),
     ("stats", "Stats d'une table flux"),
     ("export", "Exporter une table en XLSX"),
     ("flux", "Tables disponibles à l'export"),

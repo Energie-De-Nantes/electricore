@@ -5,10 +5,10 @@ affichée (aide + menu natif) dérive de `handlers.start.COMMANDES`.
 """
 
 from telegram import BotCommand
-from telegram.ext import Application, CommandHandler
+from telegram.ext import Application, CallbackQueryHandler, CommandHandler
 
 from electricore.bot import bot as v1
-from electricore.bot.handlers import start
+from electricore.bot.handlers import etl, start
 
 
 async def publier_menu(application: Application) -> None:
@@ -20,9 +20,10 @@ def build_application(token: str) -> Application:
     application = Application.builder().token(token).post_init(publier_menu).build()
     application.add_handler(CommandHandler("start", start.cmd_start))
     application.add_handler(CommandHandler("help", start.cmd_help))
-    # Commandes v1 — migrent domaine par domaine (#152–#156, ADR-0022).
-    application.add_handler(CommandHandler("etl", v1.cmd_etl))
-    application.add_handler(CommandHandler("status", v1.cmd_status))
+    # Domaine /etl (#152) — clavier inline + raccourcis, absorbe /status.
+    application.add_handler(CommandHandler("etl", etl.cmd_etl))
+    application.add_handler(CallbackQueryHandler(etl.on_callback, pattern="^etl:"))
+    # Commandes v1 — migrent domaine par domaine (#153–#156, ADR-0022).
     application.add_handler(CommandHandler("stats", v1.cmd_stats))
     application.add_handler(CommandHandler("export", v1.cmd_export))
     application.add_handler(CommandHandler("flux", v1.cmd_flux))

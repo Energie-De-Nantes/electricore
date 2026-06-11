@@ -26,6 +26,33 @@ def test_build_application_enregistre_toute_la_surface():
     assert attendues <= enregistrees, f"commandes sans handler : {attendues - enregistrees}"
 
 
+def test_status_v1_est_supprime_de_la_surface():
+    """/status est absorbé par /etl statut (#152) — plus de handler ni d'entrée menu."""
+    tg_app = build_application("123:abc")
+
+    enregistrees: set[str] = set()
+    for handlers in tg_app.handlers.values():
+        for handler in handlers:
+            enregistrees |= set(getattr(handler, "commands", ()))
+
+    assert "status" not in enregistrees
+    assert "status" not in {c for c, _ in COMMANDES}
+
+
+def test_les_callbacks_etl_sont_routes():
+    """Un CallbackQueryHandler couvre le pattern etl: (claviers du domaine)."""
+    from telegram.ext import CallbackQueryHandler
+
+    tg_app = build_application("123:abc")
+    patterns = [
+        h.pattern.pattern
+        for handlers in tg_app.handlers.values()
+        for h in handlers
+        if isinstance(h, CallbackQueryHandler)
+    ]
+    assert any(p.startswith("^etl:") for p in patterns)
+
+
 def test_le_menu_natif_est_branche_au_demarrage():
     tg_app = build_application("123:abc")
     assert tg_app.post_init is publier_menu

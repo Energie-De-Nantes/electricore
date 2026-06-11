@@ -20,10 +20,11 @@ async def run_etl(
     **Authentification requise.**
 
     Modes disponibles :
-    - `test` — 2 fichiers par flux (~3s), dataset `flux_enedis_test`
-    - `r151` — R151 complet, dataset `flux_enedis_r151`
-    - `all` — Tous les flux en production, dataset `flux_enedis`
-    - `reset` — Reset complet (supprime l'état incrémental), dataset `flux_enedis`
+    - `test` — tous les flux, 2 fichiers chacun (smoke, ~3s)
+    - `all` — tous les flux en production
+    - `rebuild` — re-matérialise les tables depuis le brut, zéro réseau
+    - `resync` — purge l'état incrémental dlt et re-télécharge tout
+    - liste de flux (`r151`, `c15`, `r151 c15`…) — ingestion ciblée
 
     Retourne immédiatement un `job_id` pour suivre l'avancement via `GET /etl/jobs/{job_id}`.
 
@@ -35,10 +36,13 @@ async def run_etl(
     if not etl_service.is_etl_available():
         raise HTTPException(501, "Le pipeline ETL n'est pas disponible. Installez l'extra [etl] : uv sync --extra etl")
 
-    try:
-        mode = etl_service.ETLMode(body.mode)
-    except ValueError:
-        raise HTTPException(422, f"Mode invalide : '{body.mode}'. Valeurs acceptées : test, r151, all, reset")
+    mode = etl_service.valider_mode(body.mode)
+    if mode is None:
+        raise HTTPException(
+            422,
+            f"Mode invalide : '{body.mode}'. Acceptés : test, all, rebuild, resync, "
+            f"ou une liste de flux parmi {', '.join(sorted(etl_service.FLUX_CONNUS))}.",
+        )
 
     if etl_service.is_running():
         raise HTTPException(409, "Un job ETL est déjà en cours d'exécution.")
