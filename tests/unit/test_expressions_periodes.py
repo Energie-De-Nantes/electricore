@@ -14,6 +14,7 @@ from electricore.core.pipelines.periodes import (
     expr_fin_lisible,
     expr_mois_annee,
     expr_nb_jours,
+    exprs_meta_periode,
 )
 
 
@@ -69,3 +70,26 @@ def test_expr_fin_lisible():
     result = df.with_columns(expr_fin_lisible().alias("fin_lisible")).collect()
 
     assert result["fin_lisible"].to_list() == ["31 mars 2024", "en cours"]
+
+
+def test_exprs_meta_periode():
+    """Le bundle d'assemblage : les 4 méta-colonnes depuis les seules bornes.
+
+    C'est le contrat partagé par les périodisations abonnements et énergie —
+    y compris le cas « période ouverte » (fin nulle → nb_jours null,
+    fin_lisible « en cours »).
+    """
+    df = pl.DataFrame(
+        {
+            "debut": [datetime(2025, 3, 1), datetime(2025, 4, 15)],
+            "fin": [datetime(2025, 4, 1), None],
+        }
+    ).lazy()
+
+    result = df.with_columns(exprs_meta_periode()).collect()
+
+    assert result.columns == ["debut", "fin", "nb_jours", "debut_lisible", "fin_lisible", "mois_annee"]
+    assert result["nb_jours"].to_list() == [31, None]
+    assert result["debut_lisible"].to_list() == ["01 mars 2025", "15 avril 2025"]
+    assert result["fin_lisible"].to_list() == ["01 avril 2025", "en cours"]
+    assert result["mois_annee"].to_list() == ["2025-03", "2025-04"]

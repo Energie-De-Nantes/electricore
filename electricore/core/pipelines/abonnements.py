@@ -13,13 +13,8 @@ from pandera.typing.polars import LazyFrame
 from electricore.core.models.historique import Historique
 from electricore.core.models.periode_abonnement import PeriodeAbonnement
 
-# Formules partagées entre pipelines de périodes (issue #178, ADR-0023)
-from electricore.core.pipelines.periodes import (
-    expr_date_formatee_fr,
-    expr_fin_lisible,
-    expr_mois_annee,
-    expr_nb_jours,
-)
+# Méta-colonnes de période partagées (issue #178, ADR-0023)
+from electricore.core.pipelines.periodes import exprs_meta_periode
 
 # =============================================================================
 # EXPRESSIONS PURES ATOMIQUES
@@ -101,18 +96,8 @@ def calculer_periodes_abonnement(lf: pl.LazyFrame) -> pl.LazyFrame:
         .sort(["ref_situation_contractuelle", "date_evenement"])
         # 2. Calcul des bornes de période avec window functions
         .with_columns(expr_bornes_periode())
-        # 3-4. Calcul des colonnes dérivées qui dépendent des bornes
-        .with_columns(
-            [
-                # Durée en jours (dépend de debut/fin)
-                expr_nb_jours().alias("nb_jours"),
-                # Formatage des dates en français (champs d'affichage)
-                expr_date_formatee_fr("debut").alias("debut_lisible"),
-                expr_fin_lisible().alias("fin_lisible"),
-                # Clé calculable YYYY-MM, triable (issue #115)
-                expr_mois_annee(),
-            ]
-        )
+        # 3-4. Méta-colonnes dérivées des bornes (bundle partagé, cf. periodes.py)
+        .with_columns(exprs_meta_periode())
         # 5. Filtrage des périodes valides
         .filter(expr_periode_valide())
         # 6. Sélection des colonnes finales
@@ -181,43 +166,3 @@ def pipeline_abonnements(historique: LazyFrame[Historique]) -> LazyFrame[Periode
     from .turpe import ajouter_turpe_fixe
 
     return historique.pipe(generer_periodes_abonnement).pipe(ajouter_turpe_fixe)
-
-
-# =============================================================================
-# FONCTIONS DE VALIDATION ET SÉLECTION
-# =============================================================================
-
-
-def selectionner_colonnes_abonnement(lf: pl.LazyFrame) -> pl.LazyFrame:
-    """
-    Sélectionne et réordonne les colonnes finales pour les périodes d'abonnement.
-
-    Cette fonction assure un ordre cohérent des colonnes dans la sortie finale.
-
-    Args:
-        lf: LazyFrame avec toutes les colonnes calculées
-
-    Returns:
-        LazyFrame avec les colonnes dans l'ordre final
-    """
-    colonnes_finales = [
-        "ref_situation_contractuelle",
-        "pdl",
-        "mois_annee",
-        "debut_lisible",
-        "fin_lisible",
-        "formule_tarifaire_acheminement",
-        "puissance_souscrite_kva",
-        "nb_jours",
-        "debut",
-        "fin",
-        # Colonnes TURPE (optionnelles)
-        "turpe_fixe_journalier_eur",
-        "turpe_fixe_eur",
-    ]
-
-    # Sélectionner uniquement les colonnes qui existent
-    available_columns = lf.collect_schema().names()
-    columns_to_select = [col for col in colonnes_finales if col in available_columns]
-
-    return lf.select(columns_to_select)
