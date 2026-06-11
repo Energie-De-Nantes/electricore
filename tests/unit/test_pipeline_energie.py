@@ -406,39 +406,8 @@ def test_expr_calculer_energie_cadran():
     assert result["energie_base_kwh"].to_list() == energies_attendues
 
 
-def test_expr_date_formatee_fr():
-    """Teste le formatage des dates en français."""
-    df = pl.DataFrame(
-        {
-            "ma_date": [datetime(2024, 3, 15), datetime(2024, 12, 25)],
-        }
-    ).lazy()
-
-    from electricore.core.pipelines.energie import expr_date_formatee_fr
-
-    result = df.with_columns(expr_date_formatee_fr("ma_date").alias("date_fr")).collect()
-
-    # Vérifier que les dates contiennent les éléments français
-    dates_fr = result["date_fr"].to_list()
-    assert "15" in dates_fr[0] and "mars" in dates_fr[0] and "2024" in dates_fr[0]
-    assert "25" in dates_fr[1] and "décembre" in dates_fr[1] and "2024" in dates_fr[1]
-
-
-def test_expr_nb_jours():
-    """Teste le calcul du nombre de jours."""
-    df = pl.DataFrame(
-        {
-            "debut": [datetime(2024, 1, 1), datetime(2024, 2, 1)],
-            "fin": [datetime(2024, 1, 15), datetime(2024, 2, 29)],
-        }
-    ).lazy()
-
-    from electricore.core.pipelines.energie import expr_nb_jours
-
-    result = df.with_columns(expr_nb_jours()).collect()
-
-    # Vérifier le calcul des jours
-    assert result["nb_jours"].to_list() == [14, 28]
+# Les tests de expr_date_formatee_fr / expr_nb_jours vivent dans
+# test_expressions_periodes.py (formules partagées, issue #178).
 
 
 if __name__ == "__main__":

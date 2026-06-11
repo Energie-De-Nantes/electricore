@@ -1,6 +1,6 @@
-"""Garde-fous des règles d'import par rôle (ADR-0019, issues #109, #144).
+"""Garde-fous des règles d'import par rôle (ADR-0019, issues #109, #144 ; ADR-0023, issue #178).
 
-Quatre règles enforced par analyse statique (`ast`) :
+Cinq règles enforced par analyse statique (`ast`) :
 
 1. `core/pipelines/**` : n'importe pas `core.loaders`, `core.builds`,
    `integrations.*`, `api.*`. (Transformations pures.)
@@ -17,9 +17,14 @@ Quatre règles enforced par analyse statique (`ast`) :
    inverse de `test_core_purity`). Un import `core.builds` / `core.pipelines` /
    `core.writers` depuis une intégration échoue ici (#144).
 
-Pour chaque violation : fichier, ligne, import/annotation fautif + message ADR-0019.
+5. `core/pipelines/abonnements.py` ↔ `core/pipelines/energie.py` : aucun import
+   dans aucun sens (ADR-0023, #178). Les périodisations sont indépendantes ;
+   les formules partagées vivent dans `core/pipelines/periodes.py`.
 
-Voir [ADR-0019](../../docs/adr/0019-roles-loaders-pipelines-builds-integrations.md).
+Pour chaque violation : fichier, ligne, import/annotation fautif + message ADR.
+
+Voir [ADR-0019](../../docs/adr/0019-roles-loaders-pipelines-builds-integrations.md)
+et [ADR-0023](../../docs/adr/0023-periodisations-separees-abonnement-energie.md).
 """
 
 import ast
@@ -196,6 +201,41 @@ INTEGRATIONS_CORE_WHITELIST = (
     "electricore.core.models",
     "electricore.core.loaders",
 )
+
+
+def _imports_resolus_pipelines(path: Path) -> list[tuple[int, str]]:
+    """Imports du fichier, relatifs résolus contre le package `core.pipelines`."""
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    result: list[tuple[int, str]] = list(_absolute_imports(path))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.level == 1 and node.module:
+            result.append((node.lineno, f"electricore.core.pipelines.{node.module}"))
+    return result
+
+
+def test_periodisations_independantes() -> None:
+    """Règle 5 ADR-0023 (#178) : abonnements et energie ne s'importent pas l'un l'autre.
+
+    Les deux périodisations opèrent sur des lignes de temps distinctes (Enedis ne
+    fournit pas de relevé aux événements hors comptage) ; les formules partagées
+    (nb_jours, mois_annee, libellés) vivent dans `core/pipelines/periodes.py`.
+    """
+    paire = {
+        PIPELINES_ROOT / "abonnements.py": "electricore.core.pipelines.energie",
+        PIPELINES_ROOT / "energie.py": "electricore.core.pipelines.abonnements",
+    }
+    violations: list[str] = []
+    for py_file, interdit in paire.items():
+        for lineno, module in _imports_resolus_pipelines(py_file):
+            if module == interdit or module.startswith(interdit + "."):
+                violations.append(_fmt(py_file, lineno, f"import interdit: {module}"))
+
+    assert not violations, (
+        "Violations règle 5 ADR-0023 (périodisations indépendantes) :\n"
+        + "\n".join(violations)
+        + "\nLes formules partagées vivent dans core/pipelines/periodes.py.\n"
+        + "Voir docs/adr/0023-periodisations-separees-abonnement-energie.md"
+    )
 
 
 def test_integrations_core_imports_whitelist() -> None:

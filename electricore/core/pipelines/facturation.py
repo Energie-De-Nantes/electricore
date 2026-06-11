@@ -16,6 +16,7 @@ from electricore.core.models.periode_energie import PeriodeEnergie
 
 # Import des modèles Pandera
 from electricore.core.models.periode_meta import PeriodeMeta
+from electricore.core.pipelines.periodes import expr_date_formatee_fr, expr_nb_jours
 
 # =============================================================================
 # EXPRESSIONS ATOMIQUES POUR CALCULS D'AGRÉGATION
@@ -215,14 +216,12 @@ def agreger_energies_mensuel(periodes: LazyFrame[PeriodeEnergie]) -> LazyFrame[E
 
     # Calculer nb_jours si pas présent
     if "nb_jours" not in schema_cols:
-        periodes = periodes.with_columns(
-            [((pl.col("fin").dt.date() - pl.col("debut").dt.date()).dt.total_days().cast(pl.Int32)).alias("nb_jours")]
-        )
+        periodes = periodes.with_columns([expr_nb_jours().alias("nb_jours")])
     else:
         periodes = periodes.with_columns(
             [
                 pl.when(pl.col("nb_jours").is_null())
-                .then((pl.col("fin").dt.date() - pl.col("debut").dt.date()).dt.total_days().cast(pl.Int32))
+                .then(expr_nb_jours())
                 .otherwise(pl.col("nb_jours"))
                 .alias("nb_jours")
             ]
@@ -252,9 +251,7 @@ def agreger_energies_mensuel(periodes: LazyFrame[PeriodeEnergie]) -> LazyFrame[E
         .with_columns(
             [
                 # Calculer le nombre de jours total du mois
-                ((pl.col("fin").dt.date() - pl.col("debut").dt.date()).dt.total_days().cast(pl.Int32)).alias(
-                    "nb_jours_total_mois"
-                ),
+                expr_nb_jours().alias("nb_jours_total_mois"),
             ]
         )
         .with_columns(
@@ -336,7 +333,7 @@ def joindre_meta_periodes(
             [
                 # Recalculer nb_jours si manquant
                 pl.when(pl.col("nb_jours").is_null())
-                .then((pl.col("fin").dt.date() - pl.col("debut").dt.date()).dt.total_days().cast(pl.Int32))
+                .then(expr_nb_jours())
                 .otherwise(pl.col("nb_jours"))
                 .alias("nb_jours"),
                 # Flag de changement global
@@ -413,10 +410,9 @@ def pipeline_facturation(
     # Étape 4 : Formatage final et tri
     result_lf = meta_periodes_lf.with_columns(
         [
-            # Formatage des dates lisibles (réutiliser les expressions existantes)
-            # TODO: Implémenter expr_date_formatee_fr pour Polars
-            pl.col("debut").dt.strftime("%d %B %Y").alias("debut_lisible"),
-            pl.col("fin").dt.strftime("%d %B %Y").alias("fin_lisible"),
+            # Dates lisibles en français, même convention que les sous-périodes (issue #178)
+            expr_date_formatee_fr("debut").alias("debut_lisible"),
+            expr_date_formatee_fr("fin").alias("fin_lisible"),
         ]
     ).sort(["ref_situation_contractuelle", "debut"])
 

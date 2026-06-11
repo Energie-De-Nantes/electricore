@@ -13,6 +13,14 @@ from pandera.typing.polars import LazyFrame
 from electricore.core.models.historique import Historique
 from electricore.core.models.periode_abonnement import PeriodeAbonnement
 
+# Formules partagées entre pipelines de périodes (issue #178, ADR-0023)
+from electricore.core.pipelines.periodes import (
+    expr_date_formatee_fr,
+    expr_fin_lisible,
+    expr_mois_annee,
+    expr_nb_jours,
+)
+
 # =============================================================================
 # EXPRESSIONS PURES ATOMIQUES
 # =============================================================================
@@ -35,77 +43,6 @@ def expr_bornes_periode(over: str = "ref_situation_contractuelle") -> list[pl.Ex
         >>> df.with_columns(expr_bornes_periode())
     """
     return [pl.col("date_evenement").alias("debut"), pl.col("date_evenement").shift(-1).over(over).alias("fin")]
-
-
-def expr_nb_jours() -> pl.Expr:
-    """
-    Calcule le nombre de jours entre les bornes de période.
-
-    Cette expression calcule la différence en jours entre fin et debut,
-    en normalisant les timestamps pour éviter les problèmes d'heures.
-
-    Returns:
-        Expression Polars retournant le nombre de jours
-
-    Example:
-        >>> df.with_columns(expr_nb_jours().alias("nb_jours"))
-    """
-    return (pl.col("fin").dt.date() - pl.col("debut").dt.date()).dt.total_days().cast(pl.Int32)
-
-
-def expr_date_formatee_fr(col: str) -> pl.Expr:
-    """
-    Formate une colonne de date en libellé français « 1 mars 2025 ».
-
-    Réservé aux champs d'affichage (`debut_lisible`, `fin_lisible`) — les clés
-    de calcul utilisent le format `YYYY-MM` (issue #115). Copie unique partagée
-    par les pipelines abonnements et énergie.
-
-    Args:
-        col: Nom de la colonne à formater
-
-    Returns:
-        Expression Polars retournant la date formatée
-
-    Example:
-        >>> df.with_columns(expr_date_formatee_fr("debut").alias("debut_lisible"))
-    """
-    # Dictionnaire de correspondance anglais -> français
-    mois_mapping = {
-        "January": "janvier",
-        "February": "février",
-        "March": "mars",
-        "April": "avril",
-        "May": "mai",
-        "June": "juin",
-        "July": "juillet",
-        "August": "août",
-        "September": "septembre",
-        "October": "octobre",
-        "November": "novembre",
-        "December": "décembre",
-    }
-
-    expr = pl.col(col).dt.strftime("%d %B %Y")
-    for en_mois, fr_mois in mois_mapping.items():
-        expr = expr.str.replace_all(en_mois, fr_mois)
-    return expr
-
-
-def expr_fin_lisible() -> pl.Expr:
-    """
-    Formate la date de fin avec gestion du cas "en cours".
-
-    Cette expression formate la fin en français ou retourne "en cours"
-    si la date de fin est nulle.
-
-    Returns:
-        Expression Polars retournant la fin formatée
-
-    Example:
-        >>> df.with_columns(expr_fin_lisible().alias("fin_lisible"))
-    """
-    return pl.when(pl.col("fin").is_null()).then(pl.lit("en cours")).otherwise(expr_date_formatee_fr("fin"))
 
 
 def expr_periode_valide() -> pl.Expr:
@@ -173,7 +110,7 @@ def calculer_periodes_abonnement(lf: pl.LazyFrame) -> pl.LazyFrame:
                 expr_date_formatee_fr("debut").alias("debut_lisible"),
                 expr_fin_lisible().alias("fin_lisible"),
                 # Clé calculable YYYY-MM, triable (issue #115)
-                pl.col("debut").dt.strftime("%Y-%m").alias("mois_annee"),
+                expr_mois_annee(),
             ]
         )
         # 5. Filtrage des périodes valides
