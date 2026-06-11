@@ -31,6 +31,15 @@ FIXTURES: list[tuple[str, str, int, str | None]] = [
     # Edge-case forgé (schéma-valide R15 v2.3.2) : ACC peuplé, classes 3-6, 2 cadrans.
     ("r15_acc.xml", "R15", 1, "flux_r15_acc_peuple"),
     ("r151.xml", "R151", 0, None),
+    # Fixtures générées depuis les XSD Enedis (generer_fixtures_xsd.py) : instances
+    # maximales (optionnels présents, enums cyclées) — filet « on ne casse pas
+    # l'ingestion » sur des champs que les échantillons réels n'exercent pas.
+    ("c15_xsd.xml", "C15", 0, "flux_c15_xsd"),
+    ("r15_xsd.xml", "R15", 0, "flux_r15_xsd"),
+    ("r15_xsd.xml", "R15", 1, "flux_r15_acc_xsd"),
+    ("r151_xsd.xml", "R151", 0, "flux_r151_xsd"),
+    ("f12_xsd.xml", "F12", 0, "flux_f12_detail_xsd"),
+    ("f15_xsd.xml", "F15", 0, "flux_f15_detail_xsd"),
 ]
 
 # Traçabilité fixe → golden déterministes

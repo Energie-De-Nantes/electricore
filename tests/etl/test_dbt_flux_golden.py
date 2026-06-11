@@ -138,6 +138,39 @@ SPECS = [
             "date_facture": DATE,
         },
     ),
+    # Fixtures générées depuis les XSD Enedis (generer_fixtures_xsd.py) : instances
+    # maximales schéma-valides — optionnels présents, enums cyclées. Si un modèle dbt
+    # casse sur un champ que les échantillons réels n'exercent pas, ces cas le voient.
+    FluxSpec(
+        "flux_c15",
+        "c15_xsd.xml",
+        "raw_c15",
+        cas="flux_c15_xsd",
+        instant_cols=frozenset({"date_evenement", "avant_date_releve", "apres_date_releve"}),
+    ),
+    FluxSpec("flux_r15", "r15_xsd.xml", "raw_r15", cas="flux_r15_xsd", instant_cols=frozenset({"date_releve"})),
+    FluxSpec(
+        "flux_r15_acc",
+        "r15_xsd.xml",
+        "raw_r15",
+        cas="flux_r15_acc_xsd",
+        instant_cols=frozenset({"date_releve"}),
+    ),
+    FluxSpec("flux_r151", "r151_xsd.xml", "raw_r151", cas="flux_r151_xsd"),
+    FluxSpec(
+        "flux_f12_detail",
+        "f12_xsd.xml",
+        "raw_f12",
+        cas="flux_f12_detail_xsd",
+        numeric_cols=frozenset({"puissance_ponderee_kva", "quantite", "prix_unitaire", "montant_ht"}),
+    ),
+    FluxSpec(
+        "flux_f15_detail",
+        "f15_xsd.xml",
+        "raw_f15",
+        cas="flux_f15_detail_xsd",
+        numeric_cols=frozenset({"prix_unitaire", "quantite", "montant_ht"}),
+    ),
 ]
 
 

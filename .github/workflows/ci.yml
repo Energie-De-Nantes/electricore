@@ -57,7 +57,9 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies (locked)
-        run: uv sync --locked --extra etl --group test
+        # --extra dbt : active le filet d'ingestion (golden dbt + fixtures XSD) —
+        # sans lui, les tests dbt sont skippés (importorskip).
+        run: uv sync --locked --extra etl --extra dbt --group test
 
       - name: Run tests
         run: uv run --group test pytest
