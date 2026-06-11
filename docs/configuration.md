@@ -51,6 +51,7 @@ Centralisées dans `electricore/api/config.py` :
 |---|---|
 | `TELEGRAM_BOT_TOKEN` | token du bot |
 | `TELEGRAM_ALLOWED_USERS` | allowlist d'IDs utilisateurs |
+| `TELEGRAM_NOTIFY_CHAT_ID` | chat des alertes proactives (échec d'un job ETL, scheduler compris) ; vide = désactivé |
 | `API_BASE_URL` | URL de l'API appelée par le bot (défaut `http://localhost:8001`) |
 
 ### Odoo (intégration)
