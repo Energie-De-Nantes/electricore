@@ -24,3 +24,18 @@ def require_allowed(handler):
         return await handler(update, context)
 
     return wrapper
+
+
+def require_odoo(handler):
+    """Dégrade proprement les domaines ERP-dépendants sur une instance sans ERP (#159, P2.5)."""
+
+    @functools.wraps(handler)
+    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if not settings.is_odoo_configured:
+            await update.effective_message.reply_text(
+                "⚠️ Instance sans ERP connecté — cette commande n'est pas disponible ici."
+            )
+            return None
+        return await handler(update, context)
+
+    return wrapper

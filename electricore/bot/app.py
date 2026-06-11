@@ -11,8 +11,8 @@ from electricore.bot.handlers import etl, facturation, flux, perimetre, start, t
 
 
 async def publier_menu(application: Application) -> None:
-    """Publie la surface dans le menu natif Telegram (`setMyCommands`, ADR-0022)."""
-    await application.bot.set_my_commands([BotCommand(c, d) for c, d in start.COMMANDES])
+    """Publie la surface de l'instance dans le menu natif (`setMyCommands`, ADR-0022, #159)."""
+    await application.bot.set_my_commands([BotCommand(c, d) for c, d in start.commandes_disponibles()])
 
 
 def build_application(token: str) -> Application:

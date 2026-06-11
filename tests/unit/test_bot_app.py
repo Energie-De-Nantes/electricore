@@ -76,7 +76,8 @@ def test_le_menu_natif_est_branche_au_demarrage():
     assert tg_app.post_init is publier_menu
 
 
-def test_publier_menu_pousse_la_surface_a_telegram():
+def test_publier_menu_pousse_la_surface_a_telegram(monkeypatch):
+    monkeypatch.setattr(type(settings), "is_odoo_configured", property(lambda self: True))
     publiees = []
 
     class FakeBot:
