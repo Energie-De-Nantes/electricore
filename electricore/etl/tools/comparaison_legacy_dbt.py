@@ -99,8 +99,7 @@ def canonique(valeur: Any) -> Any:
     if valeur is None:
         return None
     if isinstance(valeur, datetime):
-        instant = valeur.astimezone(UTC) if valeur.tzinfo else valeur
-        return ("dt", instant.isoformat())
+        return ("dt", _heure_mur_utc(valeur))
     if isinstance(valeur, date):
         return ("d", valeur.isoformat())
     texte = str(valeur)
@@ -110,7 +109,7 @@ def canonique(valeur: Any) -> Any:
         pass
     if _RE_DATETIME.match(texte):
         try:
-            return ("dt", datetime.fromisoformat(texte).astimezone(UTC).isoformat())
+            return ("dt", _heure_mur_utc(datetime.fromisoformat(texte)))
         except ValueError:
             pass
     if _RE_DATE.match(texte):
@@ -118,6 +117,20 @@ def canonique(valeur: Any) -> Any:
     # Modulo espaces de bord : xml_vers_dict strip les feuilles, le legacy garde les
     # espaces Enedis (« Composante de relevé résiduel  » a un espace final en source).
     return ("s", texte.strip())
+
+
+def _heure_mur_utc(valeur: datetime) -> str:
+    """Horodatage canonique : heure-mur UTC, sans offset.
+
+    Les aware sont convertis en UTC puis l'offset tombe ; les naïfs restent tels
+    quels. Équivaut « naïf == UTC » — c'est la convention dlt du legacy (les dates
+    R64 sans offset sont stockées comme instants UTC), et pour les sources à offset
+    (C15 +02:00) les deux côtés convergent vers la même heure-mur UTC : la
+    comparaison reste une comparaison d'instants.
+    """
+    if valeur.tzinfo:
+        return valeur.astimezone(UTC).replace(tzinfo=None).isoformat()
+    return valeur.isoformat()
 
 
 def empreinte(record: dict) -> frozenset:
