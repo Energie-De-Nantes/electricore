@@ -31,7 +31,7 @@ class FakeClient:
         return self.tables
 
     async def get_table_info(self, table: str) -> dict:
-        return {"table": f"flux_{table}", "count": 1234, "columns": ["a", "b", "c"]}
+        return {"table": f"flux_{table}", "count": 1234, "columns": ["a", "b", "c"], "derniere_date": "2026-06-01"}
 
     async def get_xlsx(self, table: str) -> bytes:
         self.exports.append(table)
@@ -97,6 +97,7 @@ def test_callback_stats_edite_le_message_avec_les_stats(client):
     assert "flux_c15" in texte
     assert "1,234" in texte, "nombre de lignes"
     assert "3" in texte, "nombre de colonnes"
+    assert "2026-06-01" in texte, "fraîcheur : dernière date métier (#158)"
     assert "flux:menu" in callbacks_du_markup(kwargs), "retour à la liste"
 
 
