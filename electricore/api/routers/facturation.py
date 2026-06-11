@@ -9,7 +9,7 @@ from electricore.api.config import settings
 from electricore.api.decorators import arrow_endpoint, xlsx_endpoint
 from electricore.api.security import get_current_api_key
 from electricore.api.serializers import arrow_stream, xlsx_multi_sheet
-from electricore.api.services.check_facturation_service import generer_check_odoo_xlsx, verifier_odoo
+from electricore.api.services.check_facturation_service import check_odoo_xlsx, verifier_odoo
 from electricore.api.services.facturation_service import (
     documents_facturation_du_mois,
     facturation_du_mois,
@@ -99,8 +99,9 @@ def export_check_odoo_xlsx() -> bytes:
 
     Même contrôle que `/facturation/check/odoo`, sérialisé pour le cas où les
     anomalies dépassent ce qu'un message texte peut lister (issue #150).
+    Forme stable : 5 onglets, vides quand rien à signaler (issue #173).
     """
-    return generer_check_odoo_xlsx(verifier_odoo())
+    return check_odoo_xlsx()
 
 
 @xlsx_endpoint(router, "/facturation/documents.xlsx", filename="facturation{mois}.xlsx", requires_odoo=True)
