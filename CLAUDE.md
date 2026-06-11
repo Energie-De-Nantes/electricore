@@ -75,8 +75,11 @@ electricore/
 │   ├── security.py            # API key authentication
 │   └── main.py                # FastAPI application
 │
-├── bot/                       # 🤖 Bot Telegram - UI opérationnelle (voir ADR-0010)
-│   ├── bot.py                 # Handlers commandes (/etl, /taxes, /facturation…)
+├── bot/                       # 🤖 Bot Telegram - UI opérationnelle (voir ADR-0010, ADR-0022)
+│   ├── app.py                 # Assemblage : application, menu natif, surveillance
+│   ├── handlers/              # Un module par domaine (/etl, /flux, /perimetre, /taxes, /facturation)
+│   ├── auth.py                # @require_allowed (allowlist), @require_odoo (no-ERP)
+│   ├── surveillance.py        # Alertes proactives (échec de job ETL)
 │   └── client.py              # Client HTTP async vers l'API
 │
 └── config/                    # ⚙️ Tariff rules (TURPE, Accise CSV files)
@@ -328,6 +331,7 @@ uv run --group test pytest --cov=electricore tests/
 - **Configuration (inventaire complet)**: [docs/configuration.md](docs/configuration.md) - Env vars, fichiers versionnés, deploy, outillage
 - **Ingestion (architecture ELT dlt+dbt)**: [docs/ingestion.md](docs/ingestion.md) - Schéma + recettes (ajouter un champ, nouvelle version XSD Enedis, nouveau flux, pièges DuckDB)
 - **API Module**: [electricore/api/README.md](electricore/api/README.md)
+- **Bot Module**: [electricore/bot/README.md](electricore/bot/README.md) - Surface de commandes, alertes, no-ERP (ADR-0022)
 - **DuckDB Integration**: [electricore/core/loaders/DUCKDB_INTEGRATION_GUIDE.md](electricore/core/loaders/DUCKDB_INTEGRATION_GUIDE.md)
 - **Odoo Query Builder**: [docs/odoo-query-builder.md](docs/odoo-query-builder.md)
 - **Date Conventions**: [docs/conventions-dates-enedis.md](docs/conventions-dates-enedis.md)

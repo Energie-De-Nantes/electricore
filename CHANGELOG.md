@@ -7,6 +7,51 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
+## [Unreleased]
+
+### 🤖 Bot Telegram : surface par domaines hybrides (ADR-0022)
+
+Refonte complète de la surface du bot (issues #150–#160) : 11 commandes plates →
+**5 domaines métier** (`/etl`, `/flux`, `/perimetre`, `/taxes`, `/facturation`).
+Sans argument, un domaine ouvre un **clavier inline** ; avec arguments, raccourci
+power-user. Guide : [electricore/bot/README.md](electricore/bot/README.md).
+
+#### 💥 Breaking
+
+- **Rupture du contrat de commandes, sans alias** (big bang, ADR-0022) :
+  `/status`, `/stats`, `/export`, `/entrees`, `/sorties`, `/check` disparaissent —
+  absorbées respectivement par `/etl statut`, `/flux stats`, `/flux export`,
+  `/perimetre entrees|sorties`, `/facturation check`. L'ancien `/flux` plat et
+  `/facturation [date]` changent de forme (`/flux`, `/facturation documents [date]`).
+- **`/etl reset` retiré** de la surface du bot (déprécié côté runner — `resync`
+  le remplace, derrière une **confirmation à deux taps**).
+
+#### ✨ Nouveau
+
+- **Menu natif Telegram** (`setMyCommands`) publié au démarrage, **adapté à
+  l'instance** : sans ERP configuré, `/taxes` et `/facturation` sont masqués et
+  répondent un message explicite (P2.5, traduction bot d'ADR-0016).
+- **Modes ETL réels exposés** : `rebuild`, `resync`, sélection de flux arbitraire
+  (`/etl r151 c15`) — l'API `POST /etl/run` accepte désormais les listes de flux.
+- **Suivi de job par édition** : le message de lancement s'édite
+  (`⏳ running` → `✅`/`❌` + sortie) au lieu d'un second message.
+- **Alertes proactives** : `TELEGRAM_NOTIFY_CHAT_ID` — alerte 🚨 sur tout job ETL
+  `failed`, y compris ceux du scheduler nocturne.
+- **Fraîcheur des données** : `/flux` stats affiche la dernière date *métier* par
+  table (`GET /flux/{table}/info` expose `derniere_date`).
+- Rendu **HTML partout** (fin du mélange Markdown V1/V2), descriptions des tables
+  dans le menu `/flux`, `/start` annonce l'instance servie
+  (convention `@<slug>_electricore_bot`).
+- API : `GET /facturation/check/odoo.xlsx` (détail du check pré-facturation) —
+  le bot redevient strictement client HTTP (garde-fou d'architecture en CI).
+
+#### 🔧 Interne
+
+- `bot.py` (monolithe) supprimé : package par domaine (`handlers/`), allowlist
+  factorisée en décorateur, fakes Telegram partagés côté tests (+39 tests).
+
+---
+
 ## [2.0.0] - 2026-06-11
 
 ### 🏗️ Ingestion ELT : la linéarisation des flux vit en dbt (ADR-0020 → ADR-0021)
