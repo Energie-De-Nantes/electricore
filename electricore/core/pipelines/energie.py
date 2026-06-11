@@ -15,8 +15,8 @@ from electricore.core.models.historique import Historique
 from electricore.core.models.periode_energie import PeriodeEnergie
 from electricore.core.models.releve_index import RelevéIndex
 
-# Formatage français des champs d'affichage (copie unique, cf. abonnements)
-from electricore.core.pipelines.abonnements import expr_date_formatee_fr
+# Formules partagées entre pipelines de périodes (issue #178, ADR-0023)
+from electricore.core.pipelines.periodes import expr_date_formatee_fr, expr_mois_annee, expr_nb_jours
 
 # Import du calcul TURPE variable
 from electricore.core.pipelines.turpe import ajouter_turpe_variable
@@ -155,19 +155,6 @@ def expr_enrichir_cadrans_principaux() -> list[pl.Expr]:
     ]
     synthese_base = pl.sum_horizontal([pl.col(col_energie(c)) for c in CADRANS]).alias(col_energie("base"))
     return [*syntheses_principaux, synthese_base]
-
-
-def expr_nb_jours() -> pl.Expr:
-    """
-    Expression pour calculer le nombre de jours d'une période.
-
-    Returns:
-        Expression Polars pour calculer nb_jours
-
-    Example:
-        >>> lf = lf.with_columns(expr_nb_jours())
-    """
-    return (pl.col("fin").dt.date() - pl.col("debut").dt.date()).dt.total_days().cast(pl.Int32).alias("nb_jours")
 
 
 def expr_filtrer_periodes_valides() -> pl.Expr:
@@ -500,7 +487,7 @@ def calculer_periodes_energie(lf: pl.LazyFrame) -> LazyFrame[PeriodeEnergie]:
             [*expr_bornes_depuis_shift(over="ref_situation_contractuelle"), *expr_arrondir_index_kwh(colonnes_index)]
         )
         # Étape 2 : Calcul énergies + nb_jours (énergies dépendent d'étape 1, nb_jours indépendant)
-        .with_columns([*expr_calculer_energies_tous_cadrans(colonnes_index), expr_nb_jours()])
+        .with_columns([*expr_calculer_energies_tous_cadrans(colonnes_index), expr_nb_jours().alias("nb_jours")])
         # Étape 3 : Flag de complétude des données
         .with_columns([expr_data_complete().alias("data_complete")])
         # Filtrage des périodes valides
@@ -511,7 +498,7 @@ def calculer_periodes_energie(lf: pl.LazyFrame) -> LazyFrame[PeriodeEnergie]:
                 expr_date_formatee_fr("debut").alias("debut_lisible"),
                 expr_date_formatee_fr("fin").alias("fin_lisible"),
                 # Clé calculable YYYY-MM, triable (issue #115)
-                pl.col("debut").dt.strftime("%Y-%m").alias("mois_annee"),
+                expr_mois_annee(),
                 *expr_enrichir_cadrans_principaux(),
             ]
         )

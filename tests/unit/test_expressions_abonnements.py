@@ -8,12 +8,10 @@ import pytest
 from electricore.core.pipelines.abonnements import (
     calculer_periodes_abonnement,
     expr_bornes_periode,
-    expr_date_formatee_fr,
-    expr_fin_lisible,
-    expr_nb_jours,
     expr_periode_valide,
     generer_periodes_abonnement,
 )
+from electricore.core.pipelines.periodes import expr_nb_jours
 
 
 @pytest.fixture
@@ -70,50 +68,8 @@ def test_expr_bornes_periode():
     assert result["fin"].to_list() == fins_attendues
 
 
-def test_expr_nb_jours():
-    """Teste le calcul du nombre de jours."""
-    df = pl.DataFrame(
-        {
-            "debut": [datetime(2024, 1, 1), datetime(2024, 2, 1), datetime(2024, 3, 1)],
-            "fin": [datetime(2024, 1, 31), datetime(2024, 2, 29), None],  # 2024 est bissextile
-        }
-    ).lazy()
-
-    result = df.with_columns(expr_nb_jours().alias("nb_jours")).collect()
-
-    expected = [30, 28, None]  # 31-1, 29-1, null pour None
-    assert result["nb_jours"].to_list() == expected
-
-
-def test_expr_date_formatee_fr():
-    """Teste le formatage français des champs d'affichage (« 15 mars 2024 »)."""
-    df = pl.DataFrame(
-        {
-            "ma_date": [datetime(2024, 3, 15), datetime(2024, 12, 25)],
-        }
-    ).lazy()
-
-    result = df.with_columns(expr_date_formatee_fr("ma_date").alias("date_fr")).collect()
-
-    assert result["date_fr"].to_list() == ["15 mars 2024", "25 décembre 2024"]
-
-
-def test_expr_fin_lisible():
-    """Teste le formatage de la fin avec gestion des nulls."""
-    df = pl.DataFrame(
-        {
-            "fin": [datetime(2024, 3, 31), None],
-        }
-    ).lazy()
-
-    result = df.with_columns(expr_fin_lisible().alias("fin_lisible")).collect()
-
-    fins_lisibles = result["fin_lisible"].to_list()
-
-    # Le premier doit contenir "31" (date formatée)
-    assert "31" in fins_lisibles[0]
-    # Le second doit être "en cours"
-    assert fins_lisibles[1] == "en cours"
+# Les tests de expr_nb_jours / expr_date_formatee_fr / expr_fin_lisible vivent
+# dans test_expressions_periodes.py (formules partagées, issue #178).
 
 
 def test_expr_periode_valide():

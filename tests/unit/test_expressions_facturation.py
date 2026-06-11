@@ -414,6 +414,61 @@ class TestJointureMetaPeriodes:
         assert pdl2["energie_base_kwh"][0] == 0.0  # Fill null
 
 
+class TestDatesLisiblesFrancaises:
+    """Issue #178 : les méta-périodes portent des dates lisibles en français.
+
+    Les sous-périodes (abonnements, énergie) formatent leurs libellés via
+    `expr_date_formatee_fr` (« 01 mars 2025 ») ; les méta-périodes doivent
+    suivre la même convention — pas le `%B` anglais de chrono (« 01 March 2025 »).
+    """
+
+    def test_meta_periodes_dates_lisibles_en_francais(self):
+        from zoneinfo import ZoneInfo
+
+        from electricore.core.pipelines.facturation import pipeline_facturation
+
+        paris = ZoneInfo("Europe/Paris")
+
+        abonnements = pl.LazyFrame(
+            {
+                "ref_situation_contractuelle": ["RSC1"],
+                "pdl": ["PDL1"],
+                "mois_annee": ["2025-03"],
+                "debut_lisible": ["01 mars 2025"],
+                "fin_lisible": ["31 mars 2025"],
+                "formule_tarifaire_acheminement": ["BTINFCU4"],
+                "puissance_souscrite_kva": [6.0],
+                "nb_jours": [30],
+                "debut": [datetime(2025, 3, 1, tzinfo=paris)],
+                "fin": [datetime(2025, 3, 31, tzinfo=paris)],
+                "turpe_fixe_eur": [50.0],
+            }
+        )
+
+        energies = pl.LazyFrame(
+            {
+                "ref_situation_contractuelle": ["RSC1"],
+                "pdl": ["PDL1"],
+                "mois_annee": ["2025-03"],
+                "debut": [datetime(2025, 3, 1, tzinfo=paris)],
+                "fin": [datetime(2025, 3, 31, tzinfo=paris)],
+                "source_avant": ["flux_C15"],
+                "source_apres": ["flux_R151"],
+                "data_complete": [True],
+                "energie_base_kwh": [1000.0],
+                "energie_hp_kwh": [500.0],
+                "energie_hc_kwh": [300.0],
+                "turpe_variable_eur": [25.0],
+            }
+        )
+
+        meta = pipeline_facturation(abonnements, energies).collect()
+
+        assert len(meta) == 1
+        assert meta["debut_lisible"][0] == "01 mars 2025"
+        assert meta["fin_lisible"][0] == "31 mars 2025"
+
+
 class TestTriChronologique:
     """La motivation de l'issue #115 : mois_annee est triable chronologiquement.
 
