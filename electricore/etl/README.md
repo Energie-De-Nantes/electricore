@@ -1,5 +1,7 @@
 # ETL ElectriCore
 
+> Architecture complète, schéma et recettes : [docs/ingestion.md](../../docs/ingestion.md) — ADR : [0020](../../docs/adr/0020-linearisation-en-dbt.md), [0021](../../docs/adr/0021-bascule-production-dbt.md)
+
 Pipeline ETL pour les flux énergétiques Enedis : SFTP → DuckDB via DLT.
 
 ## Structure
