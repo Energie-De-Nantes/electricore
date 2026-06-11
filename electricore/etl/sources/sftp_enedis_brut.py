@@ -50,8 +50,8 @@ def flux_enedis_brut(flux_config: dict, max_files: int = None):
     """Source DLT déposant le brut JSON de chaque flux dans `raw_<flux>`.
 
     Args:
-        flux_config: Sections de flux.yaml (C15, R15, …) — seuls file_pattern et
-            file_regex sont consommés (la sélection xml_configs appartient à dbt).
+        flux_config: Sections de flux.yaml (C15, R15, …) : file_pattern (glob SFTP),
+            format (xml/json) et file_regex (fichiers à extraire des zips).
         max_files: Limitation par flux (smoke tests).
     """
     sftp_url = os.environ.get("SFTP__URL") or dlt.secrets["sftp"]["url"]
@@ -63,18 +63,9 @@ def flux_enedis_brut(flux_config: dict, max_files: int = None):
         file_pattern = config_flux["file_pattern"]
         table = f"raw_{flux_type.lower()}"
 
-        if "xml_configs" in config_flux:
-            est_json = False
-            # Le file_regex est identique entre les configs d'un même flux (R15 :
-            # flux_r15 et flux_r15_acc lisent les mêmes XML) — on prend la première.
-            file_regex = config_flux["xml_configs"][0].get("file_regex", "*.xml")
-            extension = ".xml"
-        elif "json_configs" in config_flux:
-            est_json = True
-            file_regex = config_flux["json_configs"][0].get("file_regex", "*.json")
-            extension = ".json"
-        else:
-            continue
+        est_json = config_flux.get("format") == "json"
+        extension = ".json" if est_json else ".xml"
+        file_regex = config_flux.get("file_regex", f"*{extension}")
 
         sftp_resource = create_sftp_resource(flux_type, table, file_pattern, sftp_url, max_files)
         unzip_transformer = create_unzip_transformer(extension, file_regex)

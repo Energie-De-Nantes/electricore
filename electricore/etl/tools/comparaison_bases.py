@@ -18,7 +18,6 @@ import sys
 from collections import Counter
 
 import duckdb
-
 from electricore.etl.tools.comparaison_legacy_dbt import TRACABILITE, canonique
 
 TABLES = ["flux_c15", "flux_r15", "flux_r15_acc", "flux_r151", "flux_f12_detail", "flux_f15_detail", "flux_r64"]

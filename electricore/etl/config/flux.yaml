@@ -1,261 +1,38 @@
+# Configuration de MOUVEMENT des flux Enedis (ADR-0020).
+#
+# Ce fichier ne décrit plus que ce que la chaîne de mouvement doit savoir :
+# où trouver les zips (file_pattern, glob SFTP), quels fichiers en extraire
+# (file_regex) et leur format (xml/json). La sélection, le pivot et le typage
+# vivent dans les modèles dbt (electricore/etl/dbt/models/) — l'ex-DSL de
+# linéarisation (row_level/data_fields/nested_fields) a été retiré avec le
+# parseur legacy (#138).
+
 C15:
   file_pattern: "**/*_C15_*.zip"
-  xml_configs:
-    - name: "flux_c15"
-      file_regex: "*_C15_*.xml"
-      row_level: './/PRM'
-      metadata_fields: {}
-      data_fields:
-        pdl: Id_PRM
-        
-        segment_clientele: Segment_Clientele
-        num_depannage: Num_Depannage
-        
-        categorie: Situation_Contractuelle/Titulaire_Contrat/Categorie
-        etat_contractuel: Situation_Contractuelle/Etat_Contractuel
-        ref_situation_contractuelle: Situation_Contractuelle/Ref_Situation_Contractuelle
-
-        puissance_souscrite_kva: Situation_Contractuelle/Structure_Tarifaire/Puissance_Souscrite
-        formule_tarifaire_acheminement: Situation_Contractuelle/Structure_Tarifaire/Formule_Tarifaire_Acheminement
-
-        type_compteur: Dispositif_De_Comptage/Compteur/Type
-        num_compteur: Dispositif_De_Comptage/Compteur/Num_Serie
-
-        date_derniere_modification_fta: Date_Derniere_Modification_FTA
-        
-        evenement_declencheur: Evenement_Declencheur/Nature_Evenement
-        type_evenement: Evenement_Declencheur/Type_Evenement
-        date_evenement: Evenement_Declencheur/Date_Evenement
-        ref_demandeur: Evenement_Declencheur/Ref_Demandeur
-        id_affaire: Evenement_Declencheur/Id_Affaire
-
-      nested_fields:
-        - prefix: 'avant_'
-          child_path: 'Evenement_Declencheur/Releves/Donnees_Releve/Classe_Temporelle_Distributeur'
-          id_field: 'Id_Classe_Temporelle'
-          value_field: 'Valeur'
-          conditions:
-            - xpath: '../Code_Qualification'
-              value: '1'
-            - xpath: 'Classe_Mesure'
-              value: '1'
-            - xpath: 'Sens_Mesure'
-              value: '0'
-          additional_fields:
-            date_releve: '../Date_Releve'
-            nature_index: '../Nature_Index'
-            id_calendrier_distributeur: '../Id_Calendrier_Distributeur'
-            id_calendrier_fournisseur: '../Id_Calendrier'
-
-        - prefix: 'apres_'
-          child_path: 'Evenement_Declencheur/Releves/Donnees_Releve/Classe_Temporelle_Distributeur'
-          id_field: 'Id_Classe_Temporelle'
-          value_field: 'Valeur'
-          conditions:
-            - xpath: '../Code_Qualification'
-              value: '2'
-            - xpath: 'Classe_Mesure'
-              value: '1'
-            - xpath: 'Sens_Mesure'
-              value: '0'
-          additional_fields:
-            date_releve: '../Date_Releve'
-            nature_index: '../Nature_Index'
-            id_calendrier_distributeur: '../Id_Calendrier_Distributeur'
-            id_calendrier_fournisseur: '../Id_Calendrier'
+  format: xml
+  file_regex: "*_C15_*.xml"
 
 F12:
   file_pattern: "**/*_F12_*.zip"
-  xml_configs:
-    - name: "flux_f12_detail"
-      file_regex: 'FL_\d+_\d+\.xml'
-      row_level: './/Element_Valorise'
-      metadata_fields:
-        flux: 'En_Tete_Flux/Identifiant_Flux'
-        num_facture: 'Rappel_En_Tete/Num_Facture'
-        date_facture: 'Rappel_En_Tete/Date_Facture'
-      data_fields:
-        num_sous_lot: '../Num_Sous_Lot'
-        type_facturation: '../Type_Facturation'
-        motif_rectif: '../Motif_Rectif'
-
-        pdl: '../Id_PRM'
-        type_prm: '../Type_PRM'
-        code_segmentation_erdf: '../Code_Segmentation_ERDF'
-        
-        puissance_ponderee_kva: '../Puissance_Ponderee'
-        autoproducteur: '../Autoproducteur'
-        tarif_souscrit: '../Tarif_Souscrit'
-        id_ev: 'Id_EV'
-        libelle_ev: 'Libelle_EV'
-        code_recapitulatif: 'Code_Recapitulatif'
-
-        cspe_applicable: 'CSPE_Applicable'
-        taux_tva_applicable: 'Taux_TVA_Applicable'
-        code_debit_credit: 'Code_Debit_Credit'
-
-        date_debut: 'Acheminement/Date_Debut'
-        date_fin: 'Acheminement/Date_Fin'
-
-        unite: 'Acheminement/Unite_Quantite'
-        quantite: 'Acheminement/Quantite'
-        prix_unitaire: 'Acheminement/Prix_Unitaire'
-        montant_ht: 'Acheminement/Montant_HT'
-        
-      nested_fields: []
+  format: xml
+  file_regex: "*.xml"
 
 F15:
   file_pattern: "**/*_F15_*.zip"
-  xml_configs:
-    - name: "flux_f15_detail"
-      file_regex: 'FL_\d+_\d+\.xml'
-      row_level: './/Element_Valorise'
-      metadata_fields:
-        flux: 'En_Tete_Flux/Identifiant_Flux'
-        num_facture: 'Rappel_En_Tete/Num_Facture'
-        date_facture: 'Rappel_En_Tete/Date_Facture'
-      data_fields:
-        type_facturation: '../../Type_Facturation'
-        pdl: '../../Donnees_PRM/Id_PRM'
-        ref_situation_contractuelle: '../../Donnees_PRM/Ref_Situation_Contractuelle'
-        type_compteur: '../../Donnees_PRM/Type_Compteur'
-        id_ev: 'Id_EV'
-        nature_ev: '../Nature_EV'
-        taux_tva_applicable: 'Taux_TVA_Applicable'
-        formule_tarifaire_acheminement: 'Formule_Tarifaire_Acheminement'
-        unite: 'Unite_Quantite'
-        prix_unitaire: 'Prix_Unitaire'
-        quantite: 'Quantite'
-        montant_ht: 'Montant_HT'
-        date_debut: 'Date_Debut'
-        date_fin: 'Date_Fin'
-        libelle_ev: 'Libelle_EV'
-      nested_fields: []
-    # - name: "flux_f15_resume"  # À activer plus tard
-    #   file_regex: 'FA_\d+_\d+\.xml'
-    #   row_level: './/Ligne_Comptable'
-    #   metadata_fields: {}
-    #   data_fields: {}
-    #   nested_fields: []
+  format: xml
+  file_regex: "*.xml"
 
 R15:
   file_pattern: "**/*_R15_*.zip"
-  xml_configs:
-    - name: "flux_r15"
-      file_regex: "*.xml"  # Tous les XML R15 - traitement standard
-      # Grain = le relevé (Donnees_Releve), pas le PRM : un PRM peut porter plusieurs
-      # relevés à des dates différentes dans un même fichier (jusqu'à 5 observés).
-      # Avec row_level PRM, le moteur fabriquait une chimère (date du 1er relevé,
-      # index du dernier). Corrigé après comparaison legacy-vs-dbt sur données réelles.
-      row_level: './/Donnees_Releve'
-      metadata_fields:
-        unite: 'En_Tete_Flux/Unite_Mesure_Index'
-      data_fields:
-        date_releve: 'Date_Releve'
-        pdl: '../Id_PRM'
-        id_calendrier: 'Id_Calendrier'
-        ref_situation_contractuelle: 'Ref_Situation_Contractuelle'
-        type_compteur: 'Type_Compteur'
-        motif_releve: 'Motif_Releve'
-        ref_demandeur: 'Ref_Demandeur'
-        id_affaire: 'Id_Affaire'
-      nested_fields:
-        # Index distributeur uniquement. Chaque cadran porte 2 classes Sens=0 :
-        # Classe_Mesure=1 = index cumulé, Classe_Mesure=2 = énergie de période. Sans
-        # condition, le « dernier-écrit gagne » mélangeait index et conso selon l'ordre
-        # document (~75 % des index R15 faux). Condition ajoutée après comparaison
-        # legacy-vs-dbt sur données réelles (cf. flux_r15.sql).
-        - prefix: ''
-          child_path: 'Classe_Temporelle_Distributeur'
-          id_field: 'Id_Classe_Temporelle'
-          value_field: 'Valeur'
-          conditions:
-            - xpath: 'Classe_Mesure'
-              value: '1'
-            - xpath: 'Sens_Mesure'
-              value: '0'
-
-    - name: "flux_r15_acc"
-      file_regex: "*.xml"  # Même fichiers XML - traitement autoconsommation collective
-      # Grain = le relevé (cf. flux_r15).
-      row_level: './/Donnees_Releve'
-      metadata_fields:
-        unite: 'En_Tete_Flux/Unite_Mesure_Index'
-      data_fields:
-        pdl: '../Id_PRM'
-        date_releve: 'Date_Releve'
-        id_calendrier: 'Id_Calendrier'
-        id_calendrier_distributeur: 'Id_Calendrier_Distributeur'
-        ref_situation_contractuelle: 'Ref_Situation_Contractuelle'
-        type_compteur: 'Type_Compteur'
-        motif_releve: 'Motif_Releve'
-        id_affaire: 'Id_Affaire'
-        nature_index: 'Nature_Index'
-        statut_releve: 'Statut_Releve'
-        autoconsommation_collective: 'Autoconsommation_Collective'
-      nested_fields:
-        # Classe 3 - Énergie active autoproduite
-        - prefix: 'ea_autoproduite_'
-          child_path: 'Classe_Temporelle_Distributeur'
-          id_field: 'Id_Classe_Temporelle'
-          value_field: 'Valeur'
-          conditions:
-            - xpath: 'Classe_Mesure'
-              value: '3'
-        # Classe 4 - Énergie active alloproduite
-        - prefix: 'ea_alloproduite_'
-          child_path: 'Classe_Temporelle_Distributeur'
-          id_field: 'Id_Classe_Temporelle'
-          value_field: 'Valeur'
-          conditions:
-            - xpath: 'Classe_Mesure'
-              value: '4'
-        # Classe 5 - Énergie active autoconsommée
-        - prefix: 'ea_autoconsommee_'
-          child_path: 'Classe_Temporelle_Distributeur'
-          id_field: 'Id_Classe_Temporelle'
-          value_field: 'Valeur'
-          conditions:
-            - xpath: 'Classe_Mesure'
-              value: '5'
-        # Classe 6 - Énergie active en surplus
-        - prefix: 'ea_surplus_'
-          child_path: 'Classe_Temporelle_Distributeur'
-          id_field: 'Id_Classe_Temporelle'
-          value_field: 'Valeur'
-          conditions:
-            - xpath: 'Classe_Mesure'
-              value: '6'
+  format: xml
+  file_regex: "*.xml"
 
 R151:
   file_pattern: "**/*_R151_*.zip"
-  xml_configs:
-    - name: "flux_r151"
-      file_regex: "*.xml"  # Tous les XML R151
-      # Grain = le relevé (Donnees_Releve) : 397 PRM observés avec plusieurs relevés
-      # par fichier (jusqu'à 20) — row_level PRM fabriquait une chimère et perdait
-      # les relevés suivants (cf. flux_r15).
-      row_level: './/Donnees_Releve'
-      metadata_fields:
-        unite: 'En_Tete_Flux/Unite_Mesure_Index'
-      data_fields:
-        date_releve: 'Date_Releve'
-        pdl: '../Id_PRM'
-        id_calendrier_fournisseur: 'Id_Calendrier_Fournisseur'
-        id_affaire: 'Id_Affaire'
-        id_calendrier_distributeur: 'Id_Calendrier_Distributeur'
-      nested_fields:
-        - prefix: ''
-          child_path: 'Classe_Temporelle_Distributeur'
-          id_field: 'Id_Classe_Temporelle'
-          value_field: 'Valeur'
+  format: xml
+  file_regex: "*.xml"
 
 R64:
-  file_pattern: "**/R63_R64_R65_R66_R67_C68/*_R64_*.zip"  # Fichiers ZIP avec données JSON
-  json_configs:
-    - name: "flux_r64"
-      file_regex: "*.JSON"  # JSON en majuscules dans les ZIPs R64
-      # Configuration spéciale R64 - utilise un transformer dédié pour les timeseries
-      transformer_type: "r64_timeseries"  # Indication pour utiliser le transformer R64 spécialisé
-      primary_key: ["pdl", "type_releve", "date_releve"]  # Déduplication sur PDL + type + date
-
+  file_pattern: "**/R63_R64_R65_R66_R67_C68/*_R64_*.zip"
+  format: json
+  file_regex: "*.JSON"  # JSON en majuscules dans les ZIPs R64

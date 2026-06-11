@@ -17,7 +17,8 @@ electricore/etl/
 ├── config/
 │   ├── flux.yaml           # Configuration des flux
 │   └── settings.py
-├── pipeline_production.py  # Point d'entrée
+├── pipeline_dbt.py         # Point d'entrée (landing brut → dbt build)
+├── dbt/                    # Modèles dbt (staging + flux_*)
 └── .dlt/
     ├── config.toml
     └── secrets.toml        # Clés AES + URL SFTP (non commité)
@@ -27,10 +28,11 @@ electricore/etl/
 
 ```bash
 # Depuis electricore/etl/
-uv run --extra etl python pipeline_production.py test    # 2 fichiers, ~3s
-uv run --extra etl python pipeline_production.py r151   # R151 complet
-uv run --extra etl python pipeline_production.py all    # Tous les flux
-uv run --extra etl python pipeline_production.py reset  # Reset complet (supprime données + état)
+uv run --extra etl --extra dbt python pipeline_dbt.py test    # 2 fichiers/flux
+uv run --extra etl --extra dbt python pipeline_dbt.py r151    # un seul flux
+uv run --extra etl --extra dbt python pipeline_dbt.py all     # tous les flux
+uv run --extra etl --extra dbt python pipeline_dbt.py rebuild # dbt seul, zéro réseau
+uv run --extra etl --extra dbt python pipeline_dbt.py resync  # re-télécharge tout (brut perdu)
 ```
 
 ## Configuration (`secrets.toml`)
@@ -80,7 +82,7 @@ DLT stocke l'état dans deux endroits (fichier local + DuckDB). Pour réinitiali
 
 ```bash
 # Reset complet (supprime données et état, repart de zéro)
-uv run --extra etl python pipeline_production.py reset
+uv run --extra etl --extra dbt python pipeline_dbt.py resync
 
 # Reset des curseurs uniquement (conserve les données)
 uv run --extra etl python tools/reset_incremental_state.py --clear

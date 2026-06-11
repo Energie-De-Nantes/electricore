@@ -1,10 +1,11 @@
-"""
-Source DLT pour les flux Enedis via SFTP avec architecture modulaire.
-Utilise le chaînage de transformers DLT pour une architecture propre.
+"""Brique SFTP partagée : listing incrémental des fichiers Enedis.
+
+La source de production est `sftp_enedis_brut.flux_enedis_brut` (landing brut,
+ADR-0020) ; ce module ne porte plus que la resource de mouvement réutilisable
+(`create_sftp_resource`) et l'aide de log `mask_password_in_url`.
 """
 
 import logging
-import os
 import re
 
 import dlt
@@ -36,16 +37,6 @@ def mask_password_in_url(url: str) -> str:
     # Capture: protocole://user:password@host (uniquement si user:password présent)
     pattern = r"([a-z][a-z0-9+.-]*://[^:/@]+:)[^@]+(@.+)"
     return re.sub(pattern, r"\1****\2", url)
-
-
-# Imports des transformers modulaires
-from electricore.etl.parsing import ConfigFluxXml
-from electricore.etl.transformers.archive import create_unzip_transformer
-from electricore.etl.transformers.crypto import create_decrypt_transformer
-from electricore.etl.transformers.parsers import (
-    create_json_r64_transformer,
-    create_xml_parser_transformer,
-)
 
 
 def create_sftp_resource(flux_type: str, table_name: str, file_pattern: str, sftp_url: str, max_files: int = None):
@@ -95,85 +86,3 @@ def create_sftp_resource(flux_type: str, table_name: str, file_pattern: str, sft
             yield file_item
 
     return sftp_files_resource
-
-
-@dlt.source(name="flux_enedis")
-def flux_enedis(flux_config: dict, max_files: int = None):
-    """
-    Source DLT refactorée avec architecture modulaire pour tous les flux Enedis.
-
-    Architecture unifiée :
-    - XML: SFTP → Decrypt → Unzip → XML Parse → Table
-    - CSV: SFTP → Decrypt → Unzip → CSV Parse → Table
-
-    Args:
-        flux_config: Configuration des flux depuis config/settings.py
-    """
-    # Configuration SFTP : env var SFTP__URL (chargée depuis .env) ou secrets.toml [sftp] url
-    sftp_url = os.environ.get("SFTP__URL") or dlt.secrets["sftp"]["url"]
-
-    logger.info("Source URL: %s", mask_password_in_url(sftp_url))
-
-    # Créer les transformers communs une seule fois (optimisation)
-    decrypt_transformer = create_decrypt_transformer()
-
-    # Traiter chaque type de flux
-    for flux_type, flux_config_data in flux_config.items():
-        file_pattern = flux_config_data["file_pattern"]
-
-        # === FLUX XML ===
-        if "xml_configs" in flux_config_data:
-            xml_configs = flux_config_data["xml_configs"]
-
-            for xml_config in xml_configs:
-                table_name = xml_config["name"]
-                file_regex = xml_config.get("file_regex", "*.xml")
-
-                # 1. Resource SFTP
-                sftp_resource = create_sftp_resource(flux_type, table_name, file_pattern, sftp_url, max_files)
-
-                # 2. Transformer unzip configuré pour ce flux
-                unzip_transformer = create_unzip_transformer(".xml", file_regex)
-
-                # 3. Transformer XML parser configuré (typos YAML détectées ici)
-                xml_parser = create_xml_parser_transformer(
-                    config=ConfigFluxXml.depuis_yaml(xml_config),
-                    flux_type=flux_type,
-                )
-
-                # 4. 🎯 CHAÎNAGE MODULAIRE
-                xml_pipeline = (sftp_resource | decrypt_transformer | unzip_transformer | xml_parser).with_name(
-                    table_name
-                )
-
-                xml_pipeline.apply_hints(write_disposition="append")
-                yield xml_pipeline
-
-        # === FLUX JSON (R64 uniquement — pas de linéarisation JSON générique, cf. #121) ===
-        if "json_configs" in flux_config_data:
-            for json_config in flux_config_data["json_configs"]:
-                table_name = json_config["name"]
-                file_regex = json_config.get("file_regex", "*.json")
-                transformer_type = json_config.get("transformer_type", "standard")
-                primary_key = json_config.get("primary_key", [])
-
-                if transformer_type != "r64_timeseries":
-                    raise ValueError(
-                        f"transformer_type {transformer_type!r} non supporté pour {table_name} "
-                        "(seul 'r64_timeseries' existe — le parser JSON générique a été retiré, cf. #121)"
-                    )
-
-                sftp_resource = create_sftp_resource(flux_type, table_name, file_pattern, sftp_url, max_files)
-                unzip_transformer = create_unzip_transformer(".json", file_regex)
-                json_parser = create_json_r64_transformer(flux_type=flux_type)
-
-                json_pipeline = (sftp_resource | decrypt_transformer | unzip_transformer | json_parser).with_name(
-                    table_name
-                )
-
-                if primary_key:
-                    json_pipeline.apply_hints(primary_key=primary_key, write_disposition="merge")
-                else:
-                    json_pipeline.apply_hints(write_disposition="append")
-
-                yield json_pipeline

@@ -93,13 +93,13 @@ encrypted_files | decrypt_transformer | unzip_transformer | parse_transformer
 
 ```bash
 # Test rapide (2 fichiers)
-uv run python electricore/etl/pipeline_production.py test
+uv run python electricore/etl/pipeline_dbt.py test
 
 # R151 complet (~6 secondes)
-uv run python electricore/etl/pipeline_production.py r151
+uv run python electricore/etl/pipeline_dbt.py r151
 
 # Tous les flux (production)
-uv run python electricore/etl/pipeline_production.py all
+uv run python electricore/etl/pipeline_dbt.py all
 ```
 
 **Résultat** : Base DuckDB `electricore/etl/flux_enedis_pipeline.duckdb` avec toutes les tables flux.
@@ -390,7 +390,7 @@ TELEGRAM_ALLOWED_USERS=123456789  # IDs séparés par virgule
 uv run --group test pytest -q
 
 # Pipeline ETL complet (nécessite --extra etl)
-uv run python -m electricore.etl.pipeline_production all
+uv run python -m electricore.etl.pipeline_dbt all
 
 # API FastAPI
 uv run uvicorn electricore.api.main:app --reload

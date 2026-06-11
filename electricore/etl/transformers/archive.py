@@ -48,7 +48,24 @@ def extract_files_from_zip(zip_data: bytes, file_extension: str = ".xml") -> lis
 
 
 # Import de la fonction de matching depuis parsers
-from electricore.etl.parsing import match_xml_pattern
+import fnmatch
+import re as _re
+
+
+def match_xml_pattern(nom_fichier: str, pattern: str | None) -> bool:
+    """Vrai si le nom de fichier correspond au pattern (wildcard fnmatch ou regex)."""
+    if pattern is None:
+        return True
+    try:
+        if "*" in pattern or "?" in pattern:
+            return fnmatch.fnmatch(nom_fichier, pattern)
+        return bool(_re.search(pattern, nom_fichier))
+    except _re.error:
+        try:
+            return fnmatch.fnmatch(nom_fichier, pattern)
+        except Exception:
+            return False
+
 
 # =============================================================================
 # TRANSFORMER DLT

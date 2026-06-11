@@ -161,7 +161,7 @@ def clear_all_state() -> None:
         print("\nℹ️  Aucune modification nécessaire.")
 
     print("\n→ Relancer le pipeline :")
-    print("   uv run --extra etl python pipeline_production.py all")
+    print("   uv run --extra etl python pipeline_dbt.py all")
 
 
 def reset_incremental_state(reset_to: str) -> None:
@@ -216,7 +216,7 @@ def reset_incremental_state(reset_to: str) -> None:
         print("\nℹ️  Aucune modification nécessaire.")
 
     print("\n→ Relancer le pipeline :")
-    print("   uv run --extra etl python pipeline_production.py all")
+    print("   uv run --extra etl python pipeline_dbt.py all")
 
 
 if __name__ == "__main__":

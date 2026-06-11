@@ -45,9 +45,9 @@ Conteneur Docker qui déclenche périodiquement l'ETL via cron et un appel HTTP 
 **Transformer** :
 Étape unitaire et composable de transformation d'un fichier, sous forme d'*adapter* DLT mince autour d'un noyau pur (`crypto.py` déchiffrement AES, `archive.py` extraction ZIP, `parsers.py` linéarisation). Les transformers se chaînent via le `|` de DLT : `encrypted | decrypt | unzip | parse`.
 
-**Linéarisation sélective** :
-Transformation d'un document hiérarchique (XML, JSON) en enregistrements plats — une ligne par occurrence du `row_level` — en n'extrayant *que* les champs décrits par la *Configuration de flux*. Les enregistrements produits sont, aux métadonnées DLT près, les lignes des tables DuckDB. Implémentée par le noyau pur `etl/parsing/` (sans dépendance DLT), héritée de l'ancienne lib `electriflux` (cf. [ADR-0001](../../docs/adr/0001-monorepo.md)).
+**Linéarisation** :
+Transformation d'un document hiérarchique (XML, JSON) en lignes plates typées. Vit dans les **modèles dbt** (`etl/dbt/models/` : staging = éclatement en occurrences, flux_* = sélection WHERE + pivot cadrans + types XSD), cf. [ADR-0020](../../docs/adr/0020-linearisation-en-dbt.md). Le seul étage Python est `xml_vers_dict` (conversion générique XML → dict, politique « conteneur = liste »), avant dépôt du document intégral en colonne JSON (`flux_raw.raw_*`). L'ex-moteur Python piloté par `flux.yaml` (hérité de la lib `electriflux`) a été retiré (#138).
 _Éviter_ : extraction (collision avec le E de ETL = récupération SFTP), parsing tout court (la sélection est constitutive).
 
 **Configuration de flux** :
-Entrée de `flux.yaml` décrivant, pour un type de flux : le `file_pattern` SFTP, et par table cible le `row_level` (XPath des lignes), les mappings champ → XPath (`metadata_fields`, `data_fields`) et les `nested_fields` conditionnels (ex : `Code_Qualification 1/2` → préfixes `avant_`/`apres_`). C'est le **contrat de sélection** de la linéarisation — ce qui n'y figure pas n'entre pas dans DuckDB.
+Entrée de `flux.yaml` réduite au **mouvement** : `file_pattern` (glob SFTP des zips), `format` (xml/json) et `file_regex` (fichiers à extraire). Le contrat de sélection vit dans les modèles dbt — ce qui n'est pas sélectionné par un modèle reste néanmoins disponible dans le brut (`flux_raw`), re-matérialisable à volonté (`pipeline_dbt rebuild`).
