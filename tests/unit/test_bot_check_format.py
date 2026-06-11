@@ -1,10 +1,10 @@
-"""Tests du rendu HTML du check pré-facturation (`electricore/bot/bot.py`).
+"""Tests du rendu HTML du check pré-facturation (`electricore/bot/handlers/facturation.py`).
 
 Le rendu passe en `parse_mode=HTML` (#151) : liens `<a>`, gras `<b>`,
 échappement centralisé — fin des pièges Markdown sur les noms Odoo.
 """
 
-from electricore.bot.bot import _format_check_odoo
+from electricore.bot.handlers.facturation import _format_check_odoo
 
 
 def _resultat(**surcharges) -> dict:
