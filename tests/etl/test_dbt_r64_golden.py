@@ -93,5 +93,7 @@ def test_flux_r64_reproduit_le_golden(base_avec_brut):
         ref = _sans_tracabilite(attendu)
         for k, v in ref.items():
             obt = ligne[k]
-            # date_releve : golden en str, dbt en datetime → comparaison sur la valeur.
+            # Golden typé (#135, isoformat) : les datetime se comparent en ISO.
+            if hasattr(obt, "isoformat"):
+                obt = obt.isoformat()
             assert str(obt) == str(v), f"pdl {attendu['pdl']} colonne {k}: dbt={obt!r} golden={v!r}"

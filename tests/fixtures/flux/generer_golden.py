@@ -1,75 +1,125 @@
-"""Régénère les fichiers golden (records attendus) depuis les fixtures (#121).
+"""Régénère les fichiers golden (records attendus) via le chemin dbt (#135).
 
-Parse chaque fixture avec sa Configuration de flux **réelle** (flux.yaml) et
-matérialise les records dans `golden/<table>.json`. À ne relancer que lorsqu'un
-changement de comportement du parsing est *voulu* — le diff git des golden est
-alors la revue du changement de contrat.
+L'oracle est le chemin de production lui-même : chaque fixture est convertie
+(`xml_vers_dict` / `json.loads`), landée en colonne JSON dans une DuckDB jetable,
+matérialisée par `dbt build`, et les lignes de la table `flux_enedis.flux_*` sont
+figées dans `golden/<cas>.json` — valeurs typées (nombres, horodatages ISO),
+sans colonnes nulles, triées pour un diff git stable.
+
+À ne relancer que lorsqu'un changement de comportement est *voulu* — le diff git
+des golden est alors la revue du changement de contrat. Toute évolution de flux
+Enedis (nouvelle version XSD, nouveau champ exposé) passe par ici.
 
 Usage :
     uv run python tests/fixtures/flux/generer_golden.py
 """
 
 import json
+import os
+import tempfile
+from datetime import date, datetime
 from pathlib import Path
-
-import yaml
-
-from electricore.etl.parsing import ConfigFluxXml, TracabiliteFlux, parser_flux_r64, parser_flux_xml
 
 ICI = Path(__file__).parent
 RACINE = ICI.parents[2]
+PROJET_DBT = RACINE / "electricore" / "etl" / "dbt"
 
-# (fixture, flux, index dans xml_configs, cas) — une entrée par fichier golden.
-# `cas` nomme le golden ; None → nom de la table (entry['name']). Plusieurs fixtures
-# peuvent cibler la même table via des `cas` distincts (cas réel vs edge-case forgé).
-FIXTURES: list[tuple[str, str, int, str | None]] = [
-    ("c15_avec_releves.xml", "C15", 0, None),
-    ("f12.xml", "F12", 0, None),
-    ("f15.xml", "F15", 0, None),
-    ("r15.xml", "R15", 0, None),
-    ("r15.xml", "R15", 1, None),  # flux_r15_acc sur fixture réelle → aucune donnée ACC
+# (fixture, table brute, modèle dbt, cas) — une entrée par fichier golden.
+# `cas` nomme le golden ; None → nom du modèle. Plusieurs fixtures peuvent viser le
+# même modèle via des `cas` distincts (échantillon réel anonymisé vs edge-case forgé
+# vs fixture XSD maximale).
+CAS_GOLDEN: list[tuple[str, str, str, str | None]] = [
+    ("c15_avec_releves.xml", "raw_c15", "flux_c15", None),
+    ("f12.xml", "raw_f12", "flux_f12_detail", None),
+    ("f15.xml", "raw_f15", "flux_f15_detail", None),
+    ("r15.xml", "raw_r15", "flux_r15", None),
+    ("r15.xml", "raw_r15", "flux_r15_acc", "flux_r15_acc"),
     # Edge-case forgé (schéma-valide R15 v2.3.2) : ACC peuplé, classes 3-6, 2 cadrans.
-    ("r15_acc.xml", "R15", 1, "flux_r15_acc_peuple"),
-    ("r151.xml", "R151", 0, None),
+    ("r15_acc.xml", "raw_r15", "flux_r15_acc", "flux_r15_acc_peuple"),
+    ("r151.xml", "raw_r151", "flux_r151", None),
     # Fixtures générées depuis les XSD Enedis (generer_fixtures_xsd.py) : instances
-    # maximales (optionnels présents, enums cyclées) — filet « on ne casse pas
-    # l'ingestion » sur des champs que les échantillons réels n'exercent pas.
-    ("c15_xsd.xml", "C15", 0, "flux_c15_xsd"),
-    ("r15_xsd.xml", "R15", 0, "flux_r15_xsd"),
-    ("r15_xsd.xml", "R15", 1, "flux_r15_acc_xsd"),
-    ("r151_xsd.xml", "R151", 0, "flux_r151_xsd"),
-    ("f12_xsd.xml", "F12", 0, "flux_f12_detail_xsd"),
-    ("f15_xsd.xml", "F15", 0, "flux_f15_detail_xsd"),
+    # maximales (optionnels présents, enums cyclées).
+    ("c15_xsd.xml", "raw_c15", "flux_c15", "flux_c15_xsd"),
+    ("r15_xsd.xml", "raw_r15", "flux_r15", "flux_r15_xsd"),
+    ("r15_xsd.xml", "raw_r15", "flux_r15_acc", "flux_r15_acc_xsd"),
+    ("r151_xsd.xml", "raw_r151", "flux_r151", "flux_r151_xsd"),
+    ("f12_xsd.xml", "raw_f12", "flux_f12_detail", "flux_f12_detail_xsd"),
+    ("f15_xsd.xml", "raw_f15", "flux_f15_detail", "flux_f15_detail_xsd"),
+    # R64 : document JSON natif, même landing.
+    ("r64.json", "raw_r64", "flux_r64", None),
 ]
 
-# Traçabilité fixe → golden déterministes
-TRACABILITE_FIXE = "2026-01-01T00:00:00"
+
+def _serialisable(valeur):
+    if isinstance(valeur, (datetime, date)):
+        return valeur.isoformat()
+    return valeur
 
 
-def tracabilite(nom: str, flux: str) -> TracabiliteFlux:
-    return TracabiliteFlux(
-        source_zip="fixture.zip", nom_fichier=nom, flux_type=flux, modification_date=TRACABILITE_FIXE
+def lignes_via_dbt(fixture: Path, source: str, model: str) -> list[dict]:
+    """Matérialise une fixture par le chemin de production et rend les lignes du modèle.
+
+    Mêmes étapes que la prod (landing JSON → dbt build) ; les colonnes nulles sont
+    omises et les lignes triées pour un golden stable.
+    """
+    import dlt
+    import duckdb
+    from dbt.cli.main import dbtRunner
+
+    from electricore.etl.parsing.xml import xml_vers_dict
+    from electricore.etl.raw_landing import lander_documents_bruts
+
+    contenu = fixture.read_bytes()
+    document = json.loads(contenu) if fixture.suffix == ".json" else xml_vers_dict(contenu)
+
+    dossier = tempfile.mkdtemp(prefix="golden_dbt_")
+    db_path = os.path.join(dossier, "flux.duckdb")
+    pipeline = dlt.pipeline(
+        pipeline_name=f"golden_{model}_{Path(dossier).name}",
+        destination=dlt.destinations.duckdb(db_path),
+        dataset_name="flux_raw",
     )
+    lander_documents_bruts(
+        pipeline,
+        source,
+        [{"file_name": fixture.name, "modification_date": "2026-01-01T00:00:00", "content": document}],
+    )
+    os.environ["DBT_DUCKDB_PATH"] = db_path
+    resultat = dbtRunner().invoke(
+        [
+            "build",
+            "--select",
+            f"+{model}",
+            "--project-dir",
+            str(PROJET_DBT),
+            "--profiles-dir",
+            str(PROJET_DBT),
+            "--target-path",
+            os.path.join(dossier, "target"),
+        ]
+    )
+    if not resultat.success:
+        raise RuntimeError(f"dbt build {model} a échoué sur {fixture.name} : {resultat.exception}")
+
+    con = duckdb.connect(db_path)
+    curseur = con.execute(f"select * from flux_enedis.{model}")
+    colonnes = [d[0] for d in curseur.description]
+    lignes = [
+        {cle: _serialisable(val) for cle, val in zip(colonnes, ligne, strict=True) if val is not None}
+        for ligne in curseur.fetchall()
+    ]
+    con.close()
+    return sorted(lignes, key=lambda r: json.dumps(r, sort_keys=True, ensure_ascii=False))
 
 
 def main() -> None:
-    config_flux = yaml.safe_load((RACINE / "electricore/etl/config/flux.yaml").read_text())
     dossier_golden = ICI / "golden"
     dossier_golden.mkdir(exist_ok=True)
-
-    for nom, flux, idx, cas in FIXTURES:
-        entry = config_flux[flux]["xml_configs"][idx]
-        config = ConfigFluxXml.depuis_yaml(entry)
-        records = list(parser_flux_xml((ICI / nom).read_bytes(), config, tracabilite(nom, flux)))
-        cible = dossier_golden / f"{cas or entry['name']}.json"
+    for fixture, source, model, cas in CAS_GOLDEN:
+        records = lignes_via_dbt(ICI / fixture, source, model)
+        cible = dossier_golden / f"{cas or model}.json"
         cible.write_text(json.dumps(records, ensure_ascii=False, indent=2) + "\n")
-        print(f"{cible.name}: {len(records)} record(s) depuis {nom}")
-
-    # R64 : parser JSON spécialisé, pas de ConfigFluxXml
-    records = list(parser_flux_r64((ICI / "r64.json").read_bytes(), tracabilite("r64.json", "R64")))
-    cible = dossier_golden / "flux_r64.json"
-    cible.write_text(json.dumps(records, ensure_ascii=False, indent=2) + "\n")
-    print(f"{cible.name}: {len(records)} record(s) depuis r64.json")
+        print(f"{cible.name}: {len(records)} record(s) depuis {fixture}")
 
 
 if __name__ == "__main__":

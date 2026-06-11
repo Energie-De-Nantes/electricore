@@ -1,17 +1,12 @@
-"""Tests de caractérisation du parsing flux au seam pur bytes → records (#121).
+"""Invariants sémantiques du parseur legacy (#121) — partent avec lui (#138).
 
-Le filet de la discovery #55 : chaque fixture (fichier Enedis réel anonymisé,
-cf. `tests/fixtures/flux/anonymiser.py`) est linéarisée avec sa Configuration
-de flux **réelle** (flux.yaml) et comparée aux records golden. Les records
-sont, aux métadonnées DLT près, les lignes des tables DuckDB — toute
-réécriture du parsing (lib, ELT, typage #55-D) doit préserver ces valeurs,
-seul le harnais changerait.
-
-Régénération volontaire : `uv run python tests/fixtures/flux/generer_golden.py`
-(le diff git des golden est alors la revue du changement de contrat).
+Les comparaisons golden vivent désormais côté dbt (test_dbt_flux_golden, oracle
+re-plateformé en #135) : les golden sont typés et générés par le chemin de
+production. Ce module ne garde que les invariants lisibles du parseur legacy
+(avant/après C15, filtres calendriers, traçabilité, allowlist ConfigFluxXml),
+encore utiles tant que le code legacy existe.
 """
 
-import json
 from pathlib import Path
 
 import pytest
@@ -40,53 +35,6 @@ def _parser(config_flux: dict, fixture: str, flux: str, idx: int) -> tuple[list[
     config = ConfigFluxXml.depuis_yaml(entry)
     records = list(parser_flux_xml((FIXTURES / fixture).read_bytes(), config, _tracabilite(fixture, flux)))
     return records, entry["name"]
-
-
-# ---------------------------------------------------------------------------
-# Golden : fixture × Configuration de flux réelle → records exacts
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize(
-    ("fixture", "flux", "idx", "cas"),
-    [
-        # Fixtures réelles anonymisées (cas=None → golden au nom de la table).
-        ("c15_avec_releves.xml", "C15", 0, None),
-        ("f12.xml", "F12", 0, None),
-        ("f15.xml", "F15", 0, None),
-        ("r15.xml", "R15", 0, None),
-        ("r15.xml", "R15", 1, None),
-        ("r151.xml", "R151", 0, None),
-        # Fixtures générées depuis les XSD Enedis (instances maximales, schéma-valides
-        # par construction — generer_fixtures_xsd.py). Filet « on ne casse pas
-        # l'ingestion » sur les optionnels/enums que les échantillons réels n'exercent pas.
-        ("c15_xsd.xml", "C15", 0, "flux_c15_xsd"),
-        ("r15_xsd.xml", "R15", 0, "flux_r15_xsd"),
-        ("r15_xsd.xml", "R15", 1, "flux_r15_acc_xsd"),
-        ("r151_xsd.xml", "R151", 0, "flux_r151_xsd"),
-        ("f12_xsd.xml", "F12", 0, "flux_f12_detail_xsd"),
-        ("f15_xsd.xml", "F15", 0, "flux_f15_detail_xsd"),
-    ],
-    ids=[
-        "c15",
-        "f12",
-        "f15",
-        "r15",
-        "r15_acc",
-        "r151",
-        "c15_xsd",
-        "r15_xsd",
-        "r15_acc_xsd",
-        "r151_xsd",
-        "f12_xsd",
-        "f15_xsd",
-    ],
-)
-def test_linearisation_golden(config_flux, fixture, flux, idx, cas):
-    """La linéarisation d'une fixture (réelle ou dérivée du XSD) est figée au record près."""
-    records, table = _parser(config_flux, fixture, flux, idx)
-    attendu = json.loads((FIXTURES / "golden" / f"{cas or table}.json").read_text())
-    assert records == attendu
 
 
 # ---------------------------------------------------------------------------
@@ -122,13 +70,6 @@ def test_r151_extrait_les_4_cadrans_et_ignore_le_calendrier_inconnu(config_flux)
     (record,) = records
     cadrans = {k for k in record if k.startswith("index_")}
     assert {"index_hph_kwh", "index_hch_kwh", "index_hpb_kwh", "index_hcb_kwh"} <= cadrans
-
-
-def test_r64_golden():
-    """La linéarisation R64 (JSON wide) est figée au record près."""
-    records = list(parser_flux_r64((FIXTURES / "r64.json").read_bytes(), _tracabilite("r64.json", "R64")))
-    attendu = json.loads((FIXTURES / "golden" / "flux_r64.json").read_text())
-    assert records == attendu
 
 
 def test_r64_ne_garde_que_les_calendriers_distributeur():

@@ -1,58 +1,42 @@
 [
   {
-    "date_releve": "2024-06-15",
     "pdl": "99100000000000",
+    "date_releve": "2024-06-15",
     "id_calendrier_fournisseur": "TEXTE",
-    "id_affaire": "ABCD",
     "id_calendrier_distributeur": "TEXTE",
-    "index_base_kwh": "5218",
-    "index_hp_kwh": "5329",
+    "id_affaire": "ABCD",
     "unite": "TEXTE",
-    "_source_zip": "fixture.zip",
-    "_flux_type": "R151",
-    "_xml_name": "r151_xsd.xml",
-    "modification_date": "2026-01-01T00:00:00"
+    "index_base_kwh": 5218,
+    "index_hp_kwh": 5329
   },
   {
-    "date_releve": "2024-06-15",
     "pdl": "99100000000000",
+    "date_releve": "2024-06-15",
     "id_calendrier_fournisseur": "TEXTE",
-    "id_affaire": "ABCD",
     "id_calendrier_distributeur": "TEXTE",
-    "index_base_kwh": "5662",
-    "index_hp_kwh": "5773",
+    "id_affaire": "ABCD",
     "unite": "TEXTE",
-    "_source_zip": "fixture.zip",
-    "_flux_type": "R151",
-    "_xml_name": "r151_xsd.xml",
-    "modification_date": "2026-01-01T00:00:00"
+    "index_base_kwh": 5662,
+    "index_hp_kwh": 5773
   },
   {
-    "date_releve": "2024-06-15",
     "pdl": "99100000000001",
+    "date_releve": "2024-06-15",
     "id_calendrier_fournisseur": "TEXTE",
-    "id_affaire": "ABCD",
     "id_calendrier_distributeur": "TEXTE",
-    "index_base_kwh": "6106",
-    "index_hp_kwh": "6217",
+    "id_affaire": "ABCD",
     "unite": "TEXTE",
-    "_source_zip": "fixture.zip",
-    "_flux_type": "R151",
-    "_xml_name": "r151_xsd.xml",
-    "modification_date": "2026-01-01T00:00:00"
+    "index_base_kwh": 6106,
+    "index_hp_kwh": 6217
   },
   {
-    "date_releve": "2024-06-15",
     "pdl": "99100000000001",
+    "date_releve": "2024-06-15",
     "id_calendrier_fournisseur": "TEXTE",
-    "id_affaire": "ABCD",
     "id_calendrier_distributeur": "TEXTE",
-    "index_base_kwh": "6550",
-    "index_hp_kwh": "6661",
+    "id_affaire": "ABCD",
     "unite": "TEXTE",
-    "_source_zip": "fixture.zip",
-    "_flux_type": "R151",
-    "_xml_name": "r151_xsd.xml",
-    "modification_date": "2026-01-01T00:00:00"
+    "index_base_kwh": 6550,
+    "index_hp_kwh": 6661
   }
 ]
