@@ -7,6 +7,51 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
+## [2.0.0rc1] - 2026-06-11
+
+### 🏗️ Ingestion ELT : la linéarisation des flux vit en dbt (ADR-0020 → ADR-0021)
+
+Release **majeure** : le chemin d'ingestion maison (parseur Python piloté par le DSL
+`flux.yaml`) est remplacé par une architecture ELT — dlt dépose les documents Enedis
+**intégraux** en colonne JSON (`flux_raw`), dbt les linéarise en SQL (`flux_enedis`).
+Parité record-par-record prouvée 3× (golden, cache local 4 400 XML, corpus SFTP
+complet ~700 k lignes, 7/7 tables). Guide : [docs/ingestion.md](docs/ingestion.md).
+
+#### 💥 Breaking
+
+- **Historique re-matérialisé ≠ legacy là où le legacy avait tort** : la validation a
+  corrigé 5 défauts latents — relevés agrégés par PDL (chimères inter-événements),
+  ~75 % des index R15 mélangeant index/consommation, relevés multiples perdus (jusqu'à
+  20/PRM sur R151), re-livraisons F15 double-comptées (261 lignes), gagnant R64
+  arbitraire. Le grain des tables R15/R151 devient **le relevé**.
+- **`pipeline_production.py` supprimé** → `pipeline_dbt.py` (modes `test`/`all`/
+  sélection/`rebuild`/`resync` ; `reset` déprécié, alias de `resync`).
+- **`flux.yaml` réduit au mouvement** (`file_pattern`/`format`/`file_regex`) — le DSL
+  de sélection (`row_level`/`data_fields`/`nested_fields`) disparaît avec le moteur.
+- L'image Docker embarque l'extra `dbt` ; premier run : nouvel état incrémental
+  (re-téléchargement complet, ~15 min), tables `flux_enedis` remplacées par les
+  versions typées.
+
+#### ✨ Nouveau
+
+- **Mode `rebuild`** : re-matérialiser toutes les tables depuis le brut, zéro réseau
+  (~13 s pour 700 k lignes) — le geste standard après un changement de modèle.
+- **Types à la source** (XSD Enedis) : TIMESTAMPTZ/DATE/BIGINT/DOUBLE portés par les
+  tables ; instants ancrés `Europe/Paris` indépendamment du fuseau de session ;
+  domaine de cadrans fermé (contrat de colonnes stable).
+- **Dédup par construction** : re-livraisons Enedis (merge `file_name`), R64
+  multi-fenêtres (gagnant déterministe = livraison la plus récente).
+- **Filet d'ingestion en CI** : golden générés par le chemin de production, fixtures
+  XSD maximales, data tests dbt + contrat de types.
+- `docs/ingestion.md` (schéma Excalidraw + recettes), `docs/configuration.md`
+  (inventaire complet), ADR-0020/0021.
+
+#### 🔧 Corrections
+
+- `DUCKDB_PATH` honoré par le runner (volume Docker) ; smoke-test release réaligné.
+
+---
+
 ## [1.7.0] - 2026-06-07
 
 ### 🏗️ core/ ERP-agnostique + déploiement script-first + API épaisse
