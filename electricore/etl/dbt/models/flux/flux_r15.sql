@@ -1,7 +1,9 @@
 -- Linéarisation R15 : une ligne par RELEVÉ, index par cadran en colonnes.
 --
--- Le staging porte le grain relevé (releve_id). date_releve R15 est un horodatage
--- avec offset (instant-correct → TIMESTAMPTZ).
+-- Index distributeur uniquement : Classe_Mesure = 1 (index cumulé) et Sens_Mesure = 0
+-- (soutirage) — même condition que flux.yaml. Agrégation conditionnelle sur le
+-- DOMAINE FERMÉ des 7 cadrans (cf. flux_r151) : contrat de colonnes stable pour
+-- les loaders core. Extraction en colonnes nommées AVANT le filtre (anti-pushdown).
 
 with flat as (
     select
@@ -24,27 +26,34 @@ classes as (
         unnest(cast(releve -> '$.Classe_Temporelle_Distributeur' as json[])) as c(classe)
 ),
 
--- Extraction en colonnes nommées AVANT le filtre (anti-pushdown, cf. flux_c15).
 extrait as (
     select
         releve_id,
-        classe ->> '$.Classe_Mesure'                                as classe_mesure,
-        classe ->> '$.Sens_Mesure'                                  as sens_mesure,
-        'index_' || lower(classe ->> '$.Id_Classe_Temporelle') || '_kwh' as cadran_col,
-        cast(classe ->> '$.Valeur' as bigint)                      as valeur
+        classe ->> '$.Classe_Mesure'               as classe_mesure,
+        classe ->> '$.Sens_Mesure'                 as sens_mesure,
+        lower(classe ->> '$.Id_Classe_Temporelle') as cadran,
+        cast(classe ->> '$.Valeur' as bigint)      as valeur
     from classes
 ),
 
--- Index distributeur uniquement : Classe_Mesure = 1 (index cumulé) et Sens_Mesure = 0
--- (soutirage) — même condition que flux.yaml (corrigée après comparaison réelle).
 filtre as (
-    select releve_id, cadran_col, valeur
+    select releve_id, cadran, valeur
     from extrait
     where classe_mesure = '1' and sens_mesure = '0'
 ),
 
-pivot_cadrans as (
-    pivot filtre on cadran_col using first(valeur) group by releve_id
+cadrans as (
+    select
+        releve_id,
+        max(case when cadran = 'base' then valeur end) as index_base_kwh,
+        max(case when cadran = 'hp' then valeur end) as index_hp_kwh,
+        max(case when cadran = 'hc' then valeur end) as index_hc_kwh,
+        max(case when cadran = 'hph' then valeur end) as index_hph_kwh,
+        max(case when cadran = 'hpb' then valeur end) as index_hpb_kwh,
+        max(case when cadran = 'hch' then valeur end) as index_hch_kwh,
+        max(case when cadran = 'hcb' then valeur end) as index_hcb_kwh
+    from filtre
+    group by releve_id
 )
 
-select * exclude (releve_id) from flat left join pivot_cadrans using (releve_id)
+select * exclude (releve_id) from flat left join cadrans using (releve_id)

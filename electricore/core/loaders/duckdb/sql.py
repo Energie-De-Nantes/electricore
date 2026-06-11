@@ -133,6 +133,16 @@ def col_cast_timestamp(name: str) -> Column:
     return Column(name=name, sql_expr=f"CAST({name} AS TIMESTAMP)")
 
 
+def col_paris(name: str) -> Column:
+    """Colonne temporelle naïve (DATE/TIMESTAMP sans fuseau) ancrée en Europe/Paris.
+
+    Les sources Enedis sans offset sont des heures-mur Paris : l'ancrage explicite
+    (timezone(...)) rend l'instant correct quel que soit le fuseau de session DuckDB
+    (poste local, CI, VPS). Les colonnes déjà TIMESTAMPTZ n'en ont pas besoin.
+    """
+    return Column(name=name, sql_expr=f"timezone('Europe/Paris', CAST({name} AS TIMESTAMP))")
+
+
 def col_cast_null_varchar(alias: str) -> Column:
     """Colonne NULL castée en VARCHAR avec alias."""
     return Column(name=alias, sql_expr="CAST(NULL AS VARCHAR)", alias=alias)
@@ -209,7 +219,11 @@ SCHEMA_R151 = FluxSchema(
     table="flux_enedis.flux_r151",
     columns=(
         # Date avec harmonisation (convention fin de journée → début de journée)
-        Column(name="date_releve", sql_expr="CAST(date_releve AS TIMESTAMP) + INTERVAL '1 day'", alias="date_releve"),
+        Column(
+            name="date_releve",
+            sql_expr="timezone('Europe/Paris', CAST(date_releve AS TIMESTAMP) + INTERVAL '1 day')",
+            alias="date_releve",
+        ),
         col_simple("pdl"),
         col_cast_null_varchar("ref_situation_contractuelle"),
         col_cast_null_varchar("formule_tarifaire_acheminement"),
@@ -274,7 +288,7 @@ SCHEMA_F15 = FluxSchema(
     flux_name="F15",
     table="flux_enedis.flux_f15_detail",
     columns=(
-        col_cast_timestamp("date_facture"),
+        col_paris("date_facture"),
         col_simple("pdl"),
         col_simple("num_facture"),
         col_simple("type_facturation"),
@@ -288,8 +302,8 @@ SCHEMA_F15 = FluxSchema(
         col_cast_double("prix_unitaire"),
         col_cast_double("quantite"),
         col_cast_double("montant_ht"),
-        col_cast_timestamp("date_debut"),
-        col_cast_timestamp("date_fin"),
+        col_paris("date_debut"),
+        col_paris("date_fin"),
         col_simple("libelle_ev"),
         col_literal("flux_F15", "source"),
     ),
@@ -301,7 +315,7 @@ SCHEMA_R64 = FluxSchema(
     flux_name="R64",
     table="flux_enedis.flux_r64",
     columns=(
-        col_cast_timestamp("date_releve"),
+        col_paris("date_releve"),
         col_simple("pdl"),
         col_simple("etape_metier"),
         col_simple("contexte_releve"),
@@ -357,9 +371,9 @@ FLUX_SCHEMAS: dict[str, FluxSchema] = {
 
 BASE_QUERY_RELEVES_UNIFIES = """
 WITH releves_unifies AS (
-    -- Flux R151 (relevés périodiques)
+    -- Flux R151 (relevés périodiques) — date nue ancrée en heure-mur Paris
     SELECT
-        CAST(date_releve AS TIMESTAMP) as date_releve,
+        timezone('Europe/Paris', CAST(date_releve AS TIMESTAMP)) as date_releve,
         pdl,
         CAST(NULL AS VARCHAR) as ref_situation_contractuelle,
         CAST(NULL AS VARCHAR) as formule_tarifaire_acheminement,
@@ -433,7 +447,7 @@ WITH releves_harmonises AS (
     -- Convention harmonisée : date J = début jour J
     -- Donc R151 : date J → J+1 pour harmoniser
     SELECT
-        CAST(date_releve AS TIMESTAMP) + INTERVAL '1 day' as date_releve,
+        timezone('Europe/Paris', CAST(date_releve AS TIMESTAMP) + INTERVAL '1 day') as date_releve,
         pdl,
         CAST(false AS BOOLEAN) as ordre_index,
         CAST(index_hp_kwh AS DOUBLE) as index_hp_kwh,
@@ -464,7 +478,7 @@ WITH releves_harmonises AS (
 
     -- Flux R64 (relevés JSON timeseries)
     SELECT
-        CAST(date_releve AS TIMESTAMP) as date_releve,
+        timezone('Europe/Paris', CAST(date_releve AS TIMESTAMP)) as date_releve,
         pdl,
         CAST(false AS BOOLEAN) as ordre_index,
         CAST(index_hp_kwh AS DOUBLE) as index_hp_kwh,
