@@ -1,46 +1,157 @@
--- Linéarisation R64 : une ligne par (PDL, date de relevé), cadrans en colonnes.
+-- Linéarisation R64 : une ligne par (mesure, date de relevé), cadrans en colonnes.
 --
--- Remplace les ~250 lignes Python de `etl/parsing/r64.py` (cf. ADR-0020). La
--- sélection « calendrier distributeur uniquement » (is_valid_calendrier) devient
--- un WHERE ; le pivot wide « 1 mesure × N classes × N dates » devient un PIVOT.
+-- Sémantique = le parser legacy (etl/parsing/r64.py), validée par golden :
+-- - métadonnées (étape, contexte, grandeur, unité) du PREMIER couple
+--   contexte/grandeur valide (grandeurMetier=CONS, grandeurPhysique=EA) ;
+-- - points collectés sur TOUS les couples valides, calendriers distributeur
+--   uniquement, classes SANS idClasseTemporelle ignorées, points iv=0 ;
+-- - pivot par (mesure, date) — pas par PDL (grain occurrence, cf. C15/R15).
+--
+-- Accès JSON tolérant + extraction en colonnes nommées AVANT tout filtre
+-- (anti-pushdown DuckDB, cf. flux_c15).
 
-with points as (
+with contextes as (
     select
-        m.unnest."idPrm"                                                   as pdl,
-        ctx.unnest."etapeMetier"                                           as etape_metier,
-        ctx.unnest."contexteReleve"                                        as contexte_releve,
-        ctx.unnest."typeReleve"                                            as type_releve,
-        g.unnest."grandeurPhysique"                                        as grandeur_physique,
-        g.unnest."grandeurMetier"                                          as grandeur_metier,
-        g.unnest.unite                                                     as unite,
-        s.header."idDemande"                                               as id_demande,
-        s.header."siDemandeur"                                             as si_demandeur,
-        s.header."codeFlux"                                                as code_flux,
-        s.header.format                                                    as format,
-        'index_' || lower(ct.unnest."idClasseTemporelle") || '_kwh'        as cadran_col,
-        v.unnest.d                                                         as date_releve,
-        v.unnest.v                                                         as valeur
-    from {{ ref('stg_r64') }} s,
-        unnest(s.mesures) as m,
-        unnest(m.unnest.contexte) as ctx,
-        unnest(ctx.unnest.grandeur) as g,
-        unnest(g.unnest.calendrier) as cal,
-        unnest(cal.unnest."classeTemporelle") as ct,
-        unnest(ct.unnest.valeur) as v
-    where g.unnest."grandeurMetier" = 'CONS'
-      and g.unnest."grandeurPhysique" = 'EA'
-      -- Seuls les calendriers distributeur entrent dans les tables (is_valid_calendrier).
+        mesure_id,
+        mesure ->> '$.idPrm' as pdl,
+        generate_subscripts(ctxs, 1) as ctx_i,
+        unnest(ctxs)                 as ctx
+    from (
+        select mesure_id, mesure, cast(mesure -> '$.contexte' as json[]) as ctxs
+        from {{ ref('stg_r64') }}
+    )
+),
+
+grandeurs as (
+    select
+        mesure_id,
+        pdl,
+        ctx_i,
+        ctx,
+        generate_subscripts(gs, 1) as g_i,
+        unnest(gs)                 as g
+    from (
+        select mesure_id, pdl, ctx_i, ctx, cast(ctx -> '$.grandeur' as json[]) as gs
+        from contextes
+    )
+),
+
+grandeurs_extraites as (
+    select
+        mesure_id,
+        pdl,
+        ctx_i,
+        g_i,
+        ctx ->> '$.etapeMetier'      as etape_metier,
+        ctx ->> '$.contexteReleve'   as contexte_releve,
+        ctx ->> '$.typeReleve'       as type_releve,
+        g ->> '$.grandeurMetier'     as grandeur_metier,
+        g ->> '$.grandeurPhysique'   as grandeur_physique,
+        g ->> '$.unite'              as unite,
+        g
+    from grandeurs
+),
+
+-- Métadonnées : premier couple contexte/grandeur CONS+EA de chaque mesure.
+meta as (
+    select *
+    from (
+        select
+            mesure_id, pdl, etape_metier, contexte_releve, type_releve,
+            grandeur_metier, grandeur_physique, unite,
+            row_number() over (partition by mesure_id order by ctx_i, g_i) as rang
+        from grandeurs_extraites
+        where grandeur_metier = 'CONS' and grandeur_physique = 'EA'
+    )
+    where rang = 1
+),
+
+calendriers as (
+    select
+        mesure_id,
+        grandeur_metier,
+        grandeur_physique,
+        unnest(cals) as cal
+    from (
+        select mesure_id, grandeur_metier, grandeur_physique, cast(g -> '$.calendrier' as json[]) as cals
+        from grandeurs_extraites
+    )
+),
+
+classes as (
+    select
+        mesure_id,
+        grandeur_metier,
+        grandeur_physique,
+        cal ->> '$.idCalendrier'                  as id_calendrier,
+        lower(cal ->> '$.libelleCalendrier')      as libelle_calendrier,
+        unnest(cast(cal -> '$.classeTemporelle' as json[])) as classe
+    from calendriers
+),
+
+points as (
+    select
+        mesure_id,
+        grandeur_metier,
+        grandeur_physique,
+        id_calendrier,
+        libelle_calendrier,
+        id_classe,
+        p ->> '$.d'              as date_point,
+        p ->> '$.v'              as valeur_point,
+        p ->> '$.iv'             as iv
+    from (
+        select
+            mesure_id, grandeur_metier, grandeur_physique, id_calendrier, libelle_calendrier,
+            classe ->> '$.idClasseTemporelle' as id_classe,
+            cast(classe -> '$.valeur' as json[]) as pts
+        from classes
+    ), unnest(pts) as t(p)
+),
+
+-- Filtres legacy, appliqués sur colonnes nommées (anti-pushdown) :
+-- grandeur CONS/EA, calendrier distributeur, classe identifiée, point valide (iv=0).
+points_valides as (
+    select
+        mesure_id,
+        'index_' || lower(id_classe) || '_kwh' as cadran_col,
+        cast(date_point as timestamp)          as date_releve,
+        cast(valeur_point as bigint)           as valeur
+    from points
+    where grandeur_metier = 'CONS'
+      and grandeur_physique = 'EA'
       and (
-          cal.unnest."idCalendrier" in ('DI000001', 'DI000002', 'DI000003')
-          or lower(cal.unnest."libelleCalendrier") like '%distributeur%'
+          id_calendrier in ('DI000001', 'DI000002', 'DI000003')
+          or libelle_calendrier like '%distributeur%'
       )
-      and v.unnest.iv = 0
-      and v.unnest.d is not null
-      and v.unnest.v is not null
+      and id_classe is not null
+      and iv = '0'
+      and date_point is not null
+      and valeur_point is not null
+),
+
+pivot_cadrans as (
+    pivot points_valides on cadran_col using first(valeur) group by mesure_id, date_releve
+),
+
+en_tete as (
+    select distinct mesure_id, id_demande, si_demandeur, code_flux, format
+    from {{ ref('stg_r64') }}
 )
 
-pivot points
-on cadran_col using first(valeur)
-group by
-    pdl, etape_metier, contexte_releve, type_releve, grandeur_physique,
-    grandeur_metier, unite, id_demande, si_demandeur, code_flux, format, date_releve
+select
+    meta.pdl,
+    meta.etape_metier,
+    meta.contexte_releve,
+    meta.type_releve,
+    meta.grandeur_physique,
+    meta.grandeur_metier,
+    meta.unite,
+    en_tete.id_demande,
+    en_tete.si_demandeur,
+    en_tete.code_flux,
+    en_tete.format,
+    pivot_cadrans.* exclude (mesure_id)
+from pivot_cadrans
+join meta using (mesure_id)
+join en_tete using (mesure_id)
