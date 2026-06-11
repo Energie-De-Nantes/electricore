@@ -1,4 +1,7 @@
-"""Schémas Pandera pour le livrable `rapport_facturation` (issue #64).
+"""Schéma Pandera pour le livrable `rapport_facturation` (issues #64, #143).
+
+Descendu de `integrations/odoo/models/` : le rapport est assemblé en core sur
+le shape agnostique `LignesFacture` (cf. `core/builds/rapport_facturation.py`).
 
 Spécificité vs `rapport_accise` / `rapport_cta` :
 - Les onglets `lignes` et `changements_puissance` partagent la **même** shape
