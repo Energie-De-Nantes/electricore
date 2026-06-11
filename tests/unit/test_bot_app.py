@@ -40,7 +40,7 @@ def test_status_v1_est_supprime_de_la_surface():
 
 
 def test_les_commandes_v1_absorbees_sont_hors_surface():
-    """/stats, /export (#153), /entrees, /sorties (#154) sont absorbées par leurs domaines."""
+    """Les commandes v1 sont toutes absorbées par leurs domaines (#152–#156)."""
     tg_app = build_application("123:abc")
 
     enregistrees: set[str] = set()
@@ -48,7 +48,7 @@ def test_les_commandes_v1_absorbees_sont_hors_surface():
         for handler in handlers:
             enregistrees |= set(getattr(handler, "commands", ()))
 
-    absorbees = {"stats", "export", "entrees", "sorties"}
+    absorbees = {"stats", "export", "entrees", "sorties", "check"}
     assert absorbees & enregistrees == set()
     assert absorbees & {c for c, _ in COMMANDES} == set()
 
@@ -68,6 +68,7 @@ def test_les_callbacks_des_domaines_sont_routes():
     assert any(p.startswith("^flux:") for p in patterns)
     assert any(p.startswith("^perimetre:") for p in patterns)
     assert any(p.startswith("^taxes:") for p in patterns)
+    assert any(p.startswith("^facturation:") for p in patterns)
 
 
 def test_le_menu_natif_est_branche_au_demarrage():
