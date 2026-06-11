@@ -17,3 +17,16 @@ sources:
             description: Nom du fichier source (traçabilité).
           - name: modification_date
             description: Date de modification SFTP (clé d'incrémental dlt).
+      - name: raw_c15
+        description: >
+          Flux C15 (situation contractuelle), un document par ligne. Le XML est
+          converti en dict par `etl/parsing/xml.xml_vers_dict` (politique
+          « conteneur = liste ») avant landing — d'où des tableaux JSON même pour
+          les éléments uniques (PRM, Evenement_Declencheur…), indexés `[0]` en SQL.
+        columns:
+          - name: content
+            description: Document JSON intégral (En_Tete_Flux + Contrat + PRM[]).
+          - name: file_name
+            description: Nom du fichier source (traçabilité).
+          - name: modification_date
+            description: Date de modification SFTP (clé d'incrémental dlt).
