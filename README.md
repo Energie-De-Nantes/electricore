@@ -379,8 +379,9 @@ ODOO_TEST_PASSWORD=mot_de_passe
 # ODOO_PROD_URL / ODOO_PROD_DB / ODOO_PROD_USERNAME / ODOO_PROD_PASSWORD
 
 # === BOT TELEGRAM — optionnel ===
-TELEGRAM_BOT_TOKEN=token_obtenu_via_botfather
-TELEGRAM_ALLOWED_USERS=123456789  # IDs séparés par virgule
+TELEGRAM_BOT_TOKEN=token_obtenu_via_botfather  # convention : @<slug>_electricore_bot
+TELEGRAM_ALLOWED_USERS=123456789   # IDs séparés par virgule
+TELEGRAM_NOTIFY_CHAT_ID=           # chat des alertes (échec ETL) ; vide = désactivé
 ```
 
 ### Commandes essentielles
@@ -485,6 +486,7 @@ uv run --group test pytest --cov=electricore --cov-report=html
 
 - [ETL README](electricore/etl/README.md) - Pipeline extraction & transformation
 - [API README](electricore/api/README.md) - API REST et authentification
+- [Bot README](electricore/bot/README.md) - Bot Telegram : surface de commandes, alertes, no-ERP
 - [Intégration DuckDB](electricore/core/loaders/DUCKDB_INTEGRATION_GUIDE.md) - Query Builder DuckDB
 - [Query Builder Odoo](docs/odoo-query-builder.md) - Intégration Odoo
 - [Conventions Dates](docs/conventions-dates-enedis.md) - Formats temporels Enedis
