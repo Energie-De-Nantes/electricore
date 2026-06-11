@@ -7,7 +7,7 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
-## [Unreleased]
+## [2.1.0] - 2026-06-11
 
 ### 🤖 Bot Telegram : surface par domaines hybrides (ADR-0022)
 
