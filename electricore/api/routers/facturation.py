@@ -9,7 +9,7 @@ from electricore.api.config import settings
 from electricore.api.decorators import arrow_endpoint, xlsx_endpoint
 from electricore.api.security import get_current_api_key
 from electricore.api.serializers import arrow_stream, xlsx_multi_sheet
-from electricore.api.services.check_facturation_service import verifier_odoo
+from electricore.api.services.check_facturation_service import generer_check_odoo_xlsx, verifier_odoo
 from electricore.api.services.facturation_service import (
     documents_facturation_du_mois,
     facturation_du_mois,
@@ -91,6 +91,16 @@ async def check_facturation_odoo(api_key: str = Depends(get_current_api_key)):
         logger.exception("Erreur facturation/check/odoo")
         raise HTTPException(503, f"Erreur lors de la vérification Odoo : {e}")
     return result
+
+
+@xlsx_endpoint(router, "/facturation/check/odoo.xlsx", filename="check_odoo.xlsx", requires_odoo=True)
+def export_check_odoo_xlsx() -> bytes:
+    """Détail complet des vérifications pré-facturation Odoo en XLSX multi-onglets.
+
+    Même contrôle que `/facturation/check/odoo`, sérialisé pour le cas où les
+    anomalies dépassent ce qu'un message texte peut lister (issue #150).
+    """
+    return generer_check_odoo_xlsx(verifier_odoo())
 
 
 @xlsx_endpoint(router, "/facturation/documents.xlsx", filename="facturation{mois}.xlsx", requires_odoo=True)
