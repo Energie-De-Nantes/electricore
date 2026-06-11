@@ -1,0 +1,19 @@
+name: electricore_flux
+version: "1.0.0"
+config-version: 2
+
+# Profil défini dans profiles.yml du même dossier (passer --profiles-dir).
+profile: electricore_flux
+
+model-paths: ["models"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  electricore_flux:
+    staging:
+      # Vues : le cast JSON→struct est gratuit, pas besoin de matérialiser.
+      +materialized: view
+    flux:
+      # Tables : les flux linéarisés sont les tables consommées par core/.
+      +materialized: table

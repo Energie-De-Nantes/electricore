@@ -1,0 +1,8 @@
+electricore_flux:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      # La base DuckDB est partagée avec dlt (qui y landé les documents bruts).
+      # Surchargeable par env var pour les tests (base temporaire) et la prod.
+      path: "{{ env_var('DBT_DUCKDB_PATH', 'electricore/etl/flux_enedis_pipeline.duckdb') }}"

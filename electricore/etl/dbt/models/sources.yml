@@ -1,0 +1,19 @@
+version: 2
+
+sources:
+  - name: flux_raw
+    description: >
+      Documents Enedis bruts landés par dlt — une ligne par fichier, contenu
+      intégral préservé en colonne JSON (pas d'explosion). Cf. ADR-0020 :
+      la linéarisation (sélection + pivot) vit dans les modèles dbt, pas en Python.
+    schema: flux_raw
+    tables:
+      - name: raw_r64
+        description: Flux R64 (relevés index JSON), un document par ligne.
+        columns:
+          - name: content
+            description: Document JSON intégral (header + mesures).
+          - name: file_name
+            description: Nom du fichier source (traçabilité).
+          - name: modification_date
+            description: Date de modification SFTP (clé d'incrémental dlt).

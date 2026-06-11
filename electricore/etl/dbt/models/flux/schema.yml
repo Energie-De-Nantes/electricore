@@ -1,0 +1,15 @@
+version: 2
+
+models:
+  - name: flux_r64
+    description: >
+      Relevés R64 linéarisés au format wide : une ligne par (PDL, date de relevé),
+      un index par cadran distributeur. Parité golden vérifiée
+      (tests/etl/test_dbt_r64_golden.py).
+    columns:
+      - name: pdl
+        description: Point de livraison (14 chiffres).
+        data_tests: [not_null]
+      - name: date_releve
+        description: Date du relevé.
+        data_tests: [not_null]
