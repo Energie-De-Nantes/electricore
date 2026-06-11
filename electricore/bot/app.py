@@ -8,7 +8,7 @@ from telegram import BotCommand
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler
 
 from electricore.bot import bot as v1
-from electricore.bot.handlers import etl, flux, perimetre, start
+from electricore.bot.handlers import etl, flux, perimetre, start, taxes
 
 
 async def publier_menu(application: Application) -> None:
@@ -29,8 +29,10 @@ def build_application(token: str) -> Application:
     # Domaine /perimetre (#154) — entrées/sorties C15, absorbe /entrees et /sorties.
     application.add_handler(CommandHandler("perimetre", perimetre.cmd_perimetre))
     application.add_handler(CallbackQueryHandler(perimetre.on_callback, pattern="^perimetre:"))
-    # Commandes v1 — migrent domaine par domaine (#155–#156, ADR-0022).
-    application.add_handler(CommandHandler("taxes", v1.cmd_taxes))
+    # Domaine /taxes (#155) — accise/CTA par boutons, trimestres dérivés.
+    application.add_handler(CommandHandler("taxes", taxes.cmd_taxes))
+    application.add_handler(CallbackQueryHandler(taxes.on_callback, pattern="^taxes:"))
+    # Commandes v1 — migrent domaine par domaine (#156, ADR-0022).
     application.add_handler(CommandHandler("facturation", v1.cmd_facturation))
     application.add_handler(CommandHandler("check", v1.cmd_check))
     return application

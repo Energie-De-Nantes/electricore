@@ -20,58 +20,6 @@ logger = logging.getLogger(__name__)
 
 
 @require_allowed
-async def cmd_taxes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    usage = (
-        "Usage :\n"
-        "  /taxes accise [trimestre]  — Accise TICFE (ex: /taxes accise 2025-T1)\n"
-        "  /taxes cta [trimestre]     — CTA (ex: /taxes cta 2025-T1)"
-    )
-
-    if not context.args:
-        await update.effective_message.reply_text(usage)
-        return
-
-    sous_commande = context.args[0].lower()
-
-    if sous_commande == "accise":
-        trimestre = context.args[1] if len(context.args) > 1 else None
-        periode = f" — {trimestre}" if trimestre else " — toutes périodes"
-        await update.effective_message.reply_text(f"⏳ Calcul Accise TICFE{periode}…")
-        client = ElectriCoreClient()
-        try:
-            xlsx_bytes = await client.get_accise_xlsx(trimestre)
-        except Exception as e:
-            await update.effective_message.reply_text(f"❌ Erreur Accise : {e}")
-            return
-        suffix = f"_{trimestre}" if trimestre else ""
-        await update.effective_message.reply_document(
-            document=io.BytesIO(xlsx_bytes),
-            filename=f"accise{suffix}.xlsx",
-            caption=f"Accise TICFE{periode}",
-        )
-
-    elif sous_commande == "cta":
-        trimestre = context.args[1] if len(context.args) > 1 else None
-        periode = f" — {trimestre}" if trimestre else " — toutes périodes"
-        await update.effective_message.reply_text(f"⏳ Calcul CTA{periode}…")
-        client = ElectriCoreClient()
-        try:
-            xlsx_bytes = await client.get_cta_xlsx(trimestre)
-        except Exception as e:
-            await update.effective_message.reply_text(f"❌ Erreur CTA : {e}")
-            return
-        suffix = f"_{trimestre}" if trimestre else ""
-        await update.effective_message.reply_document(
-            document=io.BytesIO(xlsx_bytes),
-            filename=f"cta{suffix}.xlsx",
-            caption=f"CTA{periode}",
-        )
-
-    else:
-        await update.effective_message.reply_text(f"❌ Sous-commande inconnue : `{sous_commande}`\n\n{usage}")
-
-
-@require_allowed
 async def cmd_facturation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     mois = context.args[0] if context.args else None
     periode = f" — {mois}" if mois else " — dernier mois disponible"

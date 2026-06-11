@@ -67,6 +67,7 @@ def test_les_callbacks_des_domaines_sont_routes():
     assert any(p.startswith("^etl:") for p in patterns)
     assert any(p.startswith("^flux:") for p in patterns)
     assert any(p.startswith("^perimetre:") for p in patterns)
+    assert any(p.startswith("^taxes:") for p in patterns)
 
 
 def test_le_menu_natif_est_branche_au_demarrage():
