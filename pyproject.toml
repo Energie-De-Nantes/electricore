@@ -181,6 +181,7 @@ no_implicit_optional = true         # forbid `x: str = None`
 
 [tool.ruff.lint.per-file-ignores]
 "electricore/etl/pipeline_production.py" = ["E402"]  # sys.path setup before imports
+"electricore/etl/pipeline_dbt.py" = ["E402"]  # chargement .env avant imports (secrets DLT)
 "electricore/etl/sources/sftp_enedis.py" = ["E402"]  # imports after section banner
 "electricore/etl/transformers/archive.py" = ["E402"]  # cross-module import after constants block
 "electricore/etl/tools/debug_single_flux.py" = ["E722"]  # debug-only script, bare except OK
