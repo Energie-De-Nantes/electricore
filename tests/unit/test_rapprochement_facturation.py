@@ -118,6 +118,75 @@ def _ctx(
     )
 
 
+class TestPassePlat:
+    """Vraie passe-plat (issue #142) : sortie = colonnes d'entrée + colonnes calculées."""
+
+    def test_colonne_erp_inedite_traverse_intacte(self):
+        """Une colonne ERP que core ne connaît pas ressort telle quelle — aucun nom ERP en dur."""
+        ligne = _ligne(categorie="HP").with_columns(pl.lit("survivant").alias("colonne_erp_inedite"))
+        ctx = _ctx(fact_mensuelle=_fact_mensuelle(energie_hp_kwh=10.0), historique=_historique())
+
+        resultat = rapprocher(ctx, ligne)
+
+        assert resultat["colonne_erp_inedite"].item() == "survivant"
+
+    def test_ordre_contrat_calculees_puis_passe_plat(self):
+        """Ordre déterministe : contrat, calculées, puis passe-plat en ordre d'entrée.
+
+        Sans promesse pour les livrables — l'ordre facturiste vit dans
+        `feuilles_rapport_*` (décision #142/#143).
+        """
+        ctx = _ctx(fact_mensuelle=_fact_mensuelle(energie_hp_kwh=10.0), historique=_historique())
+
+        resultat = rapprocher(ctx, _ligne(categorie="HP"))
+
+        contrat = ["ref_situation_contractuelle", "categorie_produit", "quantite", "est_brouillon"]
+        calculees = [
+            "quantite_enedis",
+            "memo_puissance",
+            "pdl",
+            "debut",
+            "fin",
+            "data_complete",
+            "turpe_fixe_eur",
+            "turpe_variable_eur",
+            "num_compteur",
+            "type_compteur",
+            "a_facturer",
+            "a_supprimer",
+        ]
+        passe_plat = ["invoice_line_ids", "x_pdl", "x_lisse", "name_account_move", "name_product_product"]
+        assert resultat.columns == contrat + calculees + passe_plat
+
+    def test_est_brouillon_conserve_a_cote_des_flags(self):
+        """La colonne consommée pour dériver les flags ADR-0014 reste visible (auditable)."""
+        ctx = _ctx(fact_mensuelle=_fact_mensuelle(energie_hp_kwh=10.0), historique=_historique())
+
+        resultat = rapprocher(ctx, _ligne(est_brouillon=True, quantite=42.0))
+
+        assert resultat["est_brouillon"].item() is True
+        assert resultat["a_facturer"].item() is True
+
+
+class TestCollisionPassePlat:
+    """Une colonne d'entrée homonyme d'une calculée échoue au seam, pas en silence."""
+
+    def test_collision_avec_colonne_calculee_echoue_au_seam(self):
+        ligne = _ligne(categorie="HP").with_columns(pl.lit("collision").alias("pdl"))
+        ctx = _ctx(fact_mensuelle=_fact_mensuelle(energie_hp_kwh=10.0), historique=_historique())
+
+        with pytest.raises(ValueError, match="pdl"):
+            rapprocher(ctx, ligne)
+
+    def test_collision_avec_intermediaire_quantite_echoue_au_seam(self):
+        """Les colonnes Enedis consommées par quantite_enedis sont aussi réservées."""
+        ligne = _ligne(categorie="HP").with_columns(pl.lit(0.0).alias("energie_hp_kwh"))
+        ctx = _ctx(fact_mensuelle=_fact_mensuelle(energie_hp_kwh=10.0), historique=_historique())
+
+        with pytest.raises(ValueError, match="energie_hp_kwh"):
+            rapprocher(ctx, ligne)
+
+
 class TestMappingCategories:
     """`quantite_enedis` dépend de `categorie_produit`."""
 
@@ -162,24 +231,14 @@ class TestSelectionMois:
 
 
 class TestColonnesSortie:
-    """`LignesFactureRapprochees` a un schéma figé avec les colonnes renommées."""
+    """Sortie = colonnes d'entrée + colonnes calculées (issue #142)."""
 
-    COLONNES_ATTENDUES = frozenset(
+    COLONNES_CALCULEES = frozenset(
         [
-            # Identifiants ERP passe-plat
-            "invoice_line_ids",
-            "x_pdl",
-            "x_lisse",
-            "name_account_move",
-            "name_product_product",
-            # Clés métier renommées
-            "categorie_produit",
-            "quantite",
             # Quantité Enedis + mémo
             "quantite_enedis",
             "memo_puissance",
             # Méta-période Enedis
-            "ref_situation_contractuelle",
             "pdl",
             "debut",
             "fin",
@@ -195,12 +254,13 @@ class TestColonnesSortie:
         ]
     )
 
-    def test_sortie_contient_les_colonnes_attendues(self):
+    def test_sortie_egale_entree_plus_calculees(self):
         ctx = _ctx(fact_mensuelle=_fact_mensuelle(energie_hp_kwh=10.0), historique=_historique())
+        ligne = _ligne(categorie="HP")
 
-        resultat = rapprocher(ctx, _ligne(categorie="HP"))
+        resultat = rapprocher(ctx, ligne)
 
-        assert frozenset(resultat.columns) == self.COLONNES_ATTENDUES
+        assert frozenset(resultat.columns) == frozenset(ligne.columns) | self.COLONNES_CALCULEES
 
 
 class TestDerivationFlagsADR0014:
@@ -259,20 +319,21 @@ class TestJoinHistorique:
 
 
 class TestSchemaLignesFactureRapprochees:
-    """Le modèle Pandera transporte les méta-données Enedis et compteur (colonnes renommées)."""
+    """Le modèle n'exige que contrat + calculées ; les colonnes ERP traversent sans être nommées."""
 
-    def test_modele_accepte_les_colonnes_etendues(self):
+    def test_modele_accepte_les_colonnes_erp_en_passe_plat(self):
         df = pl.DataFrame(
             {
-                # Identifiants ERP passe-plat
+                # Identifiants ERP passe-plat (non nommés par le schéma, tolérés via strict=False)
                 "invoice_line_ids": [101],
                 "x_pdl": ["12345678901234"],
                 "x_lisse": [False],
                 "name_account_move": ["INV/2025/0001"],
                 "name_product_product": ["Énergie HP"],
-                # Clés métier renommées
+                # Contrat d'entrée conservé
                 "categorie_produit": ["HP"],
                 "quantite": [100.0],
+                "est_brouillon": [True],
                 # Quantité Enedis + mémo
                 "quantite_enedis": [123.45],
                 "memo_puissance": [""],

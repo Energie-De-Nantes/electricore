@@ -1,7 +1,12 @@
 """Modèle Pandera pour `lignes_facture_rapprochees`.
 
 Résultat du *Rapprochement facturation mensuelle*. Voir
-`electricore/core/CONTEXT.md` (section "Intégration Odoo").
+`electricore/core/CONTEXT.md`.
+
+**Vraie passe-plat** (issue #142) : sortie = colonnes d'entrée + colonnes
+calculées. Le schéma n'exige que le contrat `LignesFacture` et les colonnes
+produites par `rapprocher()` — aucune colonne ERP n'est nommée ici, elles
+traversent via `strict=False` (symétrique du contrat d'entrée).
 """
 
 import pandera.polars as pa
@@ -10,25 +15,20 @@ from pandera.engines.polars_engine import DateTime
 
 
 class LignesFactureRapprochees(pa.DataFrameModel):
-    """Lignes de facture Odoo enrichies des données Enedis du mois (quantité, méta-période, compteur)."""
+    """Lignes de facture (shape agnostique) enrichies des données Enedis du mois."""
 
-    # Identifiants ERP passe-plat (conservés tels quels)
-    invoice_line_ids: pl.Int64 = pa.Field(nullable=False)
-    x_pdl: pl.Utf8 | None = pa.Field(nullable=True)
-    x_lisse: pl.Boolean | None = pa.Field(nullable=True)  # défaut Odoo = null, à fill_null(False) côté consommateur
-    name_account_move: pl.Utf8 = pa.Field(nullable=False)
-    name_product_product: pl.Utf8 | None = pa.Field(nullable=True)
-
-    # Clés métier renommées (cf. slice 2 de la refonte Contexte mensuel)
+    # Contrat d'entrée `LignesFacture`, conservé en sortie (est_brouillon compris :
+    # consommé pour dériver les flags ADR-0014, gardé visible à côté d'eux)
+    ref_situation_contractuelle: pl.Utf8 = pa.Field(nullable=False)
     categorie_produit: pl.Utf8 = pa.Field(nullable=False, isin=["Base", "HP", "HC", "Abonnements"])
     quantite: pl.Float64 = pa.Field(nullable=False)
+    est_brouillon: pl.Boolean = pa.Field(nullable=False)
 
     # Quantité Enedis + mémo
     quantite_enedis: pl.Float64 | None = pa.Field(nullable=True)
     memo_puissance: pl.Utf8 | None = pa.Field(nullable=True)
 
     # Méta-période Enedis du mois (nullable si pas de match RSC)
-    ref_situation_contractuelle: pl.Utf8 | None = pa.Field(nullable=True)
     pdl: pl.Utf8 | None = pa.Field(nullable=True)
     debut: DateTime | None = pa.Field(nullable=True, dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"})
     fin: DateTime | None = pa.Field(nullable=True, dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"})
@@ -45,5 +45,5 @@ class LignesFactureRapprochees(pa.DataFrameModel):
     a_supprimer: pl.Boolean | None = pa.Field(nullable=True)
 
     class Config:
-        strict = True
+        strict = False  # vraie passe-plat : les colonnes ERP traversent sans être nommées
         coerce = True

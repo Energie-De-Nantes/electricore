@@ -214,7 +214,7 @@ Bundle immutable des éléments dérivés une seule fois pour produire la factur
 _Éviter_ : résultat de facturation (trop vague), contexte tout court (sans qualificatif).
 
 **Rapprochement facturation mensuelle** :
-Jointure des *lignes de facture* (côté ERP) avec la méta-période mensuelle Enedis du même mois, enrichie des identifiants compteur (`num_compteur`, `type_compteur`) et des flags `a_facturer` / `a_supprimer` (cf. [ADR-0014](../../docs/adr/0014-lignes-factures-du-mois-avec-flags.md)). Implémenté par `rapprocher()` dans `core/builds/contexte_mensuel.py`. Produit une `LignesFactureRapprochees`.
+Jointure des *lignes de facture* (côté ERP) avec la méta-période mensuelle Enedis du même mois, enrichie des identifiants compteur (`num_compteur`, `type_compteur`) et des flags `a_facturer` / `a_supprimer` (cf. [ADR-0014](../../docs/adr/0014-lignes-factures-du-mois-avec-flags.md)). Implémenté par `rapprocher()` dans `core/builds/contexte_mensuel.py`. Produit une `LignesFactureRapprochees` en **vraie passe-plat** (issue #142) : sortie = colonnes d'entrée (`est_brouillon` compris, auditable à côté des flags qu'il dérive) + colonnes calculées, sans nommer aucune colonne ERP en core. Ordre déterministe — contrat, calculées, puis passe-plat en ordre d'entrée — mais **sans promesse pour les livrables** (l'ordre facturiste vit dans `feuilles_rapport_*`). Une colonne d'entrée homonyme d'une calculée échoue au seam (`ValueError` nommant la collision).
 _Éviter_ : matching, reconciliation (anglicisme).
 
 **Ligne de facture** :
