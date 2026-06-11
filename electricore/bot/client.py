@@ -1,11 +1,20 @@
 """
 Client HTTP async pour l'API ElectriCore.
 Utilisé par le bot Telegram pour appeler les endpoints REST.
+
+Le squelette httpx (ouverture du client, clé API, `raise_for_status`) vit dans
+les primitives `_get_json` / `_get_bytes` / `_post_json` (#174) ; les méthodes
+publiques ne déclarent que le chemin et le budget de timeout.
 """
 
 import httpx
 
 from electricore.api.config import settings
+
+# Budgets de timeout par profil d'endpoint (secondes)
+TIMEOUT_COURT = 10  # JSON légers : statuts, listes, infos de table
+TIMEOUT_EXPORT = 120  # exports XLSX de tables flux
+TIMEOUT_LOURD = 300  # livrables calculés : taxes, facturation, check Odoo
 
 
 class ElectriCoreClient:
@@ -19,103 +28,69 @@ class ElectriCoreClient:
     def _http(self) -> httpx.AsyncClient:
         return httpx.AsyncClient(transport=self._transport)
 
-    async def list_tables(self) -> list[str]:
+    async def _get(self, path: str, *, timeout: float, params: dict | None = None) -> httpx.Response:
         async with self._http() as c:
-            r = await c.get(f"{self._base}/", timeout=10)
+            r = await c.get(f"{self._base}{path}", headers=self._headers, params=params, timeout=timeout)
             r.raise_for_status()
-            return r.json().get("available_tables", [])
+            return r
+
+    async def _get_json(self, path: str, *, timeout: float = TIMEOUT_COURT, params: dict | None = None):
+        return (await self._get(path, timeout=timeout, params=params)).json()
+
+    async def _get_bytes(self, path: str, *, timeout: float = TIMEOUT_EXPORT, params: dict | None = None) -> bytes:
+        return (await self._get(path, timeout=timeout, params=params)).content
+
+    async def _post_json(self, path: str, *, json: dict, timeout: float = TIMEOUT_COURT):
+        async with self._http() as c:
+            r = await c.post(f"{self._base}{path}", json=json, headers=self._headers, timeout=timeout)
+            r.raise_for_status()
+            return r.json()
+
+    async def list_tables(self) -> list[str]:
+        data = await self._get_json("/")
+        return data.get("available_tables", [])
 
     async def get_table_info(self, table: str) -> dict:
-        async with self._http() as c:
-            r = await c.get(f"{self._base}/flux/{table}/info", headers=self._headers, timeout=10)
-            r.raise_for_status()
-            return r.json()
+        return await self._get_json(f"/flux/{table}/info")
 
     async def run_etl(self, mode: str) -> dict:
-        async with self._http() as c:
-            r = await c.post(
-                f"{self._base}/etl/run",
-                json={"mode": mode},
-                headers=self._headers,
-                timeout=10,
-            )
-            r.raise_for_status()
-            return r.json()
+        return await self._post_json("/etl/run", json={"mode": mode})
 
     async def get_job(self, job_id: str) -> dict:
-        async with self._http() as c:
-            r = await c.get(f"{self._base}/etl/jobs/{job_id}", headers=self._headers, timeout=10)
-            r.raise_for_status()
-            return r.json()
+        return await self._get_json(f"/etl/jobs/{job_id}")
 
     async def get_jobs(self, limit: int = 5) -> list[dict]:
-        async with self._http() as c:
-            r = await c.get(f"{self._base}/etl/jobs", params={"limit": limit}, headers=self._headers, timeout=10)
-            r.raise_for_status()
-            return r.json()
+        return await self._get_json("/etl/jobs", params={"limit": limit})
 
     async def get_entrees_xlsx(self) -> bytes:
-        async with self._http() as c:
-            r = await c.get(f"{self._base}/flux/c15/entrees.xlsx", headers=self._headers, timeout=120)
-            r.raise_for_status()
-            return r.content
+        return await self._get_bytes("/flux/c15/entrees.xlsx")
 
     async def get_sorties_xlsx(self) -> bytes:
-        async with self._http() as c:
-            r = await c.get(f"{self._base}/flux/c15/sorties.xlsx", headers=self._headers, timeout=120)
-            r.raise_for_status()
-            return r.content
+        return await self._get_bytes("/flux/c15/sorties.xlsx")
 
     async def get_xlsx(self, table: str) -> bytes:
-        async with self._http() as c:
-            r = await c.get(f"{self._base}/flux/{table}.xlsx", headers=self._headers, timeout=120)
-            r.raise_for_status()
-            return r.content
+        return await self._get_bytes(f"/flux/{table}.xlsx")
 
     async def get_accise_xlsx(self, trimestre: str | None = None) -> bytes:
-        params = {}
-        if trimestre:
-            params["trimestre"] = trimestre
-        async with self._http() as c:
-            r = await c.get(
-                f"{self._base}/taxes/accise/rapport.xlsx", headers=self._headers, params=params, timeout=300
-            )
-            r.raise_for_status()
-            return r.content
+        params = {"trimestre": trimestre} if trimestre else None
+        return await self._get_bytes("/taxes/accise/rapport.xlsx", params=params, timeout=TIMEOUT_LOURD)
 
     async def get_cta_xlsx(self, trimestre: str | None = None) -> bytes:
-        params: dict = {"trimestre": trimestre} if trimestre else {}
-        async with self._http() as c:
-            r = await c.get(f"{self._base}/taxes/cta/rapport.xlsx", headers=self._headers, params=params, timeout=300)
-            r.raise_for_status()
-            return r.content
+        params = {"trimestre": trimestre} if trimestre else None
+        return await self._get_bytes("/taxes/cta/rapport.xlsx", params=params, timeout=TIMEOUT_LOURD)
 
     async def get_facturation_xlsx(self, mois: str | None = None) -> bytes:
-        params = {"mois": mois} if mois else {}
-        async with self._http() as c:
-            r = await c.get(f"{self._base}/facturation/rapport.xlsx", headers=self._headers, params=params, timeout=300)
-            r.raise_for_status()
-            return r.content
+        params = {"mois": mois} if mois else None
+        return await self._get_bytes("/facturation/rapport.xlsx", params=params, timeout=TIMEOUT_LOURD)
 
     async def get_facturation_documents_xlsx(self, mois: str | None = None) -> bytes:
         """Livrable XLSX multi-onglets des documents de campagne facturation (cf. #78)."""
-        params = {"mois": mois} if mois else {}
-        async with self._http() as c:
-            r = await c.get(
-                f"{self._base}/facturation/documents.xlsx", headers=self._headers, params=params, timeout=300
-            )
-            r.raise_for_status()
-            return r.content
+        params = {"mois": mois} if mois else None
+        return await self._get_bytes("/facturation/documents.xlsx", params=params, timeout=TIMEOUT_LOURD)
 
     async def check_facturation_odoo(self) -> dict:
-        async with self._http() as c:
-            r = await c.get(f"{self._base}/facturation/check/odoo", headers=self._headers, timeout=300)
-            r.raise_for_status()
-            return r.json()
+        return await self._get_json("/facturation/check/odoo", timeout=TIMEOUT_LOURD)
 
     async def get_check_odoo_xlsx(self) -> bytes:
         """Détail complet du check Odoo en XLSX multi-onglets (issue #150)."""
-        async with self._http() as c:
-            r = await c.get(f"{self._base}/facturation/check/odoo.xlsx", headers=self._headers, timeout=300)
-            r.raise_for_status()
-            return r.content
+        return await self._get_bytes("/facturation/check/odoo.xlsx", timeout=TIMEOUT_LOURD)

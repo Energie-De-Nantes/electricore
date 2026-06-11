@@ -27,7 +27,11 @@ Chat Telegram destinataire des alertes proactives du bot (échec d'un job ETL, y
 Liste d'identifiants numériques Telegram autorisés à utiliser le bot, configurée via `TELEGRAM_ALLOWED_USERS`. Tout autre utilisateur reçoit `⛔ Accès refusé`. Pas de rôles ni de granularité.
 
 **Client API** :
-Wrapper `httpx.AsyncClient` ([client.py](client.py)) qui factorise les appels HTTP vers l'API : injection automatique de la clé `X-API-Key`, gestion des timeouts (10 s pour les requêtes courtes, 300 s pour les exports lourds).
+Wrapper `httpx.AsyncClient` ([client.py](client.py)) qui factorise les appels HTTP vers l'API : injection automatique de la clé `X-API-Key`, gestion des timeouts (10 s pour les requêtes courtes, 120 s pour les exports de tables, 300 s pour les livrables calculés). Le squelette httpx vit dans les primitives `_get_json` / `_get_bytes` / `_post_json` ; les méthodes publiques ne déclarent que chemin et budget de timeout.
+
+**Livraison** :
+Remise d'un *livrable* (cf. [core/CONTEXT.md](../core/CONTEXT.md)) dans le chat, avec suivi de progression (⏳ pendant le calcul, 📥 à l'envoi) et filet d'erreur (❌ édité sur le message de suivi — aucun chemin ne laisse le ⏳ figé). Deux primitives composables dans [livraison.py](livraison.py) : `etape()` (suivi + filet, retourne `None` quand l'échec est déjà signalé) et `envoyer_document()` (étape + document + confirmation). Tous les domaines passent par là ; le format des messages de suivi vit en un seul endroit (issue #174).
+_Éviter_ : envoi (ne dit ni le suivi ni le filet), remise (collision avec le rabais commercial).
 
 **Instance** :
 Déploiement complet de la stack pour un opérateur donné (voir [ADR-0015](../../docs/adr/0015-deploiement-multi-instance.md)). Chaque instance a son propre bot Telegram, nommé `@<slug>_electricore_bot` ; `/start` annonce l'instance servie.
