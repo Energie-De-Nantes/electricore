@@ -135,7 +135,7 @@ pivot_cadrans as (
 ),
 
 en_tete as (
-    select distinct mesure_id, id_demande, si_demandeur, code_flux, format
+    select distinct mesure_id, id_demande, si_demandeur, code_flux, format, modification_date
     from {{ ref('stg_r64') }}
 )
 
@@ -155,3 +155,10 @@ select
 from pivot_cadrans
 join meta using (mesure_id)
 join en_tete using (mesure_id)
+-- Les fenêtres R64 se chevauchent : le même relevé (pdl, type, date) arrive dans
+-- plusieurs fichiers. Même contrat que le merge legacy (primary_key pdl/type_releve/
+-- date_releve) : on garde la livraison la plus récente.
+qualify row_number() over (
+    partition by meta.pdl, meta.type_releve, pivot_cadrans.date_releve
+    order by en_tete.modification_date desc, mesure_id desc
+) = 1
