@@ -248,6 +248,6 @@ _Éviter_ : export (trop générique), fichier.
 Onglets d'un *Livrable* XLSX, matérialisés par un `dict[str, DataFrame]` consommable par `xlsx_multi_sheet`. Les clés du dict sont les libellés d'onglets affichés à l'utilisateur (FR : `Résumé`, `Par taux`, `Détail`, `F15 complet`, `Changements puissance`…). Deux formes de production coexistent :
 
 - **À partir d'un `Rapport*`** : `feuilles_rapport_*(r) -> dict[str, DataFrame]` co-localisée avec le `rapport_*` correspondant (cas Accise, CTA, facturation rapport).
-- **Directement par un build** : `documents_facturation_du_mois(odoo, mois) -> tuple[dict[str, DataFrame], str]` (cas `/facturation/documents.xlsx` — pas de dataclass intermédiaire, la forme du livrable est directement assemblée par le build).
+- **Directement par un build** : `documents(ctx, lignes, f15, c15) -> tuple[dict[str, DataFrame], str]` dans `core/builds/contexte_mensuel.py` (cas `/facturation/documents.xlsx` — pas de dataclass intermédiaire, la forme du livrable est directement assemblée par le build ; le wire-up `documents_facturation_du_mois(odoo, mois)` vit en `api/services/facturation_service.py`, #144).
 
 _Éviter_ : onglets (anglicisme), sheets.

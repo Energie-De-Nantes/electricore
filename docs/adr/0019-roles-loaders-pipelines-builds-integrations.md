@@ -133,3 +133,14 @@ importable par tous les rôles — `core/` compris, sans violer [ADR-0016](0016-
 (aucune dépendance ERP ni lib externe). Premier usage : `core/loaders/duckdb/`,
 `api/services/`, le runner ETL et les tools délèguent la résolution du chemin de la
 base DuckDB à `chemin_base_duckdb()` au lieu de porter chacun leur propre défaut.
+
+## Addendum (juin 2026, issues #142–#144)
+
+La migration facturation est terminée : l'assemblage du livrable vit dans
+`core/builds/rapport_facturation.py`, l'I/O Odoo dans
+`integrations/odoo/sources.py` (`lignes_factures_du_mois`), le wire-up dans
+`api/services/facturation_service.py` — `integrations/odoo/facturation.py` est
+supprimé. Le garde-fou `tests/architecture/test_imports_par_role.py` gagne une
+**règle 4 en whitelist** : `integrations/<erp>/` ne peut importer de
+`electricore.core` que `core.models` et `core.loaders` (calque exact de la
+table ci-dessus, pendant inverse de `test_core_purity`).

@@ -135,7 +135,7 @@ def test_detail_xlsx_retourne_xlsx_mono_onglet(monkeypatch, _mock_odoo_reader, l
 @pytest.fixture
 def fake_rapport_facturation(lignes_rapprochees_attendues):
     """`RapportFacturation` synthétique pour la sérialisation XLSX."""
-    from electricore.integrations.odoo.facturation import RapportFacturation
+    from electricore.core.builds.rapport_facturation import RapportFacturation
 
     return RapportFacturation(
         resume=pl.DataFrame(

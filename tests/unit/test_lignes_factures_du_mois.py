@@ -8,7 +8,7 @@ core par `rapprocher()` à partir de `est_brouillon` + `quantite`.
 
 import polars as pl
 
-from electricore.integrations.odoo.helpers import _expr_est_brouillon
+from electricore.integrations.odoo.sources import _expr_est_brouillon
 
 
 class TestSurfaceEstBrouillon:

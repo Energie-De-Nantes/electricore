@@ -1,6 +1,6 @@
-"""Garde-fous des règles d'import par rôle (ADR-0019, issue #109).
+"""Garde-fous des règles d'import par rôle (ADR-0019, issues #109, #144).
 
-Trois règles enforced par analyse statique (`ast`) :
+Quatre règles enforced par analyse statique (`ast`) :
 
 1. `core/pipelines/**` : n'importe pas `core.loaders`, `core.builds`,
    `integrations.*`, `api.*`. (Transformations pures.)
@@ -11,6 +11,11 @@ Trois règles enforced par analyse statique (`ast`) :
 3. `integrations/<erp>/**` : ne déclare pas de fonctions dont l'annotation de
    retour référence `core.builds.*`. (Heuristique : si une intégration annote un
    retour `RapportTaxe`, elle assemble un livrable — c'est une violation d'ADR-0019.)
+
+4. `integrations/<erp>/**` : whitelist — n'importe de `electricore.core` que
+   `core.models` et `core.loaders` (calque exact de la table ADR-0019, pendant
+   inverse de `test_core_purity`). Un import `core.builds` / `core.pipelines` /
+   `core.writers` depuis une intégration échoue ici (#144).
 
 Pour chaque violation : fichier, ligne, import/annotation fautif + message ADR-0019.
 
@@ -179,5 +184,43 @@ def test_integrations_no_builds_return_type() -> None:
         "Violations règle 3 ADR-0019 (integrations/ retour core.builds interdit) :\n"
         + "\n".join(violations)
         + "\nDéplacer l'assemblage vers core/builds/, laisser seul l'I/O Odoo dans integrations/.\n"
+        + "Voir docs/adr/0019-roles-loaders-pipelines-builds-integrations.md"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Règle 4 : integrations/<erp>/** — whitelist des imports core (#144)
+# ---------------------------------------------------------------------------
+
+INTEGRATIONS_CORE_WHITELIST = (
+    "electricore.core.models",
+    "electricore.core.loaders",
+)
+
+
+def test_integrations_core_imports_whitelist() -> None:
+    """Règle 4 ADR-0019 (#144) : `integrations/<erp>/` n'importe de `core` que
+    `core.models` et `core.loaders`.
+
+    Pendant inverse de `test_core_purity` : les sources/sinks ERP ne composent
+    ni pipelines, ni builds, ni writers — l'assemblage vit en `core/builds/`,
+    le wire-up en `api/services/`.
+    """
+    violations: list[str] = []
+    for erp_dir in INTEGRATIONS_ROOT.iterdir():
+        if not erp_dir.is_dir() or erp_dir.name == "__pycache__":
+            continue
+        for py_file in _py_files(erp_dir):
+            for lineno, module in _absolute_imports(py_file):
+                if module != "electricore.core" and not module.startswith("electricore.core."):
+                    continue
+                if any(module == w or module.startswith(w + ".") for w in INTEGRATIONS_CORE_WHITELIST):
+                    continue
+                violations.append(_fmt(py_file, lineno, f"import hors whitelist: {module}"))
+
+    assert not violations, (
+        "Violations règle 4 ADR-0019 (integrations/ importe core hors models/loaders) :\n"
+        + "\n".join(violations)
+        + "\nL'assemblage descend en core/builds/, le wire-up monte en api/services/.\n"
         + "Voir docs/adr/0019-roles-loaders-pipelines-builds-integrations.md"
     )

@@ -10,13 +10,13 @@ from electricore.api.decorators import arrow_endpoint, xlsx_endpoint
 from electricore.api.security import get_current_api_key
 from electricore.api.serializers import arrow_stream, xlsx_multi_sheet
 from electricore.api.services.check_facturation_service import verifier_odoo
-from electricore.integrations.odoo.decorators import with_odoo
-from electricore.integrations.odoo.facturation import (
+from electricore.api.services.facturation_service import (
     documents_facturation_du_mois,
     facturation_du_mois,
-    feuilles_rapport_facturation,
     rapport_facturation,
 )
+from electricore.core.builds.rapport_facturation import feuilles_rapport_facturation
+from electricore.integrations.odoo.decorators import with_odoo
 
 logger = logging.getLogger(__name__)
 
