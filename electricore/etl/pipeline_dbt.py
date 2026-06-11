@@ -63,22 +63,28 @@ class PlanRun:
 
     selection: list[str] | None  # None = tous les flux
     max_files: int | None
-    refresh: str | None  # "drop_sources" = reset (état incrémental purgé, tout re-téléchargé)
+    refresh: str | None  # "drop_sources" = resync (état incrémental purgé, tout re-téléchargé)
+    rebuild: bool = False  # True = saute le landing, dbt build seul (zéro réseau)
 
 
 def interpreter_flux(flux: list[str], max_files: int | None) -> PlanRun:
     """Traduit les arguments de flux (modes API compris) en plan d'exécution.
 
-    - 'all'   → tous les flux ;
-    - 'test'  → tous les flux, 2 fichiers chacun (smoke) ;
-    - 'reset' → tous les flux, état incrémental dlt purgé (re-téléchargement complet) ;
-    - sinon   → liste de flux (r151 c15 …), upper-casée vers les clés de flux.yaml.
+    - 'all'     → tous les flux ;
+    - 'test'    → tous les flux, 2 fichiers chacun (smoke) ;
+    - 'rebuild' → re-matérialise les tables depuis le brut, zéro réseau (~13 s) —
+                  le geste standard après un changement de modèle dbt (#140) ;
+    - 'resync'  → état incrémental dlt purgé, tout re-téléchargé (brut perdu/corrompu) ;
+    - 'reset'   → déprécié, alias de resync ;
+    - sinon     → liste de flux (r151 c15 …), upper-casée vers les clés de flux.yaml.
     """
     if flux == ["all"]:
         return PlanRun(selection=None, max_files=max_files, refresh=None)
     if flux == ["test"]:
         return PlanRun(selection=None, max_files=max_files or 2, refresh=None)
-    if flux == ["reset"]:
+    if flux == ["rebuild"]:
+        return PlanRun(selection=None, max_files=max_files, refresh=None, rebuild=True)
+    if flux in (["resync"], ["reset"]):
         return PlanRun(selection=None, max_files=max_files, refresh="drop_sources")
     return PlanRun(selection=[f.upper() for f in flux], max_files=max_files, refresh=None)
 
@@ -172,7 +178,10 @@ def bilan(db_path: Path) -> None:
 def main() -> None:
     parseur = argparse.ArgumentParser(description="Pipeline dbt : SFTP → brut JSON → modèles dbt")
     parseur.add_argument(
-        "flux", nargs="+", help="'all', 'test' (2 fichiers/flux), 'reset' (re-télécharge tout) ou liste de flux"
+        "flux",
+        nargs="+",
+        help="'all', 'test' (2 fichiers/flux), 'rebuild' (dbt seul, zéro réseau), "
+        "'resync' (re-télécharge tout) ou liste de flux",
     )
     parseur.add_argument("--db", type=Path, default=DB_DEFAUT, help=f"base DuckDB cible (défaut : {DB_DEFAUT})")
     parseur.add_argument("--max-files", type=int, default=None, help="limite de fichiers par flux")
@@ -180,10 +189,13 @@ def main() -> None:
 
     plan = interpreter_flux(args.flux, args.max_files)
 
-    debut = time.time()
-    _out(f"🚀 Landing brut → {args.db}")
-    lander_brut(args.db, plan)
-    _out(f"⏱️  Landing : {time.time() - debut:.1f}s")
+    if plan.rebuild:
+        _out(f"↻ Rebuild : re-matérialisation depuis le brut de {args.db} (zéro réseau)")
+    else:
+        debut = time.time()
+        _out(f"🚀 Landing brut → {args.db}")
+        lander_brut(args.db, plan)
+        _out(f"⏱️  Landing : {time.time() - debut:.1f}s")
 
     debut = time.time()
     _out("🔨 dbt build")

@@ -37,7 +37,9 @@ class ETLMode(StrEnum):
     test = "test"
     r151 = "r151"
     all = "all"
-    reset = "reset"
+    rebuild = "rebuild"  # re-matérialise depuis le brut, zéro réseau (#140)
+    resync = "resync"  # purge l'état incrémental + re-télécharge tout (brut perdu)
+    reset = "reset"  # déprécié : alias de resync
 
 
 class ETLStatus(StrEnum):

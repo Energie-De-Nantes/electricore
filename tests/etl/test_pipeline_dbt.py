@@ -12,11 +12,19 @@ from electricore.etl.pipeline_dbt import PlanRun, interpreter_flux
 
 def test_les_modes_de_l_api_sont_interpretables():
     plans = {mode.value: interpreter_flux([mode.value], max_files=None) for mode in ETLMode}
-    assert plans["all"] == PlanRun(selection=None, max_files=None, refresh=None)
-    assert plans["test"] == PlanRun(selection=None, max_files=2, refresh=None)
-    assert plans["r151"] == PlanRun(selection=["R151"], max_files=None, refresh=None)
-    # reset = repartir de zéro : état incrémental dlt purgé, tout est re-téléchargé.
-    assert plans["reset"] == PlanRun(selection=None, max_files=None, refresh="drop_sources")
+    assert plans["all"] == PlanRun(selection=None, max_files=None, refresh=None, rebuild=False)
+    assert plans["test"] == PlanRun(selection=None, max_files=2, refresh=None, rebuild=False)
+    assert plans["r151"] == PlanRun(selection=["R151"], max_files=None, refresh=None, rebuild=False)
+    # rebuild = re-matérialiser depuis le brut, zéro réseau (~13 s) — le geste
+    # standard après un changement de modèle (#140).
+    assert plans["rebuild"] == PlanRun(selection=None, max_files=None, refresh=None, rebuild=True)
+    # resync = repartir de zéro : état incrémental dlt purgé, tout re-téléchargé
+    # (exceptionnel : brut perdu/corrompu).
+    assert plans["resync"] == PlanRun(selection=None, max_files=None, refresh="drop_sources", rebuild=False)
+
+
+def test_reset_est_un_alias_dépréciée_de_resync():
+    assert interpreter_flux(["reset"], max_files=None) == interpreter_flux(["resync"], max_files=None)
 
 
 def test_selection_multi_flux():
