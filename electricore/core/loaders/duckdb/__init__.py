@@ -18,7 +18,6 @@ API publique :
 - releves(), releves_harmonises() : Vues unifiées
 - DuckDBQuery : Builder immutable avec méthodes chainables
 - Utilitaires : get_available_tables(), execute_custom_query()
-- API legacy : load_historique(), load_releves()
 """
 
 # Imports internes
@@ -30,9 +29,6 @@ from .helpers import (
     f15,
     # Utilitaires
     get_available_tables,
-    # API legacy
-    load_historique,
-    load_releves,
     r15,
     r64,
     r151,
@@ -63,9 +59,6 @@ __all__ = [
     # Groupings C15 canoniques (cf. CONTEXT.md)
     "ENTREES_C15",
     "SORTIES_C15",
-    # API legacy (compatibilité)
-    "load_historique",
-    "load_releves",
     # Utilitaires
     "get_available_tables",
     "execute_custom_query",
