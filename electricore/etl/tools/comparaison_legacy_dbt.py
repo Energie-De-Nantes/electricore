@@ -188,7 +188,7 @@ def _records_dbt(fichiers: list[str], cas: CasComparaison) -> list[dict]:
     if not resultat.success:
         raise RuntimeError(f"dbt build {cas.model} a échoué : {resultat.exception}")
     con = duckdb.connect(db_path)
-    curseur = con.execute(f"select * from main.{cas.model}")
+    curseur = con.execute(f"select * from flux_enedis.{cas.model}")
     colonnes = [d[0] for d in curseur.description]
     lignes = [dict(zip(colonnes, ligne, strict=True)) for ligne in curseur.fetchall()]
     con.close()

@@ -6,3 +6,6 @@ electricore_flux:
       # La base DuckDB est partagée avec dlt (qui y landé les documents bruts).
       # Surchargeable par env var pour les tests (base temporaire) et la prod.
       path: "{{ env_var('DBT_DUCKDB_PATH', 'electricore/etl/flux_enedis_pipeline.duckdb') }}"
+      # Schéma cible = celui que lisent les loaders core (mêmes noms de tables que
+      # l'ex-chemin legacy → bascule transparente pour l'aval, ADR-0020/#134).
+      schema: flux_enedis

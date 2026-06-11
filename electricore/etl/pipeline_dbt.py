@@ -12,9 +12,10 @@ Usage :
     uv run python electricore/etl/pipeline_dbt.py r151 c15        # sélection
     uv run python electricore/etl/pipeline_dbt.py all --db /tmp/flux_dbt.duckdb
 
-La base par défaut est séparée de la production legacy
-(`flux_enedis_dbt.duckdb` vs `flux_enedis_pipeline.duckdb`) : les deux chemins
-peuvent tourner côte à côte pendant la période de validation.
+Chemin de production (#134) : la base par défaut est la base de prod
+(`flux_enedis_pipeline.duckdb`), les modèles se matérialisent dans le schéma
+`flux_enedis` (mêmes tables que l'ex-legacy → l'aval ne voit rien), le brut vit
+dans `flux_raw`. `--db` permet une base jetable pour les validations.
 """
 
 # Charger .env avant que DLT lise ses secrets depuis os.environ (SFTP__URL, AES__*).
@@ -36,6 +37,7 @@ import logging
 import os
 import sys
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 import dlt
@@ -47,7 +49,7 @@ from electricore.etl.sources.sftp_enedis_brut import flux_enedis_brut
 logging.disable(logging.CRITICAL)
 
 ICI = Path(__file__).parent
-DB_DEFAUT = ICI / "flux_enedis_dbt.duckdb"
+DB_DEFAUT = ICI / "flux_enedis_pipeline.duckdb"
 PROJET_DBT = ICI / "dbt"
 
 
@@ -55,11 +57,37 @@ def _out(msg: str) -> None:
     print(msg, flush=True)
 
 
-def lander_brut(db_path: Path, flux_selection: list[str] | None, max_files: int | None) -> None:
+@dataclass(frozen=True)
+class PlanRun:
+    """Interprétation des arguments de flux du CLI (contrat partagé avec l'API)."""
+
+    selection: list[str] | None  # None = tous les flux
+    max_files: int | None
+    refresh: str | None  # "drop_sources" = reset (état incrémental purgé, tout re-téléchargé)
+
+
+def interpreter_flux(flux: list[str], max_files: int | None) -> PlanRun:
+    """Traduit les arguments de flux (modes API compris) en plan d'exécution.
+
+    - 'all'   → tous les flux ;
+    - 'test'  → tous les flux, 2 fichiers chacun (smoke) ;
+    - 'reset' → tous les flux, état incrémental dlt purgé (re-téléchargement complet) ;
+    - sinon   → liste de flux (r151 c15 …), upper-casée vers les clés de flux.yaml.
+    """
+    if flux == ["all"]:
+        return PlanRun(selection=None, max_files=max_files, refresh=None)
+    if flux == ["test"]:
+        return PlanRun(selection=None, max_files=max_files or 2, refresh=None)
+    if flux == ["reset"]:
+        return PlanRun(selection=None, max_files=max_files, refresh="drop_sources")
+    return PlanRun(selection=[f.upper() for f in flux], max_files=max_files, refresh=None)
+
+
+def lander_brut(db_path: Path, plan: PlanRun) -> None:
     """Étape 1 : SFTP → tables raw_<flux> (colonne JSON) dans flux_raw."""
     config = yaml.safe_load((ICI / "config" / "flux.yaml").read_text())
-    if flux_selection:
-        config = {k: v for k, v in config.items() if k in flux_selection}
+    if plan.selection:
+        config = {k: v for k, v in config.items() if k in plan.selection}
 
     pipeline = dlt.pipeline(
         pipeline_name=f"flux_brut_{db_path.stem}",
@@ -67,7 +95,7 @@ def lander_brut(db_path: Path, flux_selection: list[str] | None, max_files: int 
         dataset_name="flux_raw",
         progress="log",
     )
-    info = pipeline.run(flux_enedis_brut(config, max_files=max_files))
+    info = pipeline.run(flux_enedis_brut(config, max_files=plan.max_files), refresh=plan.refresh)
     for paquet in info.load_packages:
         for job in paquet.jobs.get("completed_jobs", []):
             _out(f"  landé : {job.job_file_info.table_name}")
@@ -143,24 +171,18 @@ def bilan(db_path: Path) -> None:
 
 def main() -> None:
     parseur = argparse.ArgumentParser(description="Pipeline dbt : SFTP → brut JSON → modèles dbt")
-    parseur.add_argument("flux", nargs="+", help="'all', 'test' (2 fichiers/flux) ou liste de flux (r151 c15 …)")
+    parseur.add_argument(
+        "flux", nargs="+", help="'all', 'test' (2 fichiers/flux), 'reset' (re-télécharge tout) ou liste de flux"
+    )
     parseur.add_argument("--db", type=Path, default=DB_DEFAUT, help=f"base DuckDB cible (défaut : {DB_DEFAUT})")
     parseur.add_argument("--max-files", type=int, default=None, help="limite de fichiers par flux")
     args = parseur.parse_args()
 
-    selection: list[str] | None
-    max_files = args.max_files
-    if args.flux == ["all"]:
-        selection = None
-    elif args.flux == ["test"]:
-        selection = None
-        max_files = max_files or 2
-    else:
-        selection = [f.upper() for f in args.flux]
+    plan = interpreter_flux(args.flux, args.max_files)
 
     debut = time.time()
     _out(f"🚀 Landing brut → {args.db}")
-    lander_brut(args.db, selection, max_files)
+    lander_brut(args.db, plan)
     _out(f"⏱️  Landing : {time.time() - debut:.1f}s")
 
     debut = time.time()

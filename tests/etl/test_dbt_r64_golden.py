@@ -77,9 +77,9 @@ def test_flux_r64_reproduit_le_golden(base_avec_brut):
     assert len(resultat.result) == 4
 
     # Connexion en écriture (même config que dbt dans le process) pour éviter
-    # le conflit read_only ; dbt matérialise dans le schéma `main`.
+    # le conflit read_only ; dbt matérialise dans le schéma `flux_enedis`.
     con = duckdb.connect(str(base_avec_brut))
-    cur = con.execute("select * from main.flux_r64")
+    cur = con.execute("select * from flux_enedis.flux_r64")
     cols = [d[0] for d in cur.description]
     obtenu = [dict(zip(cols, r, strict=True)) for r in cur.fetchall()]
     con.close()

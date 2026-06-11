@@ -233,8 +233,8 @@ def test_flux_reproduit_le_golden(spec, tmp_path, monkeypatch):
     assert resultat.success, f"dbt build {spec.model} a échoué : {resultat.exception}"
 
     con = duckdb.connect(str(db_path))
-    types = {n: t for n, t, *_ in con.execute(f"describe main.{spec.model}").fetchall()}
-    cur = con.execute(f"select * from main.{spec.model}")
+    types = {n: t for n, t, *_ in con.execute(f"describe flux_enedis.{spec.model}").fetchall()}
+    cur = con.execute(f"select * from flux_enedis.{spec.model}")
     cols = [d[0] for d in cur.description]
     obtenu = [dict(zip(cols, r, strict=True)) for r in cur.fetchall()]
     con.close()

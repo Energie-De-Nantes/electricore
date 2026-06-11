@@ -27,7 +27,7 @@ def _build_pipeline_command(mode: str) -> list[str]:
     - Sinon (env. Docker, ou venv déjà activée), appelle directement l'interpréteur
       Python courant via `sys.executable` — les deps sont déjà installées dans /app/.venv.
     """
-    module_args = ["-m", "electricore.etl.pipeline_production", mode]
+    module_args = ["-m", "electricore.etl.pipeline_dbt", mode]
     if shutil.which("uv"):
         return ["uv", "run", "--project", str(_PROJECT_ROOT), "python", *module_args]
     return [sys.executable, *module_args]
