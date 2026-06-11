@@ -16,6 +16,7 @@ from polars.testing import assert_frame_equal
 from electricore.api.config import settings
 from electricore.api.main import app
 from electricore.api.security import get_current_api_key
+from electricore.integrations.odoo import ResultatVerification
 
 ARROW_IPC = "application/vnd.apache.arrow.stream"
 XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -266,24 +267,35 @@ def test_ancien_endpoint_documents_zip_404():
 
 
 @pytest.fixture
-def resultat_check_odoo() -> dict:
-    """Résultat synthétique de `verifier_odoo` avec une anomalie RSC."""
-    return {
-        "rsc_manquante": [{"id": 1, "name": "S00042", "url": "https://odoo.example/web#id=1"}],
-        "cfne_manquante": [],
-        "invoicing_state_counts": {"up_to_date": 12},
-        "factures_draft": [],
-        "lisses_quantite_1": [],
-    }
+def resultat_check_odoo() -> ResultatVerification:
+    """Résultat synthétique de `verifier` avec une anomalie RSC."""
+    return ResultatVerification(
+        rsc_manquante=pl.DataFrame({"sale_order_id": [1], "name": ["S00042"], "x_pdl": ["14000000000000"]}),
+        cfne_manquante=pl.DataFrame(schema={"sale_order_id": pl.Int64, "name": pl.Utf8, "x_pdl": pl.Utf8}),
+        invoicing_state_counts=pl.DataFrame({"state": ["up_to_date"], "n": [12]}),
+        factures_draft=pl.DataFrame(schema={"account_move_id": pl.Int64, "name": pl.Utf8}),
+        lisses_quantite_1=pl.DataFrame(
+            schema={"sale_order_id": pl.Int64, "name": pl.Utf8, "categ_names": pl.List(pl.Utf8)}
+        ),
+    )
 
 
-def test_check_odoo_xlsx_retourne_le_detail_en_xlsx(monkeypatch, resultat_check_odoo):
+@pytest.fixture
+def _mock_check_service(monkeypatch, resultat_check_odoo):
+    """Court-circuite l'I/O Odoo du service check : le chemin feuilles → xlsx reste réel (#173)."""
+
+    @contextmanager
+    def _fake_reader(config):
+        yield None
+
+    monkeypatch.setattr(type(settings), "get_odoo_config", lambda self: {"url": "https://odoo.example"})
+    monkeypatch.setattr("electricore.api.services.check_facturation_service.OdooReader", _fake_reader)
+    monkeypatch.setattr("electricore.api.services.check_facturation_service.verifier", lambda odoo: resultat_check_odoo)
+
+
+def test_check_odoo_xlsx_retourne_le_detail_en_xlsx(_mock_check_service):
     """L'endpoint sert le détail complet du check Odoo en XLSX multi-onglets."""
     app.dependency_overrides[get_current_api_key] = lambda: "test-key"
-    monkeypatch.setattr(
-        "electricore.api.routers.facturation.verifier_odoo",
-        lambda: resultat_check_odoo,
-    )
     try:
         response = TestClient(app).get("/facturation/check/odoo.xlsx")
     finally:
@@ -295,8 +307,8 @@ def test_check_odoo_xlsx_retourne_le_detail_en_xlsx(monkeypatch, resultat_check_
 
     with zipfile.ZipFile(io.BytesIO(response.content)) as zf:
         workbook_xml = zf.read("xl/workbook.xml").decode()
-    assert "RSC manquant" in workbook_xml, "l'onglet de l'anomalie RSC doit exister"
-    assert "Invoicing state" in workbook_xml
+    for onglet in ("RSC manquant", "CFNE manquant", "Factures draft", "Lissés qty=1", "Invoicing state"):
+        assert onglet in workbook_xml, f"forme stable (#173) : l'onglet {onglet} doit exister même vide"
 
 
 def test_check_odoo_xlsx_refuse_sans_api_key():
