@@ -197,10 +197,10 @@ _Éviter_ : portefeuille (terme commercial), parc.
 Période continue entre deux événements contractuels où la configuration (FTA, puissance, calendrier) ne change pas. Unité de calcul du TURPE fixe.
 
 **Rupture de période** :
-Événement contractuel (MES, MCT, RES) qui découpe une période d'abonnement en deux.
+Événement contractuel (MES, MCT, RES) qui découpe une période d'abonnement en deux. Toute rupture d'abonnement n'est **pas** une rupture d'énergie : Enedis ne fournit un relevé d'index qu'aux événements impactant le comptage (un MCT puissance seule n'en a pas) — les deux lignes de temps ne sont pas synchronisables (cf. [ADR-0023](../../docs/adr/0023-periodisations-separees-abonnement-energie.md)).
 
 **Période d'énergie** :
-Intervalle entre deux relevés d'index, support du calcul de consommation et du TURPE variable.
+Intervalle entre deux relevés d'index, support du calcul de consommation et du TURPE variable. Sa ligne de temps (relevés) est distincte de celle des abonnements (événements contractuels) et le reste délibérément — Enedis facture d'ailleurs séparément l'abonnement (à échoir) et l'énergie (à échue) (cf. [ADR-0023](../../docs/adr/0023-periodisations-separees-abonnement-energie.md)).
 
 **Méta-période mensuelle** :
 Agrégation d'abonnements + périodes d'énergie sur un mois calendaire, unité de la facturation client mensuelle. Grain : une ligne par **(situation contractuelle, mois)** — pas par PDL : un PDL qui change de RSC en cours de mois porte deux méta-périodes ce mois-là (le TURPE fixe est facturé par situation).
