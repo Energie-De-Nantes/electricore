@@ -12,6 +12,7 @@ from unittest.mock import Mock, patch
 import polars as pl
 import pytest
 
+from electricore.config import chemin_base_duckdb
 from electricore.core.loaders.duckdb import (
     DuckDBConfig,
     DuckDBQuery,
@@ -37,10 +38,20 @@ from electricore.core.loaders.duckdb.transforms import (
 class TestDuckDBConfig:
     """Tests pour DuckDBConfig et ses factories."""
 
-    def test_from_env_default_path(self):
-        """from_env() sans variable d'env retourne le chemin par défaut."""
-        config = DuckDBConfig.from_env()
-        assert config.database_path == Path("electricore/etl/flux_enedis_pipeline.duckdb")
+    def test_from_env_meme_resolution_que_le_resolveur(self, monkeypatch):
+        """from_env() délègue au résolveur partagé (issue #146) — plus de défaut propre.
+
+        Ordre volontaire : from_env() d'abord — s'il ne déléguait pas, il rendrait
+        son propre défaut avant que le résolveur n'ait chargé le .env.
+        """
+        monkeypatch.delenv("DUCKDB_PATH", raising=False)
+        depuis_config = DuckDBConfig.from_env().database_path
+        assert depuis_config == chemin_base_duckdb()
+
+    def test_from_env_honore_duckdb_path(self, monkeypatch):
+        """DUCKDB_PATH explicite prime, telle quelle."""
+        monkeypatch.setenv("DUCKDB_PATH", "/data/flux.duckdb")
+        assert DuckDBConfig.from_env().database_path == Path("/data/flux.duckdb")
 
     def test_from_path_custom_path(self):
         """from_path() avec un chemin explicite le convertit en Path."""

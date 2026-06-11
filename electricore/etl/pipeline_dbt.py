@@ -19,18 +19,9 @@ dans `flux_raw`. `--db` permet une base jetable pour les validations.
 """
 
 # Charger .env avant que DLT lise ses secrets depuis os.environ (SFTP__URL, AES__*).
-import os as _os
-from pathlib import Path as _Path
+from electricore.config import charger_env, chemin_base_duckdb
 
-for _c in [_Path(".env"), _Path(__file__).parents[2] / ".env"]:
-    if _c.exists():
-        with open(_c) as _f:
-            for _l in _f:
-                _l = _l.strip()
-                if _l and not _l.startswith("#") and "=" in _l:
-                    _k, _, _v = _l.partition("=")
-                    _os.environ.setdefault(_k.strip(), _v.strip())
-        break
+charger_env()
 
 import argparse
 import logging
@@ -53,9 +44,10 @@ PROJET_DBT = ICI / "dbt"
 
 
 def chemin_db_defaut() -> Path:
-    """Base cible par défaut : DUCKDB_PATH (volume Docker, cf. docker-compose) sinon
-    la base de prod locale — même résolution que l'API et les loaders core."""
-    return Path(os.getenv("DUCKDB_PATH", str(ICI / "flux_enedis_pipeline.duckdb")))
+    """Base cible par défaut : DUCKDB_PATH (.env compris, volume Docker via compose)
+    sinon la base de prod locale — résolution partagée avec l'API et les loaders
+    core (`chemin_base_duckdb`, issue #146)."""
+    return chemin_base_duckdb()
 
 
 def _out(msg: str) -> None:

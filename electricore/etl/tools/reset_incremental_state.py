@@ -6,15 +6,17 @@ DLT stocke l'état dans DEUX endroits :
   1. Fichier local  : ~/.dlt/pipelines/{pipeline}/state.json  (prioritaire au démarrage)
   2. DuckDB         : flux_enedis._dlt_pipeline_state         (restauré au lancement)
 
-Ce script met à jour les deux de manière cohérente.
+Ce script met à jour les deux de manière cohérente. La base visée est résolue
+par `chemin_base_duckdb()` (DUCKDB_PATH, .env compris — issue #146) : le script
+se lance depuis n'importe quel répertoire.
 
-Usage (depuis electricore/etl/) :
+Usage :
     # Reset complet (efface tous les curseurs → retraite tout depuis le début)
-    uv run --extra etl python tools/reset_incremental_state.py --clear
+    uv run --extra etl python electricore/etl/tools/reset_incremental_state.py --clear
 
     # Reset à une date (retraite les fichiers depuis cette date)
-    uv run --extra etl python tools/reset_incremental_state.py 2026-03-17
-    uv run --extra etl python tools/reset_incremental_state.py          # défaut : 2026-03-17
+    uv run --extra etl python electricore/etl/tools/reset_incremental_state.py 2026-03-17
+    uv run --extra etl python electricore/etl/tools/reset_incremental_state.py  # défaut : 2026-03-17
 """
 
 import base64
@@ -26,7 +28,9 @@ from pathlib import Path
 
 import duckdb
 
-DB_PATH = Path("flux_enedis_pipeline.duckdb")
+from electricore.config import chemin_base_duckdb
+
+DB_PATH = chemin_base_duckdb()
 DATASET = "flux_enedis"
 RESET_DATE_DEFAULT = "2026-03-17T00:00:00+00:00"
 
