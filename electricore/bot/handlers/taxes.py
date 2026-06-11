@@ -5,7 +5,6 @@ ou raccourcis texte v1 inchangés : `/taxes accise [trimestre]`, `/taxes cta
 [trimestre]`.
 """
 
-import io
 from datetime import date
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -14,6 +13,7 @@ from telegram.ext import ContextTypes
 from electricore.bot.auth import require_allowed, require_odoo
 from electricore.bot.client import ElectriCoreClient
 from electricore.bot.format import escape
+from electricore.bot.livraison import envoyer_document
 
 _TITRE_MENU = "<b>Taxes</b> — choisis un calcul :"
 _USAGE = "Usage :\n  /taxes accise [trimestre]  (ex: /taxes accise 2025-T1)\n  /taxes cta [trimestre]"
@@ -56,30 +56,20 @@ def clavier_trimestres(taxe: str) -> InlineKeyboardMarkup:
 async def _envoyer_rapport(bot, chat_id: int, message_id: int, taxe: str, trimestre: str | None) -> None:
     libelle = _LIBELLES[taxe]
     periode = trimestre or "toutes périodes"
-    await bot.edit_message_text(
-        f"⏳ Calcul {libelle} — {escape(periode)}…", chat_id=chat_id, message_id=message_id, parse_mode="HTML"
-    )
     client = ElectriCoreClient()
-    try:
-        if taxe == "accise":
-            xlsx_bytes = await client.get_accise_xlsx(trimestre)
-        else:
-            xlsx_bytes = await client.get_cta_xlsx(trimestre)
-    except Exception as e:
-        await bot.edit_message_text(
-            f"❌ Erreur {libelle} : <code>{escape(e)}</code>",
-            chat_id=chat_id,
-            message_id=message_id,
-            parse_mode="HTML",
-        )
-        return
-    suffixe = f"_{trimestre}" if trimestre else ""
-    filename = f"{taxe}{suffixe}.xlsx"
-    await bot.send_document(
-        chat_id=chat_id, document=io.BytesIO(xlsx_bytes), filename=filename, caption=f"{libelle} — {periode}"
+    fetch = (
+        (lambda: client.get_accise_xlsx(trimestre)) if taxe == "accise" else (lambda: client.get_cta_xlsx(trimestre))
     )
-    await bot.edit_message_text(
-        f"📥 <code>{filename}</code> envoyé.", chat_id=chat_id, message_id=message_id, parse_mode="HTML"
+    suffixe = f"_{trimestre}" if trimestre else ""
+    await envoyer_document(
+        bot,
+        chat_id,
+        message_id,
+        attente=f"Calcul {libelle} — {escape(periode)}",
+        fetch=fetch,
+        filename=f"{taxe}{suffixe}.xlsx",
+        caption=f"{libelle} — {periode}",
+        libelle_erreur=f"Erreur {libelle}",
     )
 
 

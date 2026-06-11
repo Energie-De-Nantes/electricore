@@ -15,6 +15,7 @@ from telegram.ext import ContextTypes
 from electricore.bot.auth import require_allowed, require_odoo
 from electricore.bot.client import ElectriCoreClient
 from electricore.bot.format import escape
+from electricore.bot.livraison import envoyer_document, etape
 
 logger = logging.getLogger(__name__)
 
@@ -146,44 +147,29 @@ def _format_check_odoo(result: dict) -> tuple[str, bool]:
 
 async def _envoyer_documents(bot, chat_id: int, message_id: int, mois: str | None) -> None:
     periode = mois[:7] if mois else "dernier mois disponible"
-    await bot.edit_message_text(
-        f"⏳ Génération des documents facturation — {escape(periode)}…",
-        chat_id=chat_id,
-        message_id=message_id,
-        parse_mode="HTML",
-    )
     client = ElectriCoreClient()
-    try:
-        xlsx_bytes = await client.get_facturation_documents_xlsx(mois)
-    except Exception as e:
-        await bot.edit_message_text(
-            f"❌ Erreur : <code>{escape(e)}</code>", chat_id=chat_id, message_id=message_id, parse_mode="HTML"
-        )
-        return
     suffixe = f"_{mois[:7]}" if mois else ""
-    filename = f"facturation{suffixe}.xlsx"
-    await bot.send_document(
-        chat_id=chat_id,
-        document=io.BytesIO(xlsx_bytes),
-        filename=filename,
+    await envoyer_document(
+        bot,
+        chat_id,
+        message_id,
+        attente=f"Génération des documents facturation — {escape(periode)}",
+        fetch=lambda: client.get_facturation_documents_xlsx(mois),
+        filename=f"facturation{suffixe}.xlsx",
         caption=f"Documents facturation Odoo ↔ Enedis — {periode} (6 onglets)",
-    )
-    await bot.edit_message_text(
-        f"📥 <code>{filename}</code> envoyé.", chat_id=chat_id, message_id=message_id, parse_mode="HTML"
     )
 
 
 async def _executer_check(bot, chat_id: int, message_id: int) -> None:
-    await bot.edit_message_text(
-        "⏳ Vérifications côté Odoo…", chat_id=chat_id, message_id=message_id, parse_mode="HTML"
-    )
     client = ElectriCoreClient()
-    try:
-        result = await client.check_facturation_odoo()
-    except Exception as e:
-        await bot.edit_message_text(
-            f"❌ Erreur : <code>{escape(e)}</code>", chat_id=chat_id, message_id=message_id, parse_mode="HTML"
-        )
+    result = await etape(
+        bot,
+        chat_id,
+        message_id,
+        attente="Vérifications côté Odoo",
+        action=client.check_facturation_odoo,
+    )
+    if result is None:
         return
 
     try:

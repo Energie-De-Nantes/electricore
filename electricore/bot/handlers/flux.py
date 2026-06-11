@@ -5,14 +5,13 @@ Stats / Export. Raccourcis : `/flux stats <table>`, `/flux export <table>`.
 Remplace les commandes v1 `/stats`, `/export` et l'ancien `/flux` plat.
 """
 
-import io
-
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
 from electricore.bot.auth import require_allowed
 from electricore.bot.client import ElectriCoreClient
 from electricore.bot.format import escape
+from electricore.bot.livraison import envoyer_document
 
 _TITRE_MENU = "<b>Tables flux Enedis</b> — stats ou export :"
 
@@ -68,35 +67,17 @@ async def _texte_stats(client: ElectriCoreClient, table: str) -> str:
 
 async def _envoyer_export(bot, chat_id: int, message_id: int, client: ElectriCoreClient, table: str) -> None:
     """Génère l'export, l'envoie en document et confirme sur le message du clavier."""
-    await bot.edit_message_text(
-        f"⏳ Génération de l'export <code>{escape(table)}</code>…",
-        chat_id=chat_id,
-        message_id=message_id,
-        parse_mode="HTML",
-    )
-    try:
-        xlsx_bytes = await client.get_xlsx(table)
-    except Exception as e:
-        await bot.edit_message_text(
-            f"❌ Erreur pour <code>{escape(table)}</code> : <code>{escape(e)}</code>",
-            chat_id=chat_id,
-            message_id=message_id,
-            parse_mode="HTML",
-            reply_markup=clavier_retour(),
-        )
-        return
-    await bot.send_document(
-        chat_id=chat_id,
-        document=io.BytesIO(xlsx_bytes),
+    await envoyer_document(
+        bot,
+        chat_id,
+        message_id,
+        attente=f"Génération de l'export <code>{escape(table)}</code>",
+        fetch=lambda: client.get_xlsx(table),
         filename=f"flux_{table}.xlsx",
         caption=f"Export flux_{table}",
-    )
-    await bot.edit_message_text(
-        f"📥 <code>flux_{escape(table)}.xlsx</code> envoyé.",
-        chat_id=chat_id,
-        message_id=message_id,
-        parse_mode="HTML",
-        reply_markup=clavier_retour(),
+        libelle_erreur=f"Erreur pour <code>{escape(table)}</code>",
+        clavier_erreur=clavier_retour(),
+        clavier_confirmation=clavier_retour(),
     )
 
 
