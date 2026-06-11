@@ -1,0 +1,30 @@
+[
+  {
+    "date_releve": "2024-06-15",
+    "pdl": "99100000000000",
+    "id_calendrier_fournisseur": "TEXTE",
+    "id_affaire": "ABCD",
+    "id_calendrier_distributeur": "TEXTE",
+    "index_base_kwh": "3886",
+    "index_hp_kwh": "3997",
+    "unite": "TEXTE",
+    "_source_zip": "fixture.zip",
+    "_flux_type": "R151",
+    "_xml_name": "r151_xsd.xml",
+    "modification_date": "2026-01-01T00:00:00"
+  },
+  {
+    "date_releve": "2024-06-15",
+    "pdl": "99100000000001",
+    "id_calendrier_fournisseur": "TEXTE",
+    "id_affaire": "ABCD",
+    "id_calendrier_distributeur": "TEXTE",
+    "index_base_kwh": "4330",
+    "index_hp_kwh": "4441",
+    "unite": "TEXTE",
+    "_source_zip": "fixture.zip",
+    "_flux_type": "R151",
+    "_xml_name": "r151_xsd.xml",
+    "modification_date": "2026-01-01T00:00:00"
+  }
+]

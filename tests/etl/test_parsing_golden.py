@@ -48,21 +48,44 @@ def _parser(config_flux: dict, fixture: str, flux: str, idx: int) -> tuple[list[
 
 
 @pytest.mark.parametrize(
-    ("fixture", "flux", "idx"),
+    ("fixture", "flux", "idx", "cas"),
     [
-        ("c15_avec_releves.xml", "C15", 0),
-        ("f12.xml", "F12", 0),
-        ("f15.xml", "F15", 0),
-        ("r15.xml", "R15", 0),
-        ("r15.xml", "R15", 1),
-        ("r151.xml", "R151", 0),
+        # Fixtures réelles anonymisées (cas=None → golden au nom de la table).
+        ("c15_avec_releves.xml", "C15", 0, None),
+        ("f12.xml", "F12", 0, None),
+        ("f15.xml", "F15", 0, None),
+        ("r15.xml", "R15", 0, None),
+        ("r15.xml", "R15", 1, None),
+        ("r151.xml", "R151", 0, None),
+        # Fixtures générées depuis les XSD Enedis (instances maximales, schéma-valides
+        # par construction — generer_fixtures_xsd.py). Filet « on ne casse pas
+        # l'ingestion » sur les optionnels/enums que les échantillons réels n'exercent pas.
+        ("c15_xsd.xml", "C15", 0, "flux_c15_xsd"),
+        ("r15_xsd.xml", "R15", 0, "flux_r15_xsd"),
+        ("r15_xsd.xml", "R15", 1, "flux_r15_acc_xsd"),
+        ("r151_xsd.xml", "R151", 0, "flux_r151_xsd"),
+        ("f12_xsd.xml", "F12", 0, "flux_f12_detail_xsd"),
+        ("f15_xsd.xml", "F15", 0, "flux_f15_detail_xsd"),
     ],
-    ids=["c15", "f12", "f15", "r15", "r15_acc", "r151"],
+    ids=[
+        "c15",
+        "f12",
+        "f15",
+        "r15",
+        "r15_acc",
+        "r151",
+        "c15_xsd",
+        "r15_xsd",
+        "r15_acc_xsd",
+        "r151_xsd",
+        "f12_xsd",
+        "f15_xsd",
+    ],
 )
-def test_linearisation_golden(config_flux, fixture, flux, idx):
-    """La linéarisation d'un fichier réel anonymisé est figée au record près."""
+def test_linearisation_golden(config_flux, fixture, flux, idx, cas):
+    """La linéarisation d'une fixture (réelle ou dérivée du XSD) est figée au record près."""
     records, table = _parser(config_flux, fixture, flux, idx)
-    attendu = json.loads((FIXTURES / "golden" / f"{table}.json").read_text())
+    attendu = json.loads((FIXTURES / "golden" / f"{cas or table}.json").read_text())
     assert records == attendu
 
 
