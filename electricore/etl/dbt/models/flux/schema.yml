@@ -13,3 +13,16 @@ models:
       - name: date_releve
         description: Date du relevé.
         data_tests: [not_null]
+
+  - name: flux_c15
+    description: >
+      Situation contractuelle C15 : une ligne par PRM, relevés avant/après pivotés
+      en colonnes index_{cadran}_kwh. Parité golden vérifiée
+      (tests/etl/test_dbt_c15_golden.py).
+    columns:
+      - name: pdl
+        description: Point de livraison (14 chiffres).
+        data_tests: [not_null]
+      - name: date_evenement
+        description: Horodatage de l'événement déclencheur (instant, TIMESTAMPTZ).
+        data_tests: [not_null]
