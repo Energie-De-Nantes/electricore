@@ -6,7 +6,6 @@ chaque tranche #152–#156 migre un domaine vers `handlers/` et retire les
 commandes correspondantes d'ici.
 """
 
-import asyncio
 import io
 import logging
 
@@ -16,79 +15,8 @@ from telegram.ext import ContextTypes
 from electricore.bot.auth import require_allowed
 from electricore.bot.client import ElectriCoreClient
 from electricore.bot.format import escape
-from electricore.bot.tasks import create_task
 
 logger = logging.getLogger(__name__)
-
-_STATUS_EMOJI = {
-    "running": "⏳",
-    "completed": "✅",
-    "failed": "❌",
-}
-
-
-@require_allowed
-async def cmd_etl(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    mode = context.args[0] if context.args else "all"
-    valid_modes = {"test", "r151", "all", "reset"}
-    if mode not in valid_modes:
-        await update.effective_message.reply_text(f"Mode invalide : `{mode}`. Choix : {', '.join(valid_modes)}")
-        return
-
-    client = ElectriCoreClient()
-    try:
-        job = await client.run_etl(mode)
-    except Exception as e:
-        await update.effective_message.reply_text(f"❌ Erreur au lancement : {e}")
-        return
-
-    job_id = job["id"]
-    chat_id = update.effective_message.chat_id
-    await update.effective_message.reply_text(
-        f"⏳ Pipeline `{mode}` lancé (job `{job_id[:8]}…`). Je te notifie à la fin."
-    )
-
-    async def _notify():
-        for _ in range(360):  # max 30 minutes
-            await asyncio.sleep(5)
-            try:
-                j = await client.get_job(job_id)
-            except Exception:
-                continue
-            if j["status"] != "running":
-                break
-
-        emoji = _STATUS_EMOJI.get(j["status"], "❓")
-        msg = f"{emoji} Pipeline <code>{escape(mode)}</code> terminé — statut : <b>{escape(j['status'])}</b>"
-        if j.get("error"):
-            msg += f"\n\n<code>{escape(j['error'][:500])}</code>"
-        elif j.get("output"):
-            msg += f"\n\n<pre>{escape(j['output'][:800])}</pre>"
-        await context.bot.send_message(chat_id=chat_id, text=msg, parse_mode="HTML")
-
-    create_task(_notify())
-
-
-@require_allowed
-async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    client = ElectriCoreClient()
-    try:
-        jobs = await client.get_jobs(limit=5)
-    except Exception as e:
-        await update.effective_message.reply_text(f"❌ Erreur : {e}")
-        return
-
-    if not jobs:
-        await update.effective_message.reply_text("Aucun job ETL enregistré.")
-        return
-
-    lines = ["<b>Derniers jobs ETL :</b>\n"]
-    for j in jobs:
-        emoji = _STATUS_EMOJI.get(j["status"], "❓")
-        started = j["started_at"][:16].replace("T", " ")
-        lines.append(f"{emoji} <code>{j['id'][:8]}…</code> — <b>{escape(j['mode'])}</b> — {started}")
-
-    await update.effective_message.reply_html("\n".join(lines))
 
 
 @require_allowed

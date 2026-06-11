@@ -27,7 +27,8 @@ def _build_pipeline_command(mode: str) -> list[str]:
     - Sinon (env. Docker, ou venv déjà activée), appelle directement l'interpréteur
       Python courant via `sys.executable` — les deps sont déjà installées dans /app/.venv.
     """
-    module_args = ["-m", "electricore.etl.pipeline_dbt", mode]
+    # Une liste de flux ("r151 c15") devient plusieurs arguments CLI (nargs="+").
+    module_args = ["-m", "electricore.etl.pipeline_dbt", *mode.split()]
     if shutil.which("uv"):
         return ["uv", "run", "--project", str(_PROJECT_ROOT), "python", *module_args]
     return [sys.executable, *module_args]
@@ -40,6 +41,24 @@ class ETLMode(StrEnum):
     rebuild = "rebuild"  # re-matérialise depuis le brut, zéro réseau (#140)
     resync = "resync"  # purge l'état incrémental + re-télécharge tout (brut perdu)
     reset = "reset"  # déprécié : alias de resync
+
+
+# Clés de flux.yaml, en minuscules — le runner accepte aussi une liste de flux (#152).
+FLUX_CONNUS = frozenset({"c15", "f12", "f15", "r15", "r151", "r64"})
+
+
+def valider_mode(mode: str) -> str | None:
+    """Mode runner valide et normalisé (minuscules, espaces simples) — ou None.
+
+    Accepte un membre d'`ETLMode` ou une liste de flux connus (`r151 c15`).
+    """
+    tokens = mode.lower().split()
+    if not tokens:
+        return None
+    normalise = " ".join(tokens)
+    if normalise in ETLMode or all(t in FLUX_CONNUS for t in tokens):
+        return normalise
+    return None
 
 
 class ETLStatus(StrEnum):
@@ -56,7 +75,7 @@ _MAX_JOBS = 50
 @dataclass(slots=True)
 class ETLJob:
     id: str
-    mode: ETLMode
+    mode: str  # membre d'ETLMode ou liste de flux normalisée (cf. valider_mode)
     status: ETLStatus
     started_at: datetime
     finished_at: datetime | None = None
@@ -89,7 +108,7 @@ def list_jobs(limit: int = 20) -> list[ETLJob]:
     return all_jobs[:limit]
 
 
-async def start_job(mode: ETLMode) -> ETLJob:
+async def start_job(mode: str) -> ETLJob:
     """
     Lance le pipeline ETL en arrière-plan et retourne le job immédiatement.
     """
@@ -116,7 +135,7 @@ def _run_pipeline(job: ETLJob) -> None:
     """Exécute le pipeline ETL via subprocess (isolation des dépendances DLT)."""
     try:
         result = subprocess.run(
-            _build_pipeline_command(job.mode.value),
+            _build_pipeline_command(job.mode),
             capture_output=True,
             text=True,
         )
