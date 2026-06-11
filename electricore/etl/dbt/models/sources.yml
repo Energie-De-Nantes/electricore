@@ -30,3 +30,41 @@ sources:
             description: Nom du fichier source (traçabilité).
           - name: modification_date
             description: Date de modification SFTP (clé d'incrémental dlt).
+      - name: raw_r15
+        description: >
+          Flux R15 (relevés + événements), un document XML→dict par ligne. Source
+          partagée par flux_r15 (index distributeur) et flux_r15_acc (énergies ACC).
+        columns:
+          - name: content
+            description: Document JSON intégral (En_Tete_Flux + PRM[]).
+          - name: file_name
+            description: Nom du fichier source (traçabilité).
+          - name: modification_date
+            description: Date de modification SFTP (clé d'incrémental dlt).
+      - name: raw_r151
+        description: Flux R151 (index périodiques), un document XML→dict par ligne.
+        columns:
+          - name: content
+            description: Document JSON intégral (En_Tete_Flux + PRM[]).
+          - name: file_name
+            description: Nom du fichier source (traçabilité).
+          - name: modification_date
+            description: Date de modification SFTP (clé d'incrémental dlt).
+      - name: raw_f12
+        description: Flux F12 (facturation distributeur), un document XML→dict par ligne.
+        columns:
+          - name: content
+            description: Document JSON intégral (En_Tete_Flux + Rappel_En_Tete + Sous_Lot[]).
+          - name: file_name
+            description: Nom du fichier source (traçabilité).
+          - name: modification_date
+            description: Date de modification SFTP (clé d'incrémental dlt).
+      - name: raw_f15
+        description: Flux F15 (factures détaillées), un document XML→dict par ligne.
+        columns:
+          - name: content
+            description: Document JSON intégral (En_Tete_Flux + Rappel_En_Tete + Donnees_Valorisation[]).
+          - name: file_name
+            description: Nom du fichier source (traçabilité).
+          - name: modification_date
+            description: Date de modification SFTP (clé d'incrémental dlt).

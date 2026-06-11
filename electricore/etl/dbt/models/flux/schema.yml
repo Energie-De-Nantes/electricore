@@ -26,3 +26,63 @@ models:
       - name: date_evenement
         description: Horodatage de l'événement déclencheur (instant, TIMESTAMPTZ).
         data_tests: [not_null]
+
+  - name: flux_r15
+    description: >
+      Relevés R15 : une ligne par PRM, index distributeur par cadran. Parité golden
+      (tests/etl/test_dbt_flux_golden.py).
+    columns:
+      - name: pdl
+        description: Point de livraison (14 chiffres).
+        data_tests: [not_null]
+      - name: date_releve
+        description: Horodatage du relevé (instant, TIMESTAMPTZ).
+        data_tests: [not_null]
+
+  - name: flux_r15_acc
+    description: >
+      Relevés R15 autoconsommation : une ligne par PRM, énergies ea_* par cadran.
+      Parité golden (cas vide aujourd'hui).
+    columns:
+      - name: pdl
+        description: Point de livraison (14 chiffres).
+        data_tests: [not_null]
+      - name: date_releve
+        description: Horodatage du relevé (instant, TIMESTAMPTZ).
+        data_tests: [not_null]
+
+  - name: flux_r151
+    description: >
+      Index périodiques R151 : une ligne par PRM, 4 cadrans saisonniers (+ INCONNU
+      éventuel). date_releve en date nue. Parité golden.
+    columns:
+      - name: pdl
+        description: Point de livraison (14 chiffres).
+        data_tests: [not_null]
+      - name: date_releve
+        description: Date du relevé (date nue, pas d'horodatage).
+        data_tests: [not_null]
+
+  - name: flux_f12_detail
+    description: >
+      Détail valorisé F12 (facturation distributeur) : une ligne par Element_Valorise.
+      Parité golden.
+    columns:
+      - name: pdl
+        description: Point de livraison (14 chiffres).
+        data_tests: [not_null]
+      - name: id_ev
+        description: Identifiant de l'élément de valorisation.
+        data_tests: [not_null]
+
+  - name: flux_f15_detail
+    description: >
+      Détail facturé F15 (montants signés) : une ligne par Element_Valorise.
+      Parité golden.
+    columns:
+      - name: pdl
+        description: Point de livraison (14 chiffres).
+        data_tests: [not_null]
+      - name: id_ev
+        description: Identifiant de l'élément de valorisation.
+        data_tests: [not_null]
