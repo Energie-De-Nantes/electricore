@@ -7,6 +7,7 @@
 
 with flat as (
     select
+        prm_id,
         prm ->> '$.Id_PRM'                                              as pdl,
         cast(prm ->> '$.Donnees_Releve[0].Date_Releve' as date)         as date_releve,
         prm ->> '$.Donnees_Releve[0].Id_Calendrier_Fournisseur'         as id_calendrier_fournisseur,
@@ -18,15 +19,17 @@ with flat as (
 
 classes as (
     select
-        prm ->> '$.Id_PRM'                                                  as pdl,
+        prm_id,
         'index_' || lower(c.classe ->> '$.Id_Classe_Temporelle') || '_kwh'  as cadran_col,
         cast(c.classe ->> '$.Valeur' as bigint)                            as valeur
     from {{ ref('stg_r151') }},
         unnest(cast(prm -> '$.Donnees_Releve[0].Classe_Temporelle_Distributeur' as json[])) as c(classe)
 ),
 
+-- Pivot scopé par prm_id (occurrence de PRM), pas par PDL : un PDL revient à chaque
+-- période, agréger par PDL mélangerait les index de toutes les périodes.
 pivot_cadrans as (
-    pivot classes on cadran_col using first(valeur) group by pdl
+    pivot classes on cadran_col using first(valeur) group by prm_id
 )
 
-select * from flat left join pivot_cadrans using (pdl)
+select * exclude (prm_id) from flat left join pivot_cadrans using (prm_id)

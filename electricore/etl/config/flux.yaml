@@ -156,11 +156,21 @@ R15:
         ref_demandeur: 'Donnees_Releve/Ref_Demandeur'
         id_affaire: 'Donnees_Releve/Id_Affaire'
       nested_fields:
+        # Index distributeur uniquement. Chaque cadran porte 2 classes Sens=0 :
+        # Classe_Mesure=1 = index cumulé, Classe_Mesure=2 = énergie de période. Sans
+        # condition, le « dernier-écrit gagne » mélangeait index et conso selon l'ordre
+        # document (~75 % des index R15 faux). Condition ajoutée après comparaison
+        # legacy-vs-dbt sur données réelles (cf. flux_r15.sql).
         - prefix: ''
           child_path: 'Donnees_Releve/Classe_Temporelle_Distributeur'
           id_field: 'Id_Classe_Temporelle'
           value_field: 'Valeur'
-    
+          conditions:
+            - xpath: 'Classe_Mesure'
+              value: '1'
+            - xpath: 'Sens_Mesure'
+              value: '0'
+
     - name: "flux_r15_acc"
       file_regex: "*.xml"  # Même fichiers XML - traitement autoconsommation collective
       row_level: './/PRM'

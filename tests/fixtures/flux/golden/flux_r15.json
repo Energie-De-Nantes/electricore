@@ -6,7 +6,7 @@
     "ref_situation_contractuelle": "554933217",
     "type_compteur": "CCB",
     "motif_releve": "CFNS",
-    "index_base_kwh": "100",
+    "index_base_kwh": "10160",
     "_source_zip": "fixture.zip",
     "_flux_type": "R15",
     "_xml_name": "r15.xml",
