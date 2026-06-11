@@ -49,7 +49,7 @@ async def lifespan(app: FastAPI):
         _format_sftp_source(),
     )
     if settings.telegram_bot_token:
-        from electricore.bot.bot import build_application
+        from electricore.bot.app import build_application
 
         _tg_app = build_application(settings.telegram_bot_token)
         await _tg_app.initialize()
@@ -58,7 +58,7 @@ async def lifespan(app: FastAPI):
         logger.info("Bot Telegram démarré.")
     yield
     if _tg_app is not None:
-        from electricore.bot.bot import _background_tasks
+        from electricore.bot.tasks import _background_tasks
 
         for task in list(_background_tasks):
             task.cancel()

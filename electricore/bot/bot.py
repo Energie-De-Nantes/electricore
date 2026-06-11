@@ -1,6 +1,9 @@
 """
-Bot Telegram pour ElectriCore.
-Permet de lancer l'ETL, consulter les stats et exporter des données via Telegram.
+Handlers v1 du bot Telegram — en cours de migration par domaine (ADR-0022).
+
+L'assemblage (application, surface, menu natif) vit dans [app.py](app.py) ;
+chaque tranche #152–#156 migre un domaine vers `handlers/` et retire les
+commandes correspondantes d'ici.
 """
 
 import asyncio
@@ -8,41 +11,14 @@ import io
 import logging
 
 from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
+from telegram.ext import ContextTypes
 
-from electricore.api.config import settings
+from electricore.bot.auth import require_allowed
 from electricore.bot.client import ElectriCoreClient
+from electricore.bot.format import escape
+from electricore.bot.tasks import create_task
 
 logger = logging.getLogger(__name__)
-
-_background_tasks: set[asyncio.Task] = set()
-
-
-def _create_task(coro) -> asyncio.Task:
-    """Crée une tâche en la gardant en référence pour pouvoir l'annuler au shutdown."""
-    task = asyncio.create_task(coro)
-    _background_tasks.add(task)
-    task.add_done_callback(_background_tasks.discard)
-    return task
-
-
-_HELP = r"""
-*ElectriCore Bot* — Commandes disponibles :
-
-/start — Ce message d'aide
-/etl \[mode\] — Lancer l'ingestion ETL \(défaut : all\)
-  Modes : `test`, `r151`, `all`, `reset`
-/status — Statut des 5 derniers jobs ETL
-/stats \[table\] — Stats d'une table flux
-/export \[table\] — Exporter une table en fichier Excel
-/entrees — Exporter les entrées C15 \(PMES, MES, CFNE\)
-/sorties — Exporter les sorties C15 \(RES, CFNS\)
-/flux — Lister les tables disponibles à l'export
-/taxes accise \[trimestre\] — Exporter le calcul Accise TICFE en Excel
-/taxes cta \[trimestre\] — Exporter le calcul CTA en Excel
-/facturation \[YYYY\-MM\-DD\] — Exporter la réconciliation facturation Odoo ↔ Enedis
-/check odoo — Vérifications pré\-facturation côté Odoo \(RSC, CFNE, draft, états\)
-"""
 
 _STATUS_EMOJI = {
     "running": "⏳",
@@ -51,29 +27,8 @@ _STATUS_EMOJI = {
 }
 
 
-def _is_allowed(update: Update) -> bool:
-    allowed = settings.get_telegram_allowed_users()
-    if not allowed:
-        return False
-    return update.effective_user.id in allowed
-
-
-async def _deny(update: Update) -> None:
-    await update.effective_message.reply_text("⛔ Accès refusé.")
-
-
-async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if not _is_allowed(update):
-        await _deny(update)
-        return
-    await update.effective_message.reply_markdown_v2(_HELP)
-
-
+@require_allowed
 async def cmd_etl(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if not _is_allowed(update):
-        await _deny(update)
-        return
-
     mode = context.args[0] if context.args else "all"
     valid_modes = {"test", "r151", "all", "reset"}
     if mode not in valid_modes:
@@ -104,21 +59,18 @@ async def cmd_etl(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 break
 
         emoji = _STATUS_EMOJI.get(j["status"], "❓")
-        msg = f"{emoji} Pipeline `{mode}` terminé — statut : *{j['status']}*"
+        msg = f"{emoji} Pipeline <code>{escape(mode)}</code> terminé — statut : <b>{escape(j['status'])}</b>"
         if j.get("error"):
-            msg += f"\n\n`{j['error'][:500]}`"
+            msg += f"\n\n<code>{escape(j['error'][:500])}</code>"
         elif j.get("output"):
-            msg += f"\n\n```\n{j['output'][:800]}\n```"
-        await context.bot.send_message(chat_id=chat_id, text=msg, parse_mode="Markdown")
+            msg += f"\n\n<pre>{escape(j['output'][:800])}</pre>"
+        await context.bot.send_message(chat_id=chat_id, text=msg, parse_mode="HTML")
 
-    _create_task(_notify())
+    create_task(_notify())
 
 
+@require_allowed
 async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if not _is_allowed(update):
-        await _deny(update)
-        return
-
     client = ElectriCoreClient()
     try:
         jobs = await client.get_jobs(limit=5)
@@ -130,20 +82,17 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         await update.effective_message.reply_text("Aucun job ETL enregistré.")
         return
 
-    lines = ["*Derniers jobs ETL :*\n"]
+    lines = ["<b>Derniers jobs ETL :</b>\n"]
     for j in jobs:
         emoji = _STATUS_EMOJI.get(j["status"], "❓")
         started = j["started_at"][:16].replace("T", " ")
-        lines.append(f"{emoji} `{j['id'][:8]}…` — *{j['mode']}* — {started}")
+        lines.append(f"{emoji} <code>{j['id'][:8]}…</code> — <b>{escape(j['mode'])}</b> — {started}")
 
-    await update.effective_message.reply_markdown("\n".join(lines))
+    await update.effective_message.reply_html("\n".join(lines))
 
 
+@require_allowed
 async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if not _is_allowed(update):
-        await _deny(update)
-        return
-
     client = ElectriCoreClient()
 
     if not context.args:
@@ -168,16 +117,13 @@ async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     count = info.get("count", "?")
     cols = len(info.get("columns", []))
-    await update.effective_message.reply_markdown(
-        f"📊 *flux_{table}*\n  • Lignes : `{count:,}`\n  • Colonnes : `{cols}`"
+    await update.effective_message.reply_html(
+        f"📊 <b>flux_{escape(table)}</b>\n  • Lignes : <code>{count:,}</code>\n  • Colonnes : <code>{cols}</code>"
     )
 
 
+@require_allowed
 async def cmd_export(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if not _is_allowed(update):
-        await _deny(update)
-        return
-
     if not context.args:
         await update.effective_message.reply_text("Usage : /export <table>  (ex: /export r151)")
         return
@@ -199,10 +145,8 @@ async def cmd_export(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     )
 
 
+@require_allowed
 async def cmd_flux(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if not _is_allowed(update):
-        await _deny(update)
-        return
     client = ElectriCoreClient()
     try:
         tables = await client.list_tables()
@@ -216,10 +160,8 @@ async def cmd_flux(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.effective_message.reply_text("\n".join(lines))
 
 
+@require_allowed
 async def cmd_entrees(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if not _is_allowed(update):
-        await _deny(update)
-        return
     await update.effective_message.reply_text("⏳ Génération de l'export entrées C15…")
     client = ElectriCoreClient()
     try:
@@ -234,10 +176,8 @@ async def cmd_entrees(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     )
 
 
+@require_allowed
 async def cmd_sorties(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if not _is_allowed(update):
-        await _deny(update)
-        return
     await update.effective_message.reply_text("⏳ Génération de l'export sorties C15…")
     client = ElectriCoreClient()
     try:
@@ -252,11 +192,8 @@ async def cmd_sorties(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     )
 
 
+@require_allowed
 async def cmd_taxes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if not _is_allowed(update):
-        await _deny(update)
-        return
-
     usage = (
         "Usage :\n"
         "  /taxes accise [trimestre]  — Accise TICFE (ex: /taxes accise 2025-T1)\n"
@@ -307,11 +244,8 @@ async def cmd_taxes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.effective_message.reply_text(f"❌ Sous-commande inconnue : `{sous_commande}`\n\n{usage}")
 
 
+@require_allowed
 async def cmd_facturation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if not _is_allowed(update):
-        await _deny(update)
-        return
-
     mois = context.args[0] if context.args else None
     periode = f" — {mois}" if mois else " — dernier mois disponible"
     await update.effective_message.reply_text(f"⏳ Génération des documents facturation{periode}…")
@@ -334,14 +268,9 @@ async def cmd_facturation(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 _CHECK_LIMIT = 20  # Au-delà : renvoi en XLSX joint
 
 
-def _md_escape(text: str) -> str:
-    """Échappe les caractères Markdown V1 (mode 'Markdown', pas V2)."""
-    return text.replace("_", r"\_").replace("*", r"\*").replace("`", r"\`").replace("[", r"\[")
-
-
 def _format_check_odoo(result: dict) -> tuple[str, bool]:
-    """Formatte le résultat en Markdown Telegram. Retourne (msg, xlsx_needed)."""
-    lines = ["🔍 *Vérification Odoo*", ""]
+    """Formatte le résultat en HTML Telegram. Retourne (msg, xlsx_needed)."""
+    lines = ["🔍 <b>Vérification Odoo</b>", ""]
     xlsx_needed = False
 
     def _bloc(titre: str, items: list[dict], label_fn, ok_msg: str) -> None:
@@ -350,23 +279,22 @@ def _format_check_odoo(result: dict) -> tuple[str, bool]:
         if n == 0:
             lines.append(f"✅ {ok_msg}")
             return
-        lines.append(f"❌ *{n}* {titre}")
+        lines.append(f"❌ <b>{n}</b> {titre}")
         for r in items[:_CHECK_LIMIT]:
-            label = _md_escape(label_fn(r))
-            lines.append(f"  • [{label}]({r['url']})")
+            lines.append(f'  • <a href="{escape(r["url"])}">{escape(label_fn(r))}</a>')
         if n > _CHECK_LIMIT:
-            lines.append(f"  _… et {n - _CHECK_LIMIT} autres → voir XLSX joint_")
+            lines.append(f"  <i>… et {n - _CHECK_LIMIT} autres → voir XLSX joint</i>")
             xlsx_needed = True
 
     _bloc(
-        "sale.order sans `x_ref_situation_contractuelle`",
+        "sale.order sans <code>x_ref_situation_contractuelle</code>",
         result["rsc_manquante"],
         lambda r: r["name"],
         "Tous les sale.order ont une RSC",
     )
     lines.append("")
     _bloc(
-        "sale.order sans `x_date_cfne`",
+        "sale.order sans <code>x_date_cfne</code>",
         result["cfne_manquante"],
         lambda r: r["name"],
         "Tous les sale.order ont une date CFNE",
@@ -374,12 +302,12 @@ def _format_check_odoo(result: dict) -> tuple[str, bool]:
     lines.append("")
 
     counts = result["invoicing_state_counts"]
-    lines.append("📊 *Répartition x_invoicing_state*")
+    lines.append("📊 <b>Répartition x_invoicing_state</b>")
     if counts:
         for state, n in counts.items():
-            lines.append(f"  • `{state}` : {n}")
+            lines.append(f"  • <code>{escape(state)}</code> : {n}")
     else:
-        lines.append("  _(aucune commande)_")
+        lines.append("  <i>(aucune commande)</i>")
     lines.append("")
 
     _bloc(
@@ -407,16 +335,13 @@ def _format_check_odoo(result: dict) -> tuple[str, bool]:
     )
     if all_ok:
         lines.append("")
-        lines.append("🟢 *OK pour lancer le cycle de facturation*")
+        lines.append("🟢 <b>OK pour lancer le cycle de facturation</b>")
 
     return "\n".join(lines), xlsx_needed
 
 
+@require_allowed
 async def cmd_check(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if not _is_allowed(update):
-        await _deny(update)
-        return
-
     usage = (
         "Usage :\n  /check odoo  — Vérifications pré-facturation côté Odoo\n  (sources `enedis` et `croise` à venir)"
     )
@@ -437,7 +362,7 @@ async def cmd_check(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             return
 
         msg, xlsx_needed = _format_check_odoo(result)
-        await update.effective_message.reply_markdown(msg, disable_web_page_preview=True)
+        await update.effective_message.reply_html(msg, disable_web_page_preview=True)
 
         if xlsx_needed:
             try:
@@ -452,19 +377,3 @@ async def cmd_check(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             )
     else:
         await update.effective_message.reply_text(f"❌ Source inconnue : `{source}`\n\n{usage}")
-
-
-def build_application(token: str) -> Application:
-    app = Application.builder().token(token).build()
-    app.add_handler(CommandHandler("start", cmd_start))
-    app.add_handler(CommandHandler("etl", cmd_etl))
-    app.add_handler(CommandHandler("status", cmd_status))
-    app.add_handler(CommandHandler("stats", cmd_stats))
-    app.add_handler(CommandHandler("export", cmd_export))
-    app.add_handler(CommandHandler("flux", cmd_flux))
-    app.add_handler(CommandHandler("entrees", cmd_entrees))
-    app.add_handler(CommandHandler("sorties", cmd_sorties))
-    app.add_handler(CommandHandler("taxes", cmd_taxes))
-    app.add_handler(CommandHandler("facturation", cmd_facturation))
-    app.add_handler(CommandHandler("check", cmd_check))
-    return app
