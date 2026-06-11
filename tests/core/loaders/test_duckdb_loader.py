@@ -20,8 +20,6 @@ from electricore.core.loaders.duckdb import (
     duckdb_readonly_conn,
     execute_custom_query,
     get_available_tables,
-    load_historique,
-    load_releves,
     releves,
 )
 from electricore.core.loaders.duckdb.config import _TABLE_MAPPINGS
@@ -283,49 +281,52 @@ class TestTransformationFunctions:
         assert df["precision"][0] == "kWh"
 
 
+class TestApiLegacySupprimee:
+    """#181 : les pass-throughs legacy vers le query builder n'existent plus.
+
+    Le chemin canonique est l'API fluide (`c15()`, `releves()`…) — l'interface
+    du package ne porte plus de seconde façon de charger un flux.
+    """
+
+    def test_les_loaders_n_exposent_plus_l_api_legacy(self):
+        import electricore.core.loaders as loaders
+        import electricore.core.loaders.duckdb as loaders_duckdb
+
+        for module in (loaders, loaders_duckdb):
+            for nom in ("load_historique", "load_releves"):
+                assert not hasattr(module, nom), f"{nom} encore exposé par {module.__name__}"
+                assert nom not in module.__all__, f"{nom} encore dans __all__ de {module.__name__}"
+
+
 class TestLoadFunctions:
-    """Tests pour les fonctions de chargement de données."""
+    """Tests du chargement via l'API fluide (chemin canonique, #181)."""
 
-    def test_load_historique_basic(self):
-        """Test de base du chargement d'historique."""
-        # Test simplifié : vérifier que la fonction retourne un LazyFrame
-        # lorsque la base existe
-
-        # Créer une query avec la méthode factory et vérifier l'API
+    def test_c15_chainage_fluide(self):
+        """c15() retourne un builder immutable chaînable."""
         query = c15()
         assert isinstance(query, DuckDBQuery)
 
-        # Vérifier que le chaînage fonctionne
         query_filtered = query.filter({"pdl": ["PDL123"]}).limit(100)
         assert isinstance(query_filtered, DuckDBQuery)
 
-        # Vérifier load_historique avec base inexistante échoue correctement
+    def test_c15_base_inexistante_leve_filenotfound(self):
+        """La matérialisation (.lazy()/.collect()) échoue si la base n'existe pas."""
         with pytest.raises(FileNotFoundError):
-            load_historique(database_path="nonexistent_test.duckdb").collect()
+            c15(database_path="nonexistent_test.duckdb").lazy()
 
-    def test_load_historique_database_not_found(self):
-        """Test avec base de données inexistante."""
-        with pytest.raises(FileNotFoundError):
-            load_historique(database_path="nonexistent.duckdb")
-
-    def test_load_releves_basic(self):
-        """Test de base du chargement de relevés."""
-        # Test simplifié : vérifier que la fonction API fonctionne
-        from electricore.core.loaders.duckdb import DuckDBQuery
-
-        # Créer une query avec la méthode factory
-        # releves() retourne maintenant DuckDBQuery avec base_sql
+    def test_releves_requete_cte_et_chainage(self):
+        """releves() porte une requête CTE pré-construite et reste chaînable."""
         query = releves()
         assert isinstance(query, DuckDBQuery)
         assert query.base_sql is not None  # Vérifie que c'est une requête CTE
 
-        # Vérifier que le chaînage fonctionne
         query_filtered = query.filter({"pdl": ["PDL123"]}).limit(50)
         assert isinstance(query_filtered, DuckDBQuery)
 
-        # Vérifier load_releves avec base inexistante échoue correctement
+    def test_releves_base_inexistante_leve_filenotfound(self):
+        """La matérialisation des relevés échoue si la base n'existe pas."""
         with pytest.raises(FileNotFoundError):
-            load_releves(database_path="nonexistent_test.duckdb").collect()
+            releves(database_path="nonexistent_test.duckdb").lazy()
 
 
 class TestUtilityFunctions:
@@ -397,13 +398,11 @@ class TestIntegrationWithRealData:
     @pytest.mark.skipif(
         not Path("electricore/etl/flux_enedis_pipeline.duckdb").exists(), reason="Base DuckDB non disponible"
     )
-    def test_load_historique_real_database(self):
+    def test_c15_real_database(self):
         """Test avec la vraie base DuckDB si disponible."""
         try:
             # Charger un petit échantillon
-            result = load_historique(
-                database_path="electricore/etl/flux_enedis_pipeline.duckdb", limit=5, valider=False
-            )
+            result = c15(database_path="electricore/etl/flux_enedis_pipeline.duckdb").validate(False).limit(5).lazy()
 
             # Vérifications de base
             assert isinstance(result, pl.LazyFrame)
@@ -423,11 +422,13 @@ class TestIntegrationWithRealData:
     @pytest.mark.skipif(
         not Path("electricore/etl/flux_enedis_pipeline.duckdb").exists(), reason="Base DuckDB non disponible"
     )
-    def test_load_releves_real_database(self):
+    def test_releves_real_database(self):
         """Test avec la vraie base DuckDB si disponible."""
         try:
             # Charger un petit échantillon
-            result = load_releves(database_path="electricore/etl/flux_enedis_pipeline.duckdb", limit=5, valider=False)
+            result = (
+                releves(database_path="electricore/etl/flux_enedis_pipeline.duckdb").validate(False).limit(5).lazy()
+            )
 
             # Vérifications de base
             assert isinstance(result, pl.LazyFrame)

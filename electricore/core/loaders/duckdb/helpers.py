@@ -9,7 +9,6 @@ optionnels et retournent un DuckDBQuery configuré.
 """
 
 from pathlib import Path
-from typing import Any
 
 import polars as pl
 
@@ -182,87 +181,6 @@ def releves_harmonises(database_path: str | Path | None = None) -> DuckDBQuery:
 
     # Utiliser base_sql pour la requête CTE pré-construite
     return DuckDBQuery(config=config, database_path=database_path, base_sql=BASE_QUERY_RELEVES_HARMONISES)
-
-
-# =============================================================================
-# API LEGACY (Compatibilité avec ancien code)
-# =============================================================================
-
-
-def load_historique(
-    database_path: str | Path | None = None,
-    filters: dict[str, Any] | None = None,
-    limit: int | None = None,
-    valider: bool = True,
-) -> pl.LazyFrame:
-    """
-    Charge l'historique des événements contractuels depuis DuckDB.
-
-    .. deprecated::
-        Utilisez `c15()` avec l'API fluide à la place.
-
-    Args:
-        database_path: Chemin vers la base DuckDB
-        filters: Filtres SQL optionnels
-        limit: Limite du nombre de lignes
-        valider: Active la validation Pandera
-
-    Returns:
-        LazyFrame Polars contenant l'historique de périmètre
-
-    Example:
-        >>> lf = load_historique(
-        ...     filters={"Date_Evenement": ">= '2024-01-01'"},
-        ...     limit=1000
-        ... )
-    """
-    query_builder = c15(database_path).validate(valider)
-
-    if filters:
-        query_builder = query_builder.filter(filters)
-
-    if limit:
-        query_builder = query_builder.limit(limit)
-
-    return query_builder.lazy()
-
-
-def load_releves(
-    database_path: str | Path | None = None,
-    filters: dict[str, Any] | None = None,
-    limit: int | None = None,
-    valider: bool = True,
-) -> pl.LazyFrame:
-    """
-    Charge les relevés d'index depuis DuckDB.
-
-    .. deprecated::
-        Utilisez `releves()` avec l'API fluide à la place.
-
-    Args:
-        database_path: Chemin vers la base DuckDB
-        filters: Filtres SQL optionnels
-        limit: Limite du nombre de lignes
-        valider: Active la validation Pandera
-
-    Returns:
-        LazyFrame Polars contenant les relevés
-
-    Example:
-        >>> lf = load_releves(
-        ...     filters={"pdl": ["PDL123"], "Source": "flux_R151"},
-        ...     limit=1000
-        ... )
-    """
-    query_builder = releves(database_path).validate(valider)
-
-    if filters:
-        query_builder = query_builder.filter(filters)
-
-    if limit:
-        query_builder = query_builder.limit(limit)
-
-    return query_builder.lazy()
 
 
 # =============================================================================

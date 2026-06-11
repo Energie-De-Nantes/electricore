@@ -7,15 +7,12 @@ toute intégration ERP (Odoo, …) vit dans `electricore.integrations.<erp>`.
 from .duckdb import (
     DuckDBConfig,
     DuckDBQuery,
-    # API fluide (nouvelles fonctions recommandées)
+    # API fluide
     c15,
     execute_custom_query,
     f15,
     # Utilitaires
     get_available_tables,
-    # API legacy (compatibilité)
-    load_historique,
-    load_releves,
     r15,
     r64,
     r151,
@@ -37,9 +34,6 @@ __all__ = [
     "releves",
     "releves_harmonises",
     "DuckDBQuery",
-    # API legacy DuckDB (compatibilité)
-    "load_historique",
-    "load_releves",
     # Utilitaires DuckDB
     "get_available_tables",
     "execute_custom_query",
