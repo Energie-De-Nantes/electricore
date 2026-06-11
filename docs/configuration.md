@@ -28,7 +28,7 @@ Convention dlt : `SECTION__CLÉ` ⇔ `dlt.secrets['section']['clé']` — le fic
 
 | variable | rôle | défaut |
 |---|---|---|
-| `DUCKDB_PATH` | la base DuckDB de production — lue par **trois** consommateurs : loaders core (`core/loaders/duckdb/config.py`), API (`api/services/duckdb_service.py`), runner ETL (`pipeline_dbt.chemin_db_defaut`). En Docker : `/data/flux_enedis_pipeline.duckdb` (volume) | `electricore/etl/flux_enedis_pipeline.duckdb` |
+| `DUCKDB_PATH` | la base DuckDB de production — résolue par **un seul module**, `chemin_base_duckdb()` (`electricore/config/env.py`, `.env` honoré, issue #146), consommé par les loaders core, l'API, le runner ETL et les tools (`reset_incremental_state`). En Docker : `/data/flux_enedis_pipeline.duckdb` (volume) | `electricore/etl/flux_enedis_pipeline.duckdb` (absolu, ancré sur le dépôt — indépendant du CWD) |
 | `DBT_DUCKDB_PATH` | chemin vu par dbt (`etl/dbt/profiles.yml`) — **positionné automatiquement** par le runner et les tests ; ne se règle pas à la main | suit `DUCKDB_PATH` via le runner |
 
 Schémas dans la base : `flux_raw` (brut JSON), `flux_enedis` (tables typées, lues par

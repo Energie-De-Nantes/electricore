@@ -124,3 +124,12 @@ La section *Concepts pipeline* de [`electricore/core/CONTEXT.md`](../../electric
 - **`pipeline_cta` reste un *pipeline* malgré sa jointure de 2 sources hétérogènes.** Choix conscient pour ne pas casser les imports et notebooks existants. La justification (« même domaine métier ») est valable mais subjective ; si une autre fonction frôle cette ambiguïté, statuer cas par cas.
 
 - **Le test d'architecture détecte les imports interdits, pas les violations sémantiques** (ex : un fichier de `core/pipelines/` qui ferait du calcul I/O via une lib qui ne s'appelle pas `electricore.loaders`). Couverture imparfaite mais utile.
+
+## Addendum (juin 2026, issue #146)
+
+**`electricore/config/` est le socle transverse de la table ci-dessus** : stdlib-only
+(chargement `.env`, résolution `chemin_base_duckdb()`, config Odoo, CSV de taux),
+importable par tous les rôles — `core/` compris, sans violer [ADR-0016](0016-core-erp-agnostique.md)
+(aucune dépendance ERP ni lib externe). Premier usage : `core/loaders/duckdb/`,
+`api/services/`, le runner ETL et les tools délèguent la résolution du chemin de la
+base DuckDB à `chemin_base_duckdb()` au lieu de porter chacun leur propre défaut.

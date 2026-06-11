@@ -1,12 +1,17 @@
 """
-Loader partagé pour le fichier .env.
+Loader partagé pour le fichier .env et résolution de l'environnement.
 
 Utilisé par l'API, les notebooks, et l'ETL pour charger les variables
-d'environnement depuis le fichier .env à la racine du projet.
+d'environnement depuis le fichier .env à la racine du projet, et pour
+résoudre le chemin de la base DuckDB de production (issue #146).
 """
 
 import os
+from collections.abc import Mapping
 from pathlib import Path
+
+# Base de prod locale, ancrée sur le package (jamais sur le CWD).
+_DEFAUT_BASE_DUCKDB = Path(__file__).parents[1] / "etl" / "flux_enedis_pipeline.duckdb"
 
 
 def charger_env() -> None:
@@ -34,3 +39,20 @@ def charger_env() -> None:
                             value = value[1:-1]
                         os.environ.setdefault(key.strip(), value)
             break
+
+
+def chemin_base_duckdb(env: Mapping[str, str] | None = None) -> Path:
+    """Résolution unique du chemin de la base DuckDB de production.
+
+    `DUCKDB_PATH` sinon défaut absolu ancré sur le dépôt — indépendant du CWD.
+
+    Args:
+        env: mapping d'environnement explicite (tests, résolution hors process).
+            `None` = environnement réel : `.env` chargé via `charger_env()`
+            puis `os.environ`.
+    """
+    if env is None:
+        charger_env()
+        env = os.environ
+    brut = env.get("DUCKDB_PATH")
+    return Path(brut) if brut else _DEFAUT_BASE_DUCKDB

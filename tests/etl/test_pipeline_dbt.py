@@ -43,6 +43,20 @@ def test_la_base_par_defaut_honore_duckdb_path(monkeypatch):
     assert chemin_db_defaut().name == "flux_enedis_pipeline.duckdb"
 
 
+def test_la_base_par_defaut_honore_le_dotenv(tmp_path, monkeypatch):
+    """Même résolution que l'API et les loaders core (issue #146) : un DUCKDB_PATH
+    porté par le .env vaut pour le runner aussi, pas seulement pour l'API."""
+    from pathlib import Path
+
+    from electricore.etl.pipeline_dbt import chemin_db_defaut
+
+    monkeypatch.delenv("DUCKDB_PATH", raising=False)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".env").write_text("DUCKDB_PATH=/data/depuis_dotenv.duckdb\n")
+
+    assert chemin_db_defaut() == Path("/data/depuis_dotenv.duckdb")
+
+
 def test_l_api_subprocess_le_runner_dbt():
     """La bascule #134 : /etl/run lance le chemin dbt, plus le parseur legacy."""
     from electricore.api.services.etl_service import _build_pipeline_command

@@ -6,7 +6,6 @@ pour l'accès aux bases DuckDB dans un style fonctionnel.
 """
 
 import logging
-import os
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -14,6 +13,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import duckdb
+
+from electricore.config import chemin_base_duckdb
 
 logger = logging.getLogger(__name__)
 
@@ -34,8 +35,6 @@ _TABLE_MAPPINGS = {
     },
 }
 
-_DEFAULT_DB_PATH = "electricore/etl/flux_enedis_pipeline.duckdb"
-
 
 @dataclass(frozen=True, slots=True)
 class DuckDBConfig:
@@ -45,7 +44,7 @@ class DuckDBConfig:
 
     @classmethod
     def from_env(cls) -> "DuckDBConfig":
-        return cls(Path(os.getenv("DUCKDB_PATH", _DEFAULT_DB_PATH)))
+        return cls(chemin_base_duckdb())
 
     @classmethod
     def from_path(cls, path: str | Path | None) -> "DuckDBConfig":

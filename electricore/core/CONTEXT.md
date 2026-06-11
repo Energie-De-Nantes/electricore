@@ -178,6 +178,9 @@ Source et sink ERP. Expose des fonctions qui retournent des `LazyFrame[Schema co
 **Service API** (`api/services/`) :
 Wire-up non-trivial ou stateful entre sources (loaders + integrations) et builds. Lieu où les sources ERP rencontrent les builds core. Routeur reste pur transport.
 
+**Config partagée** (`electricore/config/`) :
+Socle transverse, stdlib-only : chargement `.env` (`charger_env`), résolution du chemin de la base DuckDB (`chemin_base_duckdb`, issue #146), config Odoo, CSV de taux régulés. Importable par **tous** les modules (`core/` compris — compatible ADR-0016 : aucune dépendance ERP ni lib externe). C'est le seul module hors `core/models/` que `core/loaders/` peut importer.
+
 ---
 
 ## Concepts pipeline

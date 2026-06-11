@@ -4,17 +4,15 @@ Fonctions pures pour lire les tables de flux Enedis.
 """
 
 import logging
-import os
 from datetime import UTC, datetime
-from pathlib import Path
 
 import duckdb
 
+from electricore.config import chemin_base_duckdb
 from electricore.core.loaders.duckdb import duckdb_readonly_conn
 
 logger = logging.getLogger(__name__)
 
-DB_PATH = Path(os.getenv("DUCKDB_PATH", "electricore/etl/flux_enedis_pipeline.duckdb"))
 SCHEMA = "flux_enedis"
 
 
@@ -29,19 +27,20 @@ def get_freshness() -> dict:
         - tables: dict {nom_table: estimated_size}, ou {} si inaccessible
         - error: chaîne descriptive si accessible=False
     """
+    db_path = chemin_base_duckdb()
     payload: dict = {"accessible": False, "last_write": None, "tables": {}}
     try:
-        st = DB_PATH.stat()
+        st = db_path.stat()
         payload["last_write"] = datetime.fromtimestamp(st.st_mtime, tz=UTC).isoformat()
     except FileNotFoundError:
-        payload["error"] = f"Fichier DuckDB introuvable: {DB_PATH}"
+        payload["error"] = f"Fichier DuckDB introuvable: {db_path}"
         return payload
     except OSError as exc:
         payload["error"] = f"Erreur accès fichier: {exc}"
         return payload
 
     try:
-        with duckdb_readonly_conn(DB_PATH) as conn:
+        with duckdb_readonly_conn(db_path) as conn:
             rows = conn.execute(
                 "SELECT table_name, estimated_size FROM duckdb_tables() "
                 "WHERE schema_name = ? AND table_name LIKE 'flux_%' "
@@ -65,7 +64,7 @@ def get_table_info(table_name: str) -> dict:
     Returns:
         Dict avec table, count, columns
     """
-    with duckdb_readonly_conn(DB_PATH) as conn:
+    with duckdb_readonly_conn(chemin_base_duckdb()) as conn:
         # Nombre de lignes
         count = conn.execute(f"SELECT COUNT(*) FROM {SCHEMA}.flux_{table_name}").fetchone()[0]
 
@@ -90,7 +89,7 @@ def list_tables() -> list[str]:
     Returns:
         Liste des noms de tables (sans préfixe flux_)
     """
-    with duckdb_readonly_conn(DB_PATH) as conn:
+    with duckdb_readonly_conn(chemin_base_duckdb()) as conn:
         tables = conn.execute(f"""
             SELECT table_name 
             FROM information_schema.tables 
