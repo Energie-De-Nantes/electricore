@@ -7,6 +7,22 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
+## [2.1.1] - 2026-06-12
+
+### 🐛 Corrections
+
+- **Check Odoo figé sur ⏳** (incident prod 2026-06-12) : `KeyError` dans le
+  rendu des blocs « factures draft » et « lissés » — colonnes réelles du check
+  (`name`, `name_account_move`, `categ_names`) alignées. Bug hérité du bot v1,
+  latent tant qu'aucune facture draft n'existait.
+- **Filet anti-⏳** : toute erreur de formatage/édition du check s'affiche
+  désormais en `❌ …` dans Telegram au lieu de figer le message.
+- **Garde 4096 caractères** : un résumé de check trop long pour Telegram est
+  tronqué aux frontières de lignes et bascule automatiquement sur le XLSX de
+  détail.
+
+---
+
 ## [2.1.0] - 2026-06-11
 
 ### 🤖 Bot Telegram : surface par domaines hybrides (ADR-0022)
