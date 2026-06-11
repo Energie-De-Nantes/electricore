@@ -32,6 +32,17 @@ def test_selection_multi_flux():
     assert plan.selection == ["R151", "C15"]
 
 
+def test_la_base_par_defaut_honore_duckdb_path(monkeypatch):
+    """En conteneur, DUCKDB_PATH pointe le volume de données (docker-compose) :
+    le runner doit l'honorer, comme l'API et les loaders."""
+    from electricore.etl.pipeline_dbt import chemin_db_defaut
+
+    monkeypatch.setenv("DUCKDB_PATH", "/data/flux_enedis_pipeline.duckdb")
+    assert str(chemin_db_defaut()) == "/data/flux_enedis_pipeline.duckdb"
+    monkeypatch.delenv("DUCKDB_PATH")
+    assert chemin_db_defaut().name == "flux_enedis_pipeline.duckdb"
+
+
 def test_l_api_subprocess_le_runner_dbt():
     """La bascule #134 : /etl/run lance le chemin dbt, plus le parseur legacy."""
     from electricore.api.services.etl_service import _build_pipeline_command

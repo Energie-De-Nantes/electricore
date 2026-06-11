@@ -49,8 +49,13 @@ from electricore.etl.sources.sftp_enedis_brut import flux_enedis_brut
 logging.disable(logging.CRITICAL)
 
 ICI = Path(__file__).parent
-DB_DEFAUT = ICI / "flux_enedis_pipeline.duckdb"
 PROJET_DBT = ICI / "dbt"
+
+
+def chemin_db_defaut() -> Path:
+    """Base cible par défaut : DUCKDB_PATH (volume Docker, cf. docker-compose) sinon
+    la base de prod locale — même résolution que l'API et les loaders core."""
+    return Path(os.getenv("DUCKDB_PATH", str(ICI / "flux_enedis_pipeline.duckdb")))
 
 
 def _out(msg: str) -> None:
@@ -183,11 +188,14 @@ def main() -> None:
         help="'all', 'test' (2 fichiers/flux), 'rebuild' (dbt seul, zéro réseau), "
         "'resync' (re-télécharge tout) ou liste de flux",
     )
-    parseur.add_argument("--db", type=Path, default=DB_DEFAUT, help=f"base DuckDB cible (défaut : {DB_DEFAUT})")
+    parseur.add_argument(
+        "--db", type=Path, default=None, help="base DuckDB cible (défaut : $DUCKDB_PATH ou la base de prod locale)"
+    )
     parseur.add_argument("--max-files", type=int, default=None, help="limite de fichiers par flux")
     args = parseur.parse_args()
 
     plan = interpreter_flux(args.flux, args.max_files)
+    args.db = args.db or chemin_db_defaut()
 
     if plan.rebuild:
         _out(f"↻ Rebuild : re-matérialisation depuis le brut de {args.db} (zéro réseau)")

@@ -325,6 +325,7 @@ uv run --group test pytest --cov=electricore tests/
 - **Transmission**: [docs/transmission.md](docs/transmission.md) - Guide pour nouvel arrivant (Rust/Java → Python)
 - **Main README**: [README.md](README.md) - Complete project overview
 - **ETL Module**: [electricore/etl/README.md](electricore/etl/README.md)
+- **Configuration (inventaire complet)**: [docs/configuration.md](docs/configuration.md) - Env vars, fichiers versionnés, deploy, outillage
 - **Ingestion (architecture ELT dlt+dbt)**: [docs/ingestion.md](docs/ingestion.md) - Schéma + recettes (ajouter un champ, nouvelle version XSD Enedis, nouveau flux, pièges DuckDB)
 - **API Module**: [electricore/api/README.md](electricore/api/README.md)
 - **DuckDB Integration**: [electricore/core/loaders/DUCKDB_INTEGRATION_GUIDE.md](electricore/core/loaders/DUCKDB_INTEGRATION_GUIDE.md)
