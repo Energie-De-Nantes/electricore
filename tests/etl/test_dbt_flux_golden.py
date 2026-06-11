@@ -4,13 +4,17 @@ Harnais unique, paramétré par flux : on convertit le XML en dict générique
 (`xml_vers_dict`), on le landé en colonne JSON (comme dlt en production), on lance
 `dbt build` (modèles + data_tests), et on compare la table matérialisée au golden.
 
-Parité **modulo représentation** : la traçabilité est exclue ; les horodatages typés
-instant-correct sont comparés sur l'instant (pas la string) ; les colonnes typées
-numériques sont comparées par valeur (« 20.000 » == 20.0). C'est le pendant de la
-politique timezone tranchée en #124, étendu aux décimaux de facturation (F12/F15).
+Deux garanties par cas :
+- **Parité de valeurs modulo représentation** : traçabilité exclue ; horodatages typés
+  comparés sur l'instant (pas la string) ; décimaux comparés par valeur
+  (« 20.000 » == 20.0). Pendant de la politique timezone tranchée en #124.
+- **Contrat de types XSD** : chaque colonne typée doit avoir le type DuckDB dicté par
+  le XSD Enedis (dateTime → instant, date, integer, decimal). Verrouille les casts là
+  où la parité de valeurs est laxiste sur les dtypes.
 
-Couvre #123 (R64 a son propre test JSON), #124 (C15) et #125 (R15, R15 ACC, R151,
-F12, F15). Skip si dbt n'est pas installé (`uv sync --extra dbt`).
+Couvre #124 (C15) et #125 (R15, R15 ACC, R151, F12, F15) ; R64 a son propre test JSON.
+Inclut un edge-case ACC forgé (schéma-valide) qui peuple `flux_r15_acc` (golden réel
+vide). Skip si dbt n'est pas installé (`uv sync --extra dbt`).
 """
 
 import json
@@ -36,16 +40,35 @@ GOLDEN = FIXTURES / "golden"
 # Colonnes de traçabilité : ajoutées hors linéarisation, hors périmètre parité.
 TRACABILITE = {"_source_zip", "_flux_type", "_xml_name", "_json_name", "modification_date"}
 
+# Types DuckDB issus des XSD Enedis (dateTime → instant, date → date nue, integer,
+# decimal). Le contrat de types verrouille les casts : un cast retiré (colonne
+# retombée en VARCHAR) fait échouer le test, là où la parité de valeurs ne le verrait
+# pas. Les colonnes d'énergie (*_kwh, Valeur = xsd:integer) sont BIGINT par règle
+# uniforme ; les scalaires typés sont déclarés par flux.
+TZ = "TIMESTAMP WITH TIME ZONE"  # xsd:dateTime (offset → instant)
+DATE = "DATE"  # xsd:date (date nue)
+DOUBLE = "DOUBLE"  # xsd:decimal
+
 
 @dataclass(frozen=True)
 class FluxSpec:
-    """Spécifie un flux XML à valider contre son golden."""
+    """Spécifie un cas de flux XML à valider contre son golden.
 
-    model: str  # nom du modèle dbt = nom de la table = nom du golden
+    `model` est le modèle dbt construit ; `cas` nomme le golden (par défaut = model).
+    Plusieurs cas peuvent viser le même modèle (fixture réelle vs edge-case forgé).
+    """
+
+    model: str  # nom du modèle dbt = nom de la table
     fixture: str  # fichier XML source
     source: str  # table source brute (raw_*)
+    cas: str | None = None  # stem du golden ; None → model
     instant_cols: frozenset[str] = field(default_factory=frozenset)  # comparés sur l'instant
     numeric_cols: frozenset[str] = field(default_factory=frozenset)  # comparés par valeur
+    type_contract: dict[str, str] = field(default_factory=dict)  # colonne → type DuckDB attendu (XSD)
+
+    @property
+    def golden_stem(self) -> str:
+        return self.cas or self.model
 
 
 SPECS = [
@@ -54,21 +77,66 @@ SPECS = [
         "c15_avec_releves.xml",
         "raw_c15",
         instant_cols=frozenset({"date_evenement", "avant_date_releve", "apres_date_releve"}),
+        type_contract={
+            "puissance_souscrite_kva": DOUBLE,
+            "date_derniere_modification_fta": DATE,
+            "date_evenement": TZ,
+            "avant_date_releve": TZ,
+            "apres_date_releve": TZ,
+        },
     ),
-    FluxSpec("flux_r15", "r15.xml", "raw_r15", instant_cols=frozenset({"date_releve"})),
-    FluxSpec("flux_r15_acc", "r15.xml", "raw_r15", instant_cols=frozenset({"date_releve"})),
-    FluxSpec("flux_r151", "r151.xml", "raw_r151"),
+    FluxSpec(
+        "flux_r15",
+        "r15.xml",
+        "raw_r15",
+        instant_cols=frozenset({"date_releve"}),
+        type_contract={"date_releve": TZ},
+    ),
+    FluxSpec(
+        "flux_r15_acc",
+        "r15.xml",
+        "raw_r15",
+        instant_cols=frozenset({"date_releve"}),
+        type_contract={"date_releve": TZ},
+    ),
+    # Edge-case forgé (schéma-valide R15) : ACC peuplé, classes 3-6, autoconsommée 2 cadrans.
+    FluxSpec(
+        "flux_r15_acc",
+        "r15_acc.xml",
+        "raw_r15",
+        cas="flux_r15_acc_peuple",
+        instant_cols=frozenset({"date_releve"}),
+        type_contract={"date_releve": TZ},
+    ),
+    FluxSpec("flux_r151", "r151.xml", "raw_r151", type_contract={"date_releve": DATE}),
     FluxSpec(
         "flux_f12_detail",
         "f12.xml",
         "raw_f12",
         numeric_cols=frozenset({"puissance_ponderee_kva", "quantite", "prix_unitaire", "montant_ht"}),
+        type_contract={
+            "puissance_ponderee_kva": DOUBLE,
+            "quantite": DOUBLE,
+            "prix_unitaire": DOUBLE,
+            "montant_ht": DOUBLE,
+            "date_debut": DATE,
+            "date_fin": DATE,
+            "date_facture": DATE,
+        },
     ),
     FluxSpec(
         "flux_f15_detail",
         "f15.xml",
         "raw_f15",
         numeric_cols=frozenset({"prix_unitaire", "quantite", "montant_ht"}),
+        type_contract={
+            "prix_unitaire": DOUBLE,
+            "quantite": DOUBLE,
+            "montant_ht": DOUBLE,
+            "date_debut": DATE,
+            "date_fin": DATE,
+            "date_facture": DATE,
+        },
     ),
 ]
 
@@ -96,7 +164,7 @@ def _correspond(attendu: dict, obtenu: dict, spec: FluxSpec) -> bool:
     return True
 
 
-@pytest.mark.parametrize("spec", SPECS, ids=lambda s: s.model)
+@pytest.mark.parametrize("spec", SPECS, ids=lambda s: s.golden_stem)
 def test_flux_reproduit_le_golden(spec, tmp_path, monkeypatch):
     import dlt
 
@@ -132,12 +200,20 @@ def test_flux_reproduit_le_golden(spec, tmp_path, monkeypatch):
     assert resultat.success, f"dbt build {spec.model} a échoué : {resultat.exception}"
 
     con = duckdb.connect(str(db_path))
+    types = {n: t for n, t, *_ in con.execute(f"describe main.{spec.model}").fetchall()}
     cur = con.execute(f"select * from main.{spec.model}")
     cols = [d[0] for d in cur.description]
     obtenu = [dict(zip(cols, r, strict=True)) for r in cur.fetchall()]
     con.close()
 
-    golden = json.loads((GOLDEN / f"{spec.model}.json").read_text())
+    # Contrat de types XSD : scalaires typés déclarés + énergie (*_kwh) toujours BIGINT.
+    for col, attendu_type in spec.type_contract.items():
+        assert types.get(col) == attendu_type, f"{spec.model}.{col}: type {types.get(col)} ≠ {attendu_type} (XSD)"
+    for col, t in types.items():
+        if col.endswith("_kwh"):
+            assert t == "BIGINT", f"{spec.model}.{col}: énergie attendue BIGINT (xsd:integer), obtenu {t}"
+
+    golden = json.loads((GOLDEN / f"{spec.golden_stem}.json").read_text())
     assert len(obtenu) == len(golden), f"{spec.model}: {len(obtenu)} lignes vs golden {len(golden)}"
 
     # Appariement glouton : chaque ligne golden doit trouver une ligne obtenue non

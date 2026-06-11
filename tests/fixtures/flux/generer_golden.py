@@ -19,14 +19,18 @@ from electricore.etl.parsing import ConfigFluxXml, TracabiliteFlux, parser_flux_
 ICI = Path(__file__).parent
 RACINE = ICI.parents[2]
 
-# (fixture, flux, index dans xml_configs) — une entrée par table golden
-FIXTURES: list[tuple[str, str, int]] = [
-    ("c15_avec_releves.xml", "C15", 0),
-    ("f12.xml", "F12", 0),
-    ("f15.xml", "F15", 0),
-    ("r15.xml", "R15", 0),
-    ("r15.xml", "R15", 1),  # flux_r15_acc sur le même fichier (aucune donnée ACC → 1 record sans ea_*)
-    ("r151.xml", "R151", 0),
+# (fixture, flux, index dans xml_configs, cas) — une entrée par fichier golden.
+# `cas` nomme le golden ; None → nom de la table (entry['name']). Plusieurs fixtures
+# peuvent cibler la même table via des `cas` distincts (cas réel vs edge-case forgé).
+FIXTURES: list[tuple[str, str, int, str | None]] = [
+    ("c15_avec_releves.xml", "C15", 0, None),
+    ("f12.xml", "F12", 0, None),
+    ("f15.xml", "F15", 0, None),
+    ("r15.xml", "R15", 0, None),
+    ("r15.xml", "R15", 1, None),  # flux_r15_acc sur fixture réelle → aucune donnée ACC
+    # Edge-case forgé (schéma-valide R15 v2.3.2) : ACC peuplé, classes 3-6, 2 cadrans.
+    ("r15_acc.xml", "R15", 1, "flux_r15_acc_peuple"),
+    ("r151.xml", "R151", 0, None),
 ]
 
 # Traçabilité fixe → golden déterministes
@@ -44,11 +48,11 @@ def main() -> None:
     dossier_golden = ICI / "golden"
     dossier_golden.mkdir(exist_ok=True)
 
-    for nom, flux, idx in FIXTURES:
+    for nom, flux, idx, cas in FIXTURES:
         entry = config_flux[flux]["xml_configs"][idx]
         config = ConfigFluxXml.depuis_yaml(entry)
         records = list(parser_flux_xml((ICI / nom).read_bytes(), config, tracabilite(nom, flux)))
-        cible = dossier_golden / f"{entry['name']}.json"
+        cible = dossier_golden / f"{cas or entry['name']}.json"
         cible.write_text(json.dumps(records, ensure_ascii=False, indent=2) + "\n")
         print(f"{cible.name}: {len(records)} record(s) depuis {nom}")
 
