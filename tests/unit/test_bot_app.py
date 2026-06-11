@@ -71,9 +71,42 @@ def test_les_callbacks_des_domaines_sont_routes():
     assert any(p.startswith("^facturation:") for p in patterns)
 
 
-def test_le_menu_natif_est_branche_au_demarrage():
+def test_le_demarrage_est_branche_en_post_init():
+    from electricore.bot.app import demarrer
+
     tg_app = build_application("123:abc")
-    assert tg_app.post_init is publier_menu
+    assert tg_app.post_init is demarrer
+
+
+def _taches_creees_par_demarrer(monkeypatch, chat_id: str) -> int:
+    """Lance `demarrer` avec la config donnée, compte puis annule les tâches de fond."""
+    from electricore.bot import tasks
+    from electricore.bot.app import demarrer
+
+    monkeypatch.setattr(settings, "telegram_notify_chat_id", chat_id, raising=False)
+    monkeypatch.setattr(type(settings), "is_odoo_configured", property(lambda self: True))
+
+    class FakeBot:
+        async def set_my_commands(self, commands):
+            pass
+
+    async def scenario() -> int:
+        avant = set(tasks._background_tasks)
+        await demarrer(SimpleNamespace(bot=FakeBot()))
+        nouvelles = set(tasks._background_tasks) - avant
+        for t in nouvelles:
+            t.cancel()
+        return len(nouvelles)
+
+    return asyncio.run(scenario())
+
+
+def test_demarrer_sans_chat_de_notification_ne_surveille_pas(monkeypatch):
+    assert _taches_creees_par_demarrer(monkeypatch, chat_id="") == 0
+
+
+def test_demarrer_avec_chat_de_notification_lance_la_surveillance(monkeypatch):
+    assert _taches_creees_par_demarrer(monkeypatch, chat_id="-100123") == 1
 
 
 def test_publier_menu_pousse_la_surface_a_telegram(monkeypatch):

@@ -52,6 +52,7 @@ class APISettings(BaseModel):
     telegram_bot_token: str = Field(default="")
     api_base_url: str = Field(default="http://localhost:8001")
     telegram_allowed_users: str = Field(default="")  # IDs séparés par virgule
+    telegram_notify_chat_id: str = Field(default="")  # chat des alertes proactives (#157) ; vide = désactivé
 
     # Endpoints publics (sans authentification)
     public_endpoints: list[str] = Field(default=["/", "/health", "/docs", "/redoc", "/openapi.json"])
@@ -87,6 +88,7 @@ class APISettings(BaseModel):
             "telegram_bot_token": os.getenv("TELEGRAM_BOT_TOKEN", ""),
             "api_base_url": os.getenv("API_BASE_URL", "http://localhost:8001"),
             "telegram_allowed_users": os.getenv("TELEGRAM_ALLOWED_USERS", ""),
+            "telegram_notify_chat_id": os.getenv("TELEGRAM_NOTIFY_CHAT_ID", ""),
             "odoo_env": os.getenv("ODOO_ENV", "test"),
         }
 

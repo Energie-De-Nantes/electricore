@@ -25,12 +25,16 @@ class FakeBot:
     def __init__(self):
         self.edits: list[tuple[int, int, str, dict]] = []
         self.documents: list[tuple[int, dict]] = []
+        self.messages: list[tuple[int | str, str]] = []
 
     async def edit_message_text(self, text: str, chat_id: int, message_id: int, **kwargs):
         self.edits.append((chat_id, message_id, text, kwargs))
 
     async def send_document(self, chat_id: int, **kwargs):
         self.documents.append((chat_id, kwargs))
+
+    async def send_message(self, chat_id, text: str, **kwargs):
+        self.messages.append((chat_id, text))
 
 
 class FakeQuery:

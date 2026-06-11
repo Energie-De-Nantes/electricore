@@ -7,7 +7,10 @@ affichée (aide + menu natif) dérive de `handlers.start.COMMANDES`.
 from telegram import BotCommand
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler
 
+from electricore.api.config import settings
+from electricore.bot import surveillance
 from electricore.bot.handlers import etl, facturation, flux, perimetre, start, taxes
+from electricore.bot.tasks import create_task
 
 
 async def publier_menu(application: Application) -> None:
@@ -15,8 +18,15 @@ async def publier_menu(application: Application) -> None:
     await application.bot.set_my_commands([BotCommand(c, d) for c, d in start.commandes_disponibles()])
 
 
+async def demarrer(application: Application) -> None:
+    """post_init : menu natif + surveillance proactive des jobs ETL (#157)."""
+    await publier_menu(application)
+    if settings.telegram_notify_chat_id:
+        create_task(surveillance.boucle_surveillance(application.bot, settings.telegram_notify_chat_id))
+
+
 def build_application(token: str) -> Application:
-    application = Application.builder().token(token).post_init(publier_menu).build()
+    application = Application.builder().token(token).post_init(demarrer).build()
     application.add_handler(CommandHandler("start", start.cmd_start))
     application.add_handler(CommandHandler("help", start.cmd_help))
     # Domaine /etl (#152) — clavier inline + raccourcis, absorbe /status.
