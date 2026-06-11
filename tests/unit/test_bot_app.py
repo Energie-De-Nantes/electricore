@@ -39,8 +39,22 @@ def test_status_v1_est_supprime_de_la_surface():
     assert "status" not in {c for c, _ in COMMANDES}
 
 
-def test_les_callbacks_etl_sont_routes():
-    """Un CallbackQueryHandler couvre le pattern etl: (claviers du domaine)."""
+def test_stats_et_export_v1_sont_supprimes_de_la_surface():
+    """/stats et /export sont absorbés par /flux (#153)."""
+    tg_app = build_application("123:abc")
+
+    enregistrees: set[str] = set()
+    for handlers in tg_app.handlers.values():
+        for handler in handlers:
+            enregistrees |= set(getattr(handler, "commands", ()))
+
+    assert "stats" not in enregistrees
+    assert "export" not in enregistrees
+    assert {"stats", "export"} & {c for c, _ in COMMANDES} == set()
+
+
+def test_les_callbacks_des_domaines_sont_routes():
+    """Un CallbackQueryHandler couvre chaque domaine à clavier."""
     from telegram.ext import CallbackQueryHandler
 
     tg_app = build_application("123:abc")
@@ -51,6 +65,7 @@ def test_les_callbacks_etl_sont_routes():
         if isinstance(h, CallbackQueryHandler)
     ]
     assert any(p.startswith("^etl:") for p in patterns)
+    assert any(p.startswith("^flux:") for p in patterns)
 
 
 def test_le_menu_natif_est_branche_au_demarrage():

@@ -194,3 +194,6 @@ deploy/docker/docker-compose.*.yml
 
 # Sortie locale du skill /sota-scan
 .sota/
+
+# Artefacts de build dbt (target par base, cf. pipeline_dbt)
+electricore/etl/.dbt_target_*/
