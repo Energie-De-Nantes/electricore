@@ -440,9 +440,11 @@ async def cmd_check(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.effective_message.reply_markdown(msg, disable_web_page_preview=True)
 
         if xlsx_needed:
-            from electricore.api.services.check_facturation_service import generer_check_odoo_xlsx
-
-            xlsx_bytes = await asyncio.get_event_loop().run_in_executor(None, generer_check_odoo_xlsx, result)
+            try:
+                xlsx_bytes = await client.get_check_odoo_xlsx()
+            except Exception as e:
+                await update.effective_message.reply_text(f"❌ Erreur export détail : {e}")
+                return
             await update.effective_message.reply_document(
                 document=io.BytesIO(xlsx_bytes),
                 filename="check_odoo.xlsx",

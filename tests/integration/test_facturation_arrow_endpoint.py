@@ -1,9 +1,11 @@
 """Tests d'intégration des endpoints `/facturation/*` (issue #64).
 
-3 endpoints : `rapport.xlsx` (facturiste), `detail.xlsx` + `detail.arrow` (technique).
+Endpoints : `rapport.xlsx` (facturiste), `detail.xlsx` + `detail.arrow` (technique),
+`documents.xlsx` (campagne, #78), `check/odoo.xlsx` (détail du check, #150).
 """
 
 import io
+import zipfile
 from contextlib import contextmanager
 
 import polars as pl
@@ -256,3 +258,47 @@ def test_ancien_endpoint_documents_zip_404():
     """L'ancien path `/facturation/documents` (ZIP) est supprimé."""
     response = TestClient(app).get("/facturation/documents")
     assert response.status_code == 404
+
+
+# =============================================================================
+# /facturation/check/odoo.xlsx — détail du check pré-facturation (issue #150)
+# =============================================================================
+
+
+@pytest.fixture
+def resultat_check_odoo() -> dict:
+    """Résultat synthétique de `verifier_odoo` avec une anomalie RSC."""
+    return {
+        "rsc_manquante": [{"id": 1, "name": "S00042", "url": "https://odoo.example/web#id=1"}],
+        "cfne_manquante": [],
+        "invoicing_state_counts": {"up_to_date": 12},
+        "factures_draft": [],
+        "lisses_quantite_1": [],
+    }
+
+
+def test_check_odoo_xlsx_retourne_le_detail_en_xlsx(monkeypatch, resultat_check_odoo):
+    """L'endpoint sert le détail complet du check Odoo en XLSX multi-onglets."""
+    app.dependency_overrides[get_current_api_key] = lambda: "test-key"
+    monkeypatch.setattr(
+        "electricore.api.routers.facturation.verifier_odoo",
+        lambda: resultat_check_odoo,
+    )
+    try:
+        response = TestClient(app).get("/facturation/check/odoo.xlsx")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith(XLSX_MIME)
+    assert "check_odoo.xlsx" in response.headers.get("content-disposition", "")
+
+    with zipfile.ZipFile(io.BytesIO(response.content)) as zf:
+        workbook_xml = zf.read("xl/workbook.xml").decode()
+    assert "RSC manquant" in workbook_xml, "l'onglet de l'anomalie RSC doit exister"
+    assert "Invoicing state" in workbook_xml
+
+
+def test_check_odoo_xlsx_refuse_sans_api_key():
+    response = TestClient(app).get("/facturation/check/odoo.xlsx")
+    assert response.status_code == 401

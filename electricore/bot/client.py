@@ -11,24 +11,28 @@ from electricore.api.config import settings
 class ElectriCoreClient:
     """Client async vers l'API ElectriCore."""
 
-    def __init__(self):
+    def __init__(self, transport: httpx.AsyncBaseTransport | None = None):
         self._base = settings.api_base_url.rstrip("/")
         self._headers = {"X-API-Key": settings.get_valid_api_keys()[0]} if settings.get_valid_api_keys() else {}
+        self._transport = transport
+
+    def _http(self) -> httpx.AsyncClient:
+        return httpx.AsyncClient(transport=self._transport)
 
     async def list_tables(self) -> list[str]:
-        async with httpx.AsyncClient() as c:
+        async with self._http() as c:
             r = await c.get(f"{self._base}/", timeout=10)
             r.raise_for_status()
             return r.json().get("available_tables", [])
 
     async def get_table_info(self, table: str) -> dict:
-        async with httpx.AsyncClient() as c:
+        async with self._http() as c:
             r = await c.get(f"{self._base}/flux/{table}/info", headers=self._headers, timeout=10)
             r.raise_for_status()
             return r.json()
 
     async def run_etl(self, mode: str) -> dict:
-        async with httpx.AsyncClient() as c:
+        async with self._http() as c:
             r = await c.post(
                 f"{self._base}/etl/run",
                 json={"mode": mode},
@@ -39,31 +43,31 @@ class ElectriCoreClient:
             return r.json()
 
     async def get_job(self, job_id: str) -> dict:
-        async with httpx.AsyncClient() as c:
+        async with self._http() as c:
             r = await c.get(f"{self._base}/etl/jobs/{job_id}", headers=self._headers, timeout=10)
             r.raise_for_status()
             return r.json()
 
     async def get_jobs(self, limit: int = 5) -> list[dict]:
-        async with httpx.AsyncClient() as c:
+        async with self._http() as c:
             r = await c.get(f"{self._base}/etl/jobs", params={"limit": limit}, headers=self._headers, timeout=10)
             r.raise_for_status()
             return r.json()
 
     async def get_entrees_xlsx(self) -> bytes:
-        async with httpx.AsyncClient() as c:
+        async with self._http() as c:
             r = await c.get(f"{self._base}/flux/c15/entrees.xlsx", headers=self._headers, timeout=120)
             r.raise_for_status()
             return r.content
 
     async def get_sorties_xlsx(self) -> bytes:
-        async with httpx.AsyncClient() as c:
+        async with self._http() as c:
             r = await c.get(f"{self._base}/flux/c15/sorties.xlsx", headers=self._headers, timeout=120)
             r.raise_for_status()
             return r.content
 
     async def get_xlsx(self, table: str) -> bytes:
-        async with httpx.AsyncClient() as c:
+        async with self._http() as c:
             r = await c.get(f"{self._base}/flux/{table}.xlsx", headers=self._headers, timeout=120)
             r.raise_for_status()
             return r.content
@@ -72,7 +76,7 @@ class ElectriCoreClient:
         params = {}
         if trimestre:
             params["trimestre"] = trimestre
-        async with httpx.AsyncClient() as c:
+        async with self._http() as c:
             r = await c.get(
                 f"{self._base}/taxes/accise/rapport.xlsx", headers=self._headers, params=params, timeout=300
             )
@@ -81,14 +85,14 @@ class ElectriCoreClient:
 
     async def get_cta_xlsx(self, trimestre: str | None = None) -> bytes:
         params: dict = {"trimestre": trimestre} if trimestre else {}
-        async with httpx.AsyncClient() as c:
+        async with self._http() as c:
             r = await c.get(f"{self._base}/taxes/cta/rapport.xlsx", headers=self._headers, params=params, timeout=300)
             r.raise_for_status()
             return r.content
 
     async def get_facturation_xlsx(self, mois: str | None = None) -> bytes:
         params = {"mois": mois} if mois else {}
-        async with httpx.AsyncClient() as c:
+        async with self._http() as c:
             r = await c.get(f"{self._base}/facturation/rapport.xlsx", headers=self._headers, params=params, timeout=300)
             r.raise_for_status()
             return r.content
@@ -96,7 +100,7 @@ class ElectriCoreClient:
     async def get_facturation_documents_xlsx(self, mois: str | None = None) -> bytes:
         """Livrable XLSX multi-onglets des documents de campagne facturation (cf. #78)."""
         params = {"mois": mois} if mois else {}
-        async with httpx.AsyncClient() as c:
+        async with self._http() as c:
             r = await c.get(
                 f"{self._base}/facturation/documents.xlsx", headers=self._headers, params=params, timeout=300
             )
@@ -104,7 +108,14 @@ class ElectriCoreClient:
             return r.content
 
     async def check_facturation_odoo(self) -> dict:
-        async with httpx.AsyncClient() as c:
+        async with self._http() as c:
             r = await c.get(f"{self._base}/facturation/check/odoo", headers=self._headers, timeout=300)
             r.raise_for_status()
             return r.json()
+
+    async def get_check_odoo_xlsx(self) -> bytes:
+        """Détail complet du check Odoo en XLSX multi-onglets (issue #150)."""
+        async with self._http() as c:
+            r = await c.get(f"{self._base}/facturation/check/odoo.xlsx", headers=self._headers, timeout=300)
+            r.raise_for_status()
+            return r.content
