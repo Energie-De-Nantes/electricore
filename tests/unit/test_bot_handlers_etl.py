@@ -6,52 +6,18 @@ l'API. Le client HTTP est doublé : on teste le comportement Telegram.
 """
 
 import asyncio
-from types import SimpleNamespace
 
 import pytest
 
 from electricore.api.config import settings
 from electricore.bot.handlers import etl as handlers_etl
-
-# =============================================================================
-# Fakes Telegram & client
-# =============================================================================
-
-
-class FakeMessage:
-    def __init__(self, chat_id=1, message_id=100):
-        self.chat_id = chat_id
-        self.message_id = message_id
-        self.replies: list[tuple[str, dict]] = []
-
-    async def reply_html(self, text: str, **kwargs):
-        self.replies.append((text, kwargs))
-        return SimpleNamespace(chat_id=self.chat_id, message_id=self.message_id + 1)
-
-    async def reply_text(self, text: str, **kwargs):
-        self.replies.append((text, kwargs))
-
-
-class FakeBot:
-    def __init__(self):
-        self.edits: list[tuple[int, int, str, dict]] = []
-
-    async def edit_message_text(self, text: str, chat_id: int, message_id: int, **kwargs):
-        self.edits.append((chat_id, message_id, text, kwargs))
-
-
-class FakeQuery:
-    def __init__(self, data: str, chat_id=1, message_id=100):
-        self.data = data
-        self.message = FakeMessage(chat_id=chat_id, message_id=message_id)
-        self.answered = False
-        self.edits: list[tuple[str, dict]] = []
-
-    async def answer(self):
-        self.answered = True
-
-    async def edit_message_text(self, text: str, **kwargs):
-        self.edits.append((text, kwargs))
+from tests.unit.telegram_fakes import (
+    FakeBot,
+    callbacks_du_markup,
+    contexte,
+    update_callback,
+    update_commande,
+)
 
 
 class FakeClient:
@@ -71,27 +37,6 @@ class FakeClient:
         return self.jobs
 
 
-def update_commande(user_id=42) -> SimpleNamespace:
-    return SimpleNamespace(
-        effective_user=SimpleNamespace(id=user_id),
-        effective_message=FakeMessage(),
-        callback_query=None,
-    )
-
-
-def update_callback(data: str, user_id=42) -> SimpleNamespace:
-    query = FakeQuery(data)
-    return SimpleNamespace(
-        effective_user=SimpleNamespace(id=user_id),
-        effective_message=query.message,
-        callback_query=query,
-    )
-
-
-def contexte(args=None, bot=None) -> SimpleNamespace:
-    return SimpleNamespace(args=args or [], bot=bot or FakeBot())
-
-
 @pytest.fixture(autouse=True)
 def _autorise(monkeypatch):
     monkeypatch.setattr(type(settings), "get_telegram_allowed_users", lambda self: {42})
@@ -103,11 +48,6 @@ def client(monkeypatch) -> FakeClient:
     monkeypatch.setattr(handlers_etl, "ElectriCoreClient", lambda: fake)
     monkeypatch.setattr(handlers_etl, "POLL_INTERVAL", 0)
     return fake
-
-
-def _callbacks_du_markup(kwargs: dict) -> set[str]:
-    markup = kwargs["reply_markup"]
-    return {btn.callback_data for row in markup.inline_keyboard for btn in row}
 
 
 # =============================================================================
@@ -137,7 +77,7 @@ def test_etl_sans_argument_ouvre_le_clavier_principal(client):
         "etl:flux",
         "etl:resync",
         "etl:statut",
-    } <= _callbacks_du_markup(kwargs)
+    } <= callbacks_du_markup(kwargs)
     assert client.lances == [], "ouvrir le menu ne lance rien"
 
 
@@ -278,7 +218,7 @@ def test_raccourci_resync_exige_aussi_la_confirmation(client):
     assert client.lances == [], "pas de lancement direct, même en raccourci"
     ((texte, kwargs),) = update.effective_message.replies
     assert "re-télécharge" in texte
-    assert "etl:resync:go" in _callbacks_du_markup(kwargs)
+    assert "etl:resync:go" in callbacks_du_markup(kwargs)
 
 
 def test_raccourci_reset_est_retire(client):
