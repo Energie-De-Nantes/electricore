@@ -23,6 +23,16 @@ COMMANDES: list[tuple[str, str]] = [
     ("facturation", "Documents et contrôles pré-facturation"),
 ]
 
+# Domaines masqués quand aucun ERP n'est configuré (#159, P2.5).
+ERP_DEPENDANTES = frozenset({"taxes", "facturation"})
+
+
+def commandes_disponibles() -> list[tuple[str, str]]:
+    """La surface réellement servie par cette instance (no-ERP : domaines Odoo masqués)."""
+    if settings.is_odoo_configured:
+        return list(COMMANDES)
+    return [(c, d) for c, d in COMMANDES if c not in ERP_DEPENDANTES]
+
 
 def aide_html() -> str:
     """Aide du bot : instance servie + surface de commandes."""
@@ -31,7 +41,7 @@ def aide_html() -> str:
     else:
         titre = "<b>ElectriCore Bot</b>"
     lignes = [titre, ""]
-    lignes += [f"/{commande} — {escape(description)}" for commande, description in COMMANDES]
+    lignes += [f"/{commande} — {escape(description)}" for commande, description in commandes_disponibles()]
     return "\n".join(lignes)
 
 

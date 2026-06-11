@@ -11,7 +11,7 @@ from datetime import date
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
-from electricore.bot.auth import require_allowed
+from electricore.bot.auth import require_allowed, require_odoo
 from electricore.bot.client import ElectriCoreClient
 from electricore.bot.format import escape
 
@@ -188,6 +188,7 @@ async def _executer_check(bot, chat_id: int, message_id: int) -> None:
 
 
 @require_allowed
+@require_odoo
 async def cmd_facturation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not context.args:
         await update.effective_message.reply_html(_TITRE_MENU, reply_markup=clavier_principal())
@@ -207,6 +208,7 @@ async def cmd_facturation(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
 
 @require_allowed
+@require_odoo
 async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
