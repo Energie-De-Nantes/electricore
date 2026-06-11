@@ -9,9 +9,15 @@
 -- `xml_vers_dict` applique « conteneur = liste » : PRM est toujours un tableau,
 -- même unique → unnest direct.
 
+-- prm_id : clé d'occurrence stable (fichier + position du PRM), portée à l'aval pour
+-- scoper l'agrégation des relevés par PRM et non par PDL (un PDL revient dans
+-- plusieurs fichiers). generate_subscripts s'aligne sur unnest.
 select
     file_name,
     modification_date,
-    p.unnest as prm
-from {{ source('flux_raw', 'raw_c15') }},
-    unnest(cast(content -> '$.PRM' as json[])) as p
+    file_name || '#' || generate_subscripts(prms, 1) as prm_id,
+    unnest(prms)                                      as prm
+from (
+    select file_name, modification_date, cast(content -> '$.PRM' as json[]) as prms
+    from {{ source('flux_raw', 'raw_c15') }}
+)

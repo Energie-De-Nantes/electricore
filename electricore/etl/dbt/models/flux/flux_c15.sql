@@ -11,8 +11,14 @@
 -- `xml_vers_dict` rend tout conteneur tableau (« conteneur = liste ») → chaque
 -- élément unique est indexé `[0]`.
 
+-- Grain : une ligne par *occurrence de PRM* (prm_id = fichier + position), pas par
+-- PDL. Un même PDL revient dans plusieurs fichiers C15 (un par événement) ; agréger
+-- les relevés par PDL collerait le relevé le plus récent à tous ses événements. On
+-- scope donc l'agrégation des relevés sur prm_id, porté par le staging.
+
 with flat as (
     select
+        prm_id,
         prm ->> '$.Id_PRM'                                                    as pdl,
         prm ->> '$.Segment_Clientele'                                         as segment_clientele,
         prm ->> '$.Num_Depannage'                                             as num_depannage,
@@ -37,7 +43,7 @@ with flat as (
 -- JSON sous l'unnest et le caste contre la mauvaise valeur (objet pré-unnest).
 donnees as (
     select
-        prm ->> '$.Id_PRM' as pdl,
+        prm_id,
         t1.donnee
     from {{ ref('stg_c15') }},
         unnest(cast(prm -> '$.Evenement_Declencheur[0].Releves[0].Donnees_Releve' as json[])) as t1(donnee)
@@ -45,7 +51,7 @@ donnees as (
 
 classes as (
     select
-        pdl,
+        prm_id,
         donnee,
         t2.classe
     from donnees,
@@ -56,7 +62,7 @@ classes as (
 -- peut plus se faufiler dans l'unnest.
 extrait as (
     select
-        pdl,
+        prm_id,
         donnee ->> '$.Code_Qualification'          as code_qualif,
         classe ->> '$.Classe_Mesure'               as classe_mesure,
         classe ->> '$.Sens_Mesure'                 as sens_mesure,
@@ -71,7 +77,7 @@ extrait as (
 
 releves as (
     select
-        pdl,
+        prm_id,
         case when code_qualif = '1' then 'avant_' else 'apres_' end as prefixe,
         cadran,
         cast(valeur as bigint)           as valeur,
@@ -89,7 +95,7 @@ releves as (
 
 releves_agg as (
     select
-        pdl,
+        prm_id,
         max(case when prefixe = 'avant_' and cadran = 'base' then valeur end) as avant_index_base_kwh,
         max(case when prefixe = 'avant_' and cadran = 'hp' then valeur end) as avant_index_hp_kwh,
         max(case when prefixe = 'avant_' and cadran = 'hc' then valeur end) as avant_index_hc_kwh,
@@ -113,7 +119,7 @@ releves_agg as (
         max(case when prefixe = 'apres_' then id_calendrier_distributeur end) as apres_id_calendrier_distributeur,
         max(case when prefixe = 'apres_' then id_calendrier_fournisseur end)  as apres_id_calendrier_fournisseur
     from releves
-    group by pdl
+    group by prm_id
 )
 
-select * from flat left join releves_agg using (pdl)
+select * exclude (prm_id) from flat left join releves_agg using (prm_id)

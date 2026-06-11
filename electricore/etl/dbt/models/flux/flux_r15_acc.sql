@@ -9,6 +9,7 @@
 
 with flat as (
     select
+        prm_id,
         prm ->> '$.Id_PRM'                                        as pdl,
         cast(prm ->> '$.Donnees_Releve[0].Date_Releve' as timestamptz) as date_releve,
         prm ->> '$.Donnees_Releve[0].Id_Calendrier'              as id_calendrier,
@@ -25,14 +26,14 @@ with flat as (
 ),
 
 classes as (
-    select prm ->> '$.Id_PRM' as pdl, c.classe
+    select prm_id, c.classe
     from {{ ref('stg_r15') }},
         unnest(cast(prm -> '$.Donnees_Releve[0].Classe_Temporelle_Distributeur' as json[])) as c(classe)
 ),
 
 extrait as (
     select
-        pdl,
+        prm_id,
         classe ->> '$.Classe_Mesure'               as classe_mesure,
         lower(classe ->> '$.Id_Classe_Temporelle') as cadran,
         classe ->> '$.Valeur'                      as valeur
@@ -41,7 +42,7 @@ extrait as (
 
 ea as (
     select
-        pdl,
+        prm_id,
         case classe_mesure
             when '3' then 'ea_autoproduite_'
             when '4' then 'ea_alloproduite_'
@@ -53,8 +54,9 @@ ea as (
     where classe_mesure in ('3', '4', '5', '6')
 ),
 
+-- Pivot scopé par prm_id, comme flux_r15 (un PDL revient dans plusieurs fichiers).
 pivot_ea as (
-    pivot ea on ea_col using first(valeur) group by pdl
+    pivot ea on ea_col using first(valeur) group by prm_id
 )
 
-select * from flat left join pivot_ea using (pdl)
+select * exclude (prm_id) from flat left join pivot_ea using (prm_id)
