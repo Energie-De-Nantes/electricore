@@ -46,19 +46,18 @@ FIXTURES_PAR_FLUX = {
     "F15": ["f15.xml"],
 }
 
-# Budgets de divergence sur le cache réel (mesurés, cf. PR #130). Résidus connus :
-# - flux_r15 : 81×2 — réduction multi-classe résiduelle après le filtre CM1/Sens0
-# - flux_r15_acc : 34×2 — ordre du pivot ea_ (multi-classe même cadran)
-# - flux_r151 : 383×2 — pas de champ Classe_Mesure ; piste multi-Donnees_Releve
-# - flux_f15_detail : 263+2 — Element_Valorise nichés hors du chemin figé
-# Faire décroître ces budgets à mesure des corrections ; 0 = parité totale.
+# Budgets de divergence sur le cache réel : PARITÉ TOTALE (0 partout) depuis la
+# correction du grain relevé (R15/R151/R15_acc — un PRM porte plusieurs relevés) et
+# modulo deux normalisations assumées du harnais : re-livraisons Enedis dédoublonnées
+# en entrée (le legacy double-compte, le landing dbt dédoublonne par construction) et
+# espaces de bord (xml_vers_dict strip les feuilles). Toute valeur > 0 = régression.
 BUDGETS_REEL = {
     "flux_c15": 0,
-    "flux_r15": 162,
-    "flux_r15_acc": 68,
-    "flux_r151": 766,
+    "flux_r15": 0,
+    "flux_r15_acc": 0,
+    "flux_r151": 0,
     "flux_f12_detail": 0,
-    "flux_f15_detail": 265,
+    "flux_f15_detail": 0,
 }
 
 

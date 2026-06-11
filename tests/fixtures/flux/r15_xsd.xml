@@ -86,10 +86,6 @@
         <Num_Serie>TEXTE</Num_Serie>
       </Classe_Temporelle>
     </Donnees_Releve>
-  </PRM>
-  <PRM>
-    <Id_PRM>99100000000001</Id_PRM>
-    <Type_Injection>TEXTE</Type_Injection>
     <Donnees_Releve>
       <Id_Releve>TEXTE</Id_Releve>
       <Date_Releve>2024-06-15T00:01:00+02:00</Date_Releve>
@@ -101,20 +97,20 @@
       <Libelle_Calendrier_Distributeur>TEXTE</Libelle_Calendrier_Distributeur>
       <Id_Calendrier>TEXTE</Id_Calendrier>
       <Libelle_Calendrier>TEXTE</Libelle_Calendrier>
-      <Type_Client>0</Type_Client>
-      <Niveau_Ouverture_Services>0</Niveau_Ouverture_Services>
-      <Type_Compteur>CCB</Type_Compteur>
-      <Autoconsommation_Collective>0</Autoconsommation_Collective>
-      <Statut_Releve>INITIAL</Statut_Releve>
-      <Nature_Consommation>REEL</Nature_Consommation>
-      <Origine_Evenement>0</Origine_Evenement>
+      <Type_Client>1</Type_Client>
+      <Niveau_Ouverture_Services>1</Niveau_Ouverture_Services>
+      <Type_Compteur>CEB</Type_Compteur>
+      <Autoconsommation_Collective>1</Autoconsommation_Collective>
+      <Statut_Releve>RECTIFICATIF</Statut_Releve>
+      <Nature_Consommation>ESTIME</Nature_Consommation>
+      <Origine_Evenement>1</Origine_Evenement>
       <Motif_Releve>TEXTE</Motif_Releve>
-      <Nature_Index>REEL</Nature_Index>
-      <Motif_Rectif>CONC_RLV</Motif_Rectif>
+      <Nature_Index>ESTIME</Nature_Index>
+      <Motif_Rectif>DYSF_CPT</Motif_Rectif>
       <Id_Releve_Precedent>TEXTE</Id_Releve_Precedent>
       <Date_Releve_Precedent>2024-06-15T00:01:00+02:00</Date_Releve_Precedent>
       <Motif_Releve_Precedent>TEXTE</Motif_Releve_Precedent>
-      <Nature_Index_Precedent>REEL</Nature_Index_Precedent>
+      <Nature_Index_Precedent>ESTIME</Nature_Index_Precedent>
       <Id_Affaire>TEXTE</Id_Affaire>
       <Ref_Demandeur>TEXTE</Ref_Demandeur>
       <Ref_Regroupement_Demandeur>TEXTE</Ref_Regroupement_Demandeur>
@@ -156,6 +152,154 @@
         <Sens_Mesure>0</Sens_Mesure>
         <Valeur>3664</Valeur>
         <Valeur_Precedent>3775</Valeur_Precedent>
+        <Nb_Chiffres_Cadran>15</Nb_Chiffres_Cadran>
+        <Indicateur_Passage_A_Zero>0</Indicateur_Passage_A_Zero>
+        <Coefficient_Lecture>1.5</Coefficient_Lecture>
+        <Num_Serie>TEXTE</Num_Serie>
+      </Classe_Temporelle>
+    </Donnees_Releve>
+  </PRM>
+  <PRM>
+    <Id_PRM>99100000000001</Id_PRM>
+    <Type_Injection>TEXTE</Type_Injection>
+    <Donnees_Releve>
+      <Id_Releve>TEXTE</Id_Releve>
+      <Date_Releve>2024-06-15T00:01:00+02:00</Date_Releve>
+      <Ref_Situation_Contractuelle>TEXTE</Ref_Situation_Contractuelle>
+      <Num_Sequence>7</Num_Sequence>
+      <Id_Structure_Horosaisonniere>TEXTE</Id_Structure_Horosaisonniere>
+      <Libelle_Structure_Horosaisonniere>TEXTE</Libelle_Structure_Horosaisonniere>
+      <Id_Calendrier_Distributeur>TEXTE</Id_Calendrier_Distributeur>
+      <Libelle_Calendrier_Distributeur>TEXTE</Libelle_Calendrier_Distributeur>
+      <Id_Calendrier>TEXTE</Id_Calendrier>
+      <Libelle_Calendrier>TEXTE</Libelle_Calendrier>
+      <Type_Client>0</Type_Client>
+      <Niveau_Ouverture_Services>0</Niveau_Ouverture_Services>
+      <Type_Compteur>CCB</Type_Compteur>
+      <Autoconsommation_Collective>0</Autoconsommation_Collective>
+      <Statut_Releve>INITIAL</Statut_Releve>
+      <Nature_Consommation>REEL</Nature_Consommation>
+      <Origine_Evenement>0</Origine_Evenement>
+      <Motif_Releve>TEXTE</Motif_Releve>
+      <Nature_Index>REEL</Nature_Index>
+      <Motif_Rectif>CONC_RLV</Motif_Rectif>
+      <Id_Releve_Precedent>TEXTE</Id_Releve_Precedent>
+      <Date_Releve_Precedent>2024-06-15T00:01:00+02:00</Date_Releve_Precedent>
+      <Motif_Releve_Precedent>TEXTE</Motif_Releve_Precedent>
+      <Nature_Index_Precedent>REEL</Nature_Index_Precedent>
+      <Id_Affaire>TEXTE</Id_Affaire>
+      <Ref_Demandeur>TEXTE</Ref_Demandeur>
+      <Ref_Regroupement_Demandeur>TEXTE</Ref_Regroupement_Demandeur>
+      <Date_Theorique_Prochaine_Releve>2024-06-15</Date_Theorique_Prochaine_Releve>
+      <Classe_Temporelle_Distributeur>
+        <Id_Classe_Temporelle>BASE</Id_Classe_Temporelle>
+        <Libelle_Classe_Temporelle>TEXTE</Libelle_Classe_Temporelle>
+        <Rang_Cadran>20</Rang_Cadran>
+        <Classe_Mesure>1</Classe_Mesure>
+        <Unite_Mesure>kWh</Unite_Mesure>
+        <Sens_Mesure>0</Sens_Mesure>
+        <Valeur>3886</Valeur>
+        <Valeur_Precedent>3997</Valeur_Precedent>
+        <Nb_Chiffres_Cadran>15</Nb_Chiffres_Cadran>
+        <Indicateur_Passage_A_Zero>0</Indicateur_Passage_A_Zero>
+        <Coefficient_Lecture>1.5</Coefficient_Lecture>
+        <Num_Serie>TEXTE</Num_Serie>
+      </Classe_Temporelle_Distributeur>
+      <Classe_Temporelle_Distributeur>
+        <Id_Classe_Temporelle>HP</Id_Classe_Temporelle>
+        <Libelle_Classe_Temporelle>TEXTE</Libelle_Classe_Temporelle>
+        <Rang_Cadran>20</Rang_Cadran>
+        <Classe_Mesure>2</Classe_Mesure>
+        <Unite_Mesure>kWh</Unite_Mesure>
+        <Sens_Mesure>1</Sens_Mesure>
+        <Valeur>4108</Valeur>
+        <Valeur_Precedent>4219</Valeur_Precedent>
+        <Nb_Chiffres_Cadran>15</Nb_Chiffres_Cadran>
+        <Indicateur_Passage_A_Zero>1</Indicateur_Passage_A_Zero>
+        <Coefficient_Lecture>1.5</Coefficient_Lecture>
+        <Num_Serie>TEXTE</Num_Serie>
+      </Classe_Temporelle_Distributeur>
+      <Classe_Temporelle>
+        <Id_Classe_Temporelle>BASE</Id_Classe_Temporelle>
+        <Libelle_Classe_Temporelle>TEXTE</Libelle_Classe_Temporelle>
+        <Rang_Cadran>20</Rang_Cadran>
+        <Classe_Mesure>1</Classe_Mesure>
+        <Unite_Mesure>kWh</Unite_Mesure>
+        <Sens_Mesure>0</Sens_Mesure>
+        <Valeur>4330</Valeur>
+        <Valeur_Precedent>4441</Valeur_Precedent>
+        <Nb_Chiffres_Cadran>15</Nb_Chiffres_Cadran>
+        <Indicateur_Passage_A_Zero>0</Indicateur_Passage_A_Zero>
+        <Coefficient_Lecture>1.5</Coefficient_Lecture>
+        <Num_Serie>TEXTE</Num_Serie>
+      </Classe_Temporelle>
+    </Donnees_Releve>
+    <Donnees_Releve>
+      <Id_Releve>TEXTE</Id_Releve>
+      <Date_Releve>2024-06-15T00:01:00+02:00</Date_Releve>
+      <Ref_Situation_Contractuelle>TEXTE</Ref_Situation_Contractuelle>
+      <Num_Sequence>7</Num_Sequence>
+      <Id_Structure_Horosaisonniere>TEXTE</Id_Structure_Horosaisonniere>
+      <Libelle_Structure_Horosaisonniere>TEXTE</Libelle_Structure_Horosaisonniere>
+      <Id_Calendrier_Distributeur>TEXTE</Id_Calendrier_Distributeur>
+      <Libelle_Calendrier_Distributeur>TEXTE</Libelle_Calendrier_Distributeur>
+      <Id_Calendrier>TEXTE</Id_Calendrier>
+      <Libelle_Calendrier>TEXTE</Libelle_Calendrier>
+      <Type_Client>1</Type_Client>
+      <Niveau_Ouverture_Services>1</Niveau_Ouverture_Services>
+      <Type_Compteur>CEB</Type_Compteur>
+      <Autoconsommation_Collective>1</Autoconsommation_Collective>
+      <Statut_Releve>RECTIFICATIF</Statut_Releve>
+      <Nature_Consommation>ESTIME</Nature_Consommation>
+      <Origine_Evenement>1</Origine_Evenement>
+      <Motif_Releve>TEXTE</Motif_Releve>
+      <Nature_Index>ESTIME</Nature_Index>
+      <Motif_Rectif>DYSF_CPT</Motif_Rectif>
+      <Id_Releve_Precedent>TEXTE</Id_Releve_Precedent>
+      <Date_Releve_Precedent>2024-06-15T00:01:00+02:00</Date_Releve_Precedent>
+      <Motif_Releve_Precedent>TEXTE</Motif_Releve_Precedent>
+      <Nature_Index_Precedent>ESTIME</Nature_Index_Precedent>
+      <Id_Affaire>TEXTE</Id_Affaire>
+      <Ref_Demandeur>TEXTE</Ref_Demandeur>
+      <Ref_Regroupement_Demandeur>TEXTE</Ref_Regroupement_Demandeur>
+      <Date_Theorique_Prochaine_Releve>2024-06-15</Date_Theorique_Prochaine_Releve>
+      <Classe_Temporelle_Distributeur>
+        <Id_Classe_Temporelle>BASE</Id_Classe_Temporelle>
+        <Libelle_Classe_Temporelle>TEXTE</Libelle_Classe_Temporelle>
+        <Rang_Cadran>20</Rang_Cadran>
+        <Classe_Mesure>1</Classe_Mesure>
+        <Unite_Mesure>kWh</Unite_Mesure>
+        <Sens_Mesure>0</Sens_Mesure>
+        <Valeur>4552</Valeur>
+        <Valeur_Precedent>4663</Valeur_Precedent>
+        <Nb_Chiffres_Cadran>15</Nb_Chiffres_Cadran>
+        <Indicateur_Passage_A_Zero>0</Indicateur_Passage_A_Zero>
+        <Coefficient_Lecture>1.5</Coefficient_Lecture>
+        <Num_Serie>TEXTE</Num_Serie>
+      </Classe_Temporelle_Distributeur>
+      <Classe_Temporelle_Distributeur>
+        <Id_Classe_Temporelle>HP</Id_Classe_Temporelle>
+        <Libelle_Classe_Temporelle>TEXTE</Libelle_Classe_Temporelle>
+        <Rang_Cadran>20</Rang_Cadran>
+        <Classe_Mesure>2</Classe_Mesure>
+        <Unite_Mesure>kWh</Unite_Mesure>
+        <Sens_Mesure>1</Sens_Mesure>
+        <Valeur>4774</Valeur>
+        <Valeur_Precedent>4885</Valeur_Precedent>
+        <Nb_Chiffres_Cadran>15</Nb_Chiffres_Cadran>
+        <Indicateur_Passage_A_Zero>1</Indicateur_Passage_A_Zero>
+        <Coefficient_Lecture>1.5</Coefficient_Lecture>
+        <Num_Serie>TEXTE</Num_Serie>
+      </Classe_Temporelle_Distributeur>
+      <Classe_Temporelle>
+        <Id_Classe_Temporelle>BASE</Id_Classe_Temporelle>
+        <Libelle_Classe_Temporelle>TEXTE</Libelle_Classe_Temporelle>
+        <Rang_Cadran>20</Rang_Cadran>
+        <Classe_Mesure>1</Classe_Mesure>
+        <Unite_Mesure>kWh</Unite_Mesure>
+        <Sens_Mesure>0</Sens_Mesure>
+        <Valeur>4996</Valeur>
+        <Valeur_Precedent>5107</Valeur_Precedent>
         <Nb_Chiffres_Cadran>15</Nb_Chiffres_Cadran>
         <Indicateur_Passage_A_Zero>0</Indicateur_Passage_A_Zero>
         <Coefficient_Lecture>1.5</Coefficient_Lecture>

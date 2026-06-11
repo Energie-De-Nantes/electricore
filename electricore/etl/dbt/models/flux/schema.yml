@@ -29,8 +29,10 @@ models:
 
   - name: flux_r15
     description: >
-      Relevés R15 : une ligne par PRM, index distributeur par cadran. Parité golden
-      (tests/etl/test_dbt_flux_golden.py).
+      Relevés R15 : une ligne par RELEVÉ (un PRM peut en porter plusieurs à des dates
+      différentes), index distributeur par cadran (Classe_Mesure=1/Sens=0). Parité
+      golden (tests/etl/test_dbt_flux_golden.py) et parité totale legacy-vs-dbt sur
+      données réelles.
     columns:
       - name: pdl
         description: Point de livraison (14 chiffres).
@@ -41,8 +43,8 @@ models:
 
   - name: flux_r15_acc
     description: >
-      Relevés R15 autoconsommation : une ligne par PRM, énergies ea_* par cadran.
-      Parité golden (cas vide aujourd'hui).
+      Relevés R15 autoconsommation : une ligne par RELEVÉ, énergies ea_* par cadran
+      (Classe_Mesure 3-6). Parité golden (cas réel vide, edge-case forgé peuplé).
     columns:
       - name: pdl
         description: Point de livraison (14 chiffres).
@@ -53,8 +55,9 @@ models:
 
   - name: flux_r151
     description: >
-      Index périodiques R151 : une ligne par PRM, 4 cadrans saisonniers (+ INCONNU
-      éventuel). date_releve en date nue. Parité golden.
+      Index périodiques R151 : une ligne par RELEVÉ (jusqu'à 20 relevés par PRM
+      observés dans un même fichier), 4 cadrans saisonniers (+ INCONNU éventuel).
+      date_releve en date nue. Parité golden et parité totale sur données réelles.
     columns:
       - name: pdl
         description: Point de livraison (14 chiffres).

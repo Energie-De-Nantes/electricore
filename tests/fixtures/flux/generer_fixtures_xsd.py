@@ -121,15 +121,15 @@ SPECS: tuple[SpecFixture, ...] = (
         "r15_xsd.xml",
         "Guide Flux R15 Soutirage/ENEDIS.SGE.XSD.0293.Flux_R15_v2.3.2.xsd",
         "R15",
-        # Donnees_Releve reste à 1 : les modèles dbt R15 lisent [0] (résidu connu,
-        # cf. budgets de comparaison) — à monter à 2 quand ce sera traité.
-        multiplicites={"PRM": 2, "Classe_Temporelle_Distributeur": 2},
+        # Donnees_Releve ×2 : le grain est le relevé (un PRM porte plusieurs relevés
+        # à des dates différentes) — couvert depuis la correction de grain.
+        multiplicites={"PRM": 2, "Donnees_Releve": 2, "Classe_Temporelle_Distributeur": 2},
     ),
     SpecFixture(
         "r151_xsd.xml",
         "Enedis.SGE.GUI.0317.Flux R151_v2.3.1/Enedis.SGE.XSD.0315.Flux_R151_v1.2.0.xsd",
         "R151",
-        multiplicites={"PRM": 2, "Classe_Temporelle_Distributeur": 2},
+        multiplicites={"PRM": 2, "Donnees_Releve": 2, "Classe_Temporelle_Distributeur": 2},
     ),
     SpecFixture(
         "f12_xsd.xml",

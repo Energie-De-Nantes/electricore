@@ -143,18 +143,22 @@ R15:
   xml_configs:
     - name: "flux_r15"
       file_regex: "*.xml"  # Tous les XML R15 - traitement standard
-      row_level: './/PRM'
+      # Grain = le relevé (Donnees_Releve), pas le PRM : un PRM peut porter plusieurs
+      # relevés à des dates différentes dans un même fichier (jusqu'à 5 observés).
+      # Avec row_level PRM, le moteur fabriquait une chimère (date du 1er relevé,
+      # index du dernier). Corrigé après comparaison legacy-vs-dbt sur données réelles.
+      row_level: './/Donnees_Releve'
       metadata_fields:
         unite: 'En_Tete_Flux/Unite_Mesure_Index'
       data_fields:
-        date_releve: 'Donnees_Releve/Date_Releve'
-        pdl: 'Id_PRM'
-        id_calendrier: 'Donnees_Releve/Id_Calendrier'
-        ref_situation_contractuelle: 'Donnees_Releve/Ref_Situation_Contractuelle'
-        type_compteur: 'Donnees_Releve/Type_Compteur'
-        motif_releve: 'Donnees_Releve/Motif_Releve'
-        ref_demandeur: 'Donnees_Releve/Ref_Demandeur'
-        id_affaire: 'Donnees_Releve/Id_Affaire'
+        date_releve: 'Date_Releve'
+        pdl: '../Id_PRM'
+        id_calendrier: 'Id_Calendrier'
+        ref_situation_contractuelle: 'Ref_Situation_Contractuelle'
+        type_compteur: 'Type_Compteur'
+        motif_releve: 'Motif_Releve'
+        ref_demandeur: 'Ref_Demandeur'
+        id_affaire: 'Id_Affaire'
       nested_fields:
         # Index distributeur uniquement. Chaque cadran porte 2 classes Sens=0 :
         # Classe_Mesure=1 = index cumulé, Classe_Mesure=2 = énergie de période. Sans
@@ -162,7 +166,7 @@ R15:
         # document (~75 % des index R15 faux). Condition ajoutée après comparaison
         # legacy-vs-dbt sur données réelles (cf. flux_r15.sql).
         - prefix: ''
-          child_path: 'Donnees_Releve/Classe_Temporelle_Distributeur'
+          child_path: 'Classe_Temporelle_Distributeur'
           id_field: 'Id_Classe_Temporelle'
           value_field: 'Valeur'
           conditions:
@@ -173,25 +177,26 @@ R15:
 
     - name: "flux_r15_acc"
       file_regex: "*.xml"  # Même fichiers XML - traitement autoconsommation collective
-      row_level: './/PRM'
+      # Grain = le relevé (cf. flux_r15).
+      row_level: './/Donnees_Releve'
       metadata_fields:
         unite: 'En_Tete_Flux/Unite_Mesure_Index'
       data_fields:
-        pdl: 'Id_PRM'
-        date_releve: 'Donnees_Releve/Date_Releve'
-        id_calendrier: 'Donnees_Releve/Id_Calendrier'
-        id_calendrier_distributeur: 'Donnees_Releve/Id_Calendrier_Distributeur'
-        ref_situation_contractuelle: 'Donnees_Releve/Ref_Situation_Contractuelle'
-        type_compteur: 'Donnees_Releve/Type_Compteur'
-        motif_releve: 'Donnees_Releve/Motif_Releve'
-        id_affaire: 'Donnees_Releve/Id_Affaire'
-        nature_index: 'Donnees_Releve/Nature_Index'
-        statut_releve: 'Donnees_Releve/Statut_Releve'
-        autoconsommation_collective: 'Donnees_Releve/Autoconsommation_Collective'
+        pdl: '../Id_PRM'
+        date_releve: 'Date_Releve'
+        id_calendrier: 'Id_Calendrier'
+        id_calendrier_distributeur: 'Id_Calendrier_Distributeur'
+        ref_situation_contractuelle: 'Ref_Situation_Contractuelle'
+        type_compteur: 'Type_Compteur'
+        motif_releve: 'Motif_Releve'
+        id_affaire: 'Id_Affaire'
+        nature_index: 'Nature_Index'
+        statut_releve: 'Statut_Releve'
+        autoconsommation_collective: 'Autoconsommation_Collective'
       nested_fields:
         # Classe 3 - Énergie active autoproduite
         - prefix: 'ea_autoproduite_'
-          child_path: 'Donnees_Releve/Classe_Temporelle_Distributeur'
+          child_path: 'Classe_Temporelle_Distributeur'
           id_field: 'Id_Classe_Temporelle'
           value_field: 'Valeur'
           conditions:
@@ -199,7 +204,7 @@ R15:
               value: '3'
         # Classe 4 - Énergie active alloproduite
         - prefix: 'ea_alloproduite_'
-          child_path: 'Donnees_Releve/Classe_Temporelle_Distributeur'
+          child_path: 'Classe_Temporelle_Distributeur'
           id_field: 'Id_Classe_Temporelle'
           value_field: 'Valeur'
           conditions:
@@ -207,7 +212,7 @@ R15:
               value: '4'
         # Classe 5 - Énergie active autoconsommée
         - prefix: 'ea_autoconsommee_'
-          child_path: 'Donnees_Releve/Classe_Temporelle_Distributeur'
+          child_path: 'Classe_Temporelle_Distributeur'
           id_field: 'Id_Classe_Temporelle'
           value_field: 'Valeur'
           conditions:
@@ -215,7 +220,7 @@ R15:
               value: '5'
         # Classe 6 - Énergie active en surplus
         - prefix: 'ea_surplus_'
-          child_path: 'Donnees_Releve/Classe_Temporelle_Distributeur'
+          child_path: 'Classe_Temporelle_Distributeur'
           id_field: 'Id_Classe_Temporelle'
           value_field: 'Valeur'
           conditions:
@@ -227,18 +232,21 @@ R151:
   xml_configs:
     - name: "flux_r151"
       file_regex: "*.xml"  # Tous les XML R151
-      row_level: './/PRM'
+      # Grain = le relevé (Donnees_Releve) : 397 PRM observés avec plusieurs relevés
+      # par fichier (jusqu'à 20) — row_level PRM fabriquait une chimère et perdait
+      # les relevés suivants (cf. flux_r15).
+      row_level: './/Donnees_Releve'
       metadata_fields:
         unite: 'En_Tete_Flux/Unite_Mesure_Index'
       data_fields:
-        date_releve: 'Donnees_Releve/Date_Releve'
-        pdl: 'Id_PRM'
-        id_calendrier_fournisseur: 'Donnees_Releve/Id_Calendrier_Fournisseur'
-        id_affaire: 'Donnees_Releve/Id_Affaire'
-        id_calendrier_distributeur: 'Donnees_Releve/Id_Calendrier_Distributeur'
+        date_releve: 'Date_Releve'
+        pdl: '../Id_PRM'
+        id_calendrier_fournisseur: 'Id_Calendrier_Fournisseur'
+        id_affaire: 'Id_Affaire'
+        id_calendrier_distributeur: 'Id_Calendrier_Distributeur'
       nested_fields:
         - prefix: ''
-          child_path: 'Donnees_Releve/Classe_Temporelle_Distributeur'
+          child_path: 'Classe_Temporelle_Distributeur'
           id_field: 'Id_Classe_Temporelle'
           value_field: 'Valeur'
 

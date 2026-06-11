@@ -25,25 +25,57 @@
         <Id_Classe_Temporelle>BASE</Id_Classe_Temporelle>
         <Libelle_Classe_Temporelle>TEXTE</Libelle_Classe_Temporelle>
         <Rang_Cadran>20</Rang_Cadran>
-        <Valeur>3886</Valeur>
+        <Valeur>5218</Valeur>
         <Indice_Vraisemblance>0</Indice_Vraisemblance>
       </Classe_Temporelle_Distributeur>
       <Classe_Temporelle_Distributeur>
         <Id_Classe_Temporelle>HP</Id_Classe_Temporelle>
         <Libelle_Classe_Temporelle>TEXTE</Libelle_Classe_Temporelle>
         <Rang_Cadran>20</Rang_Cadran>
-        <Valeur>3997</Valeur>
+        <Valeur>5329</Valeur>
         <Indice_Vraisemblance>1</Indice_Vraisemblance>
       </Classe_Temporelle_Distributeur>
       <Classe_Temporelle>
         <Id_Classe_Temporelle>BASE</Id_Classe_Temporelle>
         <Libelle_Classe_Temporelle>TEXTE</Libelle_Classe_Temporelle>
         <Rang_Cadran>20</Rang_Cadran>
-        <Valeur>4108</Valeur>
+        <Valeur>5440</Valeur>
         <Indice_Vraisemblance>0</Indice_Vraisemblance>
       </Classe_Temporelle>
       <Puissance_Maximale>
-        <Valeur>4219</Valeur>
+        <Valeur>5551</Valeur>
+      </Puissance_Maximale>
+    </Donnees_Releve>
+    <Donnees_Releve>
+      <Date_Releve>2024-06-15</Date_Releve>
+      <Id_Calendrier_Fournisseur>TEXTE</Id_Calendrier_Fournisseur>
+      <Libelle_Calendrier_Fournisseur>TEXTE</Libelle_Calendrier_Fournisseur>
+      <Id_Calendrier_Distributeur>TEXTE</Id_Calendrier_Distributeur>
+      <Libelle_Calendrier_Distributeur>TEXTE</Libelle_Calendrier_Distributeur>
+      <Id_Affaire>ABCD</Id_Affaire>
+      <Classe_Temporelle_Distributeur>
+        <Id_Classe_Temporelle>BASE</Id_Classe_Temporelle>
+        <Libelle_Classe_Temporelle>TEXTE</Libelle_Classe_Temporelle>
+        <Rang_Cadran>20</Rang_Cadran>
+        <Valeur>5662</Valeur>
+        <Indice_Vraisemblance>0</Indice_Vraisemblance>
+      </Classe_Temporelle_Distributeur>
+      <Classe_Temporelle_Distributeur>
+        <Id_Classe_Temporelle>HP</Id_Classe_Temporelle>
+        <Libelle_Classe_Temporelle>TEXTE</Libelle_Classe_Temporelle>
+        <Rang_Cadran>20</Rang_Cadran>
+        <Valeur>5773</Valeur>
+        <Indice_Vraisemblance>1</Indice_Vraisemblance>
+      </Classe_Temporelle_Distributeur>
+      <Classe_Temporelle>
+        <Id_Classe_Temporelle>BASE</Id_Classe_Temporelle>
+        <Libelle_Classe_Temporelle>TEXTE</Libelle_Classe_Temporelle>
+        <Rang_Cadran>20</Rang_Cadran>
+        <Valeur>5884</Valeur>
+        <Indice_Vraisemblance>0</Indice_Vraisemblance>
+      </Classe_Temporelle>
+      <Puissance_Maximale>
+        <Valeur>5995</Valeur>
       </Puissance_Maximale>
     </Donnees_Releve>
   </PRM>
@@ -60,25 +92,57 @@
         <Id_Classe_Temporelle>BASE</Id_Classe_Temporelle>
         <Libelle_Classe_Temporelle>TEXTE</Libelle_Classe_Temporelle>
         <Rang_Cadran>20</Rang_Cadran>
-        <Valeur>4330</Valeur>
+        <Valeur>6106</Valeur>
         <Indice_Vraisemblance>0</Indice_Vraisemblance>
       </Classe_Temporelle_Distributeur>
       <Classe_Temporelle_Distributeur>
         <Id_Classe_Temporelle>HP</Id_Classe_Temporelle>
         <Libelle_Classe_Temporelle>TEXTE</Libelle_Classe_Temporelle>
         <Rang_Cadran>20</Rang_Cadran>
-        <Valeur>4441</Valeur>
+        <Valeur>6217</Valeur>
         <Indice_Vraisemblance>1</Indice_Vraisemblance>
       </Classe_Temporelle_Distributeur>
       <Classe_Temporelle>
         <Id_Classe_Temporelle>BASE</Id_Classe_Temporelle>
         <Libelle_Classe_Temporelle>TEXTE</Libelle_Classe_Temporelle>
         <Rang_Cadran>20</Rang_Cadran>
-        <Valeur>4552</Valeur>
+        <Valeur>6328</Valeur>
         <Indice_Vraisemblance>0</Indice_Vraisemblance>
       </Classe_Temporelle>
       <Puissance_Maximale>
-        <Valeur>4663</Valeur>
+        <Valeur>6439</Valeur>
+      </Puissance_Maximale>
+    </Donnees_Releve>
+    <Donnees_Releve>
+      <Date_Releve>2024-06-15</Date_Releve>
+      <Id_Calendrier_Fournisseur>TEXTE</Id_Calendrier_Fournisseur>
+      <Libelle_Calendrier_Fournisseur>TEXTE</Libelle_Calendrier_Fournisseur>
+      <Id_Calendrier_Distributeur>TEXTE</Id_Calendrier_Distributeur>
+      <Libelle_Calendrier_Distributeur>TEXTE</Libelle_Calendrier_Distributeur>
+      <Id_Affaire>ABCD</Id_Affaire>
+      <Classe_Temporelle_Distributeur>
+        <Id_Classe_Temporelle>BASE</Id_Classe_Temporelle>
+        <Libelle_Classe_Temporelle>TEXTE</Libelle_Classe_Temporelle>
+        <Rang_Cadran>20</Rang_Cadran>
+        <Valeur>6550</Valeur>
+        <Indice_Vraisemblance>0</Indice_Vraisemblance>
+      </Classe_Temporelle_Distributeur>
+      <Classe_Temporelle_Distributeur>
+        <Id_Classe_Temporelle>HP</Id_Classe_Temporelle>
+        <Libelle_Classe_Temporelle>TEXTE</Libelle_Classe_Temporelle>
+        <Rang_Cadran>20</Rang_Cadran>
+        <Valeur>6661</Valeur>
+        <Indice_Vraisemblance>1</Indice_Vraisemblance>
+      </Classe_Temporelle_Distributeur>
+      <Classe_Temporelle>
+        <Id_Classe_Temporelle>BASE</Id_Classe_Temporelle>
+        <Libelle_Classe_Temporelle>TEXTE</Libelle_Classe_Temporelle>
+        <Rang_Cadran>20</Rang_Cadran>
+        <Valeur>6772</Valeur>
+        <Indice_Vraisemblance>0</Indice_Vraisemblance>
+      </Classe_Temporelle>
+      <Puissance_Maximale>
+        <Valeur>6883</Valeur>
       </Puissance_Maximale>
     </Donnees_Releve>
   </PRM>
