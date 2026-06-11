@@ -139,6 +139,22 @@ def test_callback_check_avec_depassement_joint_le_xlsx(monkeypatch):
     assert kwargs["filename"] == "check_odoo.xlsx"
 
 
+def test_check_au_payload_inattendu_affiche_l_erreur_au_lieu_de_figer(monkeypatch):
+    """Régression prod 2026-06-12 : une exception de formatage laissait le
+    message figé sur ⏳ — elle doit s'afficher dans Telegram."""
+    fake = FakeClient(check={**_CHECK_VIDE, "factures_draft": [{"colonne": "inattendue"}]})
+    monkeypatch.setattr(handlers_facturation, "ElectriCoreClient", lambda: fake)
+    monkeypatch.setattr(
+        handlers_facturation, "_format_check_odoo", lambda result: (_ for _ in ()).throw(KeyError("boom"))
+    )
+    update = update_callback("facturation:check")
+    bot = FakeBot()
+
+    asyncio.run(handlers_facturation.on_callback(update, contexte(bot=bot)))
+
+    assert "❌" in bot.edits[-1][2], "l'erreur doit remplacer le ⏳, pas le laisser figé"
+
+
 def test_raccourci_documents_avec_mois(client):
     update = update_commande()
     bot = FakeBot()
