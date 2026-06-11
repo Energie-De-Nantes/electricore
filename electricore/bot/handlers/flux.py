@@ -16,6 +16,26 @@ from electricore.bot.format import escape
 
 _TITRE_MENU = "<b>Tables flux Enedis</b> — stats ou export :"
 
+# Descriptions courtes des tables (UI). Table absente du dict : listée sans description.
+DESCRIPTIONS = {
+    "c15": "Événements contractuels (périmètre)",
+    "f12_detail": "Facturation distributeur (F12)",
+    "f15_detail": "Factures détaillées (F15)",
+    "r15": "Relevés quotidiens + événements",
+    "r15_acc": "Relevés autoconsommation (R15)",
+    "r151": "Relevés périodiques",
+    "r64": "Relevés courbe (JSON)",
+}
+
+
+def _texte_menu(tables: list[str]) -> str:
+    lignes = [_TITRE_MENU, ""]
+    for t in tables:
+        description = DESCRIPTIONS.get(t)
+        suffixe = f" — {escape(description)}" if description else ""
+        lignes.append(f"• <b>{escape(t)}</b>{suffixe}")
+    return "\n".join(lignes)
+
 
 def clavier_tables(tables: list[str]) -> InlineKeyboardMarkup:
     lignes = [
@@ -89,7 +109,7 @@ async def cmd_flux(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         except Exception as e:
             await update.effective_message.reply_html(f"❌ Erreur : <code>{escape(e)}</code>")
             return
-        await update.effective_message.reply_html(_TITRE_MENU, reply_markup=clavier_tables(tables))
+        await update.effective_message.reply_html(_texte_menu(tables), reply_markup=clavier_tables(tables))
         return
 
     action = context.args[0].lower()
@@ -121,7 +141,7 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             )
             return
         await context.bot.edit_message_text(
-            _TITRE_MENU,
+            _texte_menu(tables),
             chat_id=chat_id,
             message_id=message_id,
             parse_mode="HTML",

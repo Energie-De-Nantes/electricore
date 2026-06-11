@@ -68,6 +68,19 @@ def test_flux_sans_argument_liste_les_tables_avec_stats_et_export(client):
     assert client.exports == []
 
 
+def test_le_menu_decrit_chaque_table_connue(monkeypatch):
+    fake = FakeClient(tables=["c15", "r151", "table_inconnue"])
+    monkeypatch.setattr(handlers_flux, "ElectriCoreClient", lambda: fake)
+    update = update_commande()
+
+    asyncio.run(handlers_flux.cmd_flux(update, contexte()))
+
+    ((texte, _),) = update.effective_message.replies
+    assert "Événements contractuels" in texte, "description du c15"
+    assert "Relevés périodiques" in texte, "description du r151"
+    assert "table_inconnue" in texte, "une table sans description reste listée"
+
+
 # =============================================================================
 # Cycles 2-3 — callbacks stats, export, retour
 # =============================================================================
