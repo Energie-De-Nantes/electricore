@@ -1,4 +1,4 @@
-"""Tests pour `documents_facturation_du_mois` (issue #78).
+"""Tests du wire-up `documents_facturation_du_mois` (issues #78, #144 — vit en `api/services`).
 
 Vérifie que la fonction retourne un dict prêt pour `xlsx_multi_sheet` :
 clés = libellés d'onglets FR éditoriaux, plus de suffixes `.csv`.
@@ -11,8 +11,8 @@ def test_documents_facturation_du_mois_returns_fr_sheet_names(monkeypatch):
 
     import polars as pl
 
+    from electricore.api.services import facturation_service
     from electricore.core.builds.contexte_mensuel import ContexteMensuel
-    from electricore.integrations.odoo import facturation as facturation_orchestration
 
     df_fact_mensuelle = pl.DataFrame(
         {
@@ -47,10 +47,10 @@ def test_documents_facturation_du_mois_returns_fr_sheet_names(monkeypatch):
         energie=pl.LazyFrame(),
         facturation_mensuelle=df_fact_mensuelle,
     )
-    monkeypatch.setattr(facturation_orchestration, "charger", lambda historique, releves, mois=None: contexte_prefab)
+    monkeypatch.setattr(facturation_service, "charger", lambda historique, releves, mois=None: contexte_prefab)
 
     # Les loaders sont évalués côté caller AVANT charger() (topologie #87).
-    monkeypatch.setattr(facturation_orchestration, "releves_harmonises", lambda: pl.LazyFrame())
+    monkeypatch.setattr(facturation_service, "releves_harmonises", lambda: pl.LazyFrame())
 
     df_lignes_odoo = pl.DataFrame(
         {
@@ -90,13 +90,11 @@ def test_documents_facturation_du_mois_returns_fr_sheet_names(monkeypatch):
             "evenement_declencheur": pl.Utf8,
         }
     )
-    monkeypatch.setattr(
-        facturation_orchestration, "lignes_factures_du_mois", lambda odoo, mois: _QueryMock(df_lignes_odoo)
-    )
-    monkeypatch.setattr(facturation_orchestration, "c15", lambda: _QueryMock(df_flux_vide))
-    monkeypatch.setattr(facturation_orchestration, "f15", lambda: _QueryMock(df_flux_vide))
+    monkeypatch.setattr(facturation_service, "lignes_factures_du_mois", lambda odoo, mois: _QueryMock(df_lignes_odoo))
+    monkeypatch.setattr(facturation_service, "c15", lambda: _QueryMock(df_flux_vide))
+    monkeypatch.setattr(facturation_service, "f15", lambda: _QueryMock(df_flux_vide))
 
-    documents, suffix = facturation_orchestration.documents_facturation_du_mois(odoo=None, mois="2025-01-01")
+    documents, suffix = facturation_service.documents_facturation_du_mois(odoo=None, mois="2025-01-01")
 
     assert set(documents.keys()) == {
         "F15 complet",

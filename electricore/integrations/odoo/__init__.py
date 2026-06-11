@@ -8,12 +8,12 @@ from .helpers import (
     commandes,
     commandes_lignes,
     lignes_factures,
-    lignes_factures_du_mois,
     query,
 )
 from .liens import enrichir_liens, url_pour_enregistrement
 from .query import OdooQuery
 from .reader import OdooReader
+from .sources import lignes_factures_du_mois
 from .verification import ResultatVerification, verifier
 from .writers import OdooWriter
 
