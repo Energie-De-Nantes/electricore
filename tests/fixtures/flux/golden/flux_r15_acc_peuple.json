@@ -1,0 +1,23 @@
+[
+  {
+    "pdl": "99147508449444",
+    "date_releve": "2024-07-30T00:01:00+02:00",
+    "id_calendrier": "FC022034",
+    "id_calendrier_distributeur": "DI000001",
+    "ref_situation_contractuelle": "554933217",
+    "type_compteur": "CCB",
+    "motif_releve": "CFNS",
+    "nature_index": "REEL",
+    "statut_releve": "INITIAL",
+    "autoconsommation_collective": "1",
+    "ea_autoproduite_index_base_kwh": "500",
+    "ea_alloproduite_index_base_kwh": "400",
+    "ea_autoconsommee_index_hp_kwh": "70",
+    "ea_autoconsommee_index_hc_kwh": "30",
+    "ea_surplus_index_base_kwh": "50",
+    "_source_zip": "fixture.zip",
+    "_flux_type": "R15",
+    "_xml_name": "r15_acc.xml",
+    "modification_date": "2026-01-01T00:00:00"
+  }
+]
