@@ -19,7 +19,7 @@ COMMANDES: list[tuple[str, str]] = [
     ("etl", "Ingestion : lancer, suivre, statut des jobs"),
     ("flux", "Tables brutes : stats et exports XLSX"),
     ("perimetre", "Périmètre : entrées et sorties C15"),
-    ("taxes", "Accise TICFE / CTA par trimestre"),
+    ("taxes", "Accise TICFE et CTA, par trimestre"),
     ("facturation", "Documents facturation Odoo ↔ Enedis"),
     ("check", "Vérifications pré-facturation"),
 ]
