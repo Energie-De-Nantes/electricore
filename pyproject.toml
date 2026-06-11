@@ -60,6 +60,11 @@ viz = [
     "marimo>=0.23.0",  # pre-auth RCE fix (CVE-2026-39987)
     "plotly[express]>=6.2.0",
 ]
+# Linéarisation des flux en dbt (ADR-0020, prototype branche dbt).
+dbt = [
+    "dbt-core>=1.10.0,<2.0.0",
+    "dbt-duckdb>=1.9.0,<2.0.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/Energie-De-Nantes/electricore"
