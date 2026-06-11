@@ -15,8 +15,8 @@ from electricore.core.models.historique import Historique
 from electricore.core.models.periode_energie import PeriodeEnergie
 from electricore.core.models.releve_index import RelevéIndex
 
-# Formules partagées entre pipelines de périodes (issue #178, ADR-0023)
-from electricore.core.pipelines.periodes import expr_date_formatee_fr, expr_mois_annee, expr_nb_jours
+# Méta-colonnes de période partagées (issue #178, ADR-0023)
+from electricore.core.pipelines.periodes import exprs_meta_periode
 
 # Import du calcul TURPE variable
 from electricore.core.pipelines.turpe import ajouter_turpe_variable
@@ -462,8 +462,7 @@ def calculer_periodes_energie(lf: pl.LazyFrame) -> LazyFrame[PeriodeEnergie]:
     4. Calcul vectorisé des énergies tous cadrans
     5. Calcul des flags de qualité
     6. Filtrage des périodes valides
-    7. Formatage des dates en français
-    8. Enrichissement hiérarchique des cadrans
+    7. Enrichissement hiérarchique des cadrans
 
     Args:
         lf: LazyFrame contenant les relevés d'index chronologiques
@@ -486,22 +485,14 @@ def calculer_periodes_energie(lf: pl.LazyFrame) -> LazyFrame[PeriodeEnergie]:
         .with_columns(
             [*expr_bornes_depuis_shift(over="ref_situation_contractuelle"), *expr_arrondir_index_kwh(colonnes_index)]
         )
-        # Étape 2 : Calcul énergies + nb_jours (énergies dépendent d'étape 1, nb_jours indépendant)
-        .with_columns([*expr_calculer_energies_tous_cadrans(colonnes_index), expr_nb_jours().alias("nb_jours")])
+        # Étape 2 : Calcul énergies + méta-colonnes de période (bundle partagé, cf. periodes.py)
+        .with_columns([*expr_calculer_energies_tous_cadrans(colonnes_index), *exprs_meta_periode()])
         # Étape 3 : Flag de complétude des données
         .with_columns([expr_data_complete().alias("data_complete")])
         # Filtrage des périodes valides
         .filter(expr_filtrer_periodes_valides())
         # post traitement
-        .with_columns(
-            [
-                expr_date_formatee_fr("debut").alias("debut_lisible"),
-                expr_date_formatee_fr("fin").alias("fin_lisible"),
-                # Clé calculable YYYY-MM, triable (issue #115)
-                expr_mois_annee(),
-                *expr_enrichir_cadrans_principaux(),
-            ]
-        )
+        .with_columns([*expr_enrichir_cadrans_principaux()])
         # Note: La sélection finale des colonnes se fait après l'ajout du TURPE dans pipeline_energie
     )
 

@@ -97,3 +97,29 @@ def expr_fin_lisible() -> pl.Expr:
         >>> df.with_columns(expr_fin_lisible().alias("fin_lisible"))
     """
     return pl.when(pl.col("fin").is_null()).then(pl.lit("en cours")).otherwise(expr_date_formatee_fr("fin"))
+
+
+def exprs_meta_periode() -> list[pl.Expr]:
+    """
+    Bundle canonique des méta-colonnes d'une période : `nb_jours`,
+    `debut_lisible`, `fin_lisible`, `mois_annee`.
+
+    C'est le *contrat d'assemblage* partagé par les périodisations
+    (abonnements, énergie) : les quatre colonnes ne dérivent que des bornes
+    `debut`/`fin`, le bundle s'applique donc dès que les bornes existent,
+    avant tout filtre de validité. `fin_lisible` passe par
+    `expr_fin_lisible` : une fin nulle (période ouverte) s'affiche
+    « en cours » au lieu de null.
+
+    Returns:
+        Liste d'expressions Polars aliasées, à éclater dans un with_columns
+
+    Example:
+        >>> df.with_columns(exprs_meta_periode())
+    """
+    return [
+        expr_nb_jours().alias("nb_jours"),
+        expr_date_formatee_fr("debut").alias("debut_lisible"),
+        expr_fin_lisible().alias("fin_lisible"),
+        expr_mois_annee(),
+    ]
