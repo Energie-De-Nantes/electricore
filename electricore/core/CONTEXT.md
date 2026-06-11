@@ -238,7 +238,7 @@ Tout `pipeline_*` (et la fonction de premier niveau qu'il compose, ex : `generer
 ## Exports et livrables
 
 **Rapport** :
-Structure de données (`@dataclass(frozen=True, slots=True)`, cf. [ADR-0018](../../docs/adr/0018-classes-justifiees-par-l-etat.md)) regroupant les DataFrames qu'un *build* (cf. [ADR-0019](../../docs/adr/0019-roles-loaders-pipelines-builds-integrations.md)) produit pour un domaine (Accise, CTA, facturation). Exemple : `RapportAccise(resume, par_taux, detail)`. Pré-trié et prêt à consommer — l'ordre des lignes est porté par la fonction `rapport_*` elle-même, pas par les consommateurs.
+Structure de données (`@dataclass(frozen=True, slots=True)`, cf. [ADR-0018](../../docs/adr/0018-classes-justifiees-par-l-etat.md)) regroupant les DataFrames qu'un *build* (cf. [ADR-0019](../../docs/adr/0019-roles-loaders-pipelines-builds-integrations.md)) produit pour un domaine (Accise, CTA, facturation). Exemples : `RapportAccise(resume, par_taux, detail)` (`core/builds/rapport_taxe.py`), `RapportFacturation(resume, lignes, changements_puissance)` (`core/builds/rapport_facturation.py`, issue #143 — assemblé en core sur le shape agnostique `LignesFacture`). Pré-trié et prêt à consommer — l'ordre des lignes est porté par la fonction `rapport_*` elle-même, pas par les consommateurs ; l'ordre des **colonnes** d'un livrable facturiste est porté par sa fonction `feuilles_rapport_*`.
 
 **Livrable** :
 Export structuré destiné à un consommateur métier (facturiste, audit). Un livrable matérialise un *Rapport* sous une forme attendue par son destinataire — typiquement un XLSX multi-onglets (`Résumé` / `Par taux` / `Détail`). Distinct du *détail brut* (table unique exportée en XLSX mono-onglet ou Arrow IPC, format technique).
