@@ -39,8 +39,8 @@ def test_status_v1_est_supprime_de_la_surface():
     assert "status" not in {c for c, _ in COMMANDES}
 
 
-def test_stats_et_export_v1_sont_supprimes_de_la_surface():
-    """/stats et /export sont absorbés par /flux (#153)."""
+def test_les_commandes_v1_absorbees_sont_hors_surface():
+    """/stats, /export (#153), /entrees, /sorties (#154) sont absorbées par leurs domaines."""
     tg_app = build_application("123:abc")
 
     enregistrees: set[str] = set()
@@ -48,9 +48,9 @@ def test_stats_et_export_v1_sont_supprimes_de_la_surface():
         for handler in handlers:
             enregistrees |= set(getattr(handler, "commands", ()))
 
-    assert "stats" not in enregistrees
-    assert "export" not in enregistrees
-    assert {"stats", "export"} & {c for c, _ in COMMANDES} == set()
+    absorbees = {"stats", "export", "entrees", "sorties"}
+    assert absorbees & enregistrees == set()
+    assert absorbees & {c for c, _ in COMMANDES} == set()
 
 
 def test_les_callbacks_des_domaines_sont_routes():
@@ -66,6 +66,7 @@ def test_les_callbacks_des_domaines_sont_routes():
     ]
     assert any(p.startswith("^etl:") for p in patterns)
     assert any(p.startswith("^flux:") for p in patterns)
+    assert any(p.startswith("^perimetre:") for p in patterns)
 
 
 def test_le_menu_natif_est_branche_au_demarrage():

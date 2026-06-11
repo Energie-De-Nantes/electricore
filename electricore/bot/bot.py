@@ -20,38 +20,6 @@ logger = logging.getLogger(__name__)
 
 
 @require_allowed
-async def cmd_entrees(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.effective_message.reply_text("⏳ Génération de l'export entrées C15…")
-    client = ElectriCoreClient()
-    try:
-        xlsx_bytes = await client.get_entrees_xlsx()
-    except Exception as e:
-        await update.effective_message.reply_text(f"❌ Erreur : {e}")
-        return
-    await update.effective_message.reply_document(
-        document=io.BytesIO(xlsx_bytes),
-        filename="entrees_c15.xlsx",
-        caption="Entrées C15 (PMES, MES, CFNE)",
-    )
-
-
-@require_allowed
-async def cmd_sorties(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.effective_message.reply_text("⏳ Génération de l'export sorties C15…")
-    client = ElectriCoreClient()
-    try:
-        xlsx_bytes = await client.get_sorties_xlsx()
-    except Exception as e:
-        await update.effective_message.reply_text(f"❌ Erreur : {e}")
-        return
-    await update.effective_message.reply_document(
-        document=io.BytesIO(xlsx_bytes),
-        filename="sorties_c15.xlsx",
-        caption="Sorties C15 (RES, CFNS)",
-    )
-
-
-@require_allowed
 async def cmd_taxes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     usage = (
         "Usage :\n"
