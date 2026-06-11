@@ -1,8 +1,8 @@
-"""Tests smoke de `cta_par_contrat_service` (ADR-0019, issue #108).
+"""Tests smoke de `cta_par_contrat_service` (ADR-0019, issues #108, #145).
 
 Garantit que le service délègue le chargement de la facturation à
-`core.builds.contexte_mensuel.charger` plutôt que de reconstruire la
-trio `c15 + releves_harmonises + facturation()`.
+`core.builds.contexte_mensuel.contexte_du_mois` (sources par défaut, #145)
+plutôt que de reconstruire le trio `c15 + releves_harmonises + facturation()`.
 
 Depuis #108, la logique de wire-up vit dans `api/services/taxes_service.py`.
 """
@@ -14,11 +14,11 @@ import polars as pl
 from electricore.core.builds.contexte_mensuel import ContexteMensuel
 
 
-def test_cta_par_contrat_service_delegue_a_charger(monkeypatch):
-    """`cta_par_contrat_service` consomme `ContexteMensuel` via `charger()`.
+def test_cta_par_contrat_service_delegue_a_contexte_du_mois(monkeypatch):
+    """`cta_par_contrat_service` consomme `ContexteMensuel` via `contexte_du_mois()`.
 
-    Invariant : le service délègue la composition à `core/builds/contexte_mensuel.py`,
-    sans reconstruire `c15 + releves + facturation()`.
+    Invariant : le service délègue chargement ET composition à
+    `core/builds/contexte_mensuel.py` — un seul nom à patcher (#145).
     """
     import electricore.api.services.taxes_service as svc
 
@@ -44,15 +44,13 @@ def test_cta_par_contrat_service_delegue_a_charger(monkeypatch):
         energie=pl.LazyFrame(),
         facturation_mensuelle=df_facturation,
     )
-    appels_charger: list[tuple] = []
+    appels: list = []
 
-    def _capture_charger(historique, releves, mois=None):
-        appels_charger.append((historique, releves, mois))
+    def _capture_contexte(mois=None):
+        appels.append(mois)
         return contexte_prefab
 
-    monkeypatch.setattr(svc, "charger", _capture_charger)
-    monkeypatch.setattr(svc, "c15", lambda: pl.LazyFrame())
-    monkeypatch.setattr(svc, "releves_harmonises", lambda: pl.LazyFrame())
+    monkeypatch.setattr(svc, "contexte_du_mois", _capture_contexte)
 
     class _QueryMock:
         def __init__(self, df):
@@ -73,7 +71,7 @@ def test_cta_par_contrat_service_delegue_a_charger(monkeypatch):
 
     result = svc.cta_par_contrat_service(odoo=None)
 
-    assert len(appels_charger) == 1, "charger() doit être appelé exactement une fois"
-    assert appels_charger[0][2] is None, "charger() doit être appelé avec mois=None"
+    assert len(appels) == 1, "contexte_du_mois() doit être appelé exactement une fois"
+    assert appels[0] is None, "contexte_du_mois() doit être appelé avec mois=None"
     assert isinstance(result, pl.DataFrame)
     assert "cta_eur" in result.columns

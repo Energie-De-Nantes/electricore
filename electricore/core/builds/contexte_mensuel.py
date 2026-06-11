@@ -2,9 +2,12 @@
 
 Voir `core/CONTEXT.md` (entrée *Contexte mensuel de facturation*).
 
-`charger()` prend `historique` et `relevés` en LazyFrame — les loaders restent
-à la charge de l'appelant (adapter ERP, router API). Le module ne déclenche
-aucune I/O.
+`charger()` prend `historique` et `relevés` en LazyFrame et ne déclenche
+aucune I/O — c'est la composition pure, l'interface des tests (fixtures).
+`contexte_du_mois()` est l'entrée I/O (#145) : elle résout les sources par
+défaut (loaders DuckDB `c15` / `releves_harmonises`) puis délègue à
+`charger()` — application du scindage pur/I-O prévu par les « Limites »
+d'ADR-0019.
 
 `rapprocher()` joint les *lignes de facture* (shape agnostique `LignesFacture`)
 à la facturation Enedis du mois porté par le `ContexteMensuel`, et dérive en
@@ -24,6 +27,7 @@ import pandera.polars as pa
 import polars as pl
 from pandera.typing.polars import DataFrame
 
+from electricore.core.loaders import c15, releves_harmonises
 from electricore.core.models.cadrans import col_energie
 from electricore.core.models.lignes_facture import LignesFacture
 from electricore.core.models.lignes_facture_rapprochees import LignesFactureRapprochees
@@ -135,6 +139,25 @@ def charger(
         energie=energie,
         facturation_mensuelle=facturation_mensuelle,
     )
+
+
+def contexte_du_mois(mois: str | None = None) -> ContexteMensuel:
+    """Entrée I/O du contexte mensuel : sources par défaut puis `charger()` (#145).
+
+    Résout les deux sources canoniques (loaders DuckDB `c15` et
+    `releves_harmonises`) et délègue la composition à `charger()`. Qui dispose
+    déjà de frames (tests, notebooks, autre source) appelle `charger()`
+    directement.
+
+    Args:
+        mois: format `YYYY-MM-DD` (premier jour du mois). `None` → dernier mois
+            disponible.
+
+    Raises:
+        FileNotFoundError: si la base DuckDB est absente (levée par les loaders
+            à l'appel — leur `.lazy()` exécute la lecture immédiatement).
+    """
+    return charger(c15().lazy(), releves_harmonises().lazy(), mois=mois)
 
 
 @pa.check_types(lazy=True)

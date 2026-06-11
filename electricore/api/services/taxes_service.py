@@ -18,9 +18,8 @@ Les 4 fonctions de service correspondent aux 6 endpoints :
 
 import polars as pl
 
-from electricore.core.builds.contexte_mensuel import charger
+from electricore.core.builds.contexte_mensuel import contexte_du_mois
 from electricore.core.builds.rapport_taxe import RapportTaxe, rapport_accise, rapport_cta
-from electricore.core.loaders import c15, releves_harmonises
 from electricore.core.models.accise_mensuel import AcciseMensuel
 from electricore.core.models.cta_mensuel import CtaMensuel
 from electricore.core.pipelines.accise import pipeline_accise
@@ -71,7 +70,7 @@ def rapport_cta_service(odoo: OdooReader, trimestre: str | None = None) -> Rappo
     Returns:
         `RapportTaxe(resume, par_taux, detail)` validé.
     """
-    contexte = charger(c15().lazy(), releves_harmonises().lazy(), mois=None)
+    contexte = contexte_du_mois(mois=None)
     return rapport_cta(contexte.facturation_mensuelle, mapping_pdl_order(odoo), trimestre)
 
 
@@ -85,7 +84,7 @@ def cta_par_contrat_service(odoo: OdooReader, trimestre: str | None = None) -> p
     Returns:
         `DataFrame` shape `CtaMensuel` (grain (situation contractuelle, mois) garanti).
     """
-    contexte = charger(c15().lazy(), releves_harmonises().lazy(), mois=None)
+    contexte = contexte_du_mois(mois=None)
     df_mensuel = pipeline_cta(
         contexte.facturation_mensuelle.lazy(),
         mapping_pdl_order(odoo).lazy(),
