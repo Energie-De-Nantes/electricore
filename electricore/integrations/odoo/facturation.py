@@ -1,8 +1,8 @@
-"""Orchestrations de facturation Odoo ↔ Enedis (issue #39, ADR-0016).
+"""Wire-up facturation Odoo ↔ Enedis (issue #39, ADR-0016 ; assemblage en core depuis #143).
 
-Compose les calculs `core/` (rapprochement facturation mensuelle, contexte
-mensuel) avec l'adaptateur Odoo (lecture des lignes de factures du mois)
-pour produire les artefacts consommés par les endpoints API et les notebooks.
+Lit les lignes de factures du mois côté Odoo et délègue l'assemblage aux
+builds core (`contexte_mensuel`, `rapport_facturation`). Transitional : le
+wire-up monte en `api/services/` avec #144, ce module disparaîtra.
 
 Deux interfaces cohabitent (cf. issue #64, calque de #56 / #63) :
 
@@ -10,37 +10,30 @@ Deux interfaces cohabitent (cf. issue #64, calque de #56 / #63) :
   enrichie Enedis. Pour exploration et streaming Arrow.
 - `rapport_facturation` : livrable agrégé (`Résumé` / `Lignes` /
   `Changements puissance`) destiné au facturiste, XLSX multi-onglets.
-
-EDN-shaped aujourd'hui ; sert de prototype pour un futur module Odoo libre
-couvrant les fournisseurs alternatifs (cf. CONTEXT.md, ADR-0016).
 """
-
-from dataclasses import dataclass
 
 import polars as pl
 
 from electricore.core.builds.contexte_mensuel import charger, documents, rapprocher
+from electricore.core.builds.rapport_facturation import (
+    RapportFacturation,
+    feuilles_rapport_facturation,
+)
+from electricore.core.builds.rapport_facturation import (
+    rapport_facturation as _rapport_facturation_core,
+)
 from electricore.core.loaders import c15, f15, releves_harmonises
-from electricore.core.models.lignes_facture_rapprochees import LignesFactureRapprochees
 
 from .helpers import lignes_factures_du_mois
-from .models.rapport_facturation import RapportFacturationResume
 from .reader import OdooReader
 
-
-@dataclass(frozen=True, slots=True)
-class RapportFacturation:
-    """Livrable mensuel de facturation (= les 3 onglets de l'XLSX facturiste).
-
-    - `resume` : totaux du mois (1 ligne).
-    - `lignes` : sortie brute de `facturation_du_mois` (toutes les lignes).
-    - `changements_puissance` : sous-ensemble de `lignes` où `memo_puissance != ""`.
-      Les lignes apparaissent dans les deux onglets (drill-down, pas partition exclusive).
-    """
-
-    resume: pl.DataFrame
-    lignes: pl.DataFrame
-    changements_puissance: pl.DataFrame
+__all__ = [
+    "RapportFacturation",
+    "documents_facturation_du_mois",
+    "facturation_du_mois",
+    "feuilles_rapport_facturation",
+    "rapport_facturation",
+]
 
 
 def facturation_du_mois(odoo: OdooReader, mois: str | None = None) -> pl.DataFrame:
@@ -67,8 +60,9 @@ def facturation_du_mois(odoo: OdooReader, mois: str | None = None) -> pl.DataFra
 def rapport_facturation(odoo: OdooReader, mois: str | None = None) -> RapportFacturation:
     """Livrable mensuel facturation : `Résumé` / `Lignes` / `Changements puissance`.
 
-    Compose `facturation_du_mois` avec un sous-ensemble (`memo_puissance != ""`)
-    et un résumé des compteurs `a_facturer` / `a_supprimer`.
+    Wire-up : charge le contexte mensuel et les lignes Odoo du mois, délègue
+    l'assemblage au build core `rapport_facturation` (#143). Le mois effectif
+    est porté par le contexte (résolu par `charger()`).
 
     Args:
         odoo: `OdooReader` déjà ouvert.
@@ -77,38 +71,9 @@ def rapport_facturation(odoo: OdooReader, mois: str | None = None) -> RapportFac
     Returns:
         `RapportFacturation(resume, lignes, changements_puissance)`.
     """
-    lignes = facturation_du_mois(odoo, mois)
-    changements_puissance = lignes.filter(pl.col("memo_puissance") != "")
-
-    # Mois effectif (= ce que `lignes` a vu — peut différer de l'arg si `mois=None`)
-    mois_effectif = mois if mois is not None else lignes.select(pl.col("debut").min().dt.strftime("%Y-%m-%d")).item()
-    resume = pl.DataFrame(
-        {
-            "mois": [mois_effectif or ""],
-            "nb_pdl": [lignes["pdl"].drop_nulls().n_unique()],
-            "total_a_facturer": [int(lignes["a_facturer"].fill_null(False).sum())],
-            "total_a_supprimer": [int(lignes["a_supprimer"].fill_null(False).sum())],
-        }
-    )
-
-    RapportFacturationResume.validate(resume)
-    LignesFactureRapprochees.validate(lignes)
-    LignesFactureRapprochees.validate(changements_puissance)
-    return RapportFacturation(resume=resume, lignes=lignes, changements_puissance=changements_puissance)
-
-
-def feuilles_rapport_facturation(r: RapportFacturation) -> dict[str, pl.DataFrame]:
-    """Mapping onglet → DataFrame pour le livrable XLSX facturation (cf. CONTEXT.md).
-
-    Consommable directement par `xlsx_multi_sheet`. Co-localisée avec
-    `rapport_facturation` parce que le shape du livrable et son contenu sont
-    indissociables.
-    """
-    return {
-        "Résumé": r.resume,
-        "Lignes": r.lignes,
-        "Changements puissance": r.changements_puissance,
-    }
+    contexte = charger(c15().lazy(), releves_harmonises().lazy(), mois=mois)
+    lignes_df = lignes_factures_du_mois(odoo, contexte.mois).collect()
+    return _rapport_facturation_core(contexte, lignes_df)
 
 
 def documents_facturation_du_mois(odoo: OdooReader, mois: str | None = None) -> tuple[dict[str, pl.DataFrame], str]:
