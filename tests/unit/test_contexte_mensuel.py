@@ -112,3 +112,41 @@ class TestChargerFramesQuiPassent:
         # facturation_mensuelle est une DataFrame (déjà collectée)
         assert isinstance(ctx.facturation_mensuelle, pl.DataFrame)
         assert "debut" in ctx.facturation_mensuelle.columns
+
+
+class TestContexteDuMois:
+    """`contexte_du_mois()` — l'entrée I/O (#145) : loaders DuckDB par défaut, puis `charger()`."""
+
+    def test_cable_les_loaders_et_delegue_a_charger(self, monkeypatch):
+        """c15 → historique, releves_harmonises → relevés (sentinelles : l'inversion échoue)."""
+        import electricore.core.builds.contexte_mensuel as cm
+
+        hist_sentinel = pl.LazyFrame({"source": ["c15"]})
+        rel_sentinel = pl.LazyFrame({"source": ["releves"]})
+
+        class _Query:
+            def __init__(self, lf):
+                self._lf = lf
+
+            def lazy(self):
+                return self._lf
+
+        monkeypatch.setattr(cm, "c15", lambda: _Query(hist_sentinel))
+        monkeypatch.setattr(cm, "releves_harmonises", lambda: _Query(rel_sentinel))
+
+        captures: dict = {}
+        composition = _make_stub_composition(debuts_mois=[datetime(2025, 3, 1)])
+
+        def _composer_capture(historique, releves):
+            captures["historique"] = historique
+            captures["releves"] = releves
+            return composition
+
+        monkeypatch.setattr(cm, "_composer", _composer_capture)
+
+        ctx = cm.contexte_du_mois(mois="2025-03-01")
+
+        assert captures["historique"] is hist_sentinel
+        assert captures["releves"] is rel_sentinel
+        assert isinstance(ctx, ContexteMensuel)
+        assert ctx.mois == "2025-03-01"

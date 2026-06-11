@@ -47,10 +47,9 @@ def test_documents_facturation_du_mois_returns_fr_sheet_names(monkeypatch):
         energie=pl.LazyFrame(),
         facturation_mensuelle=df_fact_mensuelle,
     )
-    monkeypatch.setattr(facturation_service, "charger", lambda historique, releves, mois=None: contexte_prefab)
-
-    # Les loaders sont évalués côté caller AVANT charger() (topologie #87).
-    monkeypatch.setattr(facturation_service, "releves_harmonises", lambda: pl.LazyFrame())
+    # Un seul nom à patcher depuis #145 (contre charger + c15 + releves_harmonises avant) ;
+    # c15/f15 restent patchés plus bas pour les onglets bruts de documents() (topologie #87).
+    monkeypatch.setattr(facturation_service, "contexte_du_mois", lambda mois=None: contexte_prefab)
 
     df_lignes_odoo = pl.DataFrame(
         {

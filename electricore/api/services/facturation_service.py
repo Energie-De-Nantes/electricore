@@ -15,17 +15,17 @@ Les 3 fonctions de service correspondent aux 4 endpoints :
 
 import polars as pl
 
-from electricore.core.builds.contexte_mensuel import ContexteMensuel, charger, documents, rapprocher
+from electricore.core.builds.contexte_mensuel import ContexteMensuel, contexte_du_mois, documents, rapprocher
 from electricore.core.builds.rapport_facturation import RapportFacturation
 from electricore.core.builds.rapport_facturation import rapport_facturation as _rapport_facturation_core
-from electricore.core.loaders import c15, f15, releves_harmonises
+from electricore.core.loaders import c15, f15
 from electricore.integrations.odoo.reader import OdooReader
 from electricore.integrations.odoo.sources import lignes_factures_du_mois
 
 
 def _contexte_et_lignes(odoo: OdooReader, mois: str | None) -> tuple[ContexteMensuel, pl.DataFrame]:
-    """Charge le contexte mensuel (loaders DuckDB) et les lignes Odoo du mois résolu."""
-    contexte = charger(c15().lazy(), releves_harmonises().lazy(), mois=mois)
+    """Charge le contexte mensuel (sources par défaut, #145) et les lignes Odoo du mois résolu."""
+    contexte = contexte_du_mois(mois)
     lignes_df = lignes_factures_du_mois(odoo, contexte.mois).collect()
     return contexte, lignes_df
 
