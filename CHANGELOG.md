@@ -7,7 +7,7 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
-## [2.0.0rc1] - 2026-06-11
+## [2.0.0] - 2026-06-11
 
 ### 🏗️ Ingestion ELT : la linéarisation des flux vit en dbt (ADR-0020 → ADR-0021)
 
@@ -45,6 +45,23 @@ complet ~700 k lignes, 7/7 tables). Guide : [docs/ingestion.md](docs/ingestion.m
   XSD maximales, data tests dbt + contrat de types.
 - `docs/ingestion.md` (schéma Excalidraw + recettes), `docs/configuration.md`
   (inventaire complet), ADR-0020/0021.
+
+#### 🧱 Architecture (revue du 11/06, depuis la rc1 — issues #142–#146)
+
+- **Le livrable facturation descend en core** : assemblage dans
+  `core/builds/rapport_facturation.py` + `contexte_mensuel.py`, I/O Odoo dans
+  `integrations/odoo/sources.py`, wire-up dans `api/services/facturation_service.py` —
+  `integrations/odoo/facturation.py` supprimé. Garde-fou CI en whitelist (ADR-0019
+  règle 4) : `integrations/` n'importe de `core` que `models` et `loaders`.
+- **Vraie passe-plat dans `rapprocher()`** : sortie = colonnes d'entrée + colonnes
+  calculées, plus aucune colonne ERP nommée en core. ⚠️ le détail rapprochement gagne
+  `est_brouillon` et change d'ordre de colonnes (l'ordre facturiste est porté par
+  `feuilles_rapport_*`) ; collision de noms → erreur claire au seam.
+- **`chemin_base_duckdb()`** : résolution unique du chemin de la base
+  (`electricore/config/`) — `DUCKDB_PATH` (`.env` compris) honoré par les loaders,
+  l'API, le runner dbt **et** les tools ; défaut absolu indépendant du CWD.
+- **`contexte_du_mois(mois)`** : entrée I/O du contexte mensuel ; `charger(frames)`
+  reste la composition pure (scindage prévu par ADR-0019).
 
 #### 🔧 Corrections
 
