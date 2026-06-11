@@ -9,7 +9,8 @@ aucune I/O.
 `rapprocher()` joint les *lignes de facture* (shape agnostique `LignesFacture`)
 à la facturation Enedis du mois porté par le `ContexteMensuel`, et dérive en
 core les flags ADR-0014 (`a_facturer`, `a_supprimer`) depuis `est_brouillon`
-et `quantite`.
+et `quantite`. Vraie passe-plat (issue #142) : sortie = colonnes d'entrée +
+colonnes calculées, aucune colonne ERP nommée ici.
 
 `documents()` assemble le livrable XLSX multi-onglets de campagne mensuelle :
 filtre F15 et C15 sur le mois du contexte, applique `rapprocher()`, extrait
@@ -40,6 +41,32 @@ _MAPPING_CATEGORIE_COLONNE: dict[str, str] = {
     "Base": col_energie("base"),
     "Abonnements": "nb_jours",
 }
+
+# Contrat d'entrée `LignesFacture` (les 4 colonnes sur lesquelles rapprocher() branche).
+_COLONNES_CONTRAT: tuple[str, ...] = (
+    "ref_situation_contractuelle",
+    "categorie_produit",
+    "quantite",
+    "est_brouillon",
+)
+
+# Colonnes produites par le rapprochement (jointures Enedis + dérivations ADR-0014).
+# Sortie = contrat + calculées + passe-plat (issue #142) ; l'ordre des livrables
+# est porté par les feuilles, pas ici.
+_COLONNES_CALCULEES: tuple[str, ...] = (
+    "quantite_enedis",
+    "memo_puissance",
+    "pdl",
+    "debut",
+    "fin",
+    "data_complete",
+    "turpe_fixe_eur",
+    "turpe_variable_eur",
+    "num_compteur",
+    "type_compteur",
+    "a_facturer",
+    "a_supprimer",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -125,11 +152,45 @@ def rapprocher(
     - Dérive en core les flags ADR-0014 : `a_facturer = est_brouillon ∧ quantite > 0`
       et `a_supprimer = est_brouillon ∧ quantite == 0`.
 
+    Sortie = colonnes d'entrée + colonnes calculées (vraie passe-plat, issue #142),
+    dans l'ordre contrat → calculées → passe-plat (ordre d'entrée). Une colonne
+    d'entrée homonyme d'une colonne réservée lève `ValueError` au seam.
+
     Voir `core/CONTEXT.md` (entrée *Rapprochement facturation mensuelle*).
     """
     mois_cible = pl.lit(ctx.mois).str.to_date()
     debut_mois = pl.col("debut").dt.truncate("1mo").dt.date()
-    fact_mois = ctx.facturation_mensuelle.lazy().filter(debut_mois == mois_cible)
+
+    # Colonnes Enedis nécessaires au calcul de `quantite_enedis` — consommées
+    # puis écartées de la sortie (intermédiaires, pas des colonnes calculées).
+    colonnes_quantite = list(dict.fromkeys(_MAPPING_CATEGORIE_COLONNE.values()))
+
+    # Garde au seam : une colonne d'entrée homonyme d'une calculée ou d'un
+    # intermédiaire serait silencieusement ambiguë dans la jointure.
+    reservees = set(_COLONNES_CALCULEES) | set(colonnes_quantite)
+    collisions = sorted(set(lignes.columns) & reservees)
+    if collisions:
+        raise ValueError(
+            f"Colonnes d'entrée en collision avec les colonnes réservées du rapprochement : {collisions}. "
+            "Renommer côté adaptateur ERP avant rapprocher()."
+        )
+    fact_mois = (
+        ctx.facturation_mensuelle.lazy()
+        .filter(debut_mois == mois_cible)
+        .select(
+            [
+                "ref_situation_contractuelle",
+                "memo_puissance",
+                "pdl",
+                "debut",
+                "fin",
+                "data_complete",
+                "turpe_fixe_eur",
+                "turpe_variable_eur",
+                *colonnes_quantite,
+            ]
+        )
+    )
 
     compteur_par_rsc = ctx.historique_enrichi.select(
         ["ref_situation_contractuelle", "num_compteur", "type_compteur"]
@@ -145,6 +206,10 @@ def rapprocher(
     a_facturer_expr = (pl.col("est_brouillon") & (pl.col("quantite") > 0)).alias("a_facturer")
     a_supprimer_expr = (pl.col("est_brouillon") & (pl.col("quantite") == 0)).alias("a_supprimer")
 
+    # Vraie passe-plat (issue #142) : toute colonne d'entrée hors contrat ressort
+    # telle quelle, dans son ordre d'entrée, après contrat + calculées.
+    passe_plat = [c for c in lignes.columns if c not in _COLONNES_CONTRAT]
+
     # Le `.collect()` final retourne un `pl.DataFrame` ; le décorateur
     # `@pa.check_types` valide qu'il matche `LignesFactureRapprochees`.
     return (
@@ -152,36 +217,7 @@ def rapprocher(
         .join(fact_mois, on="ref_situation_contractuelle", how="left")
         .join(compteur_par_rsc, on="ref_situation_contractuelle", how="left")
         .with_columns([quantite_enedis_expr, a_facturer_expr, a_supprimer_expr])
-        .select(
-            [
-                # Identifiants ERP passe-plat
-                "invoice_line_ids",
-                "x_pdl",
-                "x_lisse",
-                "name_account_move",
-                "name_product_product",
-                # Clés métier renommées
-                "categorie_produit",
-                "quantite",
-                # Quantité Enedis + mémo
-                "quantite_enedis",
-                "memo_puissance",
-                # Méta-période Enedis
-                "ref_situation_contractuelle",
-                "pdl",
-                "debut",
-                "fin",
-                "data_complete",
-                "turpe_fixe_eur",
-                "turpe_variable_eur",
-                # Identifiants compteur
-                "num_compteur",
-                "type_compteur",
-                # Flags ADR-0014 dérivés en core
-                "a_facturer",
-                "a_supprimer",
-            ]
-        )
+        .select([*_COLONNES_CONTRAT, *_COLONNES_CALCULEES, *passe_plat])
         .collect()  # type: ignore[return-value]
     )
 

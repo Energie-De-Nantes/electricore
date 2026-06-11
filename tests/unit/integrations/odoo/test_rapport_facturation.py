@@ -48,6 +48,7 @@ def _lignes_synthetique() -> pl.DataFrame:
             "categorie_produit": ["Base", "HP", "Base", "Base", "Base"],
             "name_product_product": ["P1", "P2", "P1", "P1", "P1"],
             "quantite": [100.0, 50.0, 80.0, 60.0, 0.0],
+            "est_brouillon": [True, True, True, True, True],
             "quantite_enedis": [100.0, 50.0, 80.0, 60.0, 0.0],
             # Spécificité : 2 lignes avec memo_puissance non vide (B sur 2 lignes)
             "memo_puissance": ["", "", "", "", "Hausse 6 → 9 kVA"],
