@@ -60,7 +60,10 @@ async def _texte_stats(client: ElectriCoreClient, table: str) -> str:
     count = info.get("count", "?")
     cols = len(info.get("columns", []))
     lignes = f"{count:,}" if isinstance(count, int) else str(count)
-    return f"📊 <b>flux_{escape(table)}</b>\n  • Lignes : <code>{lignes}</code>\n  • Colonnes : <code>{cols}</code>"
+    texte = f"📊 <b>flux_{escape(table)}</b>\n  • Lignes : <code>{lignes}</code>\n  • Colonnes : <code>{cols}</code>"
+    if info.get("derniere_date"):
+        texte += f"\n  • Dernière donnée : <code>{escape(info['derniere_date'])}</code>"
+    return texte
 
 
 async def _envoyer_export(bot, chat_id: int, message_id: int, client: ElectriCoreClient, table: str) -> None:
