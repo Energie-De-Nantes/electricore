@@ -6,6 +6,7 @@ les anomalies dépassent la limite d'affichage. Absorbe /facturation et /check v
 """
 
 import io
+import logging
 from datetime import date
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -15,8 +16,11 @@ from electricore.bot.auth import require_allowed, require_odoo
 from electricore.bot.client import ElectriCoreClient
 from electricore.bot.format import escape
 
+logger = logging.getLogger(__name__)
+
 _TITRE_MENU = "<b>Facturation</b> — choisis une action :"
 _USAGE = "Usage :\n  /facturation documents [YYYY-MM-DD]\n  /facturation check"
+_TELEGRAM_MSG_MAX = 4096  # limite dure de l'API Telegram par message
 
 
 def derniers_mois(aujourd_hui: date, n: int = 4) -> list[str]:
@@ -100,7 +104,7 @@ def _format_check_odoo(result: dict) -> tuple[str, bool]:
     _bloc(
         "factures encore en draft",
         result["factures_draft"],
-        lambda r: f"{r['sale_order_name']}{r['invoice_name']}",
+        lambda r: f"{r['name']} — {r['name_account_move']}",
         "Aucune facture en draft",
     )
     lines.append("")
@@ -108,7 +112,7 @@ def _format_check_odoo(result: dict) -> tuple[str, bool]:
     _bloc(
         "contrats lissés avec ligne énergie à qty=1",
         result.get("lisses_quantite_1", []),
-        lambda r: f"{r['sale_order_name']} ({', '.join(r['categ_names'])})",
+        lambda r: f"{r['name']} ({', '.join(r['categ_names'])})",
         "Aucun contrat lissé avec qty=1 sur Base/HP/HC",
     )
 
@@ -124,7 +128,20 @@ def _format_check_odoo(result: dict) -> tuple[str, bool]:
         lines.append("")
         lines.append("🟢 <b>OK pour lancer le cycle de facturation</b>")
 
-    return "\n".join(lines), xlsx_needed
+    msg = "\n".join(lines)
+    if len(msg) > _TELEGRAM_MSG_MAX:
+        # Tronquer aux frontières de lignes (chaque ligne est du HTML bien formé)
+        # et renvoyer vers le XLSX — sinon l'édition Telegram échoue (>4096 car.).
+        tronque: list[str] = []
+        budget = _TELEGRAM_MSG_MAX - 100
+        for ligne in lines:
+            if sum(len(li) + 1 for li in tronque) + len(ligne) > budget:
+                break
+            tronque.append(ligne)
+        msg = "\n".join(tronque) + "\n\n<i>… résumé tronqué — détail complet dans le XLSX joint</i>"
+        xlsx_needed = True
+
+    return msg, xlsx_needed
 
 
 async def _envoyer_documents(bot, chat_id: int, message_id: int, mois: str | None) -> None:
@@ -169,10 +186,22 @@ async def _executer_check(bot, chat_id: int, message_id: int) -> None:
         )
         return
 
-    msg, xlsx_needed = _format_check_odoo(result)
-    await bot.edit_message_text(
-        msg, chat_id=chat_id, message_id=message_id, parse_mode="HTML", disable_web_page_preview=True
-    )
+    try:
+        msg, xlsx_needed = _format_check_odoo(result)
+        await bot.edit_message_text(
+            msg, chat_id=chat_id, message_id=message_id, parse_mode="HTML", disable_web_page_preview=True
+        )
+    except Exception as e:
+        # Sans ce filet, une erreur de formatage/édition laissait le ⏳ figé
+        # et l'exception n'était visible que dans les logs (incident 2026-06-12).
+        logger.exception("Erreur de rendu du check Odoo")
+        await bot.edit_message_text(
+            f"❌ Erreur de rendu du check : <code>{escape(e)}</code>",
+            chat_id=chat_id,
+            message_id=message_id,
+            parse_mode="HTML",
+        )
+        return
     if xlsx_needed:
         try:
             xlsx_bytes = await client.get_check_odoo_xlsx()
