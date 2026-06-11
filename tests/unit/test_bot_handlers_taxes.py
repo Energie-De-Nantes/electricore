@@ -36,6 +36,8 @@ class FakeClient:
 @pytest.fixture(autouse=True)
 def _autorise(monkeypatch):
     monkeypatch.setattr(type(settings), "get_telegram_allowed_users", lambda self: {42})
+    # Domaine ERP-dépendant : on teste son comportement, pas la garde no-ERP (#159).
+    monkeypatch.setattr(type(settings), "is_odoo_configured", property(lambda self: True))
 
 
 @pytest.fixture

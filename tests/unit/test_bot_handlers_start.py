@@ -46,7 +46,8 @@ def test_start_annonce_l_instance(monkeypatch):
     assert "edn" in aide, "l'aide doit annoncer l'instance servie"
 
 
-def test_start_liste_la_surface_de_commandes():
+def test_start_liste_la_surface_de_commandes(monkeypatch):
+    monkeypatch.setattr(type(settings), "is_odoo_configured", property(lambda self: True))
     update = fake_update()
     asyncio.run(cmd_start(update, context=None))
 
