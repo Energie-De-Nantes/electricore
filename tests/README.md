@@ -107,7 +107,8 @@ tests/
 ├── property/                        # 🆕 Property-based tests (Niveau 4, issue #194)
 │   ├── strategies.py                # Helper : schéma Pandera → stratégie parametric
 │   ├── test_strategies.py           # Balle traçante du socle
-│   └── test_turpe_invariants.py     # Invariants TURPE fixe + variable
+│   ├── test_turpe_invariants.py     # Invariants TURPE fixe + variable
+│   └── test_taxes_invariants.py     # Invariants taxes : taux en vigueur, accise, CTA (#195)
 ├── integration/
 │   ├── test_pipelines_snapshot.py   # 🆕 Tests snapshot avec Syrupy
 │   └── test_pipeline.py             # Tests avec fixtures
