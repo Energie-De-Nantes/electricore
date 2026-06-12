@@ -152,8 +152,8 @@
     },
     {
       "type": "text", "id": "salle_mouvement_st", "x": 60, "y": 196, "width": 560, "height": 20,
-      "text": "incrémental (modification_date) — aucune connaissance du contenu, ne casse jamais",
-      "originalText": "incrémental (modification_date) — aucune connaissance du contenu, ne casse jamais",
+      "text": "etl/sources/sftp_enedis_brut.py — incrémental (modification_date)\naucune connaissance du contenu, ne casse jamais",
+      "originalText": "etl/sources/sftp_enedis_brut.py — incrémental (modification_date)\naucune connaissance du contenu, ne casse jamais",
       "fontSize": 13, "fontFamily": 3, "textAlign": "left", "verticalAlign": "top",
       "strokeColor": "#64748b", "backgroundColor": "transparent", "fillStyle": "solid",
       "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
@@ -207,7 +207,7 @@
     },
     {
       "type": "text", "id": "unzip_t", "x": 85, "y": 488, "width": 180, "height": 38,
-      "text": "unzip\nfile_regex par flux", "originalText": "unzip\nfile_regex par flux",
+      "text": "unzip\nfile_regex (flux.yaml)", "originalText": "unzip\nfile_regex (flux.yaml)",
       "fontSize": 13, "fontFamily": 3, "textAlign": "center", "verticalAlign": "middle",
       "strokeColor": "#ffffff", "backgroundColor": "transparent", "fillStyle": "solid",
       "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
@@ -403,8 +403,8 @@
     },
     {
       "type": "text", "id": "callout_enedis_t", "x": 786, "y": 632, "width": 350, "height": 96,
-      "text": "Enedis change un flux (nouvelle version XSD) ?\nLe nouveau champ atterrit DÉJÀ dans le brut.\n→ 1 ligne de SQL : coalesce(nouveau, ancien)\n→ dbt build : historique backfillé en ~13 s,\n   zéro re-téléchargement",
-      "originalText": "Enedis change un flux (nouvelle version XSD) ?\nLe nouveau champ atterrit DÉJÀ dans le brut.\n→ 1 ligne de SQL : coalesce(nouveau, ancien)\n→ dbt build : historique backfillé en ~13 s,\n   zéro re-téléchargement",
+      "text": "Enedis change un flux (nouvelle version XSD) ?\nLe nouveau champ atterrit DÉJÀ dans le brut.\n→ 1 ligne de SQL : coalesce(nouveau, ancien)\n→ rebuild : historique backfillé en ~13 s,\n   zéro re-téléchargement",
+      "originalText": "Enedis change un flux (nouvelle version XSD) ?\nLe nouveau champ atterrit DÉJÀ dans le brut.\n→ 1 ligne de SQL : coalesce(nouveau, ancien)\n→ rebuild : historique backfillé en ~13 s,\n   zéro re-téléchargement",
       "fontSize": 13, "fontFamily": 3, "textAlign": "left", "verticalAlign": "top",
       "strokeColor": "#b45309", "backgroundColor": "transparent", "fillStyle": "solid",
       "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
@@ -505,7 +505,7 @@
     },
     {
       "type": "text", "id": "tables_t", "x": 1260, "y": 572, "width": 270, "height": 66,
-      "text": "flux_enedis.flux_c15, flux_r15,\nflux_r151, flux_f12_detail,\nflux_f15_detail, flux_r64…", "originalText": "flux_enedis.flux_c15, flux_r15,\nflux_r151, flux_f12_detail,\nflux_f15_detail, flux_r64…",
+      "text": "flux_enedis.flux_c15, flux_r15,\nflux_r15_acc, flux_r151, flux_r64,\nflux_f12_detail, flux_f15_detail", "originalText": "flux_enedis.flux_c15, flux_r15,\nflux_r15_acc, flux_r151, flux_r64,\nflux_f12_detail, flux_f15_detail",
       "fontSize": 13, "fontFamily": 3, "textAlign": "center", "verticalAlign": "middle",
       "strokeColor": "#047857", "backgroundColor": "transparent", "fillStyle": "solid",
       "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
@@ -565,20 +565,20 @@
       "startArrowhead": null, "endArrowhead": "arrow"
     },
     {
-      "type": "arrow", "id": "replay", "x": 1250, "y": 640, "width": 96, "height": -120,
+      "type": "arrow", "id": "replay", "x": 1250, "y": 605, "width": 96, "height": -85,
       "strokeColor": "#047857", "backgroundColor": "transparent", "fillStyle": "solid",
       "strokeWidth": 3, "strokeStyle": "dashed", "roughness": 0, "opacity": 100, "angle": 0,
       "seed": 400036, "version": 1, "versionNonce": 400037, "isDeleted": false,
       "groupIds": [], "boundElements": null, "link": null, "locked": false,
-      "points": [[0, 0], [-65, 130], [-65, -120], [-96, -120]],
+      "points": [[0, 0], [-65, 0], [-65, -85], [-96, -85]],
       "startBinding": {"elementId": "tables_typees", "focus": 0, "gap": 8},
       "endBinding": {"elementId": "hero_brut", "focus": 0, "gap": 8},
       "startArrowhead": null, "endArrowhead": "arrow"
     },
     {
-      "type": "text", "id": "replay_label", "x": 880, "y": 800, "width": 460, "height": 22,
-      "text": "↻ dbt build ≈ 13 s — re-matérialise TOUT depuis le brut",
-      "originalText": "↻ dbt build ≈ 13 s — re-matérialise TOUT depuis le brut",
+      "type": "text", "id": "replay_label", "x": 880, "y": 796, "width": 460, "height": 42,
+      "text": "↻ pipeline_dbt.py rebuild — re-matérialise TOUT\ndepuis le brut · ~13 s · zéro réseau",
+      "originalText": "↻ pipeline_dbt.py rebuild — re-matérialise TOUT\ndepuis le brut · ~13 s · zéro réseau",
       "fontSize": 16, "fontFamily": 3, "textAlign": "left", "verticalAlign": "top",
       "strokeColor": "#047857", "backgroundColor": "transparent", "fillStyle": "solid",
       "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
@@ -717,6 +717,80 @@
       "startBinding": {"elementId": "aval_loaders", "focus": 0, "gap": 4},
       "endBinding": {"elementId": "aval_core", "focus": 0, "gap": 4},
       "startArrowhead": null, "endArrowhead": "arrow"
+    },
+
+    {
+      "type": "text", "id": "orch_titre", "x": 40, "y": 1050, "width": 520, "height": 26,
+      "text": "3 · ORCHESTRATION — pipeline_dbt.py",
+      "originalText": "3 · ORCHESTRATION — pipeline_dbt.py",
+      "fontSize": 20, "fontFamily": 3, "textAlign": "left", "verticalAlign": "top",
+      "strokeColor": "#1e40af", "backgroundColor": "transparent", "fillStyle": "solid",
+      "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 600001, "version": 1, "versionNonce": 600002, "isDeleted": false,
+      "groupIds": [], "boundElements": null, "link": null, "locked": false,
+      "containerId": null, "lineHeight": 1.25
+    },
+    {
+      "type": "text", "id": "orch_st", "x": 40, "y": 1082, "width": 660, "height": 20,
+      "text": "un seul runner pour les deux étages — lancé par l'API /etl/run, le cron du VPS, ou à la main",
+      "originalText": "un seul runner pour les deux étages — lancé par l'API /etl/run, le cron du VPS, ou à la main",
+      "fontSize": 13, "fontFamily": 3, "textAlign": "left", "verticalAlign": "top",
+      "strokeColor": "#64748b", "backgroundColor": "transparent", "fillStyle": "solid",
+      "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 600003, "version": 1, "versionNonce": 600004, "isDeleted": false,
+      "groupIds": [], "boundElements": null, "link": null, "locked": false,
+      "containerId": null, "lineHeight": 1.25
+    },
+    {
+      "type": "rectangle", "id": "orch_term", "x": 40, "y": 1120, "width": 640, "height": 124,
+      "strokeColor": "#1e293b", "backgroundColor": "#1e293b", "fillStyle": "solid",
+      "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 600005, "version": 1, "versionNonce": 600006, "isDeleted": false,
+      "groupIds": [], "boundElements": null, "link": null, "locked": false, "roundness": {"type": 3}
+    },
+    {
+      "type": "text", "id": "orch_term_t", "x": 55, "y": 1132, "width": 610, "height": 90,
+      "text": "$ pipeline_dbt.py test       # smoke — 2 fichiers par flux\n$ pipeline_dbt.py all        # landing + dbt build\n$ pipeline_dbt.py r151 c15   # sélection de flux\n$ pipeline_dbt.py rebuild    # dbt seul — zéro réseau, ~13 s\n$ pipeline_dbt.py resync     # re-télécharge tout (brut perdu)",
+      "originalText": "$ pipeline_dbt.py test       # smoke — 2 fichiers par flux\n$ pipeline_dbt.py all        # landing + dbt build\n$ pipeline_dbt.py r151 c15   # sélection de flux\n$ pipeline_dbt.py rebuild    # dbt seul — zéro réseau, ~13 s\n$ pipeline_dbt.py resync     # re-télécharge tout (brut perdu)",
+      "fontSize": 12, "fontFamily": 3, "textAlign": "left", "verticalAlign": "top",
+      "strokeColor": "#e2e8f0", "backgroundColor": "transparent", "fillStyle": "solid",
+      "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 600007, "version": 1, "versionNonce": 600008, "isDeleted": false,
+      "groupIds": [], "boundElements": null, "link": null, "locked": false,
+      "containerId": null, "lineHeight": 1.45
+    },
+    {
+      "type": "text", "id": "orch_rebuild_t", "x": 740, "y": 1138, "width": 680, "height": 20,
+      "text": "rebuild → rejoue seulement 2 · TRANSFORMATION — le brut reste, zéro réseau",
+      "originalText": "rebuild → rejoue seulement 2 · TRANSFORMATION — le brut reste, zéro réseau",
+      "fontSize": 14, "fontFamily": 3, "textAlign": "left", "verticalAlign": "top",
+      "strokeColor": "#047857", "backgroundColor": "transparent", "fillStyle": "solid",
+      "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 600009, "version": 1, "versionNonce": 600010, "isDeleted": false,
+      "groupIds": [], "boundElements": null, "link": null, "locked": false,
+      "containerId": null, "lineHeight": 1.25
+    },
+    {
+      "type": "text", "id": "orch_resync_t", "x": 740, "y": 1176, "width": 680, "height": 20,
+      "text": "resync  → rejoue seulement 1 · MOUVEMENT — le brut se reconstruit du SFTP",
+      "originalText": "resync  → rejoue seulement 1 · MOUVEMENT — le brut se reconstruit du SFTP",
+      "fontSize": 14, "fontFamily": 3, "textAlign": "left", "verticalAlign": "top",
+      "strokeColor": "#c2410c", "backgroundColor": "transparent", "fillStyle": "solid",
+      "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 600011, "version": 1, "versionNonce": 600012, "isDeleted": false,
+      "groupIds": [], "boundElements": null, "link": null, "locked": false,
+      "containerId": null, "lineHeight": 1.25
+    },
+    {
+      "type": "text", "id": "orch_these_t", "x": 740, "y": 1216, "width": 640, "height": 20,
+      "text": "chaque étage se rejoue indépendamment de l'autre : c'est la thèse du schéma",
+      "originalText": "chaque étage se rejoue indépendamment de l'autre : c'est la thèse du schéma",
+      "fontSize": 13, "fontFamily": 3, "textAlign": "left", "verticalAlign": "top",
+      "strokeColor": "#64748b", "backgroundColor": "transparent", "fillStyle": "solid",
+      "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
+      "seed": 600013, "version": 1, "versionNonce": 600014, "isDeleted": false,
+      "groupIds": [], "boundElements": null, "link": null, "locked": false,
+      "containerId": null, "lineHeight": 1.25
     }
   ]
 }
