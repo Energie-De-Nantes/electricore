@@ -105,6 +105,10 @@ class ElectriCoreClient:
         params = {"trimestre": trimestre} if trimestre else None
         return await self._get_bytes("/taxes/cta/rapport.xlsx", params=params, timeout=TIMEOUT_LOURD)
 
+    async def get_millesimes(self) -> list[dict]:
+        """Millésimes des taux régulés (TURPE, Accise, CTA) — #185, ADR-0024."""
+        return await self._get_json("/taxes/millesimes")
+
     async def get_facturation_xlsx(self, mois: str | None = None) -> bytes:
         params = {"mois": mois} if mois else None
         return await self._get_bytes("/facturation/rapport.xlsx", params=params, timeout=TIMEOUT_LOURD)

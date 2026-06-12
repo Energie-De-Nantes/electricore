@@ -16,7 +16,9 @@ from electricore.bot.format import escape
 from electricore.bot.livraison import envoyer_document
 
 _TITRE_MENU = "<b>Taxes</b> — choisis un calcul :"
-_USAGE = "Usage :\n  /taxes accise [trimestre]  (ex: /taxes accise 2025-T1)\n  /taxes cta [trimestre]"
+_USAGE = (
+    "Usage :\n  /taxes accise [trimestre]  (ex: /taxes accise 2025-T1)\n  /taxes cta [trimestre]\n  /taxes millesimes"
+)
 
 _LIBELLES = {"accise": "Accise TICFE", "cta": "CTA"}
 
@@ -39,9 +41,24 @@ def clavier_principal() -> InlineKeyboardMarkup:
             [
                 InlineKeyboardButton("🧾 Accise", callback_data="taxes:choix:accise"),
                 InlineKeyboardButton("📊 CTA", callback_data="taxes:choix:cta"),
-            ]
+            ],
+            [InlineKeyboardButton("📜 Millésimes", callback_data="taxes:millesimes")],
         ]
     )
+
+
+def formater_millesimes(millesimes: list[dict]) -> str:
+    """Texte HTML des millésimes — ce que cette instance « sait » de la réglementation (ADR-0024)."""
+    lignes = ["<b>Millésimes des taux régulés</b>"]
+    for m in millesimes:
+        if m["valeur"] is not None:
+            entete = (
+                f"• <b>{escape(m['taxe'])}</b> — {m['valeur']:g} {escape(m['unite'])} depuis le {m['date_vigueur']}"
+            )
+        else:
+            entete = f"• <b>{escape(m['taxe'])}</b> — grille du {m['date_vigueur']}"
+        lignes.append(f"{entete}\n  réf. {escape(m['reference'])}")
+    return "\n".join(lignes)
 
 
 def clavier_trimestres(taxe: str) -> InlineKeyboardMarkup:
@@ -81,6 +98,10 @@ async def cmd_taxes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         return
 
     taxe = context.args[0].lower()
+    if taxe == "millesimes":
+        texte = formater_millesimes(await ElectriCoreClient().get_millesimes())
+        await update.effective_message.reply_html(texte, disable_web_page_preview=True)
+        return
     if taxe not in _LIBELLES:
         await update.effective_message.reply_text(_USAGE)
         return
@@ -100,6 +121,16 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if data == "taxes:menu":
         await context.bot.edit_message_text(
             _TITRE_MENU, chat_id=chat_id, message_id=message_id, parse_mode="HTML", reply_markup=clavier_principal()
+        )
+    elif data == "taxes:millesimes":
+        texte = formater_millesimes(await ElectriCoreClient().get_millesimes())
+        await context.bot.edit_message_text(
+            texte,
+            chat_id=chat_id,
+            message_id=message_id,
+            parse_mode="HTML",
+            disable_web_page_preview=True,
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("← Retour", callback_data="taxes:menu")]]),
         )
     elif data.startswith("taxes:choix:"):
         taxe = data.removeprefix("taxes:choix:")

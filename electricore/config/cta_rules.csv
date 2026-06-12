@@ -1,4 +1,4 @@
-start,taux_cta_pct
-2020-01-01,27.04
-2021-08-01,21.93
-2026-02-01,15.00
+start,taux_cta_pct,reference
+2020-01-01,27.04,Arrêté du 26 avril 2013 (taux distribution 27.04 % — abrogé au 1er août 2021) — https://www.cnieg.fr/accueil/entreprise/cta/informations-cta.html
+2021-08-01,21.93,Arrêté du 20 juillet 2021 (taux distribution 21.93 %) — https://www.legifrance.gouv.fr/jorf/id/JORFTEXT000043847483
+2026-02-01,15.00,Arrêté du 28 janvier 2026 modifiant l'arrêté du 20 juillet 2021 (taux distribution 15 %) — https://www.legifrance.gouv.fr/jorf/id/JORFTEXT000053417026

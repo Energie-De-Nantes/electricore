@@ -1,8 +1,12 @@
 """Router des endpoints taxes énergétiques : Accise TICFE et CTA (issue #82)."""
 
-from fastapi import APIRouter, Query
+from dataclasses import asdict
+
+from fastapi import APIRouter, Depends, Query
 
 from electricore.api.decorators import arrow_endpoint, xlsx_endpoint
+from electricore.api.models import MillesimeResponse
+from electricore.api.security import get_current_api_key
 from electricore.api.serializers import arrow_stream, xlsx_multi_sheet
 from electricore.api.services.taxes_service import (
     accise_par_contrat_service,
@@ -11,9 +15,25 @@ from electricore.api.services.taxes_service import (
     rapport_cta_service,
 )
 from electricore.core.builds.rapport_taxe import feuilles_rapport_taxe
+from electricore.core.millesimes import millesimes
 from electricore.integrations.odoo.decorators import with_odoo
 
 router = APIRouter(tags=["taxes"])
+
+
+# =============================================================================
+# Millésimes des taux régulés (#185, ADR-0024)
+# =============================================================================
+
+
+@router.get("/taxes/millesimes", response_model=list[MillesimeResponse])
+def get_millesimes(api_key: str = Depends(get_current_api_key)) -> list[MillesimeResponse]:
+    """Millésimes des trois registres de taux régulés (TURPE, Accise, CTA).
+
+    Dérivés des CSV versionnés — dit ce que cette instance « sait » de la
+    réglementation. Sans dépendance Odoo : disponible sur une instance no-ERP.
+    """
+    return [MillesimeResponse(**asdict(m)) for m in millesimes()]
 
 
 # =============================================================================

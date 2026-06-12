@@ -67,7 +67,7 @@ class TestChargementRegles:
 
     def test_load_cta_rules_colonnes_et_types(self):
         regles = load_cta_rules().collect()
-        assert set(regles.columns) == {"start", "taux_cta_pct"}
+        assert set(regles.columns) == {"start", "taux_cta_pct", "reference"}
         assert regles["taux_cta_pct"].dtype == pl.Float64
         assert regles["start"].dtype == pl.Datetime(time_unit="us", time_zone="Europe/Paris")
 

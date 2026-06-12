@@ -3,7 +3,7 @@ Modèles de données pour l'API ElectriCore.
 Définit les structures de données Pydantic pour les réponses API.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -98,6 +98,19 @@ class IngestionJobResponse(BaseModel):
     finished_at: datetime | None = Field(None, description="Horodatage de fin")
     error: str | None = Field(None, description="Message d'erreur si failed")
     output: str | None = Field(None, description="Sortie stdout/stderr du pipeline")
+
+
+# Modèles taxes
+
+
+class MillesimeResponse(BaseModel):
+    """Millésime d'un registre de taux régulés (ADR-0024) : dernière ligne entrée en vigueur."""
+
+    taxe: str = Field(..., description="Registre : TURPE | Accise | CTA")
+    date_vigueur: date = Field(..., description="Date d'entrée en vigueur de la dernière ligne")
+    reference: str = Field(..., description="Référence réglementaire (texte fondateur + lien public)")
+    valeur: float | None = Field(None, description="Taux scalaire si la taxe en a un (None pour une grille)")
+    unite: str | None = Field(None, description="Unité du taux scalaire (€/MWh, %)")
 
 
 # Modèles pour les requêtes (si nécessaire pour des POST/PUT futurs)
