@@ -162,6 +162,44 @@ Limite contractuelle en kVA. Un seul champ en C5 (`puissance_souscrite_kva`), qu
 
 ---
 
+## Modes de facturation
+
+**Part fixe** :
+Composantes de la facture client indépendantes de la consommation : prix de l'abonnement fournisseur, TURPE fixe, CTA. Assise sur les *périodes d'abonnement* (jours × puissance souscrite). Identique en contrat réel et lissé — c'est pourquoi le mode lissé n'a aucun impact dessus.
+_Éviter_ : « abonnement » tout court pour cette composante — triple collision : *Abonnement* (période, terme pipeline), « Abonnements » (catégorie produit ERP, cf. *Ligne de facture*), et le module Odoo de facturation récurrente nommé Abonnement.
+
+**Part variable** :
+Composantes de la facture client assises sur l'énergie : prix de l'énergie fournisseur (€/kWh), TURPE variable, Accise. **L'assiette est le facturé** : pour un contrat réel, le facturé est le mesuré (périodes d'énergie) ; pour un lissé, c'est la mensualité estimée. L'accise suit cette assiette dans les deux cas — c'est ce qui la rend cohérente pour les lissés en attendant la régularisation.
+
+**Moisniversaire** :
+Mode de facturation où la période de chaque contrat est ancrée au jour de souscription (souscrit un 12 → facturé du 12 au 12). Chaque souscripteurice a sa propre période. C'est le découpage des données de facturation Enedis : les agrégats du R15 (énergies, jours, TURPE) sont calculés sur ces périodes-là.
+_Éviter_ : mois anniversaire (deux mots — le portmanteau est le terme maison), période glissante.
+
+**Facturation calendaire** :
+Le mode ElectriCore : du 1ᵉʳ du mois au 1ᵉʳ du mois suivant, identique pour tout le monde ; aux bornes de vie du contrat, la première et la dernière période sont tronquées (entrée : date d'entrée → 1ᵉʳ suivant ; sortie : 1ᵉʳ → date de sortie) et calculées réellement — différences d'index aux dates exactes, jours effectifs — comme une période pleine. Choisi pour la simplicité des souscripteurices (cf. [ADR-0025](../../docs/adr/0025-facturation-calendaire-pas-moisniversaire.md)). Conséquence structurelle : les agrégats Enedis (découpés au *moisniversaire*) sont inexploitables — énergie, jours et TURPE sont **recalculés** sur le découpage calendaire depuis les relevés et les événements contractuels. C'est la raison d'être des pipelines de `core/` et des événements FACTURATION au 1ᵉʳ de chaque mois.
+_Éviter_ : facturation mensuelle (ambigu — le moisniversaire est mensuel aussi), prorata (suggère une quote-part d'un montant mensuel — les périodes tronquées sont mesurées, pas réparties).
+
+**Contrat lissé** :
+Modalité de facturation où le client paie chaque mois une *provision d'énergie* constante plutôt que sa consommation mesurée, soldée par une *régularisation*. S'oppose au contrat *réel* (facturé sur le mesuré). Orthogonal au mode calendaire : un contrat lissé est aussi facturé du 1ᵉʳ au 1ᵉʳ, seule la quantité d'énergie diffère. Marqué `x_lisse` côté Odoo, traverse le rapprochement en passe-plat (`est_lisse`).
+
+**Provision d'énergie** :
+Quantité d'énergie (kWh) facturée chaque mois à un contrat *lissé*, en attendant la régularisation. Fixée manuellement à la souscription par estimation de la consommation, portée par les lignes énergie de la commande ERP — une par **cadran facturé** (Base, ou HP et HC, selon la *formule tarifaire fournisseur*, pas la FTA). Le prix fournisseur, le TURPE variable et l'Accise s'y appliquent comme à de l'énergie mesurée (cf. *Part variable*, assiette facturé).
+_Éviter_ : mensualité (vocabulaire courant qui agrège tout le paiement mensuel en euros, parts fixe et variable confondues), estimation (l'estimation est l'acte ; la provision est la quantité retenue).
+
+**Formule tarifaire fournisseur** :
+Structure tarifaire du contrat client : Base, ou HP/HC (à terme, possiblement les 4 cadrans). Distincte de la *FTA* : le TURPE n'est **pas refacturé ligne à ligne** au client — il entre dans les calculs macro du fournisseur pour fixer ses tarifs. Détermine les **cadrans facturés**, c'est-à-dire les catégories produit (Base/HP/HC) des lignes de facture — l'« homonymie » entre catégories produit et cadrans réseau vient de là.
+_Éviter_ : FTA (c'est le choix d'acheminement réseau, qui peut différer), option tarifaire.
+
+**Compteur non communicant** :
+Compteur sans télérelevé quotidien — pas de R151/R64, donc pas d'index au 1ᵉʳ du mois : infacturable en *réel* sous le mode calendaire. Règle d'usage (respectée à 100 % en pratique, sans contrainte logicielle) : ces contrats sont passés en *lissé*. Même situation pour un compteur communicant dont la **collecte est refusée** par le client — plus difficile à détecter (vérification du périmètre depuis le C15 : enhancement tracé en issue #189).
+_Éviter_ : non-Linky (la marque n'est pas le critère — c'est l'absence de télérelevé ou de collecte).
+
+**Régularisation** :
+Solde d'un contrat *lissé* : différence, par cadran facturé, entre l'énergie mesurée et les *provisions d'énergie* facturées sur la période, valorisée — en cible — aux tarifs et taux en vigueur de chaque sous-période mensuelle (le réglementaire ne change qu'en début de mois). Corrige aussi l'assiette Accise des trimestres concernés. Aujourd'hui : process entièrement manuel, hors périmètre ElectriCore — présentation technique du chantier dans l'issue épique #191. Le retour à l'équilibre repose d'abord sur l'**adaptation des provisions** (réévaluation régulière de la consommation) ; la régularisation est le solde, pas le thermostat. Déclencheur actuel (~6 mois à date anniversaire, et solde de tout compte à la sortie) : décision de process interne, non arbitrée par la lib.
+_Éviter_ : rattrapage, remise à zéro.
+
+---
+
 ## Rôles des dossiers
 
 Voir [ADR-0019](../../docs/adr/0019-roles-loaders-pipelines-builds-integrations.md) pour le cadre complet (règles d'import, garde-fou, alternatives écartées). Vocabulaire canonique :
@@ -187,7 +225,7 @@ Source et sink ERP. Expose des fonctions qui retournent des `LazyFrame[Schema co
 Wire-up non-trivial ou stateful entre sources (loaders + integrations) et builds. Lieu où les sources ERP rencontrent les builds core. Routeur reste pur transport.
 
 **Config partagée** (`electricore/config/`) :
-Socle transverse, stdlib-only : chargement `.env` (`charger_env`), résolution du chemin de la base DuckDB (`chemin_base_duckdb`, issue #146), config Odoo, CSV de taux régulés. Importable par **tous** les modules (`core/` compris — compatible ADR-0016 : aucune dépendance ERP ni lib externe). C'est le seul module hors `core/models/` que `core/loaders/` peut importer.
+Socle transverse : le module canonique du registre runtime ([ADR-0024](../../docs/adr/0024-trois-registres-de-savoir.md), issue #141) — domaines de config typés, fail-fast par point d'entrée —, la façade `.env` → `os.environ` pour dlt (`charger_env`), la config Odoo, et les CSV de taux régulés. Importable par **tous** les modules (`core/` compris — compatible ADR-0016 : aucune dépendance ERP ; pydantic-settings est la seule lib externe admise ici). C'est le seul module hors `core/models/` que `core/loaders/` peut importer.
 
 ---
 
@@ -211,7 +249,7 @@ Période continue entre deux événements contractuels où la configuration (FTA
 Intervalle entre deux relevés d'index, support du calcul de consommation et du TURPE variable. Sa ligne de temps (relevés) est distincte de celle des abonnements (événements contractuels) et le reste délibérément — Enedis facture d'ailleurs séparément l'abonnement (à échoir) et l'énergie (à échue) (cf. [ADR-0023](../../docs/adr/0023-periodisations-separees-abonnement-energie.md)).
 
 **Méta-période mensuelle** :
-Agrégation d'abonnements + périodes d'énergie sur un mois calendaire, unité de la facturation client mensuelle. Grain : une ligne par **(situation contractuelle, mois)** — pas par PDL : un PDL qui change de RSC en cours de mois porte deux méta-périodes ce mois-là (le TURPE fixe est facturé par situation).
+Agrégation d'abonnements + périodes d'énergie sur un mois calendaire, unité de la facturation client mensuelle — l'incarnation du mode *facturation calendaire* (cf. [ADR-0025](../../docs/adr/0025-facturation-calendaire-pas-moisniversaire.md)). Grain : une ligne par **(situation contractuelle, mois)** — pas par PDL : un PDL qui change de RSC en cours de mois porte deux méta-périodes ce mois-là (le TURPE fixe est facturé par situation).
 
 **`mois_annee`** (champ) :
 Mois calendaire d'une période (abonnement, énergie, méta-période, taxes), clé calculable et triable au format `"YYYY-MM"`, garanti par `str_matches` dans les schémas Pandera (issue #115). Côté Accise, dérivé de la date de facture (M − 1 : la facture du mois M porte la consommation de M−1 ; anciennement `mois_consommation`). Les libellés français restent portés par les champs d'affichage dédiés `debut_lisible` / `fin_lisible`.
@@ -234,9 +272,6 @@ Alignement des sources de relevés (R151, R15, R64) sur la convention de date «
 
 **`date_ajustee`** (champ) :
 Booléen marquant les relevés dont la date a été décalée pendant l'harmonisation (R151 +1 jour).
-
-**Contrat lissé** :
-Modalité de facturation où le client paie un montant mensuel constant basé sur une estimation annuelle, plutôt qu'au prorata de la consommation réelle du mois. Régularisation annuelle. S'oppose au contrat *réel* (facturation au prorata).
 
 **Contrat de pipeline** :
 Tout `pipeline_*` (et la fonction de premier niveau qu'il compose, ex : `generer_periodes_abonnement`, `calculer_periodes_energie`) est décoré `@pa.check_types(lazy=True)` avec entrée *et* sortie typées par un schéma Pandera. Les violations de contrat apparaissent au *seam* (avec un message nommant la colonne fautive) plutôt qu'au fond d'une stack-trace. Discipline héritée de l'ère pandas (commit `b066b98`, août 2025) et restaurée pour Polars après le creux laissé par la migration `052c99f` ; la version *eff3d19* n'avait restauré que les agrégateurs de `pipeline_facturation`. Conséquence directe : aucun *self-repair silencieux* dans un pipeline — si l'entrée n'est pas conforme, on échoue au seam, pas en se rattrapant.
