@@ -19,6 +19,7 @@ from fastapi import APIRouter, Depends, FastAPI, HTTPException, Response
 
 from electricore.api.config import settings
 from electricore.api.security import get_current_api_key
+from electricore.core.loaders.duckdb import DuckDBLockError
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +87,9 @@ def binary_endpoint(
                     content = await handler(**kwargs)
                 else:
                     content = await asyncio.get_event_loop().run_in_executor(None, lambda: handler(**kwargs))
-            except HTTPException:
+            except (HTTPException, DuckDBLockError):
+                # DuckDBLockError remonte au handler d'app qui la convertit en
+                # 503 « ingestion en cours » (cf. main.verrou_duckdb_en_503, #171).
                 raise
             except Exception as e:
                 logger.exception("Erreur %s", path)

@@ -145,7 +145,7 @@ Liste des PDL à exclure de la validation :
    - ⏭️ Implémenter détection de qualité (Option B)
 
 2. **Moyen terme** :
-   - Ajouter des contrôles qualité dans l'ETL
+   - Ajouter des contrôles qualité dans l'ingestion
    - Logger les anomalies détectées
    - Créer un rapport de qualité des données
 
@@ -163,7 +163,7 @@ Liste des PDL à exclure de la validation :
 
 ## Références
 
-- Glossaire métier : [CONTEXT-MAP.md](../CONTEXT-MAP.md) (vocabulaire ETL/flux dans [`electricore/etl/CONTEXT.md`](../electricore/etl/CONTEXT.md))
+- Glossaire métier : [CONTEXT-MAP.md](../CONTEXT-MAP.md) (vocabulaire ingestion/flux dans [`electricore/ingestion/CONTEXT.md`](../electricore/ingestion/CONTEXT.md))
 - Conventions de dates : [docs/conventions-dates-enedis.md](conventions-dates-enedis.md)
 - Calendriers distributeur Enedis :
   - `DI000001` : Base (tarif simple)

@@ -1,0 +1,211 @@
+"""Ingestion des flux Enedis : SFTP → landing brut JSON → modèles dbt (ADR-0020).
+
+Chemin complet du prototype dbt sur données réelles :
+1. DLT déplace (SFTP, déchiffrement AES, unzip) et dépose chaque document intégral
+   en colonne JSON dans `flux_raw.raw_<flux>` (source `flux_enedis_brut`) ;
+2. `dbt build` matérialise les tables `main.flux_*` (staging + linéarisation + data
+   tests not_null).
+
+Usage :
+    uv run python -m electricore.ingestion test            # 2 fichiers/flux
+    uv run python -m electricore.ingestion all             # tout
+    uv run python -m electricore.ingestion r151 c15        # sélection
+    uv run python -m electricore.ingestion all --db /tmp/flux_dbt.duckdb
+
+Chemin de production (#134) : la base par défaut est la base de prod
+(`flux_enedis_pipeline.duckdb`), les modèles se matérialisent dans le schéma
+`flux_enedis` (mêmes tables que l'ex-legacy → l'aval ne voit rien), le brut vit
+dans `flux_raw`. `--db` permet une base jetable pour les validations.
+"""
+
+# Charger .env avant que DLT lise ses secrets depuis os.environ (SFTP__URL, AES__*).
+from electricore.config import charger_env, chemin_base_duckdb
+
+charger_env()
+
+import argparse
+import logging
+import os
+import sys
+import time
+from dataclasses import dataclass
+from pathlib import Path
+
+import dlt
+import yaml
+
+from electricore.ingestion.sources.sftp_enedis_brut import flux_enedis_brut
+
+# DLT écrit sur stderr — on laisse faire, on ne lit que stdout
+logging.disable(logging.CRITICAL)
+
+ICI = Path(__file__).parent
+PROJET_DBT = ICI / "dbt"
+
+
+def chemin_db_defaut() -> Path:
+    """Base cible par défaut : DUCKDB_PATH (.env compris, volume Docker via compose)
+    sinon la base de prod locale — résolution partagée avec l'API et les loaders
+    core (`chemin_base_duckdb`, issue #146)."""
+    return chemin_base_duckdb()
+
+
+def _out(msg: str) -> None:
+    print(msg, flush=True)
+
+
+@dataclass(frozen=True)
+class PlanRun:
+    """Interprétation des arguments de flux du CLI (contrat partagé avec l'API)."""
+
+    selection: list[str] | None  # None = tous les flux
+    max_files: int | None
+    refresh: str | None  # "drop_sources" = resync (état incrémental purgé, tout re-téléchargé)
+    rebuild: bool = False  # True = saute le landing, dbt build seul (zéro réseau)
+
+
+def interpreter_flux(flux: list[str], max_files: int | None) -> PlanRun:
+    """Traduit les arguments de flux (modes API compris) en plan d'exécution.
+
+    - 'all'     → tous les flux ;
+    - 'test'    → tous les flux, 2 fichiers chacun (smoke) ;
+    - 'rebuild' → re-matérialise les tables depuis le brut, zéro réseau (~13 s) —
+                  le geste standard après un changement de modèle dbt (#140) ;
+    - 'resync'  → état incrémental dlt purgé, tout re-téléchargé (brut perdu/corrompu) ;
+    - 'reset'   → déprécié, alias de resync ;
+    - sinon     → liste de flux (r151 c15 …), upper-casée vers les clés de flux.yaml.
+    """
+    if flux == ["all"]:
+        return PlanRun(selection=None, max_files=max_files, refresh=None)
+    if flux == ["test"]:
+        return PlanRun(selection=None, max_files=max_files or 2, refresh=None)
+    if flux == ["rebuild"]:
+        return PlanRun(selection=None, max_files=max_files, refresh=None, rebuild=True)
+    if flux in (["resync"], ["reset"]):
+        return PlanRun(selection=None, max_files=max_files, refresh="drop_sources")
+    return PlanRun(selection=[f.upper() for f in flux], max_files=max_files, refresh=None)
+
+
+def lander_brut(db_path: Path, plan: PlanRun) -> None:
+    """Étape 1 : SFTP → tables raw_<flux> (colonne JSON) dans flux_raw."""
+    config = yaml.safe_load((ICI / "config" / "flux.yaml").read_text())
+    if plan.selection:
+        config = {k: v for k, v in config.items() if k in plan.selection}
+
+    pipeline = dlt.pipeline(
+        pipeline_name=f"flux_brut_{db_path.stem}",
+        destination=dlt.destinations.duckdb(str(db_path)),
+        dataset_name="flux_raw",
+        progress="log",
+    )
+    info = pipeline.run(flux_enedis_brut(config, max_files=plan.max_files), refresh=plan.refresh)
+    for paquet in info.load_packages:
+        for job in paquet.jobs.get("completed_jobs", []):
+            _out(f"  landé : {job.job_file_info.table_name}")
+
+
+# Modèles dbt servis par chaque table brute (raw_r15 sert deux linéarisations).
+MODELES_PAR_RAW = {
+    "raw_c15": ["flux_c15"],
+    "raw_r15": ["flux_r15", "flux_r15_acc"],
+    "raw_r151": ["flux_r151"],
+    "raw_f12": ["flux_f12_detail"],
+    "raw_f15": ["flux_f15_detail"],
+    "raw_r64": ["flux_r64"],
+}
+
+
+def construire_dbt(db_path: Path) -> bool:
+    """Étape 2 : dbt build (modèles + data tests), restreint aux tables brutes landées.
+
+    La restriction --select évite l'échec sur les sources absentes (sélection
+    partielle de flux, smoke avec max_files tombant sur des zips sans contenu utile
+    comme les R64 de l'ère CSV).
+    """
+    import duckdb
+    from dbt.cli.main import dbtRunner
+
+    con = duckdb.connect(str(db_path), read_only=True)
+    presentes = {t for (t,) in con.execute("select table_name from information_schema.tables").fetchall()}
+    con.close()
+    selection = [f"+{modele}" for raw, modeles in MODELES_PAR_RAW.items() if raw in presentes for modele in modeles]
+    if not selection:
+        _out("  aucune table brute landée — rien à construire")
+        return False
+
+    os.environ["DBT_DUCKDB_PATH"] = str(db_path)
+    resultat = dbtRunner().invoke(
+        [
+            "build",
+            "--select",
+            *selection,
+            "--project-dir",
+            str(PROJET_DBT),
+            "--profiles-dir",
+            str(PROJET_DBT),
+            "--target-path",
+            str(db_path.parent / f".dbt_target_{db_path.stem}"),
+        ]
+    )
+    return bool(resultat.success)
+
+
+def bilan(db_path: Path) -> None:
+    """Comptes par table — brut et matérialisé."""
+    import duckdb
+
+    # Lecture-écriture : dbt vient d'écrire dans le même process, une connexion
+    # read_only aurait une config DuckDB incompatible.
+    con = duckdb.connect(str(db_path))
+    lignes = con.execute(
+        """
+        select table_schema, table_name from information_schema.tables
+        where table_name like 'raw_%' or table_name like 'flux_%'
+        order by table_schema, table_name
+        """
+    ).fetchall()
+    for schema, table in lignes:
+        if table.startswith("_dlt"):
+            continue
+        n = con.execute(f'select count(*) from "{schema}"."{table}"').fetchone()[0]
+        _out(f"  {schema}.{table}: {n}")
+    con.close()
+
+
+def main() -> None:
+    parseur = argparse.ArgumentParser(
+        prog="python -m electricore.ingestion", description="Ingestion : SFTP → brut JSON → modèles dbt"
+    )
+    parseur.add_argument(
+        "flux",
+        nargs="+",
+        help="'all', 'test' (2 fichiers/flux), 'rebuild' (dbt seul, zéro réseau), "
+        "'resync' (re-télécharge tout) ou liste de flux",
+    )
+    parseur.add_argument(
+        "--db", type=Path, default=None, help="base DuckDB cible (défaut : $DUCKDB_PATH ou la base de prod locale)"
+    )
+    parseur.add_argument("--max-files", type=int, default=None, help="limite de fichiers par flux")
+    args = parseur.parse_args()
+
+    plan = interpreter_flux(args.flux, args.max_files)
+    args.db = args.db or chemin_db_defaut()
+
+    if plan.rebuild:
+        _out(f"↻ Rebuild : re-matérialisation depuis le brut de {args.db} (zéro réseau)")
+    else:
+        debut = time.time()
+        _out(f"🚀 Landing brut → {args.db}")
+        lander_brut(args.db, plan)
+        _out(f"⏱️  Landing : {time.time() - debut:.1f}s")
+
+    debut = time.time()
+    _out("🔨 dbt build")
+    if not construire_dbt(args.db):
+        _out("❌ dbt build a échoué")
+        sys.exit(1)
+    _out(f"⏱️  dbt : {time.time() - debut:.1f}s")
+
+    _out("📊 Bilan")
+    bilan(args.db)
+    _out("✅ Terminé")

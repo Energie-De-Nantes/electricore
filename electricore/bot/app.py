@@ -9,7 +9,7 @@ from telegram.ext import Application, CallbackQueryHandler, CommandHandler
 
 from electricore.api.config import settings
 from electricore.bot import surveillance
-from electricore.bot.handlers import etl, facturation, flux, perimetre, start, taxes
+from electricore.bot.handlers import facturation, flux, ingestion, perimetre, start, taxes
 from electricore.bot.tasks import create_task
 
 
@@ -19,7 +19,7 @@ async def publier_menu(application: Application) -> None:
 
 
 async def demarrer(application: Application) -> None:
-    """post_init : menu natif + surveillance proactive des jobs ETL (#157)."""
+    """post_init : menu natif + surveillance proactive des jobs d'ingestion (#157)."""
     await publier_menu(application)
     if settings.telegram_notify_chat_id:
         create_task(surveillance.boucle_surveillance(application.bot, settings.telegram_notify_chat_id))
@@ -29,9 +29,11 @@ def build_application(token: str) -> Application:
     application = Application.builder().token(token).post_init(demarrer).build()
     application.add_handler(CommandHandler("start", start.cmd_start))
     application.add_handler(CommandHandler("help", start.cmd_help))
-    # Domaine /etl (#152) — clavier inline + raccourcis, absorbe /status.
-    application.add_handler(CommandHandler("etl", etl.cmd_etl))
-    application.add_handler(CallbackQueryHandler(etl.on_callback, pattern="^etl:"))
+    # Domaine /ingestion (#152, ex-/etl) — clavier inline + raccourcis, absorbe /status.
+    application.add_handler(CommandHandler("ingestion", ingestion.cmd_ingestion))
+    # Alias de transition pour la mémoire musculaire des opérateurs.
+    application.add_handler(CommandHandler("etl", ingestion.cmd_ingestion))
+    application.add_handler(CallbackQueryHandler(ingestion.on_callback, pattern="^(ingestion|etl):"))
     # Domaine /flux (#153) — stats + exports des tables brutes, absorbe /stats et /export.
     application.add_handler(CommandHandler("flux", flux.cmd_flux))
     application.add_handler(CallbackQueryHandler(flux.on_callback, pattern="^flux:"))

@@ -5,7 +5,7 @@ Vocabulaire spécifique au service REST qui expose `core` et l'orchestration de 
 ## API
 
 **API** :
-Service REST FastAPI ([electricore/api/](.)) exposant les flux Enedis (`/flux/*`), les déclenchements ETL (`/etl/*`), les calculs de taxes (`/taxes/*`), les exports de facturation (`/facturation/*`) et les vérifications pré-facturation (`/check/*`).
+Service REST FastAPI ([electricore/api/](.)) exposant les flux Enedis (`/flux/*`), les déclenchements d'ingestion (`/ingestion/*`), les calculs de taxes (`/taxes/*`), les exports de facturation (`/facturation/*`) et les vérifications pré-facturation (`/check/*`).
 
 **Endpoint sécurisé** :
 Endpoint nécessitant la clé `X-API-Key` (header) ou `?api_key=` (query). Tous les endpoints sont sécurisés sauf `/`, `/health`, `/docs`, `/redoc`.

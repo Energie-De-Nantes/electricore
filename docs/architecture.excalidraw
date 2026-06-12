@@ -171,7 +171,7 @@
     },
     {
       "type": "text", "id": "salle_donnees_titre", "x": 60, "y": 165, "width": 420, "height": 26,
-      "text": "1 · DONNÉES — etl/ (dlt + dbt)", "originalText": "1 · DONNÉES — etl/ (dlt + dbt)",
+      "text": "1 · DONNÉES — ingestion/ (dlt + dbt)", "originalText": "1 · DONNÉES — ingestion/ (dlt + dbt)",
       "fontSize": 20, "fontFamily": 3, "textAlign": "left", "verticalAlign": "top",
       "strokeColor": "#1e40af", "backgroundColor": "transparent", "fillStyle": "solid",
       "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
@@ -269,8 +269,8 @@
     },
     {
       "type": "text", "id": "don_note", "x": 90, "y": 652, "width": 360, "height": 36,
-      "text": "déclenché par POST /etl/run (cron 02:00,\nbot /etl, ou à la main) — détail : ingestion.md",
-      "originalText": "déclenché par POST /etl/run (cron 02:00,\nbot /etl, ou à la main) — détail : ingestion.md",
+      "text": "déclenché par POST /ingestion/run (cron 02:00,\nbot /ingestion, ou à la main) — détail : ingestion.md",
+      "originalText": "déclenché par POST /ingestion/run (cron 02:00,\nbot /ingestion, ou à la main) — détail : ingestion.md",
       "fontSize": 12, "fontFamily": 3, "textAlign": "left", "verticalAlign": "top",
       "strokeColor": "#64748b", "backgroundColor": "transparent", "fillStyle": "solid",
       "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
@@ -583,8 +583,8 @@
     },
     {
       "type": "text", "id": "endpoints_chip_t", "x": 1393, "y": 365, "width": 246, "height": 106,
-      "text": "GET  /health\nGET  /flux/{table}\nPOST /etl/run {mode}\nGET  /etl/jobs\nGET  /taxes/accise/….xlsx\nGET  /facturation/check/odoo",
-      "originalText": "GET  /health\nGET  /flux/{table}\nPOST /etl/run {mode}\nGET  /etl/jobs\nGET  /taxes/accise/….xlsx\nGET  /facturation/check/odoo",
+      "text": "GET  /health\nGET  /flux/{table}\nPOST /ingestion/run {mode}\nGET  /etl/jobs\nGET  /taxes/accise/….xlsx\nGET  /facturation/check/odoo",
+      "originalText": "GET  /health\nGET  /flux/{table}\nPOST /ingestion/run {mode}\nGET  /etl/jobs\nGET  /taxes/accise/….xlsx\nGET  /facturation/check/odoo",
       "fontSize": 12, "fontFamily": 3, "textAlign": "left", "verticalAlign": "top",
       "strokeColor": "#22c55e", "backgroundColor": "transparent", "fillStyle": "solid",
       "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
@@ -619,8 +619,8 @@
     },
     {
       "type": "text", "id": "bot_chip_t", "x": 1703, "y": 442, "width": 226, "height": 106,
-      "text": "/etl  All·Test·Rebuild·Resync\n/flux  stats · export XLSX\n/perimetre  entrées·sorties\n/taxes  accise · CTA\n/facturation  docs · check\n🚨 alerte si job failed",
-      "originalText": "/etl  All·Test·Rebuild·Resync\n/flux  stats · export XLSX\n/perimetre  entrées·sorties\n/taxes  accise · CTA\n/facturation  docs · check\n🚨 alerte si job failed",
+      "text": "/ingestion  All·Test·Rebuild·Resync\n/flux  stats · export XLSX\n/perimetre  entrées·sorties\n/taxes  accise · CTA\n/facturation  docs · check\n🚨 alerte si job failed",
+      "originalText": "/ingestion  All·Test·Rebuild·Resync\n/flux  stats · export XLSX\n/perimetre  entrées·sorties\n/taxes  accise · CTA\n/facturation  docs · check\n🚨 alerte si job failed",
       "fontSize": 12, "fontFamily": 3, "textAlign": "left", "verticalAlign": "top",
       "strokeColor": "#93c5fd", "backgroundColor": "transparent", "fillStyle": "solid",
       "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
@@ -638,7 +638,7 @@
     },
     {
       "type": "text", "id": "services_box_t", "x": 1390, "y": 555, "width": 250, "height": 32,
-      "text": "api/services\nfacturation · taxes · etl · duckdb", "originalText": "api/services\nfacturation · taxes · etl · duckdb",
+      "text": "api/services\nfacturation · taxes · ingestion · duckdb", "originalText": "api/services\nfacturation · taxes · ingestion · duckdb",
       "fontSize": 12, "fontFamily": 3, "textAlign": "center", "verticalAlign": "middle",
       "strokeColor": "#ffffff", "backgroundColor": "transparent", "fillStyle": "solid",
       "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
@@ -659,8 +659,8 @@
     },
     {
       "type": "text", "id": "etlrun_note", "x": 1380, "y": 640, "width": 560, "height": 18,
-      "text": "POST /etl/run → subprocess ingestion.py — suivi via /etl/jobs",
-      "originalText": "POST /etl/run → subprocess ingestion.py — suivi via /etl/jobs",
+      "text": "POST /ingestion/run → subprocess python -m electricore.ingestion — suivi via /ingestion/jobs",
+      "originalText": "POST /ingestion/run → subprocess python -m electricore.ingestion — suivi via /ingestion/jobs",
       "fontSize": 12, "fontFamily": 3, "textAlign": "left", "verticalAlign": "top",
       "strokeColor": "#64748b", "backgroundColor": "transparent", "fillStyle": "solid",
       "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
@@ -904,7 +904,7 @@
     },
     {
       "type": "text", "id": "ctn_api_t", "x": 530, "y": 855, "width": 320, "height": 32,
-      "text": "electricore-api — uvicorn :8001\n= API + bot + core + jobs ETL", "originalText": "electricore-api — uvicorn :8001\n= API + bot + core + jobs ETL",
+      "text": "electricore-api — uvicorn :8001\n= API + bot + core + jobs d'ingestion", "originalText": "electricore-api — uvicorn :8001\n= API + bot + core + jobs d'ingestion",
       "fontSize": 12, "fontFamily": 3, "textAlign": "center", "verticalAlign": "middle",
       "strokeColor": "#ffffff", "backgroundColor": "transparent", "fillStyle": "solid",
       "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
@@ -922,7 +922,7 @@
     },
     {
       "type": "text", "id": "ctn_etl_t", "x": 930, "y": 855, "width": 320, "height": 32,
-      "text": "electricore-etl — supercronic\nne calcule rien : il curl l'API", "originalText": "electricore-etl — supercronic\nne calcule rien : il curl l'API",
+      "text": "electricore-ingestion — supercronic\nne calcule rien : il curl l'API", "originalText": "electricore-ingestion — supercronic\nne calcule rien : il curl l'API",
       "fontSize": 12, "fontFamily": 3, "textAlign": "center", "verticalAlign": "middle",
       "strokeColor": "#ffffff", "backgroundColor": "transparent", "fillStyle": "solid",
       "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
@@ -940,7 +940,7 @@
     },
     {
       "type": "text", "id": "volume_box_t", "x": 530, "y": 975, "width": 320, "height": 32,
-      "text": "volume duckdb_data\nla base vit ici, partagée api ⟷ etl", "originalText": "volume duckdb_data\nla base vit ici, partagée api ⟷ etl",
+      "text": "volume duckdb_data\nla base vit ici, partagée api ⟷ ingestion", "originalText": "volume duckdb_data\nla base vit ici, partagée api ⟷ ingestion",
       "fontSize": 12, "fontFamily": 3, "textAlign": "center", "verticalAlign": "middle",
       "strokeColor": "#047857", "backgroundColor": "transparent", "fillStyle": "solid",
       "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
@@ -957,8 +957,8 @@
     },
     {
       "type": "text", "id": "cron_chip_t", "x": 933, "y": 975, "width": 334, "height": 54,
-      "text": "0 2 * * *   POST /etl/run {'mode':'all'}\n30 3 * * *  backup_duckdb.sh → /backups",
-      "originalText": "0 2 * * *   POST /etl/run {'mode':'all'}\n30 3 * * *  backup_duckdb.sh → /backups",
+      "text": "0 2 * * *   POST /ingestion/run {'mode':'all'}\n30 3 * * *  backup_duckdb.sh → /backups",
+      "originalText": "0 2 * * *   POST /ingestion/run {'mode':'all'}\n30 3 * * *  backup_duckdb.sh → /backups",
       "fontSize": 12, "fontFamily": 3, "textAlign": "left", "verticalAlign": "top",
       "strokeColor": "#22c55e", "backgroundColor": "transparent", "fillStyle": "solid",
       "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,

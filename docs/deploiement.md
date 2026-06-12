@@ -19,7 +19,7 @@ de bout en bout. Ce document décrit son usage, puis ce qu'il fait sous le capot
 8. [Rotation des clés AES](#rotation-des-clés-aes)
 9. [Sauvegarde et restauration](#sauvegarde-et-restauration)
 10. [Mise à jour de version](#mise-à-jour-de-version)
-11. [Fenêtre ETL et concurrence DuckDB](#fenêtre-etl-et-concurrence-duckdb)
+11. [Fenêtre d'ingestion et concurrence DuckDB](#fenêtre-dingestion-et-concurrence-duckdb)
 12. [Migration depuis l'ancien layout `/opt/electricore/`](#migration-depuis-lancien-layout-optelectricore)
 13. [Annexe : déploiement manuel pas-à-pas](#annexe--déploiement-manuel-pas-à-pas)
 14. [Dépannage](#dépannage)
@@ -51,7 +51,7 @@ Le script :
 7. Ouvre `.env` dans `$EDITOR` (nano par défaut) — tu remplis les `# TODO:`.
 8. Vérifie le DNS (`<domain>` doit pointer vers l'IP publique du VPS).
 9. Démarre la stack `docker compose up -d`.
-10. Lance un ETL test (vérifie clés AES + SFTP + DuckDB).
+10. Lance une ingestion test (vérifie clés AES + SFTP + DuckDB).
 11. Affiche un récap (URL, ssh, logs, backups).
 
 Compte ~5-10 min selon la connexion. À la fin :
@@ -199,7 +199,7 @@ Le script affiche un récap en fin d'exécution :
   SSH              ssh edn@edn.electricore.fr
   Logs             sudo -u edn docker compose -f /srv/edn/deploy/docker/docker-compose.yml logs -f
   Backups          /srv/edn/backups/ (rotation 14 snapshots, cron 03:30 Europe/Paris)
-  ETL nocturne     02:00 Europe/Paris
+  Ingestion nocturne     02:00 Europe/Paris
 ```
 
 Vérifs manuelles complémentaires :
@@ -291,7 +291,7 @@ client = ElectricoreClient(url="https://electricore.localhost", api_key="…", h
 
 ### Mode A — SFTP distant (par défaut)
 
-Le scheduler ETL se connecte au serveur SFTP Enedis pour télécharger les fichiers
+Le scheduler d'ingestion se connecte au serveur SFTP Enedis pour télécharger les fichiers
 chiffrés, puis les déchiffre et les ingère.
 
 `.env` :
@@ -307,7 +307,7 @@ Rien à changer dans `docker-compose.yml`.
 Si le serveur SFTP Enedis tourne sur **le même VPS**, on évite un téléchargement
 inutile et un transfert réseau supplémentaire de données sensibles : l'API lit
 directement les fichiers chiffrés depuis le système de fichiers lors de chaque
-déclenchement ETL.
+déclenchement d'ingestion.
 
 `.env` :
 
@@ -329,8 +329,8 @@ services:
 > **⚠️ Important** : les fichiers Enedis restent chiffrés en AES sur disque
 > (même en mode collocé). Les clés `AES__*` sont toujours obligatoires.
 >
-> Le service `etl-scheduler` n'a **pas** besoin de ce bind-mount — il appelle
-> `POST /etl/run` via HTTP, c'est `api` qui exécute le pipeline.
+> Le service `ingestion-scheduler` n'a **pas** besoin de ce bind-mount — il appelle
+> `POST /ingestion/run` via HTTP, c'est `api` qui exécute le pipeline.
 
 Puis :
 
@@ -359,7 +359,7 @@ Enedis effectue périodiquement une rotation. Le format à deux clés
    ```
 
 4. Sauvegarder, fermer l'éditeur. Le script valide, restart la stack, lance
-   un ETL test pour confirmer que les deux jeux de clés fonctionnent.
+   une ingestion test pour confirmer que les deux jeux de clés fonctionnent.
 
 Pendant ~4 semaines, les deux clés coexistent. Les logs `[current]` / `[previous]`
 indiquent quelle clé a déchiffré quel fichier.
@@ -440,7 +440,7 @@ Le script :
 3. Backup `.env`, écrit `ELECTRICORE_VERSION=<--version>` automatiquement, ouvre
    `$EDITOR` (nano par défaut) pour les ajustements éventuels.
 4. `docker compose pull` puis `up -d` (recrée les conteneurs avec la nouvelle image).
-5. ETL test.
+5. ingestion test.
 
 ### Rollback
 
@@ -452,19 +452,19 @@ sudo bash /srv/<slug>/deploy/install.sh \
 > ⚠️ Une rétrogradation **majeure** peut nécessiter une restauration de la base si
 > le schéma a évolué — vérifier le CHANGELOG.
 
-## Fenêtre ETL et concurrence DuckDB
+## Fenêtre d'ingestion et concurrence DuckDB
 
 DuckDB autorise plusieurs lecteurs en parallèle, mais le writer (ici le scheduler
-ETL) prend un verrou exclusif sur le fichier pendant l'écriture. Concrètement :
+ingestion) prend un verrou exclusif sur le fichier pendant l'écriture. Concrètement :
 
-- L'API reste accessible pendant la lecture (`SELECT`) tant que l'ETL n'écrit pas.
+- L'API reste accessible pendant la lecture (`SELECT`) tant que l'ingestion n'écrit pas.
 - Si une requête API arrive **pendant** un `pipeline.run()`, l'API retry jusqu'à
   3 fois (1 s d'écart) avant de renvoyer une erreur. La plupart des écritures DLT
   sont courtes (checkpoints).
 - Si une requête tombe pile sur un long checkpoint, le client reçoit un `500` —
-  relancer après 30 s. C'est pour cela qu'on planifie l'ETL à 02:00.
+  relancer après 30 s. C'est pour cela qu'on planifie l'ingestion à 02:00.
 
-Pour ajuster la fenêtre ETL, éditer l'horaire dans
+Pour ajuster la fenêtre d'ingestion, éditer l'horaire dans
 `/srv/<slug>/deploy/docker/crontab` (`0 2 * * *` = 02:00 Europe/Paris, le TZ du
 conteneur est fixé via `docker-compose.yml`).
 
@@ -633,30 +633,30 @@ sudo -u ${SLUG} -- bash -c \
     "cd /srv/${SLUG}/deploy/docker && docker compose --env-file ../../.env up -d"
 ```
 
-### 8. ETL test
+### 8. ingestion test
 
 ```bash
 API_KEY=$(grep ^API_KEY= /srv/${SLUG}/.env | cut -d= -f2)
 sudo -u ${SLUG} -- bash -c \
-    "cd /srv/${SLUG}/deploy/docker && docker compose exec -T etl-scheduler \
+    "cd /srv/${SLUG}/deploy/docker && docker compose exec -T ingestion-scheduler \
      curl -X POST -H 'X-API-Key:${API_KEY}' -H 'Content-Type: application/json' \
-     -d '{\"mode\":\"test\"}' http://api:8001/etl/run"
+     -d '{\"mode\":\"test\"}' http://api:8001/ingestion/run"
 ```
 
 ## Dépannage
 
 ### `/health` retourne `database.accessible: false`
 
-- Si `error` mentionne `Fichier DuckDB introuvable` : aucun ETL n'a encore été
-  lancé. Lancer manuellement via la commande ETL test ci-dessus.
-- Si `error` mentionne `Could not set lock` : l'ETL est en cours d'écriture.
+- Si `error` mentionne `Fichier DuckDB introuvable` : aucune ingestion n'a encore été
+  lancée. Lancer manuellement via la commande ingestion test ci-dessus.
+- Si `error` mentionne `Could not set lock` : l'ingestion est en cours d'écriture.
   Réessayer dans quelques secondes.
 - Sinon : `sudo -u <slug> docker compose -f /srv/<slug>/deploy/docker/docker-compose.yml logs api`.
 
-### `etl-scheduler` redémarre en boucle
+### `ingestion-scheduler` redémarre en boucle
 
 ```bash
-sudo -u <slug> docker compose -f /srv/<slug>/deploy/docker/docker-compose.yml logs etl-scheduler
+sudo -u <slug> docker compose -f /srv/<slug>/deploy/docker/docker-compose.yml logs ingestion-scheduler
 ```
 
 Causes typiques :
@@ -676,7 +676,7 @@ sudo -u <slug> docker compose -f /srv/<slug>/deploy/docker/docker-compose.yml lo
 - Pendant les tests, activer l'`acme_ca` staging dans `Caddyfile` pour éviter
   les rate-limits Let's Encrypt.
 
-### L'ETL échoue avec `Échec déchiffrement avec X clé(s)`
+### L'ingestion échoue avec `Échec déchiffrement avec X clé(s)`
 
 Mauvaise clé AES ou fichier corrompu. Comparer `AES__*` dans `.env` avec ce
 qu'Enedis a fourni. En période de rotation, s'assurer que `AES__PREVIOUS__*`

@@ -21,7 +21,7 @@ API publique :
 """
 
 # Imports internes
-from .config import DuckDBConfig, duckdb_readonly_conn
+from .config import DuckDBConfig, DuckDBLockError, duckdb_readonly_conn
 from .helpers import (
     # API fluide
     c15,
@@ -45,6 +45,7 @@ from .registry import ENTREES_C15, SORTIES_C15
 __all__ = [
     # Configuration
     "DuckDBConfig",
+    "DuckDBLockError",
     "duckdb_readonly_conn",
     # Query builder
     "DuckDBQuery",

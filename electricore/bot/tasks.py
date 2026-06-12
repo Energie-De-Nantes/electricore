@@ -1,4 +1,4 @@
-"""Tâches de fond du bot (notifications de fin de job ETL).
+"""Tâches de fond du bot (notifications de fin de job d'ingestion).
 
 Module séparé pour casser le cycle d'import entre `app.py` (assemblage)
 et les handlers qui lancent des tâches.

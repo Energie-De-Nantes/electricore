@@ -8,7 +8,7 @@ app = marimo.App()
 def _():
     import os
     import duckdb
-    DATABASE_URL = os.getenv("DUCKDB_PATH", "electricore/etl/flux_enedis_pipeline.duckdb")
+    DATABASE_URL = os.getenv("DUCKDB_PATH", "electricore/ingestion/flux_enedis_pipeline.duckdb")
     engine = duckdb.connect(DATABASE_URL, read_only=True)
     return (engine,)
 

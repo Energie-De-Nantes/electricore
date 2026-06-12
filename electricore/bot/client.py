@@ -17,6 +17,32 @@ TIMEOUT_EXPORT = 120  # exports XLSX de tables flux
 TIMEOUT_LOURD = 300  # livrables calculés : taxes, facturation, check Odoo
 
 
+class APIError(Exception):
+    """Erreur HTTP de l'API, porteuse du `detail` du corps de réponse (#171).
+
+    `str(e)` est directement affichable à l'opérateur : les handlers du bot
+    montrent `str(e)` dans le chat (cf. `livraison._signaler_echec`).
+    """
+
+    def __init__(self, message: str, status_code: int):
+        super().__init__(message)
+        self.status_code = status_code
+
+
+def _lever_pour_statut(r: httpx.Response) -> None:
+    """`raise_for_status` enrichi : remonte le `detail` JSON de l'API plutôt
+    que la seule ligne de statut httpx (« Server error '503…' for url … »)."""
+    try:
+        r.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        try:
+            detail = r.json().get("detail")
+        except Exception:
+            detail = None
+        message = detail if isinstance(detail, str) and detail else str(exc)
+        raise APIError(message, status_code=r.status_code) from exc
+
+
 class ElectriCoreClient:
     """Client async vers l'API ElectriCore."""
 
@@ -31,7 +57,7 @@ class ElectriCoreClient:
     async def _get(self, path: str, *, timeout: float, params: dict | None = None) -> httpx.Response:
         async with self._http() as c:
             r = await c.get(f"{self._base}{path}", headers=self._headers, params=params, timeout=timeout)
-            r.raise_for_status()
+            _lever_pour_statut(r)
             return r
 
     async def _get_json(self, path: str, *, timeout: float = TIMEOUT_COURT, params: dict | None = None):
@@ -43,7 +69,7 @@ class ElectriCoreClient:
     async def _post_json(self, path: str, *, json: dict, timeout: float = TIMEOUT_COURT):
         async with self._http() as c:
             r = await c.post(f"{self._base}{path}", json=json, headers=self._headers, timeout=timeout)
-            r.raise_for_status()
+            _lever_pour_statut(r)
             return r.json()
 
     async def list_tables(self) -> list[str]:
@@ -53,14 +79,14 @@ class ElectriCoreClient:
     async def get_table_info(self, table: str) -> dict:
         return await self._get_json(f"/flux/{table}/info")
 
-    async def run_etl(self, mode: str) -> dict:
-        return await self._post_json("/etl/run", json={"mode": mode})
+    async def run_ingestion(self, mode: str) -> dict:
+        return await self._post_json("/ingestion/run", json={"mode": mode})
 
     async def get_job(self, job_id: str) -> dict:
-        return await self._get_json(f"/etl/jobs/{job_id}")
+        return await self._get_json(f"/ingestion/jobs/{job_id}")
 
     async def get_jobs(self, limit: int = 5) -> list[dict]:
-        return await self._get_json("/etl/jobs", params={"limit": limit})
+        return await self._get_json("/ingestion/jobs", params={"limit": limit})
 
     async def get_entrees_xlsx(self) -> bytes:
         return await self._get_bytes("/flux/c15/entrees.xlsx")

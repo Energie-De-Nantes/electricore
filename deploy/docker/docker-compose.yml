@@ -56,9 +56,9 @@ services:
       start_period: 20s
     restart: unless-stopped
 
-  etl-scheduler:
+  ingestion-scheduler:
     image: ghcr.io/energie-de-nantes/electricore:${ELECTRICORE_VERSION:-latest}
-    container_name: electricore-etl
+    container_name: electricore-ingestion
     command:
       - supercronic
       - -passthrough-logs

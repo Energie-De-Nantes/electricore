@@ -7,6 +7,24 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
+## [Unreleased]
+
+### ♻️ Renommage — le module `etl` devient `ingestion`
+
+Le nom « ETL » décrivait une technique abandonnée (le procédé est ELT depuis la
+bascule dbt, ADR-0020/0021) ; « ingestion » nomme la fonction et était déjà le
+terme canonique de la doc. Changements cassants et transitions :
+
+- **Package** : `electricore/etl/` → `electricore/ingestion/` ; CLI :
+  `uv run python -m electricore.ingestion <all|test|rebuild|resync|flux…>` ;
+- **Extra** : `uv sync --extra etl` → `uv sync --extra ingestion` (**cassant**) ;
+- **Routes API** : `/etl/run`, `/etl/jobs` → `/ingestion/run`, `/ingestion/jobs` —
+  les anciens chemins répondent encore **une release** (alias hors schéma OpenAPI),
+  mettre à jour la crontab déployée (`deploy/docker/crontab`) ;
+- **Bot** : `/ingestion` remplace `/etl` (qui reste en alias) ;
+- **Compose** : service `etl-scheduler` → `ingestion-scheduler`, conteneur
+  `electricore-etl` → `electricore-ingestion` (recréation au prochain pull).
+
 ## [2.1.1] - 2026-06-12
 
 ### 🐛 Corrections

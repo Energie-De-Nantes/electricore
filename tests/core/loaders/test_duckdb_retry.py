@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 import duckdb
 import pytest
 
+from electricore.core.loaders.duckdb import DuckDBLockError
 from electricore.core.loaders.duckdb.helpers import duckdb_readonly_conn
 
 
@@ -66,3 +67,25 @@ class TestDuckdbReadonlyConn:
 
         assert mock_connect.call_count == 3
         assert mock_sleep.call_count == 2
+
+    def test_persistent_lock_raises_typed_lock_error(self):
+        """Lock persistant → `DuckDBLockError`, que l'API peut convertir en 503
+        « ingestion en cours » sans inspecter le message (issue #171)."""
+        lock_exc = duckdb.IOException("IO Error: Conflicting lock is held")
+
+        with patch("duckdb.connect", side_effect=lock_exc), patch("time.sleep"):
+            with pytest.raises(DuckDBLockError):
+                with duckdb_readonly_conn("/locked.duckdb"):
+                    pass  # pragma: no cover
+
+    def test_file_not_found_is_not_a_lock_error(self):
+        """Fichier introuvable → IOException brute, surtout pas `DuckDBLockError`
+        (sinon l'API afficherait un faux « ingestion en cours »)."""
+        exc = duckdb.IOException("IO Error: File does not exist")
+
+        with patch("duckdb.connect", side_effect=exc):
+            with pytest.raises(duckdb.IOException) as excinfo:
+                with duckdb_readonly_conn("/missing.duckdb"):
+                    pass  # pragma: no cover
+
+        assert not isinstance(excinfo.value, DuckDBLockError)

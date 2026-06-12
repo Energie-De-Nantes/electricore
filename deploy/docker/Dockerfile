@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
 # =============================================================================
-# Stage 1 — builder : résolution du venv avec uv (etl extra inclus, dev/test exclus)
+# Stage 1 — builder : résolution du venv avec uv (extra ingestion inclus, dev/test exclus)
 # =============================================================================
 FROM python:3.13-slim AS builder
 
@@ -26,12 +26,12 @@ WORKDIR /app
 # Couche cache deps : on copie d'abord les manifestes pour profiter du cache Docker
 COPY pyproject.toml uv.lock README.md ./
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-install-project --extra etl --extra dbt --no-dev
+    uv sync --frozen --no-install-project --extra ingestion --extra dbt --no-dev
 
 # Couche projet : on copie le code et on l'installe dans le venv
 COPY electricore/ ./electricore/
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --extra etl --extra dbt --no-dev
+    uv sync --frozen --extra ingestion --extra dbt --no-dev
 
 # =============================================================================
 # Stage 2 — runtime : image légère sans outils de build

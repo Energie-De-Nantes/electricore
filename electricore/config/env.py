@@ -1,7 +1,7 @@
 """
 Loader partagé pour le fichier .env et résolution de l'environnement.
 
-Utilisé par l'API, les notebooks, et l'ETL pour charger les variables
+Utilisé par l'API, les notebooks, et l'ingestion pour charger les variables
 d'environnement depuis le fichier .env à la racine du projet, et pour
 résoudre le chemin de la base DuckDB de production (issue #146).
 """
@@ -11,7 +11,7 @@ from collections.abc import Mapping
 from pathlib import Path
 
 # Base de prod locale, ancrée sur le package (jamais sur le CWD).
-_DEFAUT_BASE_DUCKDB = Path(__file__).parents[1] / "etl" / "flux_enedis_pipeline.duckdb"
+_DEFAUT_BASE_DUCKDB = Path(__file__).parents[1] / "ingestion" / "flux_enedis_pipeline.duckdb"
 
 
 def charger_env() -> None:

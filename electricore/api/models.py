@@ -79,17 +79,17 @@ class WelcomeMessage(BaseModel):
     docs: str = Field(..., description="URL de la documentation")
 
 
-# Modèles ETL
+# Modèles ingestion
 
 
-class ETLRunRequest(BaseModel):
-    """Corps de la requête pour lancer le pipeline ETL."""
+class IngestionRunRequest(BaseModel):
+    """Corps de la requête pour lancer le pipeline d'ingestion."""
 
     mode: str = Field("test", description="Mode d'exécution : test | r151 | all | reset")
 
 
-class ETLJobResponse(BaseModel):
-    """Statut d'un job ETL."""
+class IngestionJobResponse(BaseModel):
+    """Statut d'un job d'ingestion."""
 
     id: str = Field(..., description="Identifiant unique du job")
     mode: str = Field(..., description="Mode d'exécution utilisé")

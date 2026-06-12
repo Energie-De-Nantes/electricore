@@ -26,7 +26,7 @@ pytest.importorskip("dbt.cli.main", reason="dbt absent — uv sync --extra dbt")
 pytest.importorskip("dbt.adapters.duckdb", reason="dbt-duckdb absent — uv sync --extra dbt")
 
 RACINE = Path(__file__).parents[3]
-PROJET_DBT = RACINE / "electricore" / "etl" / "dbt"
+PROJET_DBT = RACINE / "electricore" / "ingestion" / "dbt"
 FIXTURES = RACINE / "tests" / "fixtures" / "flux"
 
 PARIS = ZoneInfo("Europe/Paris")
@@ -37,8 +37,8 @@ def base_prod_dbt(tmp_path_factory):
     """Base DuckDB au format de production : fixtures landées + dbt build."""
     import dlt
 
-    from electricore.etl.parsing.xml import xml_vers_dict
-    from electricore.etl.raw_landing import lander_documents_bruts
+    from electricore.ingestion.parsing.xml import xml_vers_dict
+    from electricore.ingestion.raw_landing import lander_documents_bruts
 
     dossier = tmp_path_factory.mktemp("base_dbt")
     db_path = dossier / "flux.duckdb"

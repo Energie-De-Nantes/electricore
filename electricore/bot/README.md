@@ -16,7 +16,7 @@ adapté à l'instance.
 
 | Domaine | Clavier | Raccourcis |
 |---|---|---|
-| `/etl` | All · Test · Rebuild · Flux… · Resync · Statut | `/etl rebuild`, `/etl r151 c15`, `/etl statut` |
+| `/ingestion` (alias `/etl`) | All · Test · Rebuild · Flux… · Resync · Statut | `/ingestion rebuild`, `/ingestion r151 c15`, `/ingestion statut` |
 | `/flux` | tables avec descriptions, 📊 stats · 📥 export | `/flux stats c15`, `/flux export r151` |
 | `/perimetre` | 📥 Entrées · 📤 Sorties (C15) | `/perimetre entrees`, `/perimetre sorties` |
 | `/taxes` ⁽ᵉʳᵖ⁾ | Accise · CTA → trimestre (4 derniers + toutes périodes) | `/taxes accise 2025-T1`, `/taxes cta` |
@@ -30,14 +30,14 @@ Comportements notables :
 
 - **`resync` exige une confirmation à deux taps** (purge l'état incrémental dlt et
   re-télécharge tout le SFTP) — y compris en raccourci texte.
-- **Suivi de job par édition** : le message de lancement ETL s'édite
+- **Suivi de job par édition** : le message de lancement d'ingestion s'édite
   (`⏳ running` → `✅ completed` / `❌ failed` + sortie), pas de second message.
 - **`reset` est retiré** de la surface (déprécié côté runner, alias de `resync`).
 - Les exports partent en **documents XLSX** dans le chat.
 
 ## Alertes proactives
 
-Si `TELEGRAM_NOTIFY_CHAT_ID` est défini, le bot surveille les jobs ETL via l'API
+Si `TELEGRAM_NOTIFY_CHAT_ID` est défini, le bot surveille les jobs d'ingestion via l'API
 et pousse une alerte 🚨 quand un job passe à `failed` — **y compris ceux lancés
 par le scheduler** (supercronic). Pas d'alerte sur l'historique antérieur au
 démarrage, pas de doublon. Vide = désactivé.
@@ -73,11 +73,11 @@ bot/
 ├── auth.py            # @require_allowed (allowlist), @require_odoo (no-ERP)
 ├── client.py          # client HTTP async vers l'API (X-API-Key)
 ├── format.py          # rendu HTML (escape) — parse_mode=HTML partout
-├── surveillance.py    # alertes proactives (polling /etl/jobs)
+├── surveillance.py    # alertes proactives (polling /ingestion/jobs)
 ├── tasks.py           # tâches de fond (annulées au shutdown)
 └── handlers/          # un module par domaine de commande
     ├── start.py       # /start, /help — COMMANDES = source de vérité de la surface
-    ├── etl.py
+    ├── ingestion.py
     ├── flux.py
     ├── perimetre.py
     ├── taxes.py

@@ -17,7 +17,7 @@ Ces flux sont transmis aux fournisseurs d'énergie en format XML/CSV propriétai
 
 ```
 Fichiers XML/CSV Enedis   →   Base DuckDB   →   Calculs métier   →   Odoo / API
-     (flux R15, C15…)           (ETL)          (pipelines Polars)     (résultats)
+     (flux R15, C15…)           (ingestion)    (pipelines Polars)     (résultats)
 ```
 
 Concrètement, le pipeline de facturation calcule pour chaque PDL et chaque mois :
@@ -49,7 +49,7 @@ Si tu viens de Rust, `uv` joue le même rôle que `cargo` :
 ```bash
 # Prérequis : Python 3.12+, uv
 uv sync              # installe tout (équivalent : cargo build)
-uv sync --extra etl  # + dépendances SFTP pour l'ETL (serveur de collecte)
+uv sync --extra ingestion  # + dépendances SFTP pour l'ingestion (serveur de collecte)
 
 # Vérifier que ça fonctionne
 uv run --group test pytest -q
@@ -62,7 +62,7 @@ uv run --group test pytest -q
 
 ```
 electricore/
-├── etl/          # Collecte : SFTP Enedis → DuckDB  (optionnel, --extra etl)
+├── ingestion/          # Collecte : SFTP Enedis → DuckDB  (optionnel, --extra ingestion)
 ├── core/         # Calculs : DuckDB → résultats métier
 │   ├── loaders/  # Lecture des données (DuckDB, Odoo, Parquet)
 │   ├── pipelines/# Transformations métier
@@ -277,7 +277,7 @@ uv run --group test pytest tests/unit/test_turpe.py -v
 | `perimetre`, `abonnements`, `energie`, `turpe` | ✅ Complets |
 | `facturation` | ⚠️ Expressions seulement |
 | `accise`, `orchestration` | ❌ À faire |
-| `api`, `etl` | ❌ Non couverts |
+| `api`, `ingestion` | ❌ Non couverts |
 
 ### Notebooks d'exploration
 

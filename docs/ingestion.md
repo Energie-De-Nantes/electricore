@@ -18,7 +18,7 @@ SFTP Enedis ──(dlt : decrypt AES, unzip, incrémental)──▶ flux_raw.raw
                                                                   core/loaders (DuckDBQuery) ──▶ pipelines Polars
 ```
 
-1. **MOUVEMENT — dlt** (`electricore/etl/sources/sftp_enedis_brut.py`)
+1. **MOUVEMENT — dlt** (`electricore/ingestion/sources/sftp_enedis_brut.py`)
    La chaîne `sftp | decrypt | unzip` ne connaît **rien** du contenu. Chaque fichier extrait est
    converti en dict générique — `xml_vers_dict` pour le XML (politique « **conteneur = liste** » :
    tout élément à enfants devient un tableau, même unique → les chemins `[0]` sont stables et les
@@ -27,7 +27,7 @@ SFTP Enedis ──(dlt : decrypt AES, unzip, incrémental)──▶ flux_raw.raw
    (même fichier dans plusieurs zips) sont dédoublonnées par construction. L'incrémental dlt
    (`modification_date`) ne porte que sur le mouvement.
 
-2. **TRANSFORMATION — dbt** (`electricore/etl/dbt/models/`)
+2. **TRANSFORMATION — dbt** (`electricore/ingestion/dbt/models/`)
    Un modèle `staging/stg_<flux>` éclate le document en occurrences (clé `prm_id` / `releve_id` /
    `mesure_id` = fichier + position — le **grain** est l'occurrence, jamais le PDL : un PDL revient
    dans N fichiers). Un modèle `flux/flux_<table>` sélectionne (`WHERE`), pivote les cadrans sur le
@@ -35,15 +35,15 @@ SFTP Enedis ──(dlt : decrypt AES, unzip, incrémental)──▶ flux_raw.raw
    loaders) et type selon les **XSD Enedis** (`dateTime`→TIMESTAMPTZ, `date`→DATE, `integer`→BIGINT,
    `decimal`→DOUBLE). Matérialisation dans `flux_enedis.flux_*`, schéma lu par les loaders core.
 
-Le runner de production est `electricore/etl/ingestion.py` (lancé par l'API `/etl/run`, cron VPS) :
+Le runner de production est `electricore/ingestion/runner.py` (lancé par l'API `/ingestion/run`, cron VPS) :
 
 ```bash
-uv run python electricore/etl/ingestion.py test      # smoke : 2 fichiers/flux
-uv run python electricore/etl/ingestion.py all       # tout (landing + dbt build)
-uv run python electricore/etl/ingestion.py r151 c15  # sélection de flux
-uv run python electricore/etl/ingestion.py rebuild   # dbt seul — zéro réseau, ~13 s
-uv run python electricore/etl/ingestion.py resync    # re-télécharge tout (brut perdu)
-uv run python electricore/etl/ingestion.py all --db /tmp/essai.duckdb   # base jetable
+uv run python -m electricore.ingestion test      # smoke : 2 fichiers/flux
+uv run python -m electricore.ingestion all       # tout (landing + dbt build)
+uv run python -m electricore.ingestion r151 c15  # sélection de flux
+uv run python -m electricore.ingestion rebuild   # dbt seul — zéro réseau, ~13 s
+uv run python -m electricore.ingestion resync    # re-télécharge tout (brut perdu)
+uv run python -m electricore.ingestion all --db /tmp/essai.duckdb   # base jetable
 ```
 
 ## Le filet
@@ -65,9 +65,9 @@ Les golden sont générés **par le chemin de production lui-même** (`generer_g
 
 Le champ est **déjà dans le brut** (le landing capture le document intégral). Il suffit de l'exposer :
 
-1. Ajouter la ligne dans le modèle (`etl/dbt/models/flux/flux_<table>.sql`) :
+1. Ajouter la ligne dans le modèle (`ingestion/dbt/models/flux/flux_<table>.sql`) :
    `prm ->> '$.Chemin.Vers.Le.Champ' as mon_champ,` (penser `[0]` pour chaque conteneur traversé) ;
-2. `uv run python electricore/etl/ingestion.py rebuild` — **l'historique entier est backfillé**
+2. `uv run python -m electricore.ingestion rebuild` — **l'historique entier est backfillé**
    (~13 s), zéro re-téléchargement ;
 3. Régénérer les golden (`uv run python tests/fixtures/flux/generer_golden.py`), relire le diff,
    committer.
@@ -95,7 +95,7 @@ pour les colonnes non testées, étoffer `schema.yml` au fil de l'eau.
 2. `models/sources.yml` : déclarer `raw_<flux>` ;
 3. Écrire `staging/stg_<flux>.sql` (éclatement en occurrences) + `flux/flux_<table>.sql`
    (sélection + pivot + types XSD) + entrée `schema.yml` (not_null) ;
-4. `MODELES_PAR_RAW` dans `ingestion.py` ;
+4. `MODELES_PAR_RAW` dans `runner.py` ;
 5. Fixture anonymisée (`anonymiser.py`) et/ou XSD, golden, spec dans `test_dbt_flux_golden.py`.
 
 ### Les trois pièges DuckDB (appris sur données réelles, encodés dans les modèles)

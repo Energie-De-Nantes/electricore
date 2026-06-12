@@ -1,6 +1,6 @@
 #!/bin/sh
 # Sauvegarde de la base DuckDB ElectriCore.
-# Exécuté par supercronic dans le conteneur etl-scheduler.
+# Exécuté par supercronic dans le conteneur ingestion-scheduler.
 #
 # Variables d'environnement attendues :
 #   DUCKDB_PATH    — chemin de la base (par défaut /data/flux_enedis_pipeline.duckdb)

@@ -41,7 +41,7 @@ def _load_odoo_config(section: str = "odoo_test") -> dict | None:
     """
     secrets_paths = [
         Path.cwd() / ".dlt" / "secrets.toml",
-        Path.cwd() / "electricore" / "etl" / ".dlt" / "secrets.toml",
+        Path.cwd() / "electricore" / "ingestion" / ".dlt" / "secrets.toml",
     ]
     for path in secrets_paths:
         if path.exists():

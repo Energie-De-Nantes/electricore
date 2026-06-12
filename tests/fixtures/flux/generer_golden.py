@@ -22,7 +22,7 @@ from pathlib import Path
 
 ICI = Path(__file__).parent
 RACINE = ICI.parents[2]
-PROJET_DBT = RACINE / "electricore" / "etl" / "dbt"
+PROJET_DBT = RACINE / "electricore" / "ingestion" / "dbt"
 
 # (fixture, table brute, modèle dbt, cas) — une entrée par fichier golden.
 # `cas` nomme le golden ; None → nom du modèle. Plusieurs fixtures peuvent viser le
@@ -66,8 +66,8 @@ def lignes_via_dbt(fixture: Path, source: str, model: str) -> list[dict]:
     import duckdb
     from dbt.cli.main import dbtRunner
 
-    from electricore.etl.parsing.xml import xml_vers_dict
-    from electricore.etl.raw_landing import lander_documents_bruts
+    from electricore.ingestion.parsing.xml import xml_vers_dict
+    from electricore.ingestion.raw_landing import lander_documents_bruts
 
     contenu = fixture.read_bytes()
     document = json.loads(contenu) if fixture.suffix == ".json" else xml_vers_dict(contenu)

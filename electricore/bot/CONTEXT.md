@@ -8,7 +8,7 @@ Vocabulaire spécifique au bot Telegram, client conversationnel de l'`api`. Voir
 Application [python-telegram-bot](https://docs.python-telegram-bot.org/) ([electricore/bot/](.)) qui expose des commandes Telegram appelant l'API ElectriCore. Pas de logique métier ; uniquement traduction commande Telegram → appel HTTP → formatage de la réponse.
 
 **Domaine** :
-Commande top-level regroupant les actions d'un même périmètre métier : `/etl` (ingestion), `/flux` (tables brutes Enedis), `/perimetre` (entrées/sorties C15), `/taxes` (accise, CTA), `/facturation` (documents, contrôles pré-facturation). Invoqué sans argument, un domaine ouvre un clavier inline ; avec arguments, il agit directement (raccourci).
+Commande top-level regroupant les actions d'un même périmètre métier : `/ingestion` (ex-`/etl`), `/flux` (tables brutes Enedis), `/perimetre` (entrées/sorties C15), `/taxes` (accise, CTA), `/facturation` (documents, contrôles pré-facturation). Invoqué sans argument, un domaine ouvre un clavier inline ; avec arguments, il agit directement (raccourci).
 _Éviter_ : commande plate, sous-commande.
 
 **Raccourci** :
@@ -21,7 +21,7 @@ Validation explicite en deux taps exigée avant une action coûteuse ou risquée
 Liste des commandes publiée à Telegram au démarrage du bot, adaptée à l'instance : les domaines dépendant d'un ERP (`/taxes`, `/facturation`) sont masqués quand aucun ERP n'est configuré.
 
 **Chat de notification** :
-Chat Telegram destinataire des alertes proactives du bot (échec d'un job ETL, y compris ceux lancés par le scheduler), distinct des réponses aux commandes.
+Chat Telegram destinataire des alertes proactives du bot (échec d'un job d'ingestion, y compris ceux lancés par le scheduler), distinct des réponses aux commandes.
 
 **Allowlist Telegram** :
 Liste d'identifiants numériques Telegram autorisés à utiliser le bot, configurée via `TELEGRAM_ALLOWED_USERS`. Tout autre utilisateur reçoit `⛔ Accès refusé`. Pas de rôles ni de granularité.

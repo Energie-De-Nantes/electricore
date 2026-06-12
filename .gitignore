@@ -177,7 +177,7 @@ cython_debug/
 .fastembed_cache/
 
 # DLT secrets (credentials, API keys)
-electricore/etl/.dlt/secrets.toml
+electricore/ingestion/.dlt/secrets.toml
 
 # Données locales générées
 *.duckdb
@@ -196,4 +196,4 @@ deploy/docker/docker-compose.*.yml
 .sota/
 
 # Artefacts de build dbt (target par base, cf. pipeline_dbt)
-electricore/etl/.dbt_target_*/
+electricore/ingestion/.dbt_target_*/

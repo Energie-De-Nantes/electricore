@@ -10,14 +10,16 @@ from contextlib import asynccontextmanager
 from urllib.parse import urlparse
 
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 
 from electricore.api.config import settings
 from electricore.api.routers import admin as admin_router
-from electricore.api.routers import etl as etl_router
 from electricore.api.routers import facturation as facturation_router
 from electricore.api.routers import flux as flux_router
+from electricore.api.routers import ingestion as ingestion_router
 from electricore.api.routers import taxes as taxes_router
 from electricore.api.services import duckdb_service
+from electricore.core.loaders.duckdb import DuckDBLockError
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +86,7 @@ app = FastAPI(
     openapi_tags=[
         {"name": "public", "description": "Endpoints publics (sans authentification)"},
         {"name": "flux", "description": "Accès aux données flux Enedis (authentification requise)"},
-        {"name": "etl", "description": "Lancement et suivi du pipeline d'ingestion (authentification requise)"},
+        {"name": "ingestion", "description": "Lancement et suivi de l'ingestion des flux (authentification requise)"},
         {"name": "admin", "description": "Endpoints d'administration (authentification requise)"},
         {
             "name": "taxes",
@@ -94,9 +96,25 @@ app = FastAPI(
     ],
 )
 
+DETAIL_INGESTION_EN_COURS = (
+    "Ingestion en cours — la base de données est en cours d'écriture. Réessaie dans quelques minutes."
+)
+
+
+@app.exception_handler(DuckDBLockError)
+async def verrou_duckdb_en_503(request, exc: DuckDBLockError) -> JSONResponse:
+    """Verrou writer (ingestion) sur DuckDB → 503 explicite plutôt qu'erreur brute (#171).
+
+    Conversion centrale : tout endpoint de lecture qui laisse remonter
+    `DuckDBLockError` en bénéficie, sans logique par route.
+    """
+    logger.warning("Lecture refusée, base verrouillée par un writer (%s %s) : %s", request.method, request.url, exc)
+    return JSONResponse(status_code=503, content={"detail": DETAIL_INGESTION_EN_COURS})
+
+
 # Routers per-domaine (issue #82). Chaque router porte son tag OpenAPI et ses endpoints.
 app.include_router(admin_router.router)
-app.include_router(etl_router.router)
+app.include_router(ingestion_router.router)
 app.include_router(flux_router.router)
 app.include_router(taxes_router.router)
 app.include_router(facturation_router.router)
@@ -111,7 +129,7 @@ async def root():
     Liste les tables disponibles et montre des exemples d'utilisation.
 
     Reste accessible même si la base DuckDB n'existe pas encore (premier
-    déploiement avant le premier ETL) : `available_tables` est alors vide.
+    déploiement avant la première ingestion) : `available_tables` est alors vide.
     """
     try:
         tables = duckdb_service.list_tables()
@@ -144,9 +162,9 @@ async def health():
     Endpoint public - aucune authentification requise.
 
     Retourne toujours un 200 avec un payload structuré : ops peut détecter
-    les problèmes (base verrouillée, ETL en retard, bot arrêté) sans avoir
+    les problèmes (base verrouillée, ingestion en retard, bot arrêté) sans avoir
     à parser des erreurs HTTP. Un `database.accessible: false` indique typiquement
-    un verrou ETL en cours — l'API se rétablit d'elle-même après le checkpoint.
+    un verrou d'ingestion en cours — l'API se rétablit d'elle-même après le checkpoint.
 
     Returns:
         Dict avec api_version, database (mtime + tailles tables), bot, authentication
