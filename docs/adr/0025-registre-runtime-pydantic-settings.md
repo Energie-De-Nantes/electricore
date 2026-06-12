@@ -51,15 +51,22 @@ groupées par domaine. Chaque point d'entrée déclare ses domaines au boot :
   (aucun service bot dans le compose) ; son client httpx reçoit
   `httpx.ASGITransport(app=app)` via le paramètre `transport` existant (#174) — mêmes
   endpoints, même auth `X-API-Key`, zéro socket. Le domaine bot se réduit à `TELEGRAM_*`.
-- **Façades conservées** : `charger_env()` (réimplémentée en python-dotenv, peuple
-  `os.environ` — nécessaire à dlt et aux notebooks) ; `charger_config_odoo()` (2 lignes
-  déléguant à `runtime.odoo()`, préserve 8 notebooks et l'API documentée).
+- **Une seule façade conservée** : `charger_config_odoo()` (2 lignes déléguant à
+  `runtime.odoo()`, préserve 8 notebooks et l'API documentée). `charger_env()` est
+  **supprimée** — vérification faite, la machinerie dlt ne résout aucun de nos
+  secrets (destination passée en Python, source sans injection `dlt.secrets.value`) :
+  les lectures `dlt.secrets` étaient toutes dans notre propre code. Plus rien n'exige
+  qu'`os.environ` soit peuplé depuis `.env` ; `config/env.py` disparaît entièrement.
 - **Migration + suppression** : `chemin_base_duckdb()` → `runtime.duckdb().chemin`
   (tous les callers sont in-repo).
-- **L'ETL consomme runtime** : `crypto.py` construit sa chaîne de clés depuis
-  `runtime.aes()` (modèles imbriqués, `AES__CURRENT__KEY` se parse nativement avec le
-  délimiteur `__`), la source SFTP lit `runtime.sftp()` ; le fallback `dlt.secrets`
-  reste dans ces modules — c'est la façade dlt documentée par ADR-0024.
+- **L'ETL consomme runtime, exclusivement** : `crypto.py` construit sa chaîne de clés
+  depuis `runtime.aes()` (modèles imbriqués, `AES__CURRENT__KEY` se parse nativement
+  avec le délimiteur `__`), la source SFTP et `diagnostic_flux` lisent
+  `runtime.sftp()`. Les trois lectures `dlt.secrets` disparaissent et **le support du
+  fichier `.dlt/secrets.toml` est retiré** (aucun environnement connu ne l'utilise —
+  pas même le poste de dev) : qui l'utilisait migre ses valeurs vers `.env`, une fois.
+  La cascade de rotation AES d'ADR-0008 (`current` → `previous` → legacy) est
+  conservée à l'identique sur le format env `AES__CURRENT__*` / `AES__PREVIOUS__*`.
 
 ## Raison
 
@@ -101,6 +108,9 @@ groupées par domaine. Chaque point d'entrée déclare ses domaines au boot :
 - `.env.example`, `deploy/docker/.env.example` (suppression d'`API_BASE_URL`) et
   [docs/configuration.md](../configuration.md) sont mis à jour — ce dernier restructuré
   par registres d'ADR-0024 (sa section 1 devient la doc de `runtime.py`).
+- La procédure de rotation AES (CLAUDE.md, [ADR-0008](0008-rotation-cles-aes.md)) est
+  re-documentée env-d'abord : la décision de fond d'ADR-0008 — la cascade à deux clés —
+  est inchangée, seul son véhicule `secrets.toml` disparaît.
 - Tests : chaque domaine s'instancie avec des valeurs d'init explicites, sans
   monkeypatch d'`os.environ` ; `ConfigurationManquante` se teste par domaine.
 - L'entrée « Config partagée » de [core/CONTEXT.md](../../electricore/core/CONTEXT.md)
@@ -109,9 +119,14 @@ groupées par domaine. Chaque point d'entrée déclare ses domaines au boot :
 
 ## Limites à connaître
 
-- **Deux chemins de lecture `.env` coexistent** : pydantic-settings (domaines) et
-  python-dotenv (`charger_env`, pour dlt qui lit `os.environ`). Assumé — la façade dlt
-  d'ADR-0024 l'exige ; les deux honorent la même précédence env-système > `.env`.
+- **`DBT_DUCKDB_PATH` reste le seul pont `os.environ`** : dbt est invoqué in-process
+  (`dbtRunner`) et `env_var()` est l'unique mécanisme de paramétrage de `profiles.yml` —
+  dbt n'a pas d'API destination comme dlt. La var est posée par le runner immédiatement
+  avant l'invocation (scopée `try`/`finally` pour ne pas survivre dans un process API),
+  porte la même valeur que la destination dlt (`runtime.duckdb().chemin`, résolu une
+  fois, deux transports) et n'est jamais lue depuis `.env`. L'alternative — générer un
+  `profiles.yml` temporaire par run — troquerait une ligne documentée contre de la
+  génération de fichiers.
 - **La mécanique `ODOO_ENV`/`ODOO_TEST_*` est conservée à l'identique** dans l'attente
   de #190 (stratégie de test des écritures Odoo) — le sélecteur est un outillage
   d'opérateur (répéter une injection avant de la jouer sur prod), pas une dimension du
