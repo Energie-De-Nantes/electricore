@@ -103,8 +103,9 @@ def test_demarrer_sans_chat_de_notification_ne_surveille_pas(monkeypatch):
     assert _taches_creees_par_demarrer(monkeypatch, chat_id="") == 0
 
 
-def test_demarrer_avec_chat_de_notification_lance_la_surveillance(monkeypatch):
-    assert _taches_creees_par_demarrer(monkeypatch, chat_id="-100123") == 1
+def test_demarrer_avec_chat_de_notification_lance_les_surveillances(monkeypatch):
+    # deux boucles : jobs d'ingestion (#157) + péremption des taux régulés (#186)
+    assert _taches_creees_par_demarrer(monkeypatch, chat_id="-100123") == 2
 
 
 def test_publier_menu_pousse_la_surface_a_telegram(monkeypatch):
