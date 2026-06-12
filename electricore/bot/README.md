@@ -42,6 +42,13 @@ et pousse une alerte 🚨 quand un job passe à `failed` — **y compris ceux la
 par le scheduler** (supercronic). Pas d'alerte sur l'historique antérieur au
 démarrage, pas de doublon. Vide = désactivé.
 
+Même canal pour la **péremption des taux régulés** (#186, ADR-0024) : un check
+quotidien compare la dernière entrée en vigueur de chaque fichier de taux aux
+rythmes attendus (heuristiques : TURPE au 1ᵉʳ août, Accise au 1ᵉʳ janvier,
+CTA sans rythme connu) et pousse un ⚠️ par jalon manqué — warning seulement,
+jamais d'auto-correction. Un changement hors calendrier passe sous le radar
+(Limites d'ADR-0024).
+
 ## Configuration
 
 | variable | rôle |
@@ -73,7 +80,7 @@ bot/
 ├── auth.py            # @require_allowed (allowlist), @require_odoo (no-ERP)
 ├── client.py          # client HTTP async vers l'API (X-API-Key)
 ├── format.py          # rendu HTML (escape) — parse_mode=HTML partout
-├── surveillance.py    # alertes proactives (polling /ingestion/jobs)
+├── surveillance.py    # alertes proactives (polling /ingestion/jobs, péremption des taux)
 ├── tasks.py           # tâches de fond (annulées au shutdown)
 └── handlers/          # un module par domaine de commande
     ├── start.py       # /start, /help — COMMANDES = source de vérité de la surface

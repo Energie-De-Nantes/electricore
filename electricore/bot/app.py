@@ -19,10 +19,11 @@ async def publier_menu(application: Application) -> None:
 
 
 async def demarrer(application: Application) -> None:
-    """post_init : menu natif + surveillance proactive des jobs d'ingestion (#157)."""
+    """post_init : menu natif + surveillances proactives — jobs d'ingestion (#157), péremption des taux (#186)."""
     await publier_menu(application)
     if settings.telegram_notify_chat_id:
         create_task(surveillance.boucle_surveillance(application.bot, settings.telegram_notify_chat_id))
+        create_task(surveillance.boucle_peremption(application.bot, settings.telegram_notify_chat_id))
 
 
 def build_application(token: str) -> Application:

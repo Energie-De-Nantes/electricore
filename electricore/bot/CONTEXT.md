@@ -21,7 +21,7 @@ Validation explicite en deux taps exigée avant une action coûteuse ou risquée
 Liste des commandes publiée à Telegram au démarrage du bot, adaptée à l'instance : les domaines dépendant d'un ERP (`/taxes`, `/facturation`) sont masqués quand aucun ERP n'est configuré.
 
 **Chat de notification** :
-Chat Telegram destinataire des alertes proactives du bot (échec d'un job d'ingestion, y compris ceux lancés par le scheduler), distinct des réponses aux commandes.
+Chat Telegram destinataire des alertes proactives du bot (échec d'un job d'ingestion, y compris ceux lancés par le scheduler ; taux régulé présumé périmé, #186), distinct des réponses aux commandes.
 
 **Allowlist Telegram** :
 Liste d'identifiants numériques Telegram autorisés à utiliser le bot, configurée via `TELEGRAM_ALLOWED_USERS`. Tout autre utilisateur reçoit `⛔ Accès refusé`. Pas de rôles ni de granularité.

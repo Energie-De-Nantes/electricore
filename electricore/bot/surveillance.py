@@ -18,6 +18,7 @@ from electricore.bot.format import escape
 logger = logging.getLogger(__name__)
 
 SURVEILLANCE_INTERVAL = 60  # secondes entre deux interrogations
+PEREMPTION_INTERVAL = 24 * 3600  # un check de péremption par jour suffit (rythmes annuels)
 
 
 async def initialiser_vus(client: ElectriCoreClient) -> set[str]:
@@ -60,3 +61,43 @@ async def boucle_surveillance(bot, chat_id: str) -> None:
     while True:
         await asyncio.sleep(SURVEILLANCE_INTERVAL)
         await verifier_jobs(bot, client, vus, chat_id)
+
+
+# =============================================================================
+# Péremption des taux régulés (#186, ADR-0024)
+# =============================================================================
+
+
+async def verifier_peremption(bot, client: ElectriCoreClient, vus: set, chat_id: str) -> None:
+    """Une itération du check : alerte les taux présumés périmés, une fois par jalon manqué.
+
+    Le bot reste pur client HTTP : le check est calculé par l'API
+    (`GET /taxes/peremption`, fonction core pure côté serveur). Warning
+    uniquement, jamais d'auto-correction (ADR-0024).
+    """
+    try:
+        avertissements = await client.get_peremption()
+    except Exception:
+        return  # API indisponible : on retentera au prochain passage
+
+    for a in avertissements:
+        cle = (a["taxe"], a["attendu_depuis"])
+        if cle in vus:
+            continue
+        texte = f"⚠️ Taux régulé présumé périmé : {escape(a['message'])}"
+        try:
+            await bot.send_message(chat_id=chat_id, text=texte, parse_mode="HTML")
+            vus.add(cle)
+        except Exception:
+            logger.exception("Échec d'envoi de l'alerte péremption")  # retentera au prochain passage
+
+
+async def boucle_peremption(bot, chat_id: str) -> None:
+    """Boucle quotidienne du check de péremption (annulée au shutdown via tasks)."""
+    client = ElectriCoreClient()
+    vus: set = set()
+    logger.info("Surveillance péremption des taux régulés active (chat %s)", chat_id)
+    await verifier_peremption(bot, client, vus, chat_id)  # check immédiat au démarrage
+    while True:
+        await asyncio.sleep(PEREMPTION_INTERVAL)
+        await verifier_peremption(bot, client, vus, chat_id)

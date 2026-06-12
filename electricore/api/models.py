@@ -113,6 +113,16 @@ class MillesimeResponse(BaseModel):
     unite: str | None = Field(None, description="Unité du taux scalaire (€/MWh, %)")
 
 
+class PeremptionResponse(BaseModel):
+    """Avertissement de péremption d'un taux régulé (#186, ADR-0024) — warning, jamais d'auto-correction."""
+
+    taxe: str = Field(..., description="Registre concerné : TURPE | Accise")
+    attendu_depuis: date = Field(..., description="Jalon du rythme attendu resté sans nouvelle ligne")
+    dernier_start: date = Field(..., description="Dernière entrée en vigueur connue")
+    consigne: str = Field(..., description="Quoi vérifier (délibération CRE, loi de finances)")
+    message: str = Field(..., description="Message prêt à afficher")
+
+
 # Modèles pour les requêtes (si nécessaire pour des POST/PUT futurs)
 
 

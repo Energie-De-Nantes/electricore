@@ -109,6 +109,10 @@ class ElectriCoreClient:
         """Millésimes des taux régulés (TURPE, Accise, CTA) — #185, ADR-0024."""
         return await self._get_json("/taxes/millesimes")
 
+    async def get_peremption(self) -> list[dict]:
+        """Avertissements de péremption des taux régulés — #186, ADR-0024."""
+        return await self._get_json("/taxes/peremption")
+
     async def get_facturation_xlsx(self, mois: str | None = None) -> bytes:
         params = {"mois": mois} if mois else None
         return await self._get_bytes("/facturation/rapport.xlsx", params=params, timeout=TIMEOUT_LOURD)
