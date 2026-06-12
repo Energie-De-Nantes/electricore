@@ -28,7 +28,7 @@ def _build_pipeline_command(mode: str) -> list[str]:
       Python courant via `sys.executable` — les deps sont déjà installées dans /app/.venv.
     """
     # Une liste de flux ("r151 c15") devient plusieurs arguments CLI (nargs="+").
-    module_args = ["-m", "electricore.etl.pipeline_dbt", *mode.split()]
+    module_args = ["-m", "electricore.etl.ingestion", *mode.split()]
     if shutil.which("uv"):
         return ["uv", "run", "--project", str(_PROJECT_ROOT), "python", *module_args]
     return [sys.executable, *module_args]

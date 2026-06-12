@@ -127,7 +127,7 @@ jobs:
       - name: Smoke-test image
         run: |
           docker run --rm "${{ steps.docker_tags.outputs.smoke_tag }}" \
-            python -c "import electricore; import electricore.etl.pipeline_dbt; import dbt.cli.main; print('image OK')"
+            python -c "import electricore; import electricore.etl.ingestion; import dbt.cli.main; print('image OK')"
 
       - name: Push Docker image to GHCR
         uses: docker/build-push-action@v7

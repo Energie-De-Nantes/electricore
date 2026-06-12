@@ -659,8 +659,8 @@
     },
     {
       "type": "text", "id": "etlrun_note", "x": 1380, "y": 640, "width": 560, "height": 18,
-      "text": "POST /etl/run → subprocess pipeline_dbt.py — suivi via /etl/jobs",
-      "originalText": "POST /etl/run → subprocess pipeline_dbt.py — suivi via /etl/jobs",
+      "text": "POST /etl/run → subprocess ingestion.py — suivi via /etl/jobs",
+      "originalText": "POST /etl/run → subprocess ingestion.py — suivi via /etl/jobs",
       "fontSize": 12, "fontFamily": 3, "textAlign": "left", "verticalAlign": "top",
       "strokeColor": "#64748b", "backgroundColor": "transparent", "fillStyle": "solid",
       "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
