@@ -44,7 +44,7 @@ class TestChargementRegles:
 
         # Vérifications de base
         assert df.shape[0] > 0, "Aucune règle chargée"
-        assert df.shape[1] == 18, f"Nombre de colonnes incorrect: {df.shape[1]}"
+        assert df.shape[1] == 19, f"Nombre de colonnes incorrect: {df.shape[1]}"
 
         # Vérification des colonnes obligatoires
         colonnes_attendues = [
@@ -66,6 +66,7 @@ class TestChargementRegles:
             "c_hc",
             "c_base",
             "cmdps",
+            "reference",
         ]
         for col in colonnes_attendues:
             assert col in df.columns, f"Colonne manquante: {col}"

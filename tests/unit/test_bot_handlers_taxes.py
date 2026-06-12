@@ -34,6 +34,32 @@ class FakeClient:
         self.appels.append(("cta", trimestre))
         return b"PK\x03\x04cta"
 
+    async def get_millesimes(self) -> list[dict]:
+        self.appels.append(("millesimes", None))
+        return [
+            {
+                "taxe": "TURPE",
+                "date_vigueur": "2025-08-01",
+                "reference": "Délibération CRE n° 2025-40 — https://www.cre.fr",
+                "valeur": None,
+                "unite": None,
+            },
+            {
+                "taxe": "Accise",
+                "date_vigueur": "2025-08-01",
+                "reference": "LF 2025 — https://www.impots.gouv.fr",
+                "valeur": 29.98,
+                "unite": "€/MWh",
+            },
+            {
+                "taxe": "CTA",
+                "date_vigueur": "2026-02-01",
+                "reference": "Arrêté du 28 janvier 2026 — https://www.legifrance.gouv.fr",
+                "valeur": 15.0,
+                "unite": "%",
+            },
+        ]
+
 
 @pytest.fixture(autouse=True)
 def _autorise(monkeypatch):
@@ -121,6 +147,44 @@ def test_callback_run_cta_toutes_periodes(client):
     assert client.appels == [("cta", None)]
     ((_, kwargs),) = bot.documents
     assert kwargs["filename"] == "cta.xlsx"
+
+
+# =============================================================================
+# Millésimes des taux régulés (#185, ADR-0024)
+# =============================================================================
+
+
+def test_menu_propose_les_millesimes(client):
+    update = update_commande()
+
+    asyncio.run(handlers_taxes.cmd_taxes(update, contexte()))
+
+    ((_, kwargs),) = update.effective_message.replies
+    assert "taxes:millesimes" in callbacks_du_markup(kwargs)
+
+
+def test_callback_millesimes_affiche_les_trois_registres(client):
+    update = update_callback("taxes:millesimes")
+    bot = FakeBot()
+
+    asyncio.run(handlers_taxes.on_callback(update, contexte(bot=bot)))
+
+    assert client.appels == [("millesimes", None)]
+    (_, _, texte, kwargs) = bot.edits[-1]
+    assert "TURPE" in texte and "Accise" in texte and "CTA" in texte
+    assert "29.98 €/MWh" in texte and "depuis le 2025-08-01" in texte, "démo cible ADR-0024"
+    assert "réf." in texte and "https://www.cre.fr" in texte
+    assert "taxes:menu" in callbacks_du_markup(kwargs), "retour"
+
+
+def test_raccourci_millesimes(client):
+    update = update_commande()
+
+    asyncio.run(handlers_taxes.cmd_taxes(update, contexte(args=["millesimes"])))
+
+    assert client.appels == [("millesimes", None)]
+    ((texte, _),) = update.effective_message.replies
+    assert "CTA" in texte and "15" in texte
 
 
 # =============================================================================

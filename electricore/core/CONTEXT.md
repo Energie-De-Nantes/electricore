@@ -108,11 +108,11 @@ Valeur d'un taux réglementé (Accise, CTA, TURPE…) applicable à une date don
 _Éviter_ : barème (gradué par montant, pas par date), grille tarifaire.
 
 **Référence réglementaire** :
-Citation du texte qui fonde un taux régulé (délibération CRE, article de loi de finances). Portée ligne à ligne par la colonne `reference` des fichiers `*_rules.csv` (à introduire — [ADR-0024](../../docs/adr/0024-trois-registres-de-savoir.md)) : chaque changement de taux devient auditable en revue de contribution comme en contrôle a posteriori.
+Citation du texte qui fonde un taux régulé (délibération CRE, article de loi de finances). Portée ligne à ligne par la colonne `reference` des fichiers `*_rules.csv` ([ADR-0024](../../docs/adr/0024-trois-registres-de-savoir.md), #185) : chaque changement de taux devient auditable en revue de contribution comme en contrôle a posteriori.
 _Éviter_ : source (collision avec les sources de données), justificatif.
 
 **Millésime** :
-Dernier changement réglementaire intégré dans un fichier de taux régulés — dérivé, pas déclaré : dernière ligne entrée en vigueur + sa *référence réglementaire*. Dit ce que la lib « sait » de la réglementation ; exposable via API et bot pour vérifier la fraîcheur d'une instance ([ADR-0024](../../docs/adr/0024-trois-registres-de-savoir.md)).
+Dernier changement réglementaire intégré dans un fichier de taux régulés — dérivé, pas déclaré : dernière ligne entrée en vigueur + sa *référence réglementaire*. Dit ce que la lib « sait » de la réglementation ; dérivé par `core/millesimes.py` et exposé via `GET /taxes/millesimes` et `/taxes millesimes` (bot) pour vérifier la fraîcheur d'une instance ([ADR-0024](../../docs/adr/0024-trois-registres-de-savoir.md)).
 _Éviter_ : version (réservé aux releases de la lib), tag (réservé à git).
 
 **Trimestre fiscal** :

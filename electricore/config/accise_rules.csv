@@ -1,4 +1,4 @@
-start,taux_accise_eur_mwh
-2024-01-02,21
-2025-02-01,33.7
-2025-08-01,29.98
+start,taux_accise_eur_mwh,reference
+2024-01-02,21,Arrêté du 25 janvier 2024 (art. 92 de la LF 2024 n° 2023-1322 — tarif ménages 21 €/MWh) — https://www.legifrance.gouv.fr/jorf/id/JORFTEXT000049059983
+2025-02-01,33.7,LF 2025 n° 2025-127 du 14 février 2025 (tarif ménages 33.70 €/MWh au 1er février 2025) — https://www.impots.gouv.fr/actualite/consommation-denergie-tarifs-normaux-des-accises-en-2025
+2025-08-01,29.98,Tarif ménages 25.09 €/MWh + majoration ZNI 4.89 €/MWh (art. L312-37-1 CIBS) au 1er août 2025 — https://www.impots.gouv.fr/actualite/consommation-denergie-tarifs-normaux-des-accises-en-2025

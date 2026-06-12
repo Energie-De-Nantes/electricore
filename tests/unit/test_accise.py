@@ -53,7 +53,7 @@ class TestChargementRegles:
 
     def test_load_accise_rules_colonnes_et_types(self):
         regles = load_accise_rules().collect()
-        assert set(regles.columns) == {"start", "taux_accise_eur_mwh"}
+        assert set(regles.columns) == {"start", "taux_accise_eur_mwh", "reference"}
         assert regles["start"].dtype == pl.Datetime(time_unit="us", time_zone="Europe/Paris")
         assert regles["taux_accise_eur_mwh"].dtype == pl.Float64
 
