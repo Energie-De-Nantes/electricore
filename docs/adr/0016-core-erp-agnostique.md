@@ -2,7 +2,7 @@
 
 ## Contexte
 
-Le sous-package [electricore/core/](../../electricore/core/) a été pensé dès le départ comme couche métier portant les calculs énergie purs (périmètre, abonnements, énergie, TURPE, accise, facturation Enedis). En pratique, cette intention a glissé : [electricore/core/loaders/odoo/](../../electricore/core/loaders/odoo/) et [electricore/core/writers/odoo.py](../../electricore/core/writers/odoo.py) ont été introduits parce qu'au démarrage seule l'instance EDN existait, et Odoo était le seul ERP en jeu. Aucun ADR n'avait inscrit la règle, donc le code l'a discrètement érodée.
+Le sous-package [electricore/core/](../../electricore/core/) a été pensé dès le départ comme couche métier portant les calculs énergie purs (périmètre, abonnements, énergie, TURPE, accise, facturation Enedis). En pratique, cette intention a glissé : `electricore/core/loaders/odoo/` et `electricore/core/writers/odoo.py` (depuis migrés vers `integrations/odoo/`) ont été introduits parce qu'au démarrage seule l'instance EDN existait, et Odoo était le seul ERP en jeu. Aucun ADR n'avait inscrit la règle, donc le code l'a discrètement érodée.
 
 Le coût de cette dérive devient lisible maintenant que l'instance Enargia (cf. [ADR-0015](0015-deploiement-multi-instance.md)) consomme `core/` depuis des notebooks hébergés hors de ce dépôt pour ses propres calculs métier — sans Odoo direct. Côté EDN, les orchestrations qui rapprochent Enedis et Odoo (cf. [ADR-0014](0014-lignes-factures-du-mois-avec-flags.md), [ADR-0013](0013-renommage-perimetre-historique.md)) sont par nature instance-spécifiques mais elles vivent aujourd'hui à côté des pipelines purs, ce qui brouille le contrat.
 

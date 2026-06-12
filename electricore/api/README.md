@@ -68,8 +68,14 @@ API_VERSION="1.0.0"
 ### Endpoints Sécurisés (authentification requise)
 
 - `GET /flux/{table_name}` - Données d'une table flux
-- `GET /flux/{table_name}/info` - Métadonnées d'une table
+- `GET /flux/{table_name}/info` - Métadonnées d'une table (lignes, fraîcheur `derniere_date`)
+- `POST /ingestion/run` - Déclencher un job d'ingestion (modes `test`/`all`/`rebuild`/`resync`, sélection de flux)
+- `GET /ingestion/jobs`, `GET /ingestion/jobs/{id}` - Suivi des jobs d'ingestion
+- `GET /taxes/...` - Calculs accise et CTA (exports Arrow/XLSX)
+- `GET /facturation/...` - Documents mensuels ; `GET /facturation/check/odoo.xlsx` - check pré-facturation
 - `GET /admin/api-keys` - Configuration des clés API
+
+Les routes `/etl/*` restent des alias hors schéma OpenAPI de `/ingestion/*` pour une release (cf. issue #193).
 
 ## 🚀 Exemples d'utilisation
 
@@ -164,12 +170,14 @@ curl -H "X-API-Key: $API_KEY" "http://localhost:8000/admin/api-keys"
 ```
 electricore/api/
 ├── __init__.py
-├── main.py          # Application FastAPI principale
+├── main.py          # Application FastAPI principale (montage des routers)
 ├── config.py        # Configuration avec Pydantic Settings
 ├── security.py      # Système d'authentification
 ├── models.py        # Modèles Pydantic
-├── services/        # Services métier
-│   └── duckdb_service.py
+├── decorators.py    # Décorateurs transverses (gestion d'erreurs)
+├── routers/         # Un router par domaine : admin, flux, ingestion, taxes, facturation
+├── serializers/     # Sérialisation des réponses (Arrow, XLSX)
+├── services/        # Services métier : duckdb, ingestion, taxes, facturation, check_facturation
 └── README.md        # Cette documentation
 ```
 
@@ -177,7 +185,7 @@ electricore/api/
 
 ```bash
 # Tester l'API localement
-poetry run uvicorn electricore.api.main:app --reload
+uv run uvicorn electricore.api.main:app --reload
 
 # Accéder à la documentation
 open http://localhost:8000/docs

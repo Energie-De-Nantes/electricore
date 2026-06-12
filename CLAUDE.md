@@ -18,9 +18,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 # Install (uv)
 uv sync                          # core + API + bot (runtime production)
-uv sync --extra ingestion              # + SFTP ingestion pipeline
+uv sync --extra ingestion --extra dbt  # + pipeline d'ingestion SFTP (dlt + dbt)
 uv sync --extra viz              # + libs notebooks (marimo, altair, plotly…)
-uv sync --extra ingestion --extra viz  # tout (dev local complet)
+uv sync --extra ingestion --extra dbt --extra viz  # tout (dev local complet)
 
 # Run tests
 uv run --group test pytest -q
@@ -31,7 +31,7 @@ uv run --group test pytest --cov=electricore tests/
 # Build/package
 uv build
 
-# Run ingestion pipeline (requires [ingestion] extra)
+# Run ingestion pipeline (requires [ingestion] + [dbt] extras)
 uv run python -m electricore.ingestion all
 
 # Start API server
@@ -54,13 +54,19 @@ electricore/
 │
 ├── core/                      # 🧮 CORE - Energy Calculations (ERP-agnostique, ADR-0016)
 │   ├── pipelines/             # Polars pipelines
-│   │   ├── perimetre.py       # PDL perimeter (contract events)
+│   │   ├── historique.py      # Historique périmètre enrichi (événements C15, ADR-0013)
+│   │   ├── periodes.py        # Formules de période partagées (ADR-0023)
 │   │   ├── abonnements.py     # Subscription periods
 │   │   ├── energie.py         # Energy consumption by time slot
 │   │   ├── turpe.py           # TURPE network tariff (fixed + variable)
 │   │   ├── accise.py          # Accise (TICFE) tax calculation
-│   │   ├── facturation.py     # Monthly billing aggregation (Pandera-validated)
-│   │   └── orchestration.py   # Full pipeline orchestration
+│   │   ├── cta.py             # CTA (contribution tarifaire d'acheminement)
+│   │   ├── taux.py            # Taux régulés en vigueur
+│   │   └── facturation.py     # Monthly billing aggregation (Pandera-validated)
+│   ├── builds/                # Livrables assemblés au boundary I/O (ADR-0019)
+│   │   ├── contexte_mensuel.py    # contexte_du_mois() / charger() / rapprocher()
+│   │   ├── rapport_facturation.py # RapportFacturation (ERP-agnostique)
+│   │   └── rapport_taxe.py        # RapportTaxe
 │   ├── models/                # Pandera validation schemas (Enedis only)
 │   ├── loaders/               # Data loading & query builders
 │   │   ├── duckdb/            # DuckDBQuery builder (c15, r151, releves, etc.)
@@ -136,7 +142,7 @@ SFTP Enedis → Ingestion (dlt + dbt) → DuckDB → Query Builders → Core Pip
 - **Date convention**: R151 flux uses +1 day adjustment to harmonize with R64/R15/C15 (see [docs/conventions-dates-enedis.md](docs/conventions-dates-enedis.md))
 - **Column naming**: Follows `grandeur_cadran_unité` format
 - **Domain glossary**: see [CONTEXT-MAP.md](CONTEXT-MAP.md) — multi-context layout, business vocabulary in [`electricore/core/CONTEXT.md`](electricore/core/CONTEXT.md) (PDL, FTA, TURPE, cadrans, événements C15, périmètre, abonnement, Odoo); module-specific terms in `ingestion/api/bot/CONTEXT.md`.
-- **Architecture decisions**: see [docs/adr/](docs/adr/) — load-bearing past decisions (monorepo, Polars-only, R151 date adjustment, French language, DuckDB, DLT, query builders, AES rotation, API-centric architecture, Telegram bot, VPS Docker deployment, linéarisation dbt + bascule production)
+- **Architecture decisions**: see [docs/adr/](docs/adr/) — load-bearing past decisions (monorepo, Polars-only, R151 date adjustment, French language, DuckDB, DLT, query builders, AES rotation, API-centric architecture, Telegram bot, VPS Docker deployment, core ERP-agnostique, rôles loaders/pipelines/builds/integrations, linéarisation dbt + bascule production, surface bot par domaines, périodisations séparées, trois registres de savoir, facturation calendaire)
 
 #### Column Naming Conventions
 
@@ -181,15 +187,16 @@ from electricore.integrations.odoo import (
 )
 
 # Pipelines individuels
-from electricore.core.pipelines.perimetre import pipeline_perimetre
+from electricore.core.pipelines.historique import pipeline_historique
 from electricore.core.pipelines.abonnements import pipeline_abonnements
 from electricore.core.pipelines.energie import pipeline_energie
 from electricore.core.pipelines.turpe import ajouter_turpe_fixe, ajouter_turpe_variable
 from electricore.core.pipelines.accise import pipeline_accise
+from electricore.core.pipelines.cta import pipeline_cta
 from electricore.core.pipelines.facturation import pipeline_facturation
 
-# Pipeline complet (orchestration)
-from electricore.core.pipelines.orchestration import facturation, calculer_historique_enrichi
+# Contexte mensuel complet (build, ADR-0019) — remplace l'ancienne orchestration
+from electricore.core.builds.contexte_mensuel import contexte_du_mois, charger, rapprocher
 ```
 
 ### Naming Conventions
@@ -215,40 +222,44 @@ Result: DuckDB database at `electricore/ingestion/flux_enedis_pipeline.duckdb`
 
 #### Rotation des clés AES Enedis
 
-Enedis effectue des rotations de clés AES périodiquement. Le format `secrets.toml` supporte
-plusieurs clés simultanément pour couvrir la période de transition :
+Enedis effectue des rotations de clés AES périodiquement. La configuration supporte
+plusieurs clés simultanément pour couvrir la période de transition — en variables
+d'environnement (`.env`, format primaire, cf. [docs/configuration.md](docs/configuration.md)) :
 
-```toml
-# Format recommandé (v2) — supporte la rotation
-[aes.current]
-key = "nouvelle_clé_hex"
-iv  = "nouvel_iv_hex"
-
-[aes.previous]           # optionnel, garder ~4 semaines après rotation
-key = "ancienne_clé_hex"
-iv  = "ancien_iv_hex"
+```bash
+AES__CURRENT__KEY=nouvelle_cle_hex
+AES__CURRENT__IV=nouvel_iv_hex
+AES__PREVIOUS__KEY=ancienne_cle_hex   # optionnel, garder ~4 semaines après rotation
+AES__PREVIOUS__IV=ancien_iv_hex
 ```
+
+ou en `.dlt/secrets.toml` (alternative locale) avec les sections `[aes.current]` / `[aes.previous]`.
 
 Procédure de rotation :
 1. Obtenir la nouvelle clé Enedis
-2. Déplacer `[aes]` → `[aes.previous]`, créer `[aes.current]` avec la nouvelle clé
+2. Déplacer la clé active vers `previous`, mettre la nouvelle clé en `current`
 3. Relancer le pipeline — les anciens fichiers déchiffrent avec `previous`, les nouveaux avec `current`
-4. Après ~4 semaines : supprimer `[aes.previous]`
+4. Après ~4 semaines : supprimer `previous`
 
-Le format `[aes]` plat (v1) reste supporté pour la compatibilité ascendante.
+Le format plat v1 (`AES__KEY` / `[aes]`) reste supporté pour la compatibilité ascendante.
 
 ### 2. Core Pipelines
 
 ```python
-from electricore.core.pipelines.perimetre import pipeline_perimetre
+from electricore.core.pipelines.historique import pipeline_historique
 from electricore.core.loaders import c15
 
 # Load from DuckDB with query builder
 historique_lf = c15().filter({"Date_Evenement": ">= '2024-01-01'"}).lazy()
 
 # Run pipeline
-perimetre_df = pipeline_perimetre(historique_lf).collect()
-# → pdl, Date_Evenement, impacte_abonnement, impacte_energie, resume_modification
+historique_enrichi = pipeline_historique(historique_lf).collect()
+# → événements C15 enrichis : impacte_abonnement, impacte_energie, resume_modification…
+
+# Contexte mensuel complet (historique → abonnements + énergie → facturation)
+from electricore.core.builds.contexte_mensuel import contexte_du_mois
+ctx = contexte_du_mois("2026-05-01")  # None → dernier mois disponible
+ctx.facturation_mensuelle             # DataFrame agrégé du mois
 ```
 
 ### 3. DuckDB Query Builder
@@ -316,13 +327,17 @@ uv run --group test pytest tests/unit/test_turpe.py -v
 uv run --group test pytest --cov=electricore tests/
 ```
 
-**Current status**: 183 tests passing, 12 skipped (légitimes) ✅
+**Current status**: 671 tests passing, 35 skipped (légitimes) ✅ (juin 2026)
 
 **Test coverage**:
-- ✅ Périmètre, abonnements, énergie, TURPE — tests unitaires complets
-- ✅ Facturation — expressions testées
-- ⚠️ Accise, orchestration — non couverts (à faire)
-- ⚠️ API, ingestion — non couverts
+- ✅ Périmètre/historique, abonnements, énergie, TURPE — tests unitaires complets
+- ✅ Taxes — accise, CTA, taux en vigueur, schémas
+- ✅ Facturation — expressions, rapport, rapprochement, contexte mensuel
+- ✅ Bot — handlers par domaine, auth, client, livraison, surveillance, no-ERP
+- ✅ API — endpoints flux/taxes/facturation/ingestion (intégration), sérialiseurs
+- ✅ Ingestion — golden dbt générés depuis les XSD Enedis, crypto, xml→dict, modes du runner
+- ✅ Architecture — pureté core (ADR-0016), imports par rôle (ADR-0019), topologies bot/builds
+- ⚠️ Orchestration core — couverte indirectement (snapshots à régénérer)
 
 ## Documentation
 
@@ -333,7 +348,7 @@ uv run --group test pytest --cov=electricore tests/
 - **Ingestion (architecture ELT dlt+dbt)**: [docs/ingestion.md](docs/ingestion.md) - Schéma + recettes (ajouter un champ, nouvelle version XSD Enedis, nouveau flux, pièges DuckDB)
 - **API Module**: [electricore/api/README.md](electricore/api/README.md)
 - **Bot Module**: [electricore/bot/README.md](electricore/bot/README.md) - Surface de commandes, alertes, no-ERP (ADR-0022)
-- **DuckDB Integration**: [electricore/core/loaders/DUCKDB_INTEGRATION_GUIDE.md](electricore/core/loaders/DUCKDB_INTEGRATION_GUIDE.md)
+- **DuckDB Query Builder**: [electricore/core/loaders/duckdb/](electricore/core/loaders/duckdb/) — docstrings des modules `query.py`, `sql.py`, `expressions.py`
 - **Odoo Query Builder**: [docs/odoo-query-builder.md](docs/odoo-query-builder.md)
 - **Date Conventions**: [docs/conventions-dates-enedis.md](docs/conventions-dates-enedis.md)
 

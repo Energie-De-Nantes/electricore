@@ -97,24 +97,24 @@ cohérentes — plus complexe que les pipelines testés. Ne pas recommencer.
 
 ```
 tests/
-├── conftest.py                      # 🆕 Fixtures globales + hooks pytest
+├── conftest.py                      # Fixtures globales + hooks pytest
 ├── fixtures/
-│   ├── donnees_anonymisees/         # Fichiers parquet anonymisés (à venir)
-│   └── cas_metier.py                # ✅ Fixtures pytest (2 implémentées)
-├── unit/
-│   ├── test_expressions_*.py        # Tests unitaires expressions Polars
-│   └── test_*_parametrized.py       # 🆕 Tests paramétrés
-├── property/                        # 🆕 Property-based tests (Niveau 4, issue #194)
+│   ├── flux/                        # Fixtures de flux Enedis (golden d'ingestion)
+│   └── cas_metier.py                # Fixtures pytest de cas métier
+├── unit/                            # Expressions Polars, taxes, bot, sérialiseurs API
+│   └── integrations/odoo/           # Vérification, liens, feuilles de rapport
+├── property/                        # Property-based tests (Niveau 4, issue #194)
 │   ├── strategies.py                # Helper : schéma Pandera → stratégie parametric
 │   ├── test_strategies.py           # Balle traçante du socle
 │   ├── test_turpe_invariants.py     # Invariants TURPE fixe + variable
 │   ├── test_taxes_invariants.py     # Invariants taxes : taux en vigueur, accise, CTA (#195)
 │   ├── test_facturation_invariants.py # Conservation à l'agrégation facturation (#196)
 │   └── test_abonnements_energie_invariants.py # Slice frontière : périodes + delta d'index (#197)
-├── integration/
-│   ├── test_pipelines_snapshot.py   # 🆕 Tests snapshot avec Syrupy
-│   └── test_pipeline.py             # Tests avec fixtures
-├── __snapshots__/                   # 🆕 Snapshots Syrupy (auto-créés)
+├── integration/                     # Endpoints API, snapshots de pipelines, writer Odoo
+├── ingestion/                       # Golden dbt (générés depuis les XSD Enedis), crypto, xml→dict
+├── architecture/                    # Pureté core (ADR-0016), imports par rôle (ADR-0019), topologies
+├── core/loaders/                    # Query builders DuckDB
+├── __snapshots__/                   # Snapshots Syrupy (auto-créés)
 └── README.md                        # Ce fichier
 ```
 
@@ -130,7 +130,9 @@ markers = [
     "integration: Integration tests",
     "slow: Tests > 5 seconds",
     "smoke: Critical tests for CI",
+    "skip_ci: Tests requiring real production data, skip in CI",
     "duckdb: Tests requiring DuckDB",
+    "odoo: Tests requiring Odoo connection",
     "hypothesis: Property-based tests",
 ]
 ```
@@ -240,7 +242,7 @@ def test_expr_changement_cases(valeurs, expected_changements, description):
 - Noms de cas clairs dans le rapport
 - Facile d'ajouter de nouveaux cas
 
-Voir [tests/unit/test_expressions_perimetre_parametrized.py](unit/test_expressions_perimetre_parametrized.py) et [tests/unit/test_turpe_parametrized.py](unit/test_turpe_parametrized.py).
+Voir [tests/unit/test_expressions_historique_parametrized.py](unit/test_expressions_historique_parametrized.py) et [tests/unit/test_turpe_parametrized.py](unit/test_turpe_parametrized.py).
 
 ### Test d'invariant property-based (Niveau 4)
 ```python
@@ -272,7 +274,7 @@ Un script complet est disponible : [scripts/anonymiser_donnees.py](../scripts/an
 
 **Usage** :
 ```bash
-poetry run python scripts/anonymiser_donnees.py \
+uv run python scripts/anonymiser_donnees.py \
     --input-historique data/prod/historique.parquet \
     --input-releves data/prod/releves.parquet \
     --output-dir tests/fixtures/donnees_anonymisees \
@@ -311,9 +313,10 @@ def anonymiser_cas_metier(historique_df, releves_df, seed=None):
 - ✅ **polars** (1.0+) : Manipulation des fixtures
 - ✅ **pandera[polars]** (0.24+) : Validation des schémas
 
-Installation :
+Installation et lancement :
 ```bash
-poetry install --with test
+uv sync
+uv run --group test pytest -q
 ```
 
 ## Avantages de cette approche
@@ -345,21 +348,24 @@ poetry install --with test
 
 ## Prochaines étapes
 
-### ✅ Complété (2025)
+### ✅ Complété
 1. ✅ Configuration pytest centralisée avec markers
 2. ✅ Fixtures globales via `conftest.py`
-3. ✅ Tests paramétrés (périmètre + TURPE)
+3. ✅ Tests paramétrés (historique + TURPE)
 4. ✅ Tests snapshot avec Syrupy
 5. ✅ Script d'anonymisation
 6. ✅ Fixtures cas métier (2/6 implémentées)
+7. ✅ Golden d'ingestion générés depuis les XSD Enedis (parité dbt en CI)
+8. ✅ Tests d'architecture exécutables (pureté `core/`, imports par rôle)
 
 ### 🔄 En cours
+- Property-based testing via `polars.testing.parametric` + stratégies dérivées
+  des schémas Pandera : socle et invariants TURPE/taxes mergés (#194, #195) ;
+  restent facturation, abonnements/énergie, historique (#196–#198)
 - Extraire et anonymiser les 4 cas métier restants
-- Ajouter tests snapshot pour pipeline facturation
-- Migration progressive des tests existants vers parametrize
 
 ### 📋 À venir
-- Coverage report automatique en CI
+- Coverage report automatique en CI (mesure locale : ~77%, juin 2026)
 - Tests de performance (benchmarks)
 - Documentation auto-générée des cas métier
 

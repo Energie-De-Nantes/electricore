@@ -21,6 +21,7 @@ electricore/
 ├── core/             # 🧮 CORE - Calculs énergétiques ERP-agnostiques (Polars)
 │   ├── models/       # Modèles Pandera (validation des données)
 │   ├── pipelines/    # Pipelines de calcul (historique, abonnements, énergie, turpe, accise…)
+│   ├── builds/       # Livrables assemblés (contexte mensuel, rapports — ADR-0019)
 │   └── loaders/      # Query builders (DuckDB, Parquet)
 │
 ├── integrations/     # 🔌 INTEGRATIONS - Adaptateurs ERP (cf. ADR-0016)
@@ -114,81 +115,66 @@ Pipelines de calculs énergétiques basés sur **Polars pur** (LazyFrames + expr
 
 ### Pipelines disponibles
 
-#### 1. **Périmètre** - Détection changements contractuels
+#### 1. **Historique** - Événements contractuels enrichis (ex-périmètre, [ADR-0013](docs/adr/0013-renommage-perimetre-historique.md))
 ```python
-from electricore.core.pipelines.perimetre import pipeline_perimetre
+from electricore.core.pipelines.historique import pipeline_historique
 from electricore.core.loaders import c15
 
 # Depuis DuckDB avec Query Builder
 historique_lf = (
     c15()
     .filter({"Date_Evenement": ">= '2024-01-01'"})
-    .limit(1000)
     .lazy()
 )
 
-perimetre_df = pipeline_perimetre(historique_lf).collect()
-# Colonnes: pdl, Date_Evenement, impacte_abonnement, impacte_energie, resume_modification
+historique_enrichi = pipeline_historique(historique_lf)
+# Événements C15 enrichis : impacte_abonnement, impacte_energie, resume_modification, ...
 ```
 
 #### 2. **Abonnements** - Périodes d'abonnement
 ```python
 from electricore.core.pipelines.abonnements import pipeline_abonnements
 
-# Calcul périodes d'abonnement avec bornes temporelles
-abonnements_df = pipeline_abonnements(
-    perimetre_lf,
-    date_debut="2024-01-01",
-    date_fin="2024-12-31"
-).collect()
-# Colonnes: pdl, debut, fin, nb_jours, Puissance_Souscrite, Formule_Tarifaire_Acheminement
+# Périodes homogènes de la part fixe, dérivées de l'historique enrichi
+abonnements_lf = pipeline_abonnements(historique_enrichi)
+# Colonnes: pdl, mois_annee, nb_jours, puissance_souscrite_kva, formule_tarifaire_acheminement, ...
 ```
 
 #### 3. **Énergies** - Consommations par cadran
 ```python
 from electricore.core.pipelines.energie import pipeline_energie
-from electricore.core.loaders import releves
+from electricore.core.loaders import releves_harmonises
 
-relevés_lf = releves().filter({"date_releve": ">= '2024-01-01'"}).lazy()
+releves_lf = releves_harmonises().lazy()
 
-energies_df = pipeline_energie(
-    perimetre_lf,
-    relevés_lf,
-    date_debut="2024-01-01",
-    date_fin="2024-12-31"
-).collect()
-# Colonnes: pdl, debut, fin, energie_hp, energie_hc, energie_base, ...
+energie_lf = pipeline_energie(historique_enrichi, releves_lf)
+# Colonnes: pdl, debut, fin, energie_base_kwh, energie_hp_kwh, energie_hc_kwh, ...
 ```
 
-#### 4. **TURPE** - Calcul taxes réglementaires
+#### 4. **TURPE** - Tarif d'acheminement réseau
 ```python
 from electricore.core.pipelines.turpe import ajouter_turpe_fixe, ajouter_turpe_variable
 
-# TURPE fixe (abonnement)
-abonnements_turpe_df = ajouter_turpe_fixe(abonnements_df).collect()
-# Colonnes: ..., turpe_fixe_annuel, turpe_fixe_journalier, turpe_fixe_periode
+# TURPE fixe (périodes d'abonnement)
+abonnements_turpe = ajouter_turpe_fixe(abonnements_lf)
+# Colonnes: ..., turpe_fixe_eur
 
-# TURPE variable (énergies)
-energies_turpe_df = ajouter_turpe_variable(energies_df).collect()
-# Colonnes: ..., turpe_hpb, turpe_hcb, turpe_hph, turpe_hch, turpe_variable_total
+# TURPE variable (périodes d'énergie)
+energie_turpe = ajouter_turpe_variable(energie_lf)
+# Colonnes: ..., turpe_variable_eur
 ```
 
-#### 5. **Facturation** - Pipeline complet
+#### 5. **Contexte mensuel** - Pipeline complet ([ADR-0019](docs/adr/0019-roles-loaders-pipelines-builds-integrations.md))
 ```python
-from electricore.core.pipelines.orchestration import facturation
+from electricore.core.builds.contexte_mensuel import contexte_du_mois
 
-# Pipeline complet : périmètre → abonnements → énergies
-resultat = facturation(
-    historique_lf,
-    relevés_lf,
-    date_debut="2024-01-01",
-    date_fin="2024-12-31"
-)
+# Compose : historique → abonnements + énergie → facturation mensuelle
+ctx = contexte_du_mois("2026-05-01")   # None → dernier mois disponible
 
-# Résultats disponibles
-print(resultat.abonnements.collect())  # Périodes d'abonnement
-print(resultat.energies.collect())      # Consommations
-print(resultat.factures.collect())      # Synthèses mensuelles
+ctx.facturation_mensuelle   # DataFrame agrégé du mois (validé Pandera)
+ctx.abonnements             # LazyFrame des périodes d'abonnement
+ctx.energie                 # LazyFrame des périodes d'énergie
+ctx.historique_enrichi      # LazyFrame de l'historique enrichi
 ```
 
 ### 🔧 Interfaces de Requêtage
@@ -242,7 +228,7 @@ releves_cross_flux = (
 - ✅ Support CTE (Common Table Expressions)
 - ✅ Validation Pandera intégrée
 
-📖 **Documentation complète** : [electricore/core/loaders/DUCKDB_INTEGRATION_GUIDE.md](electricore/core/loaders/DUCKDB_INTEGRATION_GUIDE.md)
+📖 **Documentation** : docstrings des modules [electricore/core/loaders/duckdb/](electricore/core/loaders/duckdb/)
 
 #### Odoo Query Builder - Intégration ERP
 
@@ -292,8 +278,10 @@ API REST sécurisée basée sur **FastAPI** pour accéder aux données flux depu
 - `GET /docs` - Documentation Swagger interactive
 
 #### Sécurisés (authentification requise)
-- `GET /flux/{table_name}` - Données d'une table flux
-- `GET /flux/{table_name}/info` - Métadonnées d'une table
+- `GET /flux/{table_name}` - Données d'une table flux (+ `/info` : métadonnées, fraîcheur)
+- `POST /ingestion/run`, `GET /ingestion/jobs` - Déclenchement et suivi des jobs d'ingestion
+- `GET /taxes/...` - Accise, CTA (exports Arrow/XLSX)
+- `GET /facturation/...` - Documents mensuels, check pré-facturation Odoo (XLSX)
 - `GET /admin/api-keys` - Configuration clés API
 
 ### Utilisation
@@ -333,14 +321,14 @@ cd electricore
 # Installation runtime (core + API + bot)
 uv sync
 
-# + ingestion SFTP Enedis (pour serveur de collecte)
-uv sync --extra ingestion
+# + ingestion SFTP Enedis, dlt + dbt (pour serveur de collecte)
+uv sync --extra ingestion --extra dbt
 
 # + libs notebooks (marimo, altair, plotly, vegafusion, vl-convert)
 uv sync --extra viz
 
 # Tout (dev local complet)
-uv sync --extra ingestion --extra viz
+uv sync --extra ingestion --extra dbt --extra viz
 ```
 
 ### Configuration initiale
@@ -391,7 +379,7 @@ TELEGRAM_NOTIFY_CHAT_ID=           # chat des alertes (échec d'ingestion) ; vid
 uv run --group test pytest -q
 
 # Ingestion complète (nécessite --extra ingestion)
-uv run python -m electricore.ingestion.ingestion all
+uv run python -m electricore.ingestion all
 
 # API FastAPI
 uv run uvicorn electricore.api.main:app --reload
@@ -419,21 +407,23 @@ Guide complet : [`docs/deploiement.md`](docs/deploiement.md) (Quickstart, multi-
 
 ## 🧪 Tests & Validation
 
-Suite de tests moderne avec **186 tests** (tous passants ✅) :
+Suite de tests avec **671 tests passants** (35 skips légitimes, juin 2026 ✅) :
 
 ### Infrastructure de test
 
 - ✅ **Configuration pytest** : 8 markers (unit, integration, slow, smoke, duckdb, odoo, hypothesis, skip_ci)
 - ✅ **Fixtures partagées** : Connexions DuckDB temporaires, données minimales, helpers d'assertion
-- ✅ **Tests paramétrés** : 39 tests avec `@pytest.mark.parametrize` pour réduire duplication
-- ✅ **Tests snapshot** : 10 tests Syrupy pour détection automatique de régression
+- ✅ **Tests paramétrés** : `@pytest.mark.parametrize` pour réduire la duplication
+- ✅ **Tests snapshot** : Syrupy pour détection automatique de régression
+- ✅ **Golden d'ingestion** : fixtures générées depuis les XSD Enedis, parité dbt garantie en CI
 - ✅ **Script anonymisation** : Extraction sécurisée de cas métier réels
 
 ### Types de tests
 
-- **Tests unitaires** (26 paramétrés) - Expressions Polars pures (périmètre, TURPE)
-- **Tests d'intégration** (10 snapshot) - Pipelines complets avec validation Pandera
-- **Tests DuckDB** - Query builders et transformations
+- **Tests unitaires** - Expressions Polars pures (historique, abonnements, énergie, TURPE, taxes), bot, sérialiseurs API
+- **Tests d'intégration** - Endpoints API (flux, taxes, facturation, ingestion), snapshots de pipelines
+- **Tests d'ingestion** - Golden dbt par flux, crypto AES, xml→dict, modes du runner
+- **Tests d'architecture** - Pureté ERP de `core/` (ADR-0016), imports par rôle (ADR-0019), topologies bot/builds
 - **Fixtures métier** - Cas réels (MCT, MES/RES, changements)
 
 ### Commandes
@@ -452,7 +442,7 @@ uv run --group test pytest -n auto
 uv run --group test pytest --cov=electricore --cov-report=html
 ```
 
-**Couverture** : 49% (focus sur qualité plutôt que quantité)
+**Couverture** : ~77% (juin 2026, seuil CI à 45%)
 
 📖 Documentation complète : [tests/README.md](tests/README.md)
 
@@ -461,23 +451,24 @@ uv run --group test pytest --cov=electricore --cov-report=html
 ## 🗺️ Roadmap
 
 ### Complété ✅
-- Migration Polars complète (périmètre, abonnements, énergies, turpe)
+- Migration Polars complète (périmètre, abonnements, énergies, turpe, accise/CTA)
 - Query Builder DuckDB avec architecture fonctionnelle modulaire (6 modules)
-- Connecteur Odoo avec Query Builder
-- API FastAPI sécurisée avec authentification
-- Ingestion modulaire avec dlt + dbt
-- Tests unitaires et validation (140 tests passent)
+- Connecteur Odoo avec Query Builder ; `core/` ERP-agnostique ([ADR-0016](docs/adr/0016-core-erp-agnostique.md))
+- API FastAPI sécurisée avec authentification (hub central, [ADR-0009](docs/adr/0009-architecture-api-centrique.md))
+- Ingestion ELT dlt + dbt en production ([ADR-0020](docs/adr/0020-linearisation-en-dbt.md), [ADR-0021](docs/adr/0021-bascule-production-dbt.md))
+- Bot Telegram par domaines métier ([ADR-0022](docs/adr/0022-surface-bot-domaines-hybrides.md))
+- Déploiement VPS Docker + script d'installation ([ADR-0011](docs/adr/0011-deploiement-vps-docker.md))
+- CI/CD GitHub Actions (tests + release d'images ghcr.io)
 
 ### En cours 🔄
-- CI/CD GitHub Actions
-- Documentation API détaillée (OpenAPI)
-- Suivi et métriques de performance
+- Property-based testing des pipelines (issues #194–#198)
+- Millésime et péremption des taux régulés (issues #185–#187)
+- Centralisation de la configuration runtime ([ADR-0025](docs/adr/0025-registre-runtime-pydantic-settings.md), issue #141)
 
 ### À venir 📅
+- Régularisation des contrats lissés (épique #191)
 - API SOAP Enedis (alternative SFTP)
-- Gestion prestations et affaires
 - Nouveaux connecteurs (Axpo, autres sources)
-- Calculs avancés (MCT, cas complexes)
 - Suivi des souscriptions aux services de données
 
 ---
@@ -487,7 +478,7 @@ uv run --group test pytest --cov=electricore --cov-report=html
 - [Ingestion README](electricore/ingestion/README.md) - Ingestion des flux Enedis
 - [API README](electricore/api/README.md) - API REST et authentification
 - [Bot README](electricore/bot/README.md) - Bot Telegram : surface de commandes, alertes, no-ERP
-- [Intégration DuckDB](electricore/core/loaders/DUCKDB_INTEGRATION_GUIDE.md) - Query Builder DuckDB
+- [Query Builder DuckDB](electricore/core/loaders/duckdb/) - Modules `query.py`, `sql.py`, `expressions.py`
 - [Query Builder Odoo](docs/odoo-query-builder.md) - Intégration Odoo
 - [Conventions Dates](docs/conventions-dates-enedis.md) - Formats temporels Enedis
 - [CONTEXT-MAP.md](CONTEXT-MAP.md) — Carte des contextes multi-modules (vocabulaire métier dans `electricore/core/CONTEXT.md`, plus contextes ingestion/api/bot)

@@ -30,7 +30,7 @@ electricore/ingestion/
 ## Utilisation
 
 ```bash
-# Depuis electricore/ingestion/
+# Depuis la racine du repo
 uv run --extra ingestion --extra dbt python -m electricore.ingestion test    # 2 fichiers/flux
 uv run --extra ingestion --extra dbt python -m electricore.ingestion r151    # un seul flux
 uv run --extra ingestion --extra dbt python -m electricore.ingestion all     # tous les flux
