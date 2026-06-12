@@ -109,8 +109,8 @@ def test_callback_run_lance_et_suit_par_edition_du_meme_message(client):
     assert "completed" in bot.edits[-1][2]
 
 
-def test_callback_prefixe_etl_legacy_est_normalise(client):
-    """Compat transition : les claviers postés avant le renommage portent `etl:*`."""
+def test_callback_prefixe_etl_legacy_lance_un_run(client):
+    """Compat transition : un bouton `etl:run:*` d'avant le renommage lance bien le job."""
     update = update_callback("etl:run:all")
     bot = FakeBot()
 
@@ -288,3 +288,15 @@ def test_statut_sans_aucun_job(monkeypatch):
 
     ((texte, _),) = update.effective_message.replies
     assert "Aucun job" in texte
+
+
+def test_callback_prefixe_etl_legacy_est_normalise(client):
+    """Rétro-compat : les boutons `etl:*` des vieux messages Telegram routent encore."""
+    update = update_callback("etl:flux")
+    bot = FakeBot()
+
+    _scenario_callback(update, bot)
+
+    (_, _, _, kwargs) = bot.edits[-1]
+    callbacks = {btn.callback_data for row in kwargs["reply_markup"].inline_keyboard for btn in row}
+    assert "ingestion:menu" in callbacks, "l'ancien préfixe ouvre le sous-menu, re-câblé en ingestion:*"
