@@ -1,0 +1,75 @@
+# Formulaire « Nouveau taux régulé » (issue #187, ADR-0024 — trois registres de savoir).
+#
+# Chemin de contribution guidé : un membre de la fédération signale un changement
+# réglementaire sans toucher ni git ni CSV ; un mainteneur transforme le
+# signalement en PR (merge humain). Les champs restent découplés du format
+# GitHub autant que possible — portabilité vers une autre forge documentée
+# dans l'issue de suite dédiée.
+name: Nouveau taux régulé
+description: Signaler un changement réglementaire (TURPE, Accise, CTA) — sans toucher ni git ni CSV
+title: "[Taux régulé] "
+labels: ["needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Merci pour la veille ! Remplis les champs ci-dessous : un mainteneur
+        transformera ce signalement en modification des fichiers de taux,
+        vérifiée en revue avant intégration. Tu n'as **rien d'autre à faire**.
+
+  - type: dropdown
+    id: taxe
+    attributes:
+      label: Taxe concernée
+      description: Le registre de taux régulés qui change
+      options:
+        - TURPE
+        - Accise
+        - CTA
+        - Autre / je ne sais pas
+    validations:
+      required: true
+
+  - type: input
+    id: date_entree_en_vigueur
+    attributes:
+      label: Date d'entrée en vigueur
+      description: À partir de quand le nouveau taux s'applique (format AAAA-MM-JJ)
+      placeholder: "2026-08-01"
+    validations:
+      required: true
+
+  - type: textarea
+    id: valeurs
+    attributes:
+      label: Nouvelle(s) valeur(s)
+      description: Le ou les taux, avec leur unité. Pour le TURPE, colle la grille ou indique où la trouver.
+      placeholder: "Accise : 29,98 €/MWh (catégorie ménages et assimilés)"
+    validations:
+      required: true
+
+  - type: input
+    id: reference_reglementaire
+    attributes:
+      label: Référence réglementaire
+      description: Le texte qui fonde le changement — délibération CRE, article de loi de finances, arrêté…
+      placeholder: "Arrêté du 28 janvier 2026 modifiant l'arrêté du 20 juillet 2021"
+    validations:
+      required: true
+
+  - type: input
+    id: lien_document_public
+    attributes:
+      label: Lien vers le document public
+      description: URL Légifrance, CRE, impots.gouv.fr…
+      placeholder: "https://www.legifrance.gouv.fr/jorf/id/…"
+    validations:
+      required: false
+
+  - type: textarea
+    id: contexte
+    attributes:
+      label: Contexte (optionnel)
+      description: Tout ce qui peut aider le mainteneur — où tu as vu l'info, doutes, cas particuliers…
+    validations:
+      required: false
