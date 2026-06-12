@@ -155,7 +155,7 @@ _Éviter_ : mesure (trop générique), valeur.
 _Éviter_ : lecture, mesure.
 
 **Énergie** :
-Consommation calculée entre deux relevés (différence d'index), par cadran (`energie_hp_kwh`…). Distincte de l'index.
+Consommation calculée entre deux relevés (différence d'index), par cadran (`energie_hp_kwh`…). Distincte de l'index. Dite **mesurée** quand des relevés encadrent exactement la période considérée ; **estimée** quand la période n'a pas de relevé à ses bornes et que l'énergie lui est attribuée par interpolation (cas des compteurs non communicants aux bornes calendaires ou réglementaires — la saisonnalité chauffage/clim rend le prorata temporel grossier). La *provision d'énergie* n'est ni l'une ni l'autre : quantité conventionnelle facturée en attente de solde.
 
 **Puissance souscrite** :
 Limite contractuelle en kVA. Un seul champ en C5 (`puissance_souscrite_kva`), quatre en C4 (`puissance_souscrite_hph_kva`…).
@@ -180,7 +180,7 @@ Le mode ElectriCore : du 1ᵉʳ du mois au 1ᵉʳ du mois suivant, identique pou
 _Éviter_ : facturation mensuelle (ambigu — le moisniversaire est mensuel aussi), prorata (suggère une quote-part d'un montant mensuel — les périodes tronquées sont mesurées, pas réparties).
 
 **Contrat lissé** :
-Modalité de facturation où le client paie chaque mois une *provision d'énergie* constante plutôt que sa consommation mesurée, soldée par une *régularisation*. S'oppose au contrat *réel* (facturé sur le mesuré). Orthogonal au mode calendaire : un contrat lissé est aussi facturé du 1ᵉʳ au 1ᵉʳ, seule la quantité d'énergie diffère. Marqué `x_lisse` côté Odoo, traverse le rapprochement en passe-plat (`est_lisse`).
+Modalité de facturation articulée en triptyque : le client paie chaque mois une *provision d'énergie* constante ; l'*énergie mesurée* court en parallèle (rejouable depuis les données Enedis pour les compteurs communicants) ; la *régularisation* solde l'écart entre les deux. S'oppose au contrat *réel* (facturé directement sur le mesuré). Orthogonal au mode calendaire : un contrat lissé est aussi facturé du 1ᵉʳ au 1ᵉʳ, seule la quantité d'énergie diffère. Marqué `x_lisse` côté Odoo, traverse le rapprochement en passe-plat (`est_lisse`).
 
 **Provision d'énergie** :
 Quantité d'énergie (kWh) facturée chaque mois à un contrat *lissé*, en attendant la régularisation. Fixée manuellement à la souscription par estimation de la consommation, portée par les lignes énergie de la commande ERP — une par **cadran facturé** (Base, ou HP et HC, selon la *formule tarifaire fournisseur*, pas la FTA). Le prix fournisseur, le TURPE variable et l'Accise s'y appliquent comme à de l'énergie mesurée (cf. *Part variable*, assiette facturé).
@@ -195,7 +195,7 @@ Compteur sans télérelevé quotidien — pas de R151/R64, donc pas d'index au 1
 _Éviter_ : non-Linky (la marque n'est pas le critère — c'est l'absence de télérelevé ou de collecte).
 
 **Régularisation** :
-Solde d'un contrat *lissé* : différence, par cadran facturé, entre l'énergie mesurée et les *provisions d'énergie* facturées sur la période, valorisée — en cible — aux tarifs et taux en vigueur de chaque sous-période mensuelle (le réglementaire ne change qu'en début de mois). Corrige aussi l'assiette Accise des trimestres concernés. Aujourd'hui : process entièrement manuel, hors périmètre ElectriCore — présentation technique du chantier dans l'issue épique #191. Le retour à l'équilibre repose d'abord sur l'**adaptation des provisions** (réévaluation régulière de la consommation) ; la régularisation est le solde, pas le thermostat. Déclencheur actuel (~6 mois à date anniversaire, et solde de tout compte à la sortie) : décision de process interne, non arbitrée par la lib.
+Solde d'un contrat *lissé* : différence, par cadran facturé, entre l'*énergie mesurée* et les *provisions d'énergie* facturées, ventilée — en cible — par sous-période mensuelle (le réglementaire ne change qu'en début de mois). Le périmètre ElectriCore s'arrête aux **quantités** : soldes en kWh ventilés, et correction d'assiette Accise des trimestres concernés. La **valorisation aux tarifs fournisseur** est déférée à l'ERP et au process — la lib ne connaît pas les prix fournisseur, par principe (calculs métier énergie déférés, pas la compta ni les tarifs). Aujourd'hui : process entièrement manuel — présentation technique du chantier dans l'issue épique #191. Le retour à l'équilibre repose d'abord sur l'**adaptation des provisions** (réévaluation régulière de la consommation) ; la régularisation est le solde, pas le thermostat. Déclencheur actuel (~6 mois à date anniversaire, et solde de tout compte à la sortie) : décision de process interne, non arbitrée par la lib.
 _Éviter_ : rattrapage, remise à zéro.
 
 ---
