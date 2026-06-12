@@ -104,8 +104,16 @@ _Éviter_ : TICFE (renommée Accise), CSPE (fusionnée dans l'accise).
 Taxe assise sur la part fixe du TURPE (puissance), reversée à la CNIEG pour financer les retraites des industries électriques et gazières.
 
 **Taux en vigueur** :
-Valeur d'un taux réglementé (Accise, CTA, TURPE…) applicable à une date donnée. Les taux changent par arrêté ou décret CRE : les fichiers `*_rules.csv` versionnent ces changements en stockant seulement la date d'**entrée en vigueur** (`start`). Chaque ligne remplace la précédente jusqu'à la ligne suivante (ou indéfiniment pour la dernière) — il n'y a pas de colonne `end`, car les taux régulés sont continus dans le temps. La sélection « taux en vigueur à la date X » est implémentée par `ajouter_taux_en_vigueur()` dans `core/pipelines/taux.py`.
+Valeur d'un taux réglementé (Accise, CTA, TURPE…) applicable à une date donnée. Les taux changent par arrêté ou décret CRE : les fichiers `*_rules.csv` versionnent ces changements en stockant la date d'**entrée en vigueur** (`start`). Pour l'Accise et la CTA, chaque ligne remplace la précédente jusqu'à la ligne suivante (ou indéfiniment pour la dernière) — pas de colonne `end`, les taux régulés sont continus dans le temps ; `turpe_rules.csv` porte en revanche des fenêtres `start`/`end` par grille tarifaire. La sélection « taux en vigueur à la date X » est implémentée par `ajouter_taux_en_vigueur()` dans `core/pipelines/taux.py`.
 _Éviter_ : barème (gradué par montant, pas par date), grille tarifaire.
+
+**Référence réglementaire** :
+Citation du texte qui fonde un taux régulé (délibération CRE, article de loi de finances). Portée ligne à ligne par la colonne `reference` des fichiers `*_rules.csv` (à introduire — [ADR-0024](../../docs/adr/0024-trois-registres-de-savoir.md)) : chaque changement de taux devient auditable en revue de contribution comme en contrôle a posteriori.
+_Éviter_ : source (collision avec les sources de données), justificatif.
+
+**Millésime** :
+Dernier changement réglementaire intégré dans un fichier de taux régulés — dérivé, pas déclaré : dernière ligne entrée en vigueur + sa *référence réglementaire*. Dit ce que la lib « sait » de la réglementation ; exposable via API et bot pour vérifier la fraîcheur d'une instance ([ADR-0024](../../docs/adr/0024-trois-registres-de-savoir.md)).
+_Éviter_ : version (réservé aux releases de la lib), tag (réservé à git).
 
 **Trimestre fiscal** :
 Unité de déclaration des taxes (Accise, CTA), notée `YYYY-TN` (ex : `2025-T1` pour janvier-mars 2025).
