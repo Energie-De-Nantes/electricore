@@ -43,9 +43,23 @@ Les données énergétiques Enedis ont des **dépendances complexes** :
 - **Validation** : Schémas entrée/sortie respectés
 - **Pas besoin** de données parfaitement cohérentes
 
-#### Niveau 4 : Hypothesis pour invariants simples (1% de l'effort)
-- **Usage** : Propriétés mathématiques simples uniquement
-- **Exemple** : `BASE = HP + HC`
+#### Niveau 4 : Property-based testing pour invariants simples (1% de l'effort)
+- **Usage** : Propriétés mathématiques simples sur entrées *plates* générées
+- **Implémentation** : [tests/property/](property/) — stratégies dérivées des schémas Pandera
+  via `strategie_depuis_schema` ([tests/property/strategies.py](property/strategies.py)),
+  construit sur `polars.testing.parametric` (issue #194)
+- **Exemples** : TURPE fixe/variable — contributions ≥ 0, tarifs nuls → contribution nulle,
+  préservation des lignes par la jointure, validité temporelle des règles
+- **Profil CI** : `max_examples=25`, pas de deadline (enregistré dans [conftest.py](conftest.py)) ;
+  lancement : `uv run --group test pytest -m hypothesis`
+
+**🚧 Garde-fou (leçon de 2025)** : les stratégies restent **plates** — colonnes indépendantes,
+contraintes simples (bornes `ge`/`le`, regex) dérivées des schémas Pandera, surcharges
+ponctuelles par test. Dès qu'une stratégie exige des séquences d'événements C15 cohérentes
+(MES → vie du contrat → RES) ou des dépendances entre colonnes (debut < fin), **on s'arrête** :
+c'est le territoire des fixtures + snapshots (Niveau 1). La tentative de 2025 (commit `cea13af`,
+supprimé) réinventait ~500 lignes de stratégies à la main pour générer des données métier
+cohérentes — plus complexe que les pipelines testés. Ne pas recommencer.
 
 ## Cas métier critiques couverts
 
@@ -89,8 +103,11 @@ tests/
 │   └── cas_metier.py                # ✅ Fixtures pytest (2 implémentées)
 ├── unit/
 │   ├── test_expressions_*.py        # Tests unitaires expressions Polars
-│   ├── test_*_parametrized.py       # 🆕 Tests paramétrés
-│   └── test_invariants.py           # Tests Hypothesis simples
+│   └── test_*_parametrized.py       # 🆕 Tests paramétrés
+├── property/                        # 🆕 Property-based tests (Niveau 4, issue #194)
+│   ├── strategies.py                # Helper : schéma Pandera → stratégie parametric
+│   ├── test_strategies.py           # Balle traçante du socle
+│   └── test_turpe_invariants.py     # Invariants TURPE fixe + variable
 ├── integration/
 │   ├── test_pipelines_snapshot.py   # 🆕 Tests snapshot avec Syrupy
 │   └── test_pipeline.py             # Tests avec fixtures
@@ -222,22 +239,27 @@ def test_expr_changement_cases(valeurs, expected_changements, description):
 
 Voir [tests/unit/test_expressions_perimetre_parametrized.py](unit/test_expressions_perimetre_parametrized.py) et [tests/unit/test_turpe_parametrized.py](unit/test_turpe_parametrized.py).
 
-### Test d'invariant simple
+### Test d'invariant property-based (Niveau 4)
 ```python
-@given(
-    hp=st.floats(min_value=0, max_value=10000, allow_nan=False),
-    hc=st.floats(min_value=0, max_value=10000, allow_nan=False)
-)
-def test_invariant_base_equals_hp_plus_hc(hp, hc):
-    """BASE doit toujours égaler HP + HC"""
-    df = pl.DataFrame({"HP": [hp], "HC": [hc]})
-    
-    result = df.with_columns(
-        (pl.col("HP") + pl.col("HC")).alias("BASE")
-    )
-    
-    assert abs(result["BASE"][0] - (hp + hc)) < 1e-10
+from tests.property.strategies import strategie_depuis_schema
+
+@pytest.mark.hypothesis
+@given(periodes=strategie_depuis_schema(
+    PeriodeAbonnement,
+    colonnes=["pdl", "formule_tarifaire_acheminement", "puissance_souscrite_kva", "nb_jours", "debut"],
+    surcharges={  # uniquement ce que le schéma ne sait pas
+        "formule_tarifaire_acheminement": st.sampled_from(FTAS_REELLES),
+        "nb_jours": st.integers(1, 366),
+    },
+))
+def test_turpe_fixe_contributions_positives(periodes):
+    """Puissances ≥ 0 → TURPE fixe ≥ 0 (les tarifs réels sont positifs)."""
+    result = ajouter_turpe_fixe(periodes.lazy(), REGLES.lazy()).collect()
+    assert (result["turpe_fixe_eur"] >= 0).all()
 ```
+
+Dtypes, nullabilité, bornes (`ge=0`) et regex viennent du schéma Pandera — pas de
+quatrième copie du savoir de typage. Voir [tests/property/](property/).
 
 ## Processus d'anonymisation
 
@@ -365,25 +387,17 @@ pytest -vv --showlocals
 
 ---
 
-## Historique : Stratégies Hypothesis (conservées pour référence)
+## Historique : la tentative Hypothesis de 2025 (abandonnée)
 
-*Cette section documente l'approche précédente basée sur la génération complexe avec Hypothesis, conservée pour référence.*
+La première tentative de property-based testing (commit `cea13af`, supprimé par `052c99f`)
+maintenait ~500 lignes de stratégies manuelles (`electricore/core/testing/strategies_polars.py`,
+module supprimé) pour générer des données métier cohérentes : PDL à 14 chiffres, calendriers
+distributeur, séquences temporelles. La génération était devenue plus complexe que les
+pipelines testés — c'est l'anti-pattern documenté en tête de ce fichier.
 
-### Stratégies disponibles (usage limité recommandé)
-
-#### RelevéIndex (simplifié)
-```python
-from electricore.core.testing.strategies_polars import releve_index_strategy
-
-# Pour tests d'invariants uniquement
-df = releve_index_strategy(min_size=5, max_size=10).example()
-```
-
-#### Données générées
-- **PDL** : 14 chiffres numériques
-- **Dates** : 2024-2025 avec timezone Europe/Paris  
-- **Valeurs d'énergie** : 0-99999 avec 3 décimales
-- **Calendriers** : DI000001 (BASE), DI000002 (HP/HC), DI000003 (Tempo)
+La reprise de 2026 (issue #194, [tests/property/](property/)) repose sur
+`polars.testing.parametric` (inexistant pour nous à l'époque) et dérive les stratégies
+des schémas Pandera au lieu de les écrire à la main.
 
 ---
 
