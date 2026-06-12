@@ -14,6 +14,19 @@ from pathlib import Path
 import duckdb
 import polars as pl
 import pytest
+from hypothesis import HealthCheck, settings
+
+# =========================================================================
+# PROFIL HYPOTHESIS - CI bornée, pas de deadline flaky (issue #194)
+# =========================================================================
+
+settings.register_profile(
+    "ci",
+    max_examples=25,
+    deadline=None,  # pas de deadline : durée d'un exemple variable selon la machine CI
+    suppress_health_check=[HealthCheck.too_slow],
+)
+settings.load_profile("ci")
 
 # =========================================================================
 # FIXTURES - DONNÉES DE TEST MINIMALES
