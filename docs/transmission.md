@@ -53,7 +53,7 @@ uv sync --extra ingestion  # + dépendances SFTP pour l'ingestion (serveur de co
 
 # Vérifier que ça fonctionne
 uv run --group test pytest -q
-# → 183 passed, 12 skipped
+# → 671 passed, 35 skipped (juin 2026)
 ```
 
 ---
@@ -62,17 +62,20 @@ uv run --group test pytest -q
 
 ```
 electricore/
-├── ingestion/          # Collecte : SFTP Enedis → DuckDB  (optionnel, --extra ingestion)
-├── core/         # Calculs : DuckDB → résultats métier
-│   ├── loaders/  # Lecture des données (DuckDB, Odoo, Parquet)
-│   ├── pipelines/# Transformations métier
-│   ├── models/   # Schémas de validation (Pandera)
-│   └── writers/  # Écriture vers Odoo
-├── api/          # API REST FastAPI
-└── config/       # Fichiers CSV de règles tarifaires (TURPE, Accise)
+├── ingestion/        # Collecte : SFTP Enedis → DuckDB  (optionnel, --extra ingestion)
+├── core/             # Calculs : DuckDB → résultats métier (ERP-agnostique, ADR-0016)
+│   ├── loaders/      # Lecture des données (DuckDB, Parquet)
+│   ├── pipelines/    # Transformations métier (Polars)
+│   ├── builds/       # Livrables assemblés au boundary I/O (ADR-0019)
+│   ├── models/       # Schémas de validation (Pandera)
+│   └── writers/      # Écriture ERP-agnostique (vide pour l'instant)
+├── integrations/     # Adaptateurs ERP — odoo/ (reader, writer, rapprochements)
+├── api/              # API REST FastAPI (hub central, ADR-0009)
+├── bot/              # Bot Telegram, client de l'API (ADR-0010, ADR-0022)
+└── config/           # Fichiers CSV de règles tarifaires (TURPE, Accise, CTA)
 ```
 
-Le **core** est le cœur : les pipelines transforment des données lues depuis DuckDB en résultats de facturation, sans effet de bord.
+Le **core** est le cœur : les pipelines transforment des données lues depuis DuckDB en résultats de facturation, sans effet de bord et sans dépendre d'aucun ERP.
 
 ---
 
@@ -138,10 +141,10 @@ df.with_columns(
 ### Le pipeline de facturation
 
 ```
-C15 (historique contractuel)          R151 (relevés d'index)
+C15 (historique contractuel)          R151/R64 (relevés d'index)
         │                                      │
         ▼                                      │
-pipeline_perimetre()                           │
+pipeline_historique()                          │
   → détecte les ruptures de période           │
   → enrichit avec les événements              │
         │                                      │
@@ -161,37 +164,37 @@ pipeline_abonnements()           pipeline_energie()
                  → validation Pandera
                        │
                        ▼
-              ResultatFacturationPolars
-              (NamedTuple immutable)
+                ContexteMensuel
+            (dataclass frozen, 4 frames)
 ```
 
 ### Appel du pipeline complet
 
 ```python
-from electricore.core.pipelines.orchestration import facturation
-from electricore.core.loaders import c15, releves
+from electricore.core.builds.contexte_mensuel import contexte_du_mois
 
-# Charger les données sources (lazy — pas encore exécuté)
-historique_lf = c15().lazy()
-releves_lf = releves().lazy()
-
-# Lancer le pipeline complet
-result = facturation(historique_lf, releves_lf)
+# Entrée I/O : résout les loaders DuckDB et compose les pipelines
+ctx = contexte_du_mois("2026-05-01")   # None → dernier mois disponible
 
 # Accéder aux résultats
-df_mensuel = result.facturation          # DataFrame déjà collecté
-df_abos = result.abonnements.collect()   # LazyFrame → DataFrame
+df_mensuel = ctx.facturation_mensuelle    # DataFrame déjà collecté
+df_abos = ctx.abonnements.collect()       # LazyFrame → DataFrame
 ```
 
-`ResultatFacturationPolars` est un `NamedTuple` (≈ struct Rust avec champs nommés) :
+`ContexteMensuel` est une dataclass *frozen* (≈ struct Rust immutable) :
 
 ```python
-class ResultatFacturationPolars(NamedTuple):
+@dataclass(frozen=True)
+class ContexteMensuel:
+    mois: str
     historique_enrichi: pl.LazyFrame
-    abonnements: Optional[pl.LazyFrame] = None
-    energie: Optional[pl.LazyFrame] = None
-    facturation: Optional[pl.DataFrame] = None
+    abonnements: pl.LazyFrame
+    energie: pl.LazyFrame
+    facturation_mensuelle: pl.DataFrame
 ```
+
+Pour composer depuis des frames déjà chargés (tests, notebooks), utiliser
+`charger(historique_lf, releves_lf, mois=...)` du même module.
 
 ---
 
@@ -241,7 +244,8 @@ TURPE et Accise ne sont **pas codés en dur** : les taux sont dans des fichiers 
 ```
 electricore/config/
 ├── turpe_rules.csv   # Taux TURPE par FTA (formule tarifaire) + période de validité
-└── accise_rules.csv  # Taux Accise par période (modification législative)
+├── accise_rules.csv  # Taux Accise par période (modification législative)
+└── cta_rules.csv     # Taux CTA par période
 ```
 
 Les pipelines chargent ces règles via `load_turpe_rules()` / `load_accise_rules()` et font une jointure temporelle pour appliquer le bon taux selon la date de la période.
@@ -274,10 +278,10 @@ uv run --group test pytest tests/unit/test_turpe.py -v
 
 | Module | Tests |
 |--------|-------|
-| `perimetre`, `abonnements`, `energie`, `turpe` | ✅ Complets |
-| `facturation` | ⚠️ Expressions seulement |
-| `accise`, `orchestration` | ❌ À faire |
-| `api`, `ingestion` | ❌ Non couverts |
+| `historique`, `abonnements`, `energie`, `turpe` | ✅ Complets |
+| `facturation`, `accise`, `cta`, `taux`, builds | ✅ Couverts |
+| `api` (endpoints), `bot` (handlers), `ingestion` (golden dbt) | ✅ Couverts |
+| Architecture (pureté core, imports par rôle) | ✅ Tests exécutables |
 
 ### Notebooks d'exploration
 
@@ -295,8 +299,8 @@ Marimo est à Python ce qu'un Jupyter notebook est à R — mais avec une réact
 
 Pour comprendre le code dans l'ordre :
 
-1. [electricore/core/pipelines/perimetre.py](../electricore/core/pipelines/perimetre.py) — pipeline le plus simple, bien testé
+1. [electricore/core/pipelines/historique.py](../electricore/core/pipelines/historique.py) — pipeline le plus simple, bien testé
 2. [electricore/core/pipelines/turpe.py](../electricore/core/pipelines/turpe.py) — expressions composables, bonne illustration du pattern
-3. [electricore/core/pipelines/orchestration.py](../electricore/core/pipelines/orchestration.py) — comment tout s'assemble
+3. [electricore/core/builds/contexte_mensuel.py](../electricore/core/builds/contexte_mensuel.py) — comment tout s'assemble
 4. [tests/unit/test_turpe.py](../tests/unit/test_turpe.py) — tests = documentation exécutable
 5. [docs/conventions-dates-enedis.md](conventions-dates-enedis.md) — convention critique pour les dates

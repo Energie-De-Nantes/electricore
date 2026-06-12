@@ -12,5 +12,5 @@
 # Lancement quotidien à 02:00 — appelle l'API qui tracke le job dans /ingestion/jobs
 0 2 * * * curl --fail --silent --show-error --max-time 60 -X POST -H "X-API-Key:${API_KEY}" -H "Content-Type: application/json" -d '{"mode":"all"}' http://api:8001/ingestion/run
 
-# Sauvegarde quotidienne à 03:30 (après la fenêtre ETL typique)
+# Sauvegarde quotidienne à 03:30 (après la fenêtre d'ingestion typique)
 30 3 * * * /app/deploy/docker/backup_duckdb.sh

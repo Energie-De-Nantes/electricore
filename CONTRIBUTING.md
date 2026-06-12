@@ -11,8 +11,8 @@ Le projet utilise [uv](https://docs.astral.sh/uv/) pour la gestion des dépendan
 git clone https://github.com/Energie-De-Nantes/electricore.git
 cd electricore
 
-# Installer l'ensemble (core + ingestion + tests + typecheck)
-uv sync --extra ingestion --group test --group typecheck
+# Installer l'ensemble (core + ingestion dlt/dbt + tests + typecheck)
+uv sync --extra ingestion --extra dbt --group test --group typecheck
 
 # Installer les hooks pre-commit (ruff lint + format à chaque commit local)
 uvx pre-commit install
@@ -26,7 +26,7 @@ Python 3.12 ou 3.13 requis.
 ## Lancer les tests
 
 ```bash
-# Suite complète (~1s)
+# Suite complète (~30s)
 uv run --group test pytest
 
 # Exécution parallèle
@@ -36,7 +36,7 @@ uv run --group test pytest -n auto
 uv run --group test pytest --cov=electricore
 ```
 
-La suite compte ~216 tests qui passent en moins d'une seconde. 35 tests sont volontairement skippés (intégration Odoo nécessitant des secrets, génération de snapshots).
+La suite compte ~671 tests qui passent en une trentaine de secondes. 35 tests sont volontairement skippés (intégration Odoo nécessitant des secrets, génération de snapshots).
 
 Le hook **pre-push** exécute automatiquement la suite avant chaque `git push` (cf. installation ci-dessus). Pour le lancer manuellement sans pousser :
 
@@ -57,7 +57,7 @@ uvx ruff check --fix
 # Format
 uvx ruff format
 
-# Type-checking (scope étroit : loaders, writers, orchestration)
+# Type-checking (scope étroit : core/loaders, core/writers, core/builds)
 uv run --group typecheck mypy
 ```
 

@@ -1,11 +1,11 @@
 # Contexte — api (service REST)
 
-Vocabulaire spécifique au service REST qui expose `core` et l'orchestration de l'`etl`. Hub central de l'architecture — voir [ADR-0009](../../docs/adr/0009-architecture-api-centrique.md).
+Vocabulaire spécifique au service REST qui expose `core` et l'orchestration de l'`ingestion`. Hub central de l'architecture — voir [ADR-0009](../../docs/adr/0009-architecture-api-centrique.md).
 
 ## API
 
 **API** :
-Service REST FastAPI ([electricore/api/](.)) exposant les flux Enedis (`/flux/*`), les déclenchements d'ingestion (`/ingestion/*`), les calculs de taxes (`/taxes/*`), les exports de facturation (`/facturation/*`) et les vérifications pré-facturation (`/check/*`).
+Service REST FastAPI ([electricore/api/](.)) exposant les flux Enedis (`/flux/*`), les déclenchements d'ingestion (`/ingestion/*`), les calculs de taxes (`/taxes/*`), les exports de facturation et vérifications pré-facturation (`/facturation/*`, dont `/facturation/check/odoo.xlsx`).
 
 **Endpoint sécurisé** :
 Endpoint nécessitant la clé `X-API-Key` (header) ou `?api_key=` (query). Tous les endpoints sont sécurisés sauf `/`, `/health`, `/docs`, `/redoc`.

@@ -564,7 +564,7 @@ result = ajouter_turpe_fixe(periodes_df.lazy()).collect()
 
 ## Ressources complémentaires
 
-- **Code source** : [electricore/core/pipelines/turpe.py](../electricore/core/pipelines/turpe.py:366)
+- **Code source** : [electricore/core/pipelines/turpe.py](../electricore/core/pipelines/turpe.py)
 - **Tests exhaustifs** : [tests/unit/test_turpe.py](../tests/unit/test_turpe.py)
 - **Documentation C4** : [turpe-fixe-c4-btsup36kva.md](./turpe-fixe-c4-btsup36kva.md)
 - **Tarifs CRE officiels** : [electricore/config/turpe_rules.csv](../electricore/config/turpe_rules.csv)

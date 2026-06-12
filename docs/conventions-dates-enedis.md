@@ -55,6 +55,6 @@ date_ajustee = true         -- Traçabilité
 
 ## Implémentation
 
-Voir `electricore/core/loaders/duckdb_loader.py` :
-- Fonction `BASE_QUERY_R151` : Ajustement `+ INTERVAL '1 day'`
-- Fonction `BASE_QUERY_RELEVES_HARMONISES` : Documentation et traçabilité
+Voir [electricore/core/loaders/duckdb/sql.py](../electricore/core/loaders/duckdb/sql.py) :
+- Spécification de la table R151 : ajustement `+ INTERVAL '1 day'` sur `date_releve`
+- Requêtes unifiées `releves()` / `releves_harmonises()` : traçabilité via `flux_origine` et `date_ajustee`

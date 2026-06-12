@@ -8,7 +8,7 @@ Plusieurs incidents légers dans `electricore/` ont rendu cette tension visible 
 
 - [`HistoriqueTaux`](../../electricore/core/models/historique_taux.py) — une *classe* qui n'expose qu'un `@staticmethod`, sans `__init__`, sans état. Pure namespace déguisée.
 - [`OdooQuery`](../../electricore/integrations/odoo/query.py) et [`DuckDBQuery`](../../electricore/core/loaders/duckdb/query.py) — deux query builders qui ont convergé indépendamment vers la même forme (`@dataclass(frozen=True)` + méthodes retournant une nouvelle instance), sans qu'aucune ADR n'inscrive la convention.
-- [`RapportFacturation`](../../electricore/integrations/odoo/facturation.py) — `NamedTuple` alors que tous les autres value objects de la codebase sont `@dataclass(frozen=True)`. Aucun caller n'exploite la sémantique tuple (positionnel, déballage) — la dérive est silencieuse.
+- `RapportFacturation` (alors dans `integrations/odoo/facturation.py`) — `NamedTuple` alors que tous les autres value objects de la codebase sont `@dataclass(frozen=True)`. Aucun caller n'exploite la sémantique tuple (positionnel, déballage) — la dérive est silencieuse. *(Depuis aligné : `@dataclass(frozen=True, slots=True)` en [`core/builds/rapport_facturation.py`](../../electricore/core/builds/rapport_facturation.py).)*
 - [`DuckDBConfig`](../../electricore/core/loaders/duckdb/config.py) et [`APIKeyInfo`](../../electricore/api/security.py) — `__init__` manuel pour ce qui pourrait être un `@dataclass(frozen=True)`.
 
 À chaque revue d'architecture, la question « pourquoi cette classe ? » se pose à nouveau. Sans convention écrite, la réponse drift au fil des PRs.
@@ -25,7 +25,7 @@ Trois cas seulement s'écartent de la forme par défaut, et chacun pour une rais
 
 2. **Cache mutable avec invariants custom** — l'état EST le point, et les invariants (clé composite, expiration, `get/set/clear`) sont trop riches pour des champs nus. Forme : **classe régulière** avec `__init__` + méthodes d'accès. Exemple : [`FieldsCache`](../../electricore/integrations/odoo/config.py).
 
-3. **État évoluant dans le temps (job, statut)** — l'instance vit, ses champs changent au fil du cycle de vie. Forme : `@dataclass(slots=True)` **non-frozen**. Exemple : [`ETLJob`](../../electricore/api/services/etl_service.py).
+3. **État évoluant dans le temps (job, statut)** — l'instance vit, ses champs changent au fil du cycle de vie. Forme : `@dataclass(slots=True)` **non-frozen**. Exemple : [`JobIngestion`](../../electricore/api/services/ingestion_service.py) (ex-`ETLJob`).
 
 **Jamais** : la classe-namespace (`class Foo: @staticmethod def bar(...)`). Si `bar()` n'a besoin d'aucun état, c'est une **fonction de premier niveau** dans le module — pas une méthode statique d'une classe vide.
 
@@ -95,7 +95,7 @@ Les cas suivants ne sont pas conformes à la convention et seront corrigés (PR 
 - [`HistoriqueTaux`](../../electricore/core/models/historique_taux.py) → fonction de module `historique_taux_schema(taux_col)`. Aucun caller n'utilise la classe ; le `@staticmethod` est purement décoratif.
 - [`DuckDBConfig`](../../electricore/core/loaders/duckdb/config.py) → `@dataclass(frozen=True, slots=True)` ; `table_mappings` devient une constante `_TABLE_MAPPINGS` du module.
 - [`APIKeyInfo`](../../electricore/api/security.py) → `@dataclass(frozen=True, slots=True)`.
-- [`RapportFacturation`](../../electricore/integrations/odoo/facturation.py) → `@dataclass(frozen=True, slots=True)` (migration depuis `NamedTuple`).
+- [`RapportFacturation`](../../electricore/core/builds/rapport_facturation.py) → `@dataclass(frozen=True, slots=True)` (migration depuis `NamedTuple` ; vivait alors dans `integrations/odoo/facturation.py`).
 - Tous les `@dataclass(frozen=True)` existants → ajout de `slots=True` : `OdooConfig`, `ContexteMensuel`, `QueryConfig`, `Column`, `FluxSchema`, `OdooQuery`, `DuckDBQuery`.
 - `ETLJob` (`@dataclass` non-frozen) → ajout de `slots=True`.
 
