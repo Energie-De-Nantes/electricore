@@ -152,8 +152,8 @@
     },
     {
       "type": "text", "id": "salle_mouvement_st", "x": 60, "y": 196, "width": 560, "height": 20,
-      "text": "etl/sources/sftp_enedis_brut.py — incrémental (modification_date)\naucune connaissance du contenu, ne casse jamais",
-      "originalText": "etl/sources/sftp_enedis_brut.py — incrémental (modification_date)\naucune connaissance du contenu, ne casse jamais",
+      "text": "ingestion/sources/sftp_enedis_brut.py — incrémental (modification_date)\naucune connaissance du contenu, ne casse jamais",
+      "originalText": "ingestion/sources/sftp_enedis_brut.py — incrémental (modification_date)\naucune connaissance du contenu, ne casse jamais",
       "fontSize": 13, "fontFamily": 3, "textAlign": "left", "verticalAlign": "top",
       "strokeColor": "#64748b", "backgroundColor": "transparent", "fillStyle": "solid",
       "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
@@ -432,8 +432,8 @@
     },
     {
       "type": "text", "id": "salle_dbt_st", "x": 1240, "y": 196, "width": 600, "height": 20,
-      "text": "SQL pur — electricore/etl/dbt/models/ — re-matérialisable à volonté",
-      "originalText": "SQL pur — electricore/etl/dbt/models/ — re-matérialisable à volonté",
+      "text": "SQL pur — electricore/ingestion/dbt/models/ — re-matérialisable à volonté",
+      "originalText": "SQL pur — electricore/ingestion/dbt/models/ — re-matérialisable à volonté",
       "fontSize": 13, "fontFamily": 3, "textAlign": "left", "verticalAlign": "top",
       "strokeColor": "#64748b", "backgroundColor": "transparent", "fillStyle": "solid",
       "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
@@ -577,8 +577,8 @@
     },
     {
       "type": "text", "id": "replay_label", "x": 880, "y": 796, "width": 460, "height": 42,
-      "text": "↻ ingestion.py rebuild — re-matérialise TOUT\ndepuis le brut · ~13 s · zéro réseau",
-      "originalText": "↻ ingestion.py rebuild — re-matérialise TOUT\ndepuis le brut · ~13 s · zéro réseau",
+      "text": "↻ rebuild — re-matérialise TOUT\ndepuis le brut · ~13 s · zéro réseau",
+      "originalText": "↻ rebuild — re-matérialise TOUT\ndepuis le brut · ~13 s · zéro réseau",
       "fontSize": 16, "fontFamily": 3, "textAlign": "left", "verticalAlign": "top",
       "strokeColor": "#047857", "backgroundColor": "transparent", "fillStyle": "solid",
       "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
@@ -721,8 +721,8 @@
 
     {
       "type": "text", "id": "orch_titre", "x": 40, "y": 1050, "width": 520, "height": 26,
-      "text": "3 · ORCHESTRATION — ingestion.py",
-      "originalText": "3 · ORCHESTRATION — ingestion.py",
+      "text": "3 · ORCHESTRATION — python -m electricore.ingestion",
+      "originalText": "3 · ORCHESTRATION — python -m electricore.ingestion",
       "fontSize": 20, "fontFamily": 3, "textAlign": "left", "verticalAlign": "top",
       "strokeColor": "#1e40af", "backgroundColor": "transparent", "fillStyle": "solid",
       "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
@@ -732,8 +732,8 @@
     },
     {
       "type": "text", "id": "orch_st", "x": 40, "y": 1082, "width": 660, "height": 20,
-      "text": "un seul runner pour les deux étages — lancé par l'API /etl/run, le cron du VPS, ou à la main",
-      "originalText": "un seul runner pour les deux étages — lancé par l'API /etl/run, le cron du VPS, ou à la main",
+      "text": "un seul runner pour les deux étages — lancé par l'API /ingestion/run, le cron du VPS, ou à la main",
+      "originalText": "un seul runner pour les deux étages — lancé par l'API /ingestion/run, le cron du VPS, ou à la main",
       "fontSize": 13, "fontFamily": 3, "textAlign": "left", "verticalAlign": "top",
       "strokeColor": "#64748b", "backgroundColor": "transparent", "fillStyle": "solid",
       "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,
@@ -750,8 +750,8 @@
     },
     {
       "type": "text", "id": "orch_term_t", "x": 55, "y": 1132, "width": 610, "height": 90,
-      "text": "$ ingestion.py test       # smoke — 2 fichiers par flux\n$ ingestion.py all        # landing + dbt build\n$ ingestion.py r151 c15   # sélection de flux\n$ ingestion.py rebuild    # dbt seul — zéro réseau, ~13 s\n$ ingestion.py resync     # re-télécharge tout (brut perdu)",
-      "originalText": "$ ingestion.py test       # smoke — 2 fichiers par flux\n$ ingestion.py all        # landing + dbt build\n$ ingestion.py r151 c15   # sélection de flux\n$ ingestion.py rebuild    # dbt seul — zéro réseau, ~13 s\n$ ingestion.py resync     # re-télécharge tout (brut perdu)",
+      "text": "$ python -m electricore.ingestion test      # smoke — 2 fichiers/flux\n$ python -m electricore.ingestion all       # landing + dbt build\n$ python -m electricore.ingestion r151 c15  # sélection de flux\n$ python -m electricore.ingestion rebuild   # dbt seul — zéro réseau\n$ python -m electricore.ingestion resync    # re-télécharge tout",
+      "originalText": "$ python -m electricore.ingestion test      # smoke — 2 fichiers/flux\n$ python -m electricore.ingestion all       # landing + dbt build\n$ python -m electricore.ingestion r151 c15  # sélection de flux\n$ python -m electricore.ingestion rebuild   # dbt seul — zéro réseau\n$ python -m electricore.ingestion resync    # re-télécharge tout",
       "fontSize": 12, "fontFamily": 3, "textAlign": "left", "verticalAlign": "top",
       "strokeColor": "#e2e8f0", "backgroundColor": "transparent", "fillStyle": "solid",
       "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,

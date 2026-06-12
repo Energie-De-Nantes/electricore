@@ -18,7 +18,7 @@ from electricore.config import chemin_base_duckdb
 
 logger = logging.getLogger(__name__)
 
-# Politique de retry lorsque le writer ETL détient le verrou exclusif.
+# Politique de retry lorsque le writer d'ingestion détient le verrou exclusif.
 # 3 essais × 1s couvrent les fenêtres typiques de checkpoint DLT.
 _LOCK_RETRY_ATTEMPTS = 3
 _LOCK_RETRY_BACKOFF_S = 1.0
@@ -53,6 +53,16 @@ class DuckDBConfig:
         return cls(Path(path))
 
 
+class DuckDBLockError(duckdb.IOException):
+    """Verrou exclusif persistant après épuisement des retries.
+
+    Signale aux couches hautes (API) qu'un writer — typiquement l'ingestion
+    ingestion — détient la base : situation banale et auto-résolutive, à présenter
+    comme telle plutôt qu'en erreur générique (issue #171). Sous-classe
+    `duckdb.IOException` pour ne pas casser les `except` existants.
+    """
+
+
 def _is_lock_error(exc: duckdb.IOException) -> bool:
     """Discrimine un verrou (récupérable) d'une erreur non récupérable.
 
@@ -68,7 +78,7 @@ def _is_lock_error(exc: duckdb.IOException) -> bool:
 def duckdb_readonly_conn(database_path: str | Path) -> Iterator[duckdb.DuckDBPyConnection]:
     """Ouvre une connexion DuckDB read-only avec retry sur lock exclusif.
 
-    Le writer ETL peut prendre un lock pendant un checkpoint DLT ou un
+    Le writer d'ingestion peut prendre un lock pendant un checkpoint DLT ou un
     `EXPORT DATABASE` ; on retente brièvement pour absorber ces pics sans
     casser les lectures API/notebooks. Pas de retry sur fichier introuvable.
     """
@@ -76,8 +86,10 @@ def duckdb_readonly_conn(database_path: str | Path) -> Iterator[duckdb.DuckDBPyC
         try:
             conn = duckdb.connect(str(database_path), read_only=True)
         except duckdb.IOException as exc:
-            if not _is_lock_error(exc) or attempt == _LOCK_RETRY_ATTEMPTS - 1:
+            if not _is_lock_error(exc):
                 raise
+            if attempt == _LOCK_RETRY_ATTEMPTS - 1:
+                raise DuckDBLockError(str(exc)) from exc
             logger.warning(
                 "DuckDB verrouillé (tentative %d/%d), nouvelle tentative dans %.1fs",
                 attempt + 1,

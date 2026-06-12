@@ -27,7 +27,7 @@ def test_build_application_enregistre_toute_la_surface():
 
 
 def test_status_v1_est_supprime_de_la_surface():
-    """/status est absorbé par /etl statut (#152) — plus de handler ni d'entrée menu."""
+    """/status est absorbé par /ingestion statut (#152) — plus de handler ni d'entrée menu."""
     tg_app = build_application("123:abc")
 
     enregistrees: set[str] = set()
@@ -59,16 +59,14 @@ def test_les_callbacks_des_domaines_sont_routes():
 
     tg_app = build_application("123:abc")
     patterns = [
-        h.pattern.pattern
-        for handlers in tg_app.handlers.values()
-        for h in handlers
-        if isinstance(h, CallbackQueryHandler)
+        h.pattern for handlers in tg_app.handlers.values() for h in handlers if isinstance(h, CallbackQueryHandler)
     ]
-    assert any(p.startswith("^etl:") for p in patterns)
-    assert any(p.startswith("^flux:") for p in patterns)
-    assert any(p.startswith("^perimetre:") for p in patterns)
-    assert any(p.startswith("^taxes:") for p in patterns)
-    assert any(p.startswith("^facturation:") for p in patterns)
+    assert any(p.match("ingestion:menu") for p in patterns)
+    assert any(p.match("etl:menu") for p in patterns), "compat claviers postés avant le renommage"
+    assert any(p.match("flux:menu") for p in patterns)
+    assert any(p.match("perimetre:menu") for p in patterns)
+    assert any(p.match("taxes:menu") for p in patterns)
+    assert any(p.match("facturation:menu") for p in patterns)
 
 
 def test_le_demarrage_est_branche_en_post_init():

@@ -122,7 +122,7 @@ Unité de déclaration des taxes (Accise, CTA), notée `YYYY-TN` (ex : `2025-T1`
 
 ## Événements contractuels (codes C15)
 
-Les *entrées* (le PDL devient actif chez nous) sont `PMES`, `MES`, `CFNE`. Les *sorties* (le PDL nous quitte) sont `RES`, `CFNS`. Les modifications en cours de vie utilisent `MCT`. Les flux C15 qui transportent ces événements sont décrits dans `electricore/etl/CONTEXT.md`.
+Les *entrées* (le PDL devient actif chez nous) sont `PMES`, `MES`, `CFNE`. Les *sorties* (le PDL nous quitte) sont `RES`, `CFNS`. Les modifications en cours de vie utilisent `MCT`. Les flux C15 qui transportent ces événements sont décrits dans `electricore/ingestion/CONTEXT.md`.
 
 **PMES** (Première Mise En Service) :
 Variante de MES correspondant à une première activation du PDL. Distinction exacte avec MES à préciser (probablement liée à l'absence d'historique contractuel antérieur).

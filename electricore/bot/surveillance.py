@@ -1,7 +1,7 @@
-"""Surveillance proactive des jobs ETL (#157, ADR-0022).
+"""Surveillance proactive des jobs d'ingestion (#157, ADR-0022).
 
 Le bot reste pur client HTTP : c'est lui qui interroge périodiquement
-`/etl/jobs` et pousse une alerte dans le chat de notification
+`/ingestion/jobs` et pousse une alerte dans le chat de notification
 (`TELEGRAM_NOTIFY_CHAT_ID`) quand un job passe à `failed` — y compris les
 jobs lancés par le scheduler, pas seulement ceux lancés depuis Telegram.
 
@@ -42,13 +42,13 @@ async def verifier_jobs(bot, client: ElectriCoreClient, vus: set[str], chat_id: 
         vus.add(job["id"])
         if job["status"] != "failed":
             continue
-        texte = f"🚨 Job ETL <code>{escape(job['mode'])}</code> en échec — <code>{job['id'][:8]}</code>"
+        texte = f"🚨 Job d'ingestion <code>{escape(job['mode'])}</code> en échec — <code>{job['id'][:8]}</code>"
         if job.get("error"):
             texte += f"\n\n<code>{escape(job['error'][:500])}</code>"
         try:
             await bot.send_message(chat_id=chat_id, text=texte, parse_mode="HTML")
         except Exception:
-            logger.exception("Échec d'envoi de l'alerte ETL")
+            logger.exception("Échec d'envoi de l'alerte ingestion")
             vus.discard(job["id"])  # retentera à la prochaine itération
 
 
@@ -56,7 +56,7 @@ async def boucle_surveillance(bot, chat_id: str) -> None:
     """Boucle infinie de surveillance (annulée au shutdown via tasks)."""
     client = ElectriCoreClient()
     vus = await initialiser_vus(client)
-    logger.info("Surveillance ETL active (chat %s)", chat_id)
+    logger.info("Surveillance ingestion active (chat %s)", chat_id)
     while True:
         await asyncio.sleep(SURVEILLANCE_INTERVAL)
         await verifier_jobs(bot, client, vus, chat_id)

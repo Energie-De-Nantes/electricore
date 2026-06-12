@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from electricore.api.decorators import arrow_endpoint, xlsx_endpoint
 from electricore.api.security import get_current_api_key
 from electricore.api.services import duckdb_service
+from electricore.core.loaders.duckdb import DuckDBLockError
 
 router = APIRouter(tags=["flux"])
 
@@ -112,6 +113,10 @@ async def get_table_info(table_name: str, api_key: str = Depends(get_current_api
     """
     try:
         return duckdb_service.get_table_info(table_name)
+    except DuckDBLockError:
+        # Base verrouillée par l'ingestion ≠ table inconnue — laisser le
+        # handler d'app répondre 503 « ingestion en cours » (#171).
+        raise
     except Exception:
         available_tables = duckdb_service.list_tables()
         raise HTTPException(404, f"Table '{table_name}' non trouvée. Tables disponibles: {available_tables}")

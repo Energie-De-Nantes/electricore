@@ -14,7 +14,7 @@ keywords = [
     "enedis",
     "polars",
     "duckdb",
-    "etl",
+    "ingestion",
     "turpe",
     "linky",
     "grid",
@@ -47,7 +47,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-etl = [
+ingestion = [
     "dlt[filesystem]>=1.16.0,<2.0.0",
     "pycryptodome>=3.23.0,<4.0.0",
     "paramiko>=4.0.0,<5.0.0",
@@ -180,11 +180,11 @@ no_implicit_optional = true         # forbid `x: str = None`
 # - warn_return_any (Polars chains)
 
 [tool.ruff.lint.per-file-ignores]
-"electricore/etl/pipeline_production.py" = ["E402"]  # sys.path setup before imports
-"electricore/etl/ingestion.py" = ["E402"]  # chargement .env avant imports (secrets DLT)
-"electricore/etl/sources/sftp_enedis.py" = ["E402"]  # imports after section banner
-"electricore/etl/transformers/archive.py" = ["E402"]  # cross-module import after constants block
-"electricore/etl/tools/debug_single_flux.py" = ["E722"]  # debug-only script, bare except OK
-"electricore/etl/tools/check_incremental_state.py" = ["E722"]  # debug-only script, bare except OK
+"electricore/ingestion/pipeline_production.py" = ["E402"]  # sys.path setup before imports
+"electricore/ingestion/runner.py" = ["E402"]  # chargement .env avant imports (secrets DLT)
+"electricore/ingestion/sources/sftp_enedis.py" = ["E402"]  # imports after section banner
+"electricore/ingestion/transformers/archive.py" = ["E402"]  # cross-module import after constants block
+"electricore/ingestion/tools/debug_single_flux.py" = ["E722"]  # debug-only script, bare except OK
+"electricore/ingestion/tools/check_incremental_state.py" = ["E722"]  # debug-only script, bare except OK
 "tests/integration/test_odoo_writer.py" = ["B017"]  # XML-RPC raises raw Exception, no specific type
 

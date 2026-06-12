@@ -172,8 +172,8 @@ def anonymiser_r64(json_bytes: bytes) -> tuple[bytes, dict[str, int], list[tuple
 
 def anonymiser_r64_zip(source: Path, destination: Path) -> None:
     """Chaîne complète sur un R64 chiffré : AES → unzip → anonymisation → audit."""
-    from electricore.etl.transformers.archive import extract_files_from_zip
-    from electricore.etl.transformers.crypto import decrypt_with_key_chain, load_aes_key_chain
+    from electricore.ingestion.transformers.archive import extract_files_from_zip
+    from electricore.ingestion.transformers.crypto import decrypt_with_key_chain, load_aes_key_chain
 
     chain = load_aes_key_chain()
     dechiffre, cle = decrypt_with_key_chain(source.read_bytes(), chain)

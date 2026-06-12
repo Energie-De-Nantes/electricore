@@ -20,7 +20,7 @@ Ce dépôt est multi-contextes :
 │   └── adr/                          ← décisions au niveau système
 └── electricore/
     ├── core/CONTEXT.md               ← vocabulaire métier (canonique)
-    ├── etl/CONTEXT.md                ← vocabulaire ingestion
+    ├── ingestion/CONTEXT.md                ← vocabulaire ingestion
     ├── api/CONTEXT.md                ← vocabulaire service REST
     └── bot/CONTEXT.md                ← vocabulaire bot Telegram
 ```

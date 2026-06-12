@@ -13,6 +13,9 @@ Allow-list (types qui apportent leur propre machinerie de déclaration) :
 - `StrEnum`, `Enum`, `IntEnum` (stdlib)
 - `NamedTuple` (cas marginal autorisé explicitement)
 - `dict`, `list`, `tuple`, `set` (sous-classes utilitaires)
+- Sous-classes d'exceptions — base dont le nom finit par `Error`, `Exception`
+  ou `Warning` (convention PEP 8) : la machinerie d'état vient de
+  `BaseException`, le corps vide est l'idiome (ex : `DuckDBLockError`).
 
 Toute nouvelle lib apportant son propre type de base doit être ajoutée ici.
 """
@@ -57,13 +60,23 @@ def _has_dataclass_decorator(class_node: ast.ClassDef) -> bool:
     return False
 
 
+_EXCEPTION_SUFFIXES = ("Error", "Exception", "Warning")
+
+
 def _base_in_allowlist(base: ast.expr) -> bool:
-    if isinstance(base, ast.Name) and base.id in _ALLOW_LIST_SIMPLE:
-        return True
+    if isinstance(base, ast.Name):
+        if base.id in _ALLOW_LIST_SIMPLE:
+            return True
+        # Sous-classe d'exception : convention PEP 8 sur le nom de la base.
+        if base.id.endswith(_EXCEPTION_SUFFIXES):
+            return True
     if isinstance(base, ast.Attribute):
         if isinstance(base.value, ast.Name):
             if (base.value.id, base.attr) in _ALLOW_LIST_ATTRIBUTE:
                 return True
+        # Idem pour les bases qualifiées (ex : duckdb.IOException).
+        if base.attr.endswith(_EXCEPTION_SUFFIXES):
+            return True
     return False
 
 

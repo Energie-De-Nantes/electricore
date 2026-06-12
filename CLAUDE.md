@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Stack**: Polars + DuckDB for high-performance data processing. Pure Polars (no pandas dependency).
 
 **Three main modules**:
-- **ETL**: Automated extraction/transformation pipeline (DLT) - SFTP → DuckDB
+- **Ingestion**: Automated ELT pipeline (dlt + dbt) - SFTP → DuckDB
 - **Core**: Energy calculation pipelines (Polars LazyFrames)
 - **API**: Secure REST API (FastAPI) with authentication
 
@@ -18,9 +18,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 # Install (uv)
 uv sync                          # core + API + bot (runtime production)
-uv sync --extra etl              # + SFTP ETL pipeline
+uv sync --extra ingestion              # + SFTP ingestion pipeline
 uv sync --extra viz              # + libs notebooks (marimo, altair, plotly…)
-uv sync --extra etl --extra viz  # tout (dev local complet)
+uv sync --extra ingestion --extra viz  # tout (dev local complet)
 
 # Run tests
 uv run --group test pytest -q
@@ -31,8 +31,8 @@ uv run --group test pytest --cov=electricore tests/
 # Build/package
 uv build
 
-# Run ETL pipeline (requires [etl] extra)
-uv run python electricore/etl/ingestion.py all
+# Run ingestion pipeline (requires [ingestion] extra)
+uv run python -m electricore.ingestion all
 
 # Start API server
 uv run uvicorn electricore.api.main:app --reload
@@ -44,12 +44,13 @@ uv run uvicorn electricore.api.main:app --reload
 
 ```
 electricore/
-├── etl/                       # 📥 ETL - Data Extraction & Transformation
+├── ingestion/                 # 📥 INGESTION - Flux Enedis → DuckDB (ELT dlt + dbt)
 │   ├── sources/               # DLT sources (SFTP Enedis)
 │   ├── transformers/          # Modular transformers (crypto, archive, parsers)
 │   ├── config/                # Flux configuration
 │   ├── dbt/                   # Modèles dbt (staging + flux_*, linéarisation SQL)
-│   └── ingestion.py        # Production pipeline (landing brut → dbt build)
+│   ├── runner.py          # Ingestion (landing brut → dbt build)
+│   └── __main__.py        # CLI : python -m electricore.ingestion
 │
 ├── core/                      # 🧮 CORE - Energy Calculations (ERP-agnostique, ADR-0016)
 │   ├── pipelines/             # Polars pipelines
@@ -71,15 +72,15 @@ electricore/
 │       └── models/            # Pandera schemas Odoo (FactureOdoo, CommandeVenteOdoo…)
 │
 ├── api/                       # 🌐 API - REST Access Layer (hub central, voir ADR-0009)
-│   ├── services/              # Query services (DuckDB, ETL jobs, facturation, taxes)
+│   ├── services/              # Query services (DuckDB, jobs d'ingestion, facturation, taxes)
 │   ├── security.py            # API key authentication
 │   └── main.py                # FastAPI application
 │
 ├── bot/                       # 🤖 Bot Telegram - UI opérationnelle (voir ADR-0010, ADR-0022)
 │   ├── app.py                 # Assemblage : application, menu natif, surveillance
-│   ├── handlers/              # Un module par domaine (/etl, /flux, /perimetre, /taxes, /facturation)
+│   ├── handlers/              # Un module par domaine (/ingestion, /flux, /perimetre, /taxes, /facturation)
 │   ├── auth.py                # @require_allowed (allowlist), @require_odoo (no-ERP)
-│   ├── surveillance.py        # Alertes proactives (échec de job ETL)
+│   ├── surveillance.py        # Alertes proactives (échec de job d'ingestion)
 │   └── client.py              # Client HTTP async vers l'API
 │
 └── config/                    # ⚙️ Tariff rules (TURPE, Accise CSV files)
@@ -101,7 +102,7 @@ Production deployment: VPS + Docker Compose stack ([deploy/docker/](deploy/docke
 ### Data Flow
 
 ```
-SFTP Enedis → ETL (DLT) → DuckDB → Query Builders → Core Pipelines → Results
+SFTP Enedis → Ingestion (dlt + dbt) → DuckDB → Query Builders → Core Pipelines → Results
                                   ↓
                                  API (FastAPI) → Clients
                                   ↓
@@ -119,7 +120,7 @@ SFTP Enedis → ETL (DLT) → DuckDB → Query Builders → Core Pipelines → R
 - **DuckDBQuery**: `c15()`, `r151()`, `r15()`, `f15()`, `r64()`, `releves()`, `releves_harmonises()`
 - **OdooQuery**: `.query()`, `.follow()`, `.enrich()` with auto-detection
 
-### ETL Modularity
+### Ingestion Modularity
 - **Transformer pipeline**: `encrypted | decrypt | unzip | parse`
 - Each transformer is isolated, testable, and reusable
 
@@ -134,7 +135,7 @@ SFTP Enedis → ETL (DLT) → DuckDB → Query Builders → Core Pipelines → R
 - **Timezone**: All dates use `Europe/Paris` timezone
 - **Date convention**: R151 flux uses +1 day adjustment to harmonize with R64/R15/C15 (see [docs/conventions-dates-enedis.md](docs/conventions-dates-enedis.md))
 - **Column naming**: Follows `grandeur_cadran_unité` format
-- **Domain glossary**: see [CONTEXT-MAP.md](CONTEXT-MAP.md) — multi-context layout, business vocabulary in [`electricore/core/CONTEXT.md`](electricore/core/CONTEXT.md) (PDL, FTA, TURPE, cadrans, événements C15, périmètre, abonnement, Odoo); module-specific terms in `etl/api/bot/CONTEXT.md`.
+- **Domain glossary**: see [CONTEXT-MAP.md](CONTEXT-MAP.md) — multi-context layout, business vocabulary in [`electricore/core/CONTEXT.md`](electricore/core/CONTEXT.md) (PDL, FTA, TURPE, cadrans, événements C15, périmètre, abonnement, Odoo); module-specific terms in `ingestion/api/bot/CONTEXT.md`.
 - **Architecture decisions**: see [docs/adr/](docs/adr/) — load-bearing past decisions (monorepo, Polars-only, R151 date adjustment, French language, DuckDB, DLT, query builders, AES rotation, API-centric architecture, Telegram bot, VPS Docker deployment, linéarisation dbt + bascule production)
 
 #### Column Naming Conventions
@@ -197,20 +198,20 @@ from electricore.core.pipelines.orchestration import facturation, calculer_histo
 
 ## Key Modules & Quick Examples
 
-### 1. ETL Pipeline
+### 1. Ingestion Pipeline
 
 ```bash
 # Test mode (2 files, ~3s)
-uv run python electricore/etl/ingestion.py test
+uv run python -m electricore.ingestion test
 
 # Single flux (R151 complete, ~6s)
-uv run python electricore/etl/ingestion.py r151
+uv run python -m electricore.ingestion r151
 
 # Full production (all flux)
-uv run python electricore/etl/ingestion.py all
+uv run python -m electricore.ingestion all
 ```
 
-Result: DuckDB database at `electricore/etl/flux_enedis_pipeline.duckdb`
+Result: DuckDB database at `electricore/ingestion/flux_enedis_pipeline.duckdb`
 
 #### Rotation des clés AES Enedis
 
@@ -321,13 +322,13 @@ uv run --group test pytest --cov=electricore tests/
 - ✅ Périmètre, abonnements, énergie, TURPE — tests unitaires complets
 - ✅ Facturation — expressions testées
 - ⚠️ Accise, orchestration — non couverts (à faire)
-- ⚠️ API, ETL — non couverts
+- ⚠️ API, ingestion — non couverts
 
 ## Documentation
 
 - **Transmission**: [docs/transmission.md](docs/transmission.md) - Guide pour nouvel arrivant (Rust/Java → Python)
 - **Main README**: [README.md](README.md) - Complete project overview
-- **ETL Module**: [electricore/etl/README.md](electricore/etl/README.md)
+- **Ingestion Module**: [electricore/ingestion/README.md](electricore/ingestion/README.md)
 - **Configuration (inventaire complet)**: [docs/configuration.md](docs/configuration.md) - Env vars, fichiers versionnés, deploy, outillage
 - **Ingestion (architecture ELT dlt+dbt)**: [docs/ingestion.md](docs/ingestion.md) - Schéma + recettes (ajouter un champ, nouvelle version XSD Enedis, nouveau flux, pièges DuckDB)
 - **API Module**: [electricore/api/README.md](electricore/api/README.md)
@@ -348,4 +349,4 @@ Canonical label names (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-f
 
 ### Domain docs
 
-Multi-context layout: [CONTEXT-MAP.md](CONTEXT-MAP.md) at root pointing to per-module `CONTEXT.md` (core/etl/api/bot); ADRs are repo-wide in [docs/adr/](docs/adr/). See [docs/agents/domain.md](docs/agents/domain.md).
+Multi-context layout: [CONTEXT-MAP.md](CONTEXT-MAP.md) at root pointing to per-module `CONTEXT.md` (core/ingestion/api/bot); ADRs are repo-wide in [docs/adr/](docs/adr/). See [docs/agents/domain.md](docs/agents/domain.md).

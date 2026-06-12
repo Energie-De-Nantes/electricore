@@ -16,7 +16,7 @@ Un outil de calcul énergétique **performant** et **maintenable** pour :
 
 ```
 electricore/
-├── etl/              # 📥 ETL - Extraction & Transformation (DLT) depuis l'SFTP Enedis
+├── ingestion/        # 📥 INGESTION - Flux Enedis → DuckDB (ELT dlt + dbt)
 │
 ├── core/             # 🧮 CORE - Calculs énergétiques ERP-agnostiques (Polars)
 │   ├── models/       # Modèles Pandera (validation des données)
@@ -37,10 +37,10 @@ electricore/
 
 ```mermaid
 graph TB
-    SFTP_Enedis[/SFTP Enedis\] --> ETL_Enedis[ETL<br/>#40;data load tool#41;]
-    SFTP_Axpo[/SFTP Axpo<br/>Courbes\] -.-> ETL_Axpo[ETL<br/>#40;data load tool#41;]
-    ETL_Enedis --> DuckDB[(DuckDB)]
-    ETL_Axpo -.-> DuckDB
+    SFTP_Enedis[/SFTP Enedis\] --> Ingestion_Enedis[Ingestion<br/>#40;dlt + dbt#41;]
+    SFTP_Axpo[/SFTP Axpo<br/>Courbes\] -.-> Ingestion_Axpo[Ingestion<br/>#40;dlt + dbt#41;]
+    Ingestion_Enedis --> DuckDB[(DuckDB)]
+    Ingestion_Axpo -.-> DuckDB
     Odoo[(Odoo ERP)] --> OdooReader[OdooReader]
     OdooWriter[OdooWriter] --> Odoo
 
@@ -57,14 +57,14 @@ graph TB
     style DuckDB fill:#1976D2,stroke:#0D47A1,color:#fff
     style Odoo fill:#FF9800,stroke:#E65100,color:#fff
     style Core fill:#9C27B0,stroke:#4A148C,color:#fff
-    style ETL_Axpo stroke-dasharray: 5 5
+    style Ingestion_Axpo stroke-dasharray: 5 5
 ```
 
 ---
 
-## 📥 Module ETL - Extraction & Transformation
+## 📥 Module ingestion — Flux Enedis → DuckDB
 
-Pipeline ETL modulaire basé sur **DLT** (Data Load Tool) pour extraire et transformer les flux Enedis.
+Ingestion modulaire basée sur **dlt** (landing brut) et **dbt** (linéarisation SQL) pour les flux Enedis.
 
 ### Flux supportés
 
@@ -80,7 +80,7 @@ Pipeline ETL modulaire basé sur **DLT** (Data Load Tool) pour extraire et trans
 ### Architecture modulaire
 
 ```python
-# Pipeline ETL avec transformers chaînables
+# Ingestion avec transformers chaînables
 encrypted_files | decrypt_transformer | unzip_transformer | parse_transformer
 ```
 
@@ -93,18 +93,18 @@ encrypted_files | decrypt_transformer | unzip_transformer | parse_transformer
 
 ```bash
 # Test rapide (2 fichiers)
-uv run python electricore/etl/ingestion.py test
+uv run python -m electricore.ingestion test
 
 # R151 complet (~6 secondes)
-uv run python electricore/etl/ingestion.py r151
+uv run python -m electricore.ingestion r151
 
 # Tous les flux (production)
-uv run python electricore/etl/ingestion.py all
+uv run python -m electricore.ingestion all
 ```
 
-**Résultat** : Base DuckDB `electricore/etl/flux_enedis_pipeline.duckdb` avec toutes les tables flux.
+**Résultat** : Base DuckDB `electricore/ingestion/flux_enedis_pipeline.duckdb` avec toutes les tables flux.
 
-📖 **Documentation complète** : [electricore/etl/README.md](electricore/etl/README.md)
+📖 **Documentation complète** : [electricore/ingestion/README.md](electricore/ingestion/README.md)
 
 ---
 
@@ -333,14 +333,14 @@ cd electricore
 # Installation runtime (core + API + bot)
 uv sync
 
-# + pipeline ETL SFTP Enedis (pour serveur de collecte)
-uv sync --extra etl
+# + ingestion SFTP Enedis (pour serveur de collecte)
+uv sync --extra ingestion
 
 # + libs notebooks (marimo, altair, plotly, vegafusion, vl-convert)
 uv sync --extra viz
 
 # Tout (dev local complet)
-uv sync --extra etl --extra viz
+uv sync --extra ingestion --extra viz
 ```
 
 ### Configuration initiale
@@ -354,12 +354,12 @@ API_KEY=votre_cle_api_secrete
 # Ou plusieurs clés : API_KEYS=cle1,cle2,cle3
 
 # === BASE DE DONNÉES ===
-# Chemin vers le fichier DuckDB produit par l'ETL
-# Par défaut : electricore/etl/flux_enedis_pipeline.duckdb (relatif au cwd)
+# Chemin vers le fichier DuckDB produit par l'ingestion
+# Par défaut : electricore/ingestion/flux_enedis_pipeline.duckdb (relatif au cwd)
 # En production, utiliser un chemin absolu :
 # DUCKDB_PATH=/srv/<slug>/data/flux_enedis_pipeline.duckdb
 
-# === ETL ENEDIS — obligatoire pour le pipeline ETL ===
+# === INGESTION ENEDIS — obligatoire pour l'ingestion ===
 SFTP__URL=sftp://utilisateur:mot_de_passe@hote:22/chemin
 AES__KEY=cle_hex_fournie_par_enedis
 AES__IV=iv_hex_fourni_par_enedis
@@ -381,7 +381,7 @@ ODOO_TEST_PASSWORD=mot_de_passe
 # === BOT TELEGRAM — optionnel ===
 TELEGRAM_BOT_TOKEN=token_obtenu_via_botfather  # convention : @<slug>_electricore_bot
 TELEGRAM_ALLOWED_USERS=123456789   # IDs séparés par virgule
-TELEGRAM_NOTIFY_CHAT_ID=           # chat des alertes (échec ETL) ; vide = désactivé
+TELEGRAM_NOTIFY_CHAT_ID=           # chat des alertes (échec d'ingestion) ; vide = désactivé
 ```
 
 ### Commandes essentielles
@@ -390,8 +390,8 @@ TELEGRAM_NOTIFY_CHAT_ID=           # chat des alertes (échec ETL) ; vide = dés
 # Tests
 uv run --group test pytest -q
 
-# Pipeline ETL complet (nécessite --extra etl)
-uv run python -m electricore.etl.ingestion all
+# Ingestion complète (nécessite --extra ingestion)
+uv run python -m electricore.ingestion.ingestion all
 
 # API FastAPI
 uv run uvicorn electricore.api.main:app --reload
@@ -402,7 +402,7 @@ uv run marimo edit notebooks/
 
 ### Déploiement VPS (Docker)
 
-Pour exécuter ElectriCore en production sur un VPS — ETL planifié, API + bot 24/7, TLS automatique — un script d'installation provisionne tout depuis un VPS Ubuntu/Debian frais :
+Pour exécuter ElectriCore en production sur un VPS — ingestion planifiée, API + bot 24/7, TLS automatique — un script d'installation provisionne tout depuis un VPS Ubuntu/Debian frais :
 
 ```bash
 ssh root@<vps>
@@ -411,7 +411,7 @@ EDITOR=nano sudo -E bash install.sh \
     --slug <slug> --domain <slug>.electricore.fr --email ops@example.com
 ```
 
-Le script crée un user système dédié, installe Docker, configure UFW, télécharge la stack, ouvre `.env` dans l'éditeur, vérifie le DNS, démarre les conteneurs et lance un ETL test (~5-10 min total).
+Le script crée un user système dédié, installe Docker, configure UFW, télécharge la stack, ouvre `.env` dans l'éditeur, vérifie le DNS, démarre les conteneurs et lance une ingestion test (~5-10 min total).
 
 Guide complet : [`docs/deploiement.md`](docs/deploiement.md) (Quickstart, multi-instance, mode SFTP distant vs collocés, rotation clés AES, sauvegarde, mise à jour, migration depuis l'ancien layout, dépannage).
 
@@ -465,7 +465,7 @@ uv run --group test pytest --cov=electricore --cov-report=html
 - Query Builder DuckDB avec architecture fonctionnelle modulaire (6 modules)
 - Connecteur Odoo avec Query Builder
 - API FastAPI sécurisée avec authentification
-- Pipeline ETL modulaire avec DLT
+- Ingestion modulaire avec dlt + dbt
 - Tests unitaires et validation (140 tests passent)
 
 ### En cours 🔄
@@ -484,13 +484,13 @@ uv run --group test pytest --cov=electricore --cov-report=html
 
 ## 📚 Documentation Complémentaire
 
-- [ETL README](electricore/etl/README.md) - Pipeline extraction & transformation
+- [Ingestion README](electricore/ingestion/README.md) - Ingestion des flux Enedis
 - [API README](electricore/api/README.md) - API REST et authentification
 - [Bot README](electricore/bot/README.md) - Bot Telegram : surface de commandes, alertes, no-ERP
 - [Intégration DuckDB](electricore/core/loaders/DUCKDB_INTEGRATION_GUIDE.md) - Query Builder DuckDB
 - [Query Builder Odoo](docs/odoo-query-builder.md) - Intégration Odoo
 - [Conventions Dates](docs/conventions-dates-enedis.md) - Formats temporels Enedis
-- [CONTEXT-MAP.md](CONTEXT-MAP.md) — Carte des contextes multi-modules (vocabulaire métier dans `electricore/core/CONTEXT.md`, plus contextes etl/api/bot)
+- [CONTEXT-MAP.md](CONTEXT-MAP.md) — Carte des contextes multi-modules (vocabulaire métier dans `electricore/core/CONTEXT.md`, plus contextes ingestion/api/bot)
 - [docs/adr/](docs/adr/) — Décisions architecturales (monorepo, Polars, DuckDB, harmonisation R151…)
 
 ---
@@ -516,6 +516,6 @@ AGPL-3.0 - Voir [LICENSE](LICENSE)
 
 - **Polars** - Framework data processing moderne
 - **DuckDB** - Base analytique embarquée
-- **DLT** - Pipeline ETL déclaratif
+- **dlt** - Chargement de données déclaratif
 - **FastAPI** - Framework API performant
 - **Pandera** - Validation schémas données

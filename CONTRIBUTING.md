@@ -11,8 +11,8 @@ Le projet utilise [uv](https://docs.astral.sh/uv/) pour la gestion des dépendan
 git clone https://github.com/Energie-De-Nantes/electricore.git
 cd electricore
 
-# Installer l'ensemble (core + ETL + tests + typecheck)
-uv sync --extra etl --group test --group typecheck
+# Installer l'ensemble (core + ingestion + tests + typecheck)
+uv sync --extra ingestion --group test --group typecheck
 
 # Installer les hooks pre-commit (ruff lint + format à chaque commit local)
 uvx pre-commit install

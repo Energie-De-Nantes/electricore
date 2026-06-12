@@ -1,4 +1,4 @@
-"""Tests de la surveillance des jobs ETL (`electricore/bot/surveillance.py`) — #157.
+"""Tests de la surveillance des jobs d'ingestion (`electricore/bot/surveillance.py`) — #157.
 
 Le bot interroge périodiquement les jobs via l'API (pur client HTTP) et pousse
 une alerte dans le chat de notification quand un job passe à `failed` — y

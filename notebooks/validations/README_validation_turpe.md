@@ -106,7 +106,7 @@ Le notebook génère une évaluation automatique :
 ### Variables d'environnement
 ```bash
 # Chemin vers la base DuckDB (optionnel, utilise la config par défaut)
-DUCKDB_PATH="electricore/etl/flux_enedis_pipeline.duckdb"
+DUCKDB_PATH="electricore/ingestion/flux_enedis_pipeline.duckdb"
 ```
 
 ## 🚨 Résolution des problèmes
@@ -116,10 +116,10 @@ DUCKDB_PATH="electricore/etl/flux_enedis_pipeline.duckdb"
 #### "FileNotFoundError: Base DuckDB non trouvée"
 ```bash
 # Vérifier l'existence de la base
-ls -la electricore/etl/flux_enedis_pipeline.duckdb
+ls -la electricore/ingestion/flux_enedis_pipeline.duckdb
 
 # Exécuter le pipeline de données si nécessaire
-cd electricore/etl && poetry run python pipeline_production.py
+cd electricore/ingestion && poetry run python pipeline_production.py
 ```
 
 #### "ImportError: cannot import name"

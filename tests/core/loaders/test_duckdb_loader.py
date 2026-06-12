@@ -396,13 +396,15 @@ class TestIntegrationWithRealData:
     """Tests d'intégration avec données réelles (si disponibles)."""
 
     @pytest.mark.skipif(
-        not Path("electricore/etl/flux_enedis_pipeline.duckdb").exists(), reason="Base DuckDB non disponible"
+        not Path("electricore/ingestion/flux_enedis_pipeline.duckdb").exists(), reason="Base DuckDB non disponible"
     )
     def test_c15_real_database(self):
         """Test avec la vraie base DuckDB si disponible."""
         try:
             # Charger un petit échantillon
-            result = c15(database_path="electricore/etl/flux_enedis_pipeline.duckdb").validate(False).limit(5).lazy()
+            result = (
+                c15(database_path="electricore/ingestion/flux_enedis_pipeline.duckdb").validate(False).limit(5).lazy()
+            )
 
             # Vérifications de base
             assert isinstance(result, pl.LazyFrame)
@@ -420,14 +422,17 @@ class TestIntegrationWithRealData:
             pytest.skip(f"Erreur lors du test avec vraie DB: {e}")
 
     @pytest.mark.skipif(
-        not Path("electricore/etl/flux_enedis_pipeline.duckdb").exists(), reason="Base DuckDB non disponible"
+        not Path("electricore/ingestion/flux_enedis_pipeline.duckdb").exists(), reason="Base DuckDB non disponible"
     )
     def test_releves_real_database(self):
         """Test avec la vraie base DuckDB si disponible."""
         try:
             # Charger un petit échantillon
             result = (
-                releves(database_path="electricore/etl/flux_enedis_pipeline.duckdb").validate(False).limit(5).lazy()
+                releves(database_path="electricore/ingestion/flux_enedis_pipeline.duckdb")
+                .validate(False)
+                .limit(5)
+                .lazy()
             )
 
             # Vérifications de base

@@ -28,7 +28,7 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_BASE_URL_DEFAULT="${INSTALL_BASE_URL:-https://raw.githubusercontent.com/Energie-De-Nantes/electricore/main/deploy}"
-LIB_FILES=(log cli validate os system user config env_validate dns stack etl)
+LIB_FILES=(log cli validate os system user config env_validate dns stack ingestion)
 
 # fetch_lib_files <base_url> <target_dir>
 # Télécharge les helpers `${LIB_FILES[@]}` depuis <base_url> vers <target_dir>.
@@ -230,11 +230,11 @@ main() {
 
     # ─── Étape 11 : ETL test ────────────────────────────────────────────────
     log_step "ETL test (mode test, ~3s)"
-    if run_etl_test "$OPT_SLUG"; then
+    if run_ingestion_test "$OPT_SLUG"; then
         log_ok "ETL test réussi — clés AES OK, SFTP accessible, DuckDB écrit."
     else
         log_err "ETL test échoué — la stack tourne mais la chaîne ETL ne valide pas."
-        show_etl_failure_hints "$OPT_SLUG"
+        show_ingestion_failure_hints "$OPT_SLUG"
         log_warn "Stack laissée en place. Corrige .env et réessaye (commande ci-dessus)."
     fi
 

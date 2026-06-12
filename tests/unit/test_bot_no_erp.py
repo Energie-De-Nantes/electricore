@@ -2,7 +2,7 @@
 
 Sur une instance sans ERP, le menu natif et l'aide masquent les domaines
 ERP-dépendants (/taxes, /facturation) ; tapés quand même, ils répondent un
-message explicite. /etl, /flux, /perimetre fonctionnent intégralement.
+message explicite. /ingestion, /flux, /perimetre fonctionnent intégralement.
 """
 
 import asyncio
@@ -48,7 +48,7 @@ def test_le_menu_sans_erp_masque_taxes_et_facturation(sans_erp):
     publiees = _commandes_publiees()
     assert "taxes" not in publiees
     assert "facturation" not in publiees
-    assert {"start", "etl", "flux", "perimetre"} <= set(publiees)
+    assert {"start", "ingestion", "flux", "perimetre"} <= set(publiees)
 
 
 def test_le_menu_avec_erp_liste_tout(avec_erp):
@@ -63,7 +63,7 @@ def test_l_aide_sans_erp_ne_liste_pas_les_domaines_erp(sans_erp):
     ((aide, _),) = update.effective_message.replies
     assert "/taxes" not in aide
     assert "/facturation" not in aide
-    assert "/etl" in aide
+    assert "/ingestion" in aide
 
 
 def test_taxes_sans_erp_repond_un_message_explicite(sans_erp):

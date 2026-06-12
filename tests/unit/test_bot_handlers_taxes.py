@@ -7,9 +7,11 @@ dérivés de la date courante, raccourcis texte inchangés. Remplace /taxes v1.
 import asyncio
 from datetime import date
 
+import httpx
 import pytest
 
 from electricore.api.config import settings
+from electricore.bot.client import ElectriCoreClient
 from electricore.bot.handlers import taxes as handlers_taxes
 from tests.unit.telegram_fakes import (
     FakeBot,
@@ -152,3 +154,32 @@ def test_raccourci_inconnu_affiche_l_usage(client):
     ((texte, _),) = update.effective_message.replies
     assert "accise" in texte and "cta" in texte
     assert client.appels == []
+
+
+# =============================================================================
+# Régression incident 2026-06-12 — 503 cryptique pendant l'ingestion (#171)
+# =============================================================================
+
+
+def test_cta_pendant_l_ingestion_affiche_le_detail_api(monkeypatch):
+    """Bout en bout côté bot : l'API répond 503 + detail (base verrouillée par
+    l'ingestion), l'opérateur lit ce détail — pas la ligne de statut httpx."""
+    detail = "Ingestion en cours — la base de données est en cours d'écriture. Réessaie dans quelques minutes."
+
+    def _base_verrouillee(request):
+        return httpx.Response(503, json={"detail": detail})
+
+    monkeypatch.setattr(
+        handlers_taxes,
+        "ElectriCoreClient",
+        lambda: ElectriCoreClient(transport=httpx.MockTransport(_base_verrouillee)),
+    )
+    update = update_callback("taxes:run:cta:2025-T4")
+    bot = FakeBot()
+
+    asyncio.run(handlers_taxes.on_callback(update, contexte(bot=bot)))
+
+    assert bot.documents == [], "pas de document pendant le verrou"
+    _, _, texte, _ = bot.edits[-1]
+    assert "Ingestion en cours" in texte
+    assert "Server error" not in texte, "la ligne de statut httpx ne doit plus fuiter dans le chat"

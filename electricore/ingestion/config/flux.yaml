@@ -1,0 +1,38 @@
+# Configuration de MOUVEMENT des flux Enedis (ADR-0020).
+#
+# Ce fichier ne décrit plus que ce que la chaîne de mouvement doit savoir :
+# où trouver les zips (file_pattern, glob SFTP), quels fichiers en extraire
+# (file_regex) et leur format (xml/json). La sélection, le pivot et le typage
+# vivent dans les modèles dbt (electricore/ingestion/dbt/models/) — l'ex-DSL de
+# linéarisation (row_level/data_fields/nested_fields) a été retiré avec le
+# parseur legacy (#138).
+
+C15:
+  file_pattern: "**/*_C15_*.zip"
+  format: xml
+  file_regex: "*_C15_*.xml"
+
+F12:
+  file_pattern: "**/*_F12_*.zip"
+  format: xml
+  file_regex: "*.xml"
+
+F15:
+  file_pattern: "**/*_F15_*.zip"
+  format: xml
+  file_regex: "*.xml"
+
+R15:
+  file_pattern: "**/*_R15_*.zip"
+  format: xml
+  file_regex: "*.xml"
+
+R151:
+  file_pattern: "**/*_R151_*.zip"
+  format: xml
+  file_regex: "*.xml"
+
+R64:
+  file_pattern: "**/R63_R64_R65_R66_R67_C68/*_R64_*.zip"
+  format: json
+  file_regex: "*.JSON"  # JSON en majuscules dans les ZIPs R64

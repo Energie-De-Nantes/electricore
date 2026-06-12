@@ -2,7 +2,7 @@
 
 Le bot traduit des commandes Telegram en appels HTTP et formate les réponses
 ([bot/CONTEXT.md](../../electricore/bot/CONTEXT.md), ADR-0009/0010). Il n'importe
-ni la logique métier (`core/`, `integrations/`, `etl/`) ni l'intérieur de l'API
+ni la logique métier (`core/`, `integrations/`, `ingestion/`) ni l'intérieur de l'API
 (`api.services`, `api.routers`) — seule la config partagée (`api.config`) est
 tolérée.
 
@@ -18,7 +18,7 @@ FORBIDDEN_PREFIXES: tuple[str, ...] = (
     "electricore.api.routers",
     "electricore.core",
     "electricore.integrations",
-    "electricore.etl",
+    "electricore.ingestion",
 )
 
 BOT_ROOT = Path(__file__).resolve().parents[2] / "electricore" / "bot"
