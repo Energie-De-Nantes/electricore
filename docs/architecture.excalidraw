@@ -583,8 +583,8 @@
     },
     {
       "type": "text", "id": "endpoints_chip_t", "x": 1393, "y": 365, "width": 246, "height": 106,
-      "text": "GET  /health\nGET  /flux/{table}\nPOST /ingestion/run {mode}\nGET  /etl/jobs\nGET  /taxes/accise/….xlsx\nGET  /facturation/check/odoo",
-      "originalText": "GET  /health\nGET  /flux/{table}\nPOST /ingestion/run {mode}\nGET  /etl/jobs\nGET  /taxes/accise/….xlsx\nGET  /facturation/check/odoo",
+      "text": "GET  /health\nGET  /flux/{table}\nPOST /ingestion/run {mode}\nGET  /ingestion/jobs\nGET  /taxes/accise/….xlsx\nGET  /facturation/check/odoo",
+      "originalText": "GET  /health\nGET  /flux/{table}\nPOST /ingestion/run {mode}\nGET  /ingestion/jobs\nGET  /taxes/accise/….xlsx\nGET  /facturation/check/odoo",
       "fontSize": 12, "fontFamily": 3, "textAlign": "left", "verticalAlign": "top",
       "strokeColor": "#22c55e", "backgroundColor": "transparent", "fillStyle": "solid",
       "strokeWidth": 1, "strokeStyle": "solid", "roughness": 0, "opacity": 100, "angle": 0,

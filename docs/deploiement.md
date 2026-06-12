@@ -455,7 +455,7 @@ sudo bash /srv/<slug>/deploy/install.sh \
 ## Fenêtre d'ingestion et concurrence DuckDB
 
 DuckDB autorise plusieurs lecteurs en parallèle, mais le writer (ici le scheduler
-ingestion) prend un verrou exclusif sur le fichier pendant l'écriture. Concrètement :
+d'ingestion) prend un verrou exclusif sur le fichier pendant l'écriture. Concrètement :
 
 - L'API reste accessible pendant la lecture (`SELECT`) tant que l'ingestion n'écrit pas.
 - Si une requête API arrive **pendant** un `pipeline.run()`, l'API retry jusqu'à

@@ -1,6 +1,6 @@
-# 🔧 Outils de Debug ETL
+# 🔧 Outils de debug de l'ingestion
 
-Ce dossier contient les outils de diagnostic et de debug pour le pipeline ETL DLT.
+Ce dossier contient les outils de diagnostic et de debug pour l'ingestion (dlt + dbt).
 
 ## Scripts disponibles
 
