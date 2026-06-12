@@ -7,10 +7,10 @@ Chemin complet du prototype dbt sur données réelles :
    tests not_null).
 
 Usage :
-    uv run python electricore/etl/pipeline_dbt.py test            # 2 fichiers/flux
-    uv run python electricore/etl/pipeline_dbt.py all             # tout
-    uv run python electricore/etl/pipeline_dbt.py r151 c15        # sélection
-    uv run python electricore/etl/pipeline_dbt.py all --db /tmp/flux_dbt.duckdb
+    uv run python electricore/etl/ingestion.py test            # 2 fichiers/flux
+    uv run python electricore/etl/ingestion.py all             # tout
+    uv run python electricore/etl/ingestion.py r151 c15        # sélection
+    uv run python electricore/etl/ingestion.py all --db /tmp/flux_dbt.duckdb
 
 Chemin de production (#134) : la base par défaut est la base de prod
 (`flux_enedis_pipeline.duckdb`), les modèles se matérialisent dans le schéma

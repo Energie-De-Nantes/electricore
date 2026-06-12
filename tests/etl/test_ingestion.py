@@ -1,13 +1,13 @@
 """Contrat CLI du runner de production dbt (#134).
 
 L'API (`/etl/run`) subprocess le runner avec un mode : chaque valeur de `ETLMode`
-doit être interprétable par `pipeline_dbt`, avec la même sémantique que l'ex-runner
+doit être interprétable par `ingestion`, avec la même sémantique que l'ex-runner
 legacy (test = échantillon, all = tout, sélection de flux, reset = re-téléchargement
 complet via drop_sources).
 """
 
 from electricore.api.services.etl_service import ETLMode
-from electricore.etl.pipeline_dbt import PlanRun, interpreter_flux
+from electricore.etl.ingestion import PlanRun, interpreter_flux
 
 
 def test_les_modes_de_l_api_sont_interpretables():
@@ -35,7 +35,7 @@ def test_selection_multi_flux():
 def test_la_base_par_defaut_honore_duckdb_path(monkeypatch):
     """En conteneur, DUCKDB_PATH pointe le volume de données (docker-compose) :
     le runner doit l'honorer, comme l'API et les loaders."""
-    from electricore.etl.pipeline_dbt import chemin_db_defaut
+    from electricore.etl.ingestion import chemin_db_defaut
 
     monkeypatch.setenv("DUCKDB_PATH", "/data/flux_enedis_pipeline.duckdb")
     assert str(chemin_db_defaut()) == "/data/flux_enedis_pipeline.duckdb"
@@ -48,7 +48,7 @@ def test_la_base_par_defaut_honore_le_dotenv(tmp_path, monkeypatch):
     porté par le .env vaut pour le runner aussi, pas seulement pour l'API."""
     from pathlib import Path
 
-    from electricore.etl.pipeline_dbt import chemin_db_defaut
+    from electricore.etl.ingestion import chemin_db_defaut
 
     monkeypatch.delenv("DUCKDB_PATH", raising=False)
     monkeypatch.chdir(tmp_path)
@@ -62,5 +62,5 @@ def test_l_api_subprocess_le_runner_dbt():
     from electricore.api.services.etl_service import _build_pipeline_command
 
     commande = _build_pipeline_command("all")
-    assert "electricore.etl.pipeline_dbt" in commande
+    assert "electricore.etl.ingestion" in commande
     assert "electricore.etl.pipeline_production" not in commande

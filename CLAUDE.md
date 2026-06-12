@@ -32,7 +32,7 @@ uv run --group test pytest --cov=electricore tests/
 uv build
 
 # Run ETL pipeline (requires [etl] extra)
-uv run python electricore/etl/pipeline_dbt.py all
+uv run python electricore/etl/ingestion.py all
 
 # Start API server
 uv run uvicorn electricore.api.main:app --reload
@@ -49,7 +49,7 @@ electricore/
 │   ├── transformers/          # Modular transformers (crypto, archive, parsers)
 │   ├── config/                # Flux configuration
 │   ├── dbt/                   # Modèles dbt (staging + flux_*, linéarisation SQL)
-│   └── pipeline_dbt.py        # Production pipeline (landing brut → dbt build)
+│   └── ingestion.py        # Production pipeline (landing brut → dbt build)
 │
 ├── core/                      # 🧮 CORE - Energy Calculations (ERP-agnostique, ADR-0016)
 │   ├── pipelines/             # Polars pipelines
@@ -201,13 +201,13 @@ from electricore.core.pipelines.orchestration import facturation, calculer_histo
 
 ```bash
 # Test mode (2 files, ~3s)
-uv run python electricore/etl/pipeline_dbt.py test
+uv run python electricore/etl/ingestion.py test
 
 # Single flux (R151 complete, ~6s)
-uv run python electricore/etl/pipeline_dbt.py r151
+uv run python electricore/etl/ingestion.py r151
 
 # Full production (all flux)
-uv run python electricore/etl/pipeline_dbt.py all
+uv run python electricore/etl/ingestion.py all
 ```
 
 Result: DuckDB database at `electricore/etl/flux_enedis_pipeline.duckdb`

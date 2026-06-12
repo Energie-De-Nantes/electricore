@@ -7,7 +7,7 @@ voir l'issue dédiée.)
 ## 1. Variables d'environnement (`.env` à la racine, gitignoré)
 
 Chargées par `electricore/config/env.py::charger_env()` (API, notebooks) et par le
-préambule de `pipeline_dbt.py` (ETL). **Priorité aux variables déjà présentes dans
+préambule de `ingestion.py` (ETL). **Priorité aux variables déjà présentes dans
 l'environnement** (`setdefault`) : en Docker, `env_file: .env` + le bloc `environment:`
 du compose priment.
 
@@ -97,4 +97,4 @@ ce sont les modèles SQL `etl/dbt/models/` — voir [ingestion.md](ingestion.md)
 
 - Fixtures XSD et golden : `tests/fixtures/flux/generer_fixtures_xsd.py` (exige les XSD
   Enedis en local) et `generer_golden.py` (oracle = chemin dbt).
-- État incrémental dlt : `~/.dlt/` + tables `_dlt_*` — purge via `pipeline_dbt resync`.
+- État incrémental dlt : `~/.dlt/` + tables `_dlt_*` — purge via `ingestion.py resync`.
