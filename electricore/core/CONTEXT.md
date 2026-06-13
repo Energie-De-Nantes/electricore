@@ -100,6 +100,13 @@ Pénalité TURPE spécifique aux sites C4 dépassant leur puissance souscrite, e
 Taxe intérieure sur la consommation finale d'électricité (TICFE), exprimée en €/MWh. Intègre depuis 2022 l'ancienne CSPE.
 _Éviter_ : TICFE (renommée Accise), CSPE (fusionnée dans l'accise).
 
+**Accise physique** vs **Accise de déclaration** (deux assiettes à ne pas confondre) :
+- **Accise physique** : assise sur l'énergie *mesurée* du mois (calculable depuis la *méta-période mensuelle*), au taux standard en vigueur. Vérité physique d'electricore : sert l'analytique et la *référence de régularisation* des lissés. N'est **pas** exposée comme montant dans le contrat de l'endpoint méta-périodes — qui ne livre que le *taux* accise (l'assiette = le facturé appartient à l'ERP).
+- **Accise de déclaration** : assise sur l'énergie *facturée* (le facturé = les *provisions* pour un lissé, quantité qui vit côté ERP), au taux applicable. C'est ce qu'on déclare à l'État (`/taxes/accise/*`) — on déclare ce qu'on a facturé, pas ce qu'on a mesuré. Calculée par `pipeline_accise` depuis les lignes facturées.
+
+electricore est l'**autorité du taux** accise ; la valorisation de l'accise *facturée* (assiette = facturé) peut vivre côté ERP. Le taux n'est pas uniforme : il dépend d'une **catégorie** de consommateur — enhancement ouvert : la catégorie est-elle dérivable du flux Enedis, ou saisie côté ERP ?
+_Éviter_ : parler d'« assiette accise » sans préciser physique ou déclaration (elles divergent dès qu'un contrat est lissé).
+
 **CTA** (Contribution Tarifaire d'Acheminement) :
 Taxe assise sur la part fixe du TURPE (puissance), reversée à la CNIEG pour financer les retraites des industries électriques et gazières.
 
@@ -156,6 +163,17 @@ _Éviter_ : lecture, mesure.
 
 **Énergie** :
 Consommation calculée entre deux relevés (différence d'index), par cadran (`energie_hp_kwh`…). Distincte de l'index. Dite **mesurée** quand des relevés encadrent exactement la période considérée ; **estimée** quand la période n'a pas de relevé à ses bornes et que l'énergie lui est attribuée par interpolation (cas des compteurs non communicants aux bornes calendaires ou réglementaires — la saisonnalité chauffage/clim rend le prorata temporel grossier). La *provision d'énergie* n'est ni l'une ni l'autre : quantité conventionnelle facturée en attente de solde.
+
+**Identité de relevé** (clé métier) :
+Handle stable d'un relevé, dérivé de la lecture *logique* (`pdl`, `date_releve`, source, et le discriminant de la source — `ordre_index` pour les avant/après C15, `type_releve` pour R64). **Pas** la position-fichier (l'`id` d'occurrence dbt `fichier#position` est instable : les fenêtres R64 se chevauchent et la livraison gagnante change à chaque correction) ni un id Enedis natif (absent de R151 *et* de R64, les sources périodiques qui bornent la facturation calendaire ; présent seulement en R15/F15/C15-événements via `Id_Releve`). L'`Id_Releve` natif, quand il existe, est conservé comme *provenance* additionnelle, pas comme clé. Support du lien d'audit entre une *période d'énergie* et les relevés qui l'ont bornée.
+_Éviter_ : id fichier (c'est de la provenance, pas une identité), Id_Releve (natif et partiel — ne couvre pas le cas dominant).
+
+**Nature d'index** :
+Qualité d'une lecture d'index, normalisée (réel / estimé / corrigé) depuis des champs source hétérogènes : `Nature_Index` (R15/C15), `etape_metier` BRUT/CORR/VALID (R64), réel par construction pour les télérelevés périodiques. Mention légale obligatoire sur la facture. Distincte de l'opposition *énergie mesurée / estimée* qui qualifie la période, pas la lecture.
+
+**Traçabilité des index** :
+Conservation, jusqu'à la facture, des relevés effectivement consommés par le calcul d'une période : valeurs d'index en **registres réels** (jamais de cadran synthétisé — on n'additionne pas deux registres cumulés pour fabriquer un « index HP » qu'aucun compteur n'affiche), `date_releve`, *nature d'index*, et *identité de relevé*. Exigence légale : les index doivent figurer sur la facture, dont **Odoo est le système de référence** du « facturé » (le core reste sans état et recalcule ; une correction postérieure relève de la *régularisation*, pas d'une réécriture). Un changement de configuration en cours de mois (MCT) y apparaît sans cas particulier : les relevés intermédiaires utilisés s'ajoutent simplement à la liste.
+_Éviter_ : audit des index (anglicisme mou), historique d'index (collision avec *Historique* contractuel).
 
 **Puissance souscrite** :
 Limite contractuelle en kVA. Un seul champ en C5 (`puissance_souscrite_kva`), quatre en C4 (`puissance_souscrite_hph_kva`…).
