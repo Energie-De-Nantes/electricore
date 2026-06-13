@@ -9,6 +9,35 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.0.0rc2] - 2026-06-13
+
+Incrément de la candidate : ajoute l'**endpoint de lecture des méta-périodes**,
+prérequis de la migration Odoo 19 (Odoo *tire* d'electricore au lieu du write-back
+notebook). N'ajoute aucune rupture par rapport à rc1.
+
+### ✨ Endpoint de lecture des méta-périodes (#231, ADR-0027)
+
+`GET /facturation/meta-periodes` — un ERP tire les *méta-périodes mensuelles*
+d'electricore (Odoo construit ses `souscription.periode` à partir de ce flux), au
+lieu du write-back notebook. Router **ERP-agnostique** (zéro import
+`integrations/odoo`, ADR-0016), JSON enveloppé (`mois` / `contract_version` /
+`filters` / `pagination` / `data`), filtres `mois` + `rsc`, pagination, sécurisé
+`X-API-Key`. Calcul à la volée, read-only vers Odoo (ADR-0012).
+
+- **Charge utile** non valorisée aux prix fournisseur : quantités physiques
+  (énergies `base`/`hp`/`hc`, jours, puissance, FTA), montants réseau **finaux**
+  (`turpe_fixe_eur`, `turpe_variable_eur`, `cta_eur`), et `taux_accise_eur_mwh`
+  (**taux seul** — l'accise *facturée* est calculée côté ERP : assiette = le
+  facturé ; règle « montant € si electricore possède l'assiette, taux sinon »).
+- **`source_hash`** (empreinte de contenu déterministe) pour un upsert **non
+  destructif** côté ERP : skip-si-inchangé, détection de dérive sous verrou.
+- Contrat figé documenté : `docs/contrat-meta-periodes.md`.
+- Glossaire core affiné : *Accise physique* vs *Accise de déclaration*.
+
+Périmètre **C5** (le détail 4 cadrans C4 sera un ajout de colonnes versionné).
+Découvertes accise ouvertes : #225 (comptage de l'assiette), #226 (catégories de
+taux).
+
 ## [3.0.0rc1] - 2026-06-13
 
 Release **majeure**, candidate. Deux ruptures structurelles à valider au
