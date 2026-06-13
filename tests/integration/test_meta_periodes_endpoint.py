@@ -1,0 +1,140 @@
+"""Tests d'intégration de l'endpoint `GET /facturation/meta-periodes` (ADR-0027, #227).
+
+Endpoint de lecture des méta-périodes mensuelles : Odoo tire d'electricore. Le seam
+de test est la fonction de service `meta_periodes` référencée dans le router (même
+patron que `tests/integration/test_facturation_arrow_endpoint.py`) — on court-circuite
+l'I/O DuckDB, le chemin transport + enveloppe reste réel.
+"""
+
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+import polars as pl
+import pytest
+from fastapi.testclient import TestClient
+
+from electricore.api.main import app
+from electricore.api.security import get_current_api_key
+
+PARIS = ZoneInfo("Europe/Paris")
+
+
+@pytest.fixture
+def meta_periodes_synthetiques() -> pl.DataFrame:
+    """Mime la sortie projetée de `meta_periodes` (champs `PeriodeMeta` du contrat v1)."""
+    return pl.DataFrame(
+        {
+            "ref_situation_contractuelle": ["RSC-1", "RSC-2"],
+            "pdl": ["12345678901234", "12345678905678"],
+            "mois_annee": ["2026-05", "2026-05"],
+            "debut": [datetime(2026, 5, 1, tzinfo=PARIS), datetime(2026, 5, 1, tzinfo=PARIS)],
+            "fin": [datetime(2026, 6, 1, tzinfo=PARIS), datetime(2026, 6, 1, tzinfo=PARIS)],
+            "nb_jours": [31, 31],
+            "puissance_moyenne_kva": [6.0, 9.0],
+            "formule_tarifaire_acheminement": ["BTINFCUST", "BTINFCUST"],
+            "energie_base_kwh": [None, 420.0],
+            "energie_hp_kwh": [312.4, None],
+            "energie_hc_kwh": [145.2, None],
+            "turpe_fixe_eur": [9.13, 12.0],
+            "turpe_variable_eur": [18.4, 22.0],
+            "data_complete": [True, False],
+            "coverage_abo": [1.0, 1.0],
+            "coverage_energie": [1.0, 0.5],
+            "has_changement": [False, False],
+        }
+    )
+
+
+def test_meta_periodes_retourne_enveloppe_json(monkeypatch, meta_periodes_synthetiques):
+    """Tracer bullet : GET sert les méta-périodes du mois en JSON enveloppé."""
+    app.dependency_overrides[get_current_api_key] = lambda: "test-key"
+    monkeypatch.setattr(
+        "electricore.api.routers.meta_periodes.meta_periodes",
+        lambda mois=None, rsc=None: ("2026-05-01", meta_periodes_synthetiques),
+    )
+    try:
+        response = TestClient(app).get("/facturation/meta-periodes", params={"mois": "2026-05-01"})
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    body = response.json()
+
+    # Enveloppe
+    assert body["mois"] == "2026-05-01"
+    assert set(body["pagination"]) >= {"limit", "offset", "returned", "total"}
+    assert body["pagination"]["total"] == 2
+    assert body["pagination"]["returned"] == 2
+
+    # Données
+    assert len(body["data"]) == 2
+    row = body["data"][0]
+    assert row["ref_situation_contractuelle"] == "RSC-1"
+    assert row["energie_hp_kwh"] == 312.4
+    assert row["turpe_fixe_eur"] == 9.13
+    assert row["data_complete"] is True
+
+
+def test_meta_periodes_refuse_sans_api_key():
+    """Endpoint sécurisé : 401 sans clé."""
+    response = TestClient(app).get("/facturation/meta-periodes")
+    assert response.status_code == 401
+
+
+def test_meta_periodes_enveloppe_porte_contract_version(monkeypatch, meta_periodes_synthetiques):
+    """L'enveloppe expose `contract_version` (assertion de compat côté consommateur)."""
+    app.dependency_overrides[get_current_api_key] = lambda: "test-key"
+    monkeypatch.setattr(
+        "electricore.api.routers.meta_periodes.meta_periodes",
+        lambda mois=None, rsc=None: ("2026-05-01", meta_periodes_synthetiques),
+    )
+    try:
+        response = TestClient(app).get("/facturation/meta-periodes")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.json()["contract_version"] == 1
+
+
+def test_meta_periodes_propage_mois_et_rsc(monkeypatch, meta_periodes_synthetiques):
+    """`mois` et les `rsc=` répétés atteignent le service (rsc en liste)."""
+    app.dependency_overrides[get_current_api_key] = lambda: "test-key"
+    appels: list[tuple] = []
+
+    def _capture(mois=None, rsc=None):
+        appels.append((mois, rsc))
+        return "2026-05-01", meta_periodes_synthetiques
+
+    monkeypatch.setattr("electricore.api.routers.meta_periodes.meta_periodes", _capture)
+    try:
+        response = TestClient(app).get(
+            "/facturation/meta-periodes",
+            params={"mois": "2026-05-01", "rsc": ["RSC-1", "RSC-2"]},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert appels == [("2026-05-01", ["RSC-1", "RSC-2"])]
+    assert response.json()["filters"] == {"rsc": ["RSC-1", "RSC-2"]}
+
+
+def test_meta_periodes_pagine(monkeypatch, meta_periodes_synthetiques):
+    """`limit`/`offset` tranchent les lignes ; `total` reste le total non paginé."""
+    app.dependency_overrides[get_current_api_key] = lambda: "test-key"
+    monkeypatch.setattr(
+        "electricore.api.routers.meta_periodes.meta_periodes",
+        lambda mois=None, rsc=None: ("2026-05-01", meta_periodes_synthetiques),
+    )
+    try:
+        response = TestClient(app).get(
+            "/facturation/meta-periodes",
+            params={"limit": 1, "offset": 1},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    body = response.json()
+    assert body["pagination"] == {"limit": 1, "offset": 1, "returned": 1, "total": 2}
+    assert len(body["data"]) == 1
+    assert body["data"][0]["ref_situation_contractuelle"] == "RSC-2"
