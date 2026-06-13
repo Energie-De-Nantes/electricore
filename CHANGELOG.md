@@ -9,6 +9,31 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.0.0rc1] - 2026-06-13
+
+Release **majeure**, candidate. Deux ruptures structurelles à valider au
+déploiement avant de promouvoir en stable : la configuration runtime passe par un
+registre unique (#141), et le module `etl` devient `ingestion`.
+
+### ⚙️ Configuration runtime centralisée (#141, ADR-0024/0025)
+
+Un lecteur unique — `electricore/config/runtime.py` (pydantic-settings) — avec un
+`BaseSettings` indépendant par domaine (`sftp`, `aes`, `duckdb`, `api`, `bot`,
+`odoo`), précédence env-système > `.env`, et validation **fail-fast par point
+d'entrée** (`runtime.valider(...)`) : une variable obligatoire manquante arrête le
+service au démarrage avec la liste des manquantes, au lieu d'échouer plus tard.
+
+#### 💥 Breaking (déploiement)
+
+- **Clés AES en variables d'environnement uniquement** : le support
+  `.dlt/secrets.toml` est **retiré**. Format à plat (`AES__KEY`/`AES__IV`) ou
+  imbriqué pour la rotation (`AES__CURRENT__KEY`/`AES__CURRENT__IV`,
+  `AES__PREVIOUS__*`).
+- **`API_BASE_URL` retiré** : le bot tourne dans le processus de l'API et la joint
+  sur `localhost:8001`.
+- **`env.py` supprimé** ; `charger_config_odoo()` réduit à une façade sur
+  `runtime.odoo()`.
+
 ### ♻️ Renommage — le module `etl` devient `ingestion`
 
 Le nom « ETL » décrivait une technique abandonnée (le procédé est ELT depuis la
@@ -26,6 +51,23 @@ terme canonique de la doc. Changements cassants et transitions :
   `etl:*` des claviers postés avant le renommage ne routent plus ;
 - **Compose** : service `etl-scheduler` → `ingestion-scheduler`, conteneur
   `electricore-etl` → `electricore-ingestion` (recréation au prochain pull).
+
+### ✨ Taxes : millésime des taux régulés (#185, #186, #187)
+
+Les taux régulés (accise/TICFE, CTA) sont datés et versionnés en CSV de référence ;
+le cœur dérive le taux en vigueur à la date, l'API et le bot l'exposent. Une
+surveillance proactive alerte sur Telegram quand un taux est présumé périmé. Un
+formulaire d'issue « Nouveau taux régulé » ouvre la contribution aux non-techniciens.
+
+### 🧪 Socle property-based testing (#194–#197)
+
+Stratégies Hypothesis dérivées des schémas Pandera + invariants de conservation
+(TURPE, taxes, facturation, abonnements/énergie). Tests uniquement, profil CI borné.
+
+### 💥 Autres ruptures
+
+- **API loaders legacy retirée** (#181) : `load_historique` / `load_releves`
+  disparaissent au profit des query builders DuckDB + `charger_*`.
 
 ## [2.1.1] - 2026-06-12
 
