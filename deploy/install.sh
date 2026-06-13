@@ -194,6 +194,7 @@ main() {
         fi
         if errs=$(validate_env_file "$ENV_FILE" "$OPT_SLUG"); then
             log_ok ".env valide"
+            strip_validation_error_block "$ENV_FILE"
             chmod 600 "$ENV_FILE"
             break
         fi
