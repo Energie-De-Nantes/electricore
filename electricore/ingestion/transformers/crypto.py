@@ -2,36 +2,30 @@
 Transformer DLT pour le déchiffrement AES des fichiers Enedis.
 Inclut les fonctions pures de cryptographie et le transformer DLT.
 
-Gestion de la rotation de clés :
-  Les clés AES Enedis sont rotées périodiquement. Le format secrets.toml supporte
-  plusieurs clés simultanément pour couvrir la période de transition.
+Gestion de la rotation de clés (ADR-0008, registre runtime #141) :
+  Les clés AES Enedis sont rotées périodiquement. Le registre runtime supporte
+  plusieurs clés simultanément pour couvrir la période de transition, en variables
+  d'environnement (`.env` compris) :
 
-  Format recommandé (v2) :
-      [aes.current]
-      key = "nouvelle_clé_hex"
-      iv  = "nouvel_iv_hex"
+      AES__CURRENT__KEY=nouvelle_clé_hex
+      AES__CURRENT__IV=nouvel_iv_hex
+      AES__PREVIOUS__KEY=ancienne_clé_hex   # optionnel, ~4 semaines après rotation
+      AES__PREVIOUS__IV=ancien_iv_hex
 
-      [aes.previous]           # optionnel, gardé pendant ~4 semaines après rotation
-      key = "ancienne_clé_hex"
-      iv  = "ancien_iv_hex"
-
-  Format hérité (v1, toujours supporté) :
-      [aes]
-      key = "clé_hex"
-      iv  = "iv_hex"
-
-  Lors du déchiffrement, la clé `current` est essayée en premier. Si elle échoue,
-  `previous` est tentée. Un log indique quelle clé a fonctionné pour faciliter
-  le diagnostic lors d'une transition.
+  Le format plat v1 (`AES__KEY`/`AES__IV`) reste supporté en compatibilité
+  ascendante. Lors du déchiffrement, la clé `current` est essayée en premier ;
+  si elle échoue, `previous` est tentée. Un log indique quelle clé a fonctionné
+  pour faciliter le diagnostic lors d'une transition.
 """
 
 import logging
-import os
 from collections.abc import Iterator
 
 import dlt
 from Crypto.Cipher import AES
 from dlt.common.storages.fsspec_filesystem import FileItemDict
+
+from electricore.config import runtime
 
 logger = logging.getLogger(__name__)
 
@@ -85,93 +79,20 @@ def decrypt_file_aes(encrypted_data: bytes, key: bytes, iv: bytes) -> bytes:
 
 def load_aes_key_chain() -> list[tuple[str, bytes, bytes]]:
     """
-    Charge la chaîne de clés AES depuis les secrets DLT.
+    Charge la chaîne de clés AES depuis le registre runtime (#141, ADR-0025).
 
-    Supporte deux formats de secrets.toml :
-      - v2 (recommandé) : [aes.current] + [aes.previous] optionnel
-      - v1 (hérité)     : [aes] avec key/iv directs
+    La cascade de rotation (current → previous, sinon legacy v1) et le parsing
+    hexadécimal vivent dans le domaine `aes` du registre.
 
     Returns:
         Liste de tuples (nom, clé, iv) dans l'ordre de tentative.
         La clé `current` (ou la clé unique en v1) est toujours en premier.
 
     Raises:
-        ValueError: Si aucune clé valide ne peut être chargée
+        ConfigurationManquante: Si aucune clé valide n'est configurée.
+        ValueError: Si une clé/IV n'est pas un hexadécimal valide.
     """
-    chain: list[tuple[str, bytes, bytes]] = []
-
-    # Env vars (chargées depuis .env avant DLT) — priorité maximale
-    # Format v2 : AES__CURRENT__KEY / AES__CURRENT__IV
-    if os.environ.get("AES__CURRENT__KEY") and os.environ.get("AES__CURRENT__IV"):
-        try:
-            chain.append(
-                (
-                    "current",
-                    bytes.fromhex(os.environ["AES__CURRENT__KEY"]),
-                    bytes.fromhex(os.environ["AES__CURRENT__IV"]),
-                )
-            )
-        except Exception as e:
-            raise ValueError(f"Erreur env vars AES__CURRENT__KEY/IV : {e}")
-        if os.environ.get("AES__PREVIOUS__KEY") and os.environ.get("AES__PREVIOUS__IV"):
-            try:
-                chain.append(
-                    (
-                        "previous",
-                        bytes.fromhex(os.environ["AES__PREVIOUS__KEY"]),
-                        bytes.fromhex(os.environ["AES__PREVIOUS__IV"]),
-                    )
-                )
-            except Exception as e:
-                raise ValueError(f"Erreur env vars AES__PREVIOUS__KEY/IV : {e}")
-        return chain
-
-    # Format v1 env vars : AES__KEY / AES__IV
-    if os.environ.get("AES__KEY") and os.environ.get("AES__IV"):
-        try:
-            chain.append(("legacy", bytes.fromhex(os.environ["AES__KEY"]), bytes.fromhex(os.environ["AES__IV"])))
-        except Exception as e:
-            raise ValueError(f"Erreur env vars AES__KEY/IV : {e}")
-        return chain
-
-    # Fallback : secrets.toml DLT
-    try:
-        aes_config = dlt.secrets["aes"]
-    except Exception as e:
-        raise ValueError(f"Section [aes] absente des secrets DLT et des variables d'environnement : {e}")
-
-    # Format v2 : sous-sections current / previous
-    if "current" in aes_config:
-        try:
-            key = bytes.fromhex(aes_config["current"]["key"])
-            iv = bytes.fromhex(aes_config["current"]["iv"])
-            chain.append(("current", key, iv))
-        except Exception as e:
-            raise ValueError(f"Erreur chargement [aes.current] : {e}")
-
-        if "previous" in aes_config:
-            try:
-                key = bytes.fromhex(aes_config["previous"]["key"])
-                iv = bytes.fromhex(aes_config["previous"]["iv"])
-                chain.append(("previous", key, iv))
-            except Exception as e:
-                raise ValueError(f"Erreur chargement [aes.previous] : {e}")
-
-        return chain
-
-    # Format v1 hérité : clé/iv directement dans [aes]
-    if "key" in aes_config and "iv" in aes_config:
-        try:
-            key = bytes.fromhex(aes_config["key"])
-            iv = bytes.fromhex(aes_config["iv"])
-            chain.append(("legacy", key, iv))
-        except Exception as e:
-            raise ValueError(f"Erreur chargement [aes] (format v1) : {e}")
-        return chain
-
-    raise ValueError(
-        "Format [aes] invalide dans secrets.toml. Attendu : [aes.current] avec key/iv, ou [aes] avec key/iv."
-    )
+    return runtime.aes().chaine()
 
 
 def load_aes_credentials() -> tuple[bytes, bytes]:

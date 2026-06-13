@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 
 import duckdb
 
-from electricore.config import chemin_base_duckdb
+from electricore.config import runtime
 from electricore.core.loaders.duckdb import duckdb_readonly_conn
 
 logger = logging.getLogger(__name__)
@@ -39,7 +39,7 @@ def get_freshness() -> dict:
         - tables: dict {nom_table: estimated_size}, ou {} si inaccessible
         - error: chaîne descriptive si accessible=False
     """
-    db_path = chemin_base_duckdb()
+    db_path = runtime.duckdb().chemin
     payload: dict = {"accessible": False, "last_write": None, "tables": {}}
     try:
         st = db_path.stat()
@@ -76,7 +76,7 @@ def get_table_info(table_name: str) -> dict:
     Returns:
         Dict avec table, count, columns
     """
-    with duckdb_readonly_conn(chemin_base_duckdb()) as conn:
+    with duckdb_readonly_conn(runtime.duckdb().chemin) as conn:
         # Nombre de lignes
         count = conn.execute(f"SELECT COUNT(*) FROM {SCHEMA}.flux_{table_name}").fetchone()[0]
 
@@ -114,7 +114,7 @@ def list_tables() -> list[str]:
     Returns:
         Liste des noms de tables (sans préfixe flux_)
     """
-    with duckdb_readonly_conn(chemin_base_duckdb()) as conn:
+    with duckdb_readonly_conn(runtime.duckdb().chemin) as conn:
         tables = conn.execute(f"""
             SELECT table_name 
             FROM information_schema.tables 

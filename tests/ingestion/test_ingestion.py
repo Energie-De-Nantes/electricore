@@ -48,11 +48,14 @@ def test_la_base_par_defaut_honore_le_dotenv(tmp_path, monkeypatch):
     porté par le .env vaut pour le runner aussi, pas seulement pour l'API."""
     from pathlib import Path
 
+    from electricore.config import runtime
     from electricore.ingestion.runner import chemin_db_defaut
 
     monkeypatch.delenv("DUCKDB_PATH", raising=False)
-    monkeypatch.chdir(tmp_path)
-    (tmp_path / ".env").write_text("DUCKDB_PATH=/data/depuis_dotenv.duckdb\n")
+    fichier_env = tmp_path / ".env"
+    fichier_env.write_text("DUCKDB_PATH=/data/depuis_dotenv.duckdb\n")
+    monkeypatch.setattr(runtime, "FICHIER_ENV", fichier_env)
+    runtime.vider_cache()
 
     assert chemin_db_defaut() == Path("/data/depuis_dotenv.duckdb")
 

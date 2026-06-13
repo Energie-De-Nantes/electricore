@@ -1,47 +1,52 @@
 # Configuration du projet — l'inventaire complet
 
 Tous les points de configuration d'ElectriCore, en un seul endroit. Quand tu cherches
-« où se règle X », c'est ici. (La centralisation plus propre est un chantier ouvert —
-voir l'issue dédiée.)
+« où se règle X », c'est ici. Trois registres de savoir ([ADR-0024](adr/0024-trois-registres-de-savoir.md)) :
+le **runtime** (cette section 1, module `runtime.py`), le **structurel** (code/modèles) et
+le **réglementaire** (taux régulés, section 2).
 
-## 1. Variables d'environnement (`.env` à la racine, gitignoré)
+## 1. Variables d'environnement — registre runtime (`.env` à la racine, gitignoré)
 
-Chargées par `electricore/config/env.py::charger_env()` (API, notebooks) et par le
-préambule de `ingestion/runner.py`. **Priorité aux variables déjà présentes dans
-l'environnement** (`setdefault`) : en Docker, `env_file: .env` + le bloc `environment:`
-du compose priment.
+Lues par **un seul module canonique**, `electricore/config/runtime.py` (pydantic-settings,
+#141, [ADR-0025](adr/0025-registre-runtime-pydantic-settings.md)). Un domaine indépendant
+par groupe (`sftp`, `aes`, `duckdb`, `api`, `bot`, `odoo`), accédé par accessor mis en
+cache (`runtime.sftp()`, …). **Précédence env-système > `.env`** (native pydantic-settings) :
+en Docker, le bloc `environment:` du compose prime sur `env_file: .env`. Validation
+fail-fast par point d'entrée via `runtime.valider(*domaines)` (l'API ne valide jamais le
+bot ; le runner valide `sftp`+`aes`+`duckdb`).
 
 ### Ingestion (mouvement des flux)
 
 | variable | rôle | défaut |
 |---|---|---|
 | `SFTP__URL` | URL SFTP Enedis (`sftp://user:pass@host/chemin` ou `file:///...` pour des zips locaux) | — (requis) |
-| `AES__CURRENT__KEY` / `AES__CURRENT__IV` | clé AES-128-CBC active (hex) — déchiffrement des zips | — (requis) |
+| `AES__CURRENT__KEY` / `AES__CURRENT__IV` | clé AES active (hex) — déchiffrement des zips ; 16 octets (AES-128) ou 32 (AES-256, bascule du 8-9 juin 2026) | — (requis) |
 | `AES__PREVIOUS__KEY` / `AES__PREVIOUS__IV` | clé précédente, gardée ~4 semaines après rotation Enedis | optionnel |
 | `AES__KEY` / `AES__IV` | format plat v1, compatibilité ascendante | optionnel |
 
-Convention dlt : `SECTION__CLÉ` ⇔ `dlt.secrets['section']['clé']` — le fichier
-`.dlt/secrets.toml` (`[sftp]`, `[aes.current]`, `[aes.previous]`) est l'alternative
-équivalente aux env vars (procédure de rotation : CLAUDE.md).
+Le délimiteur `__` est l'`env_nested_delimiter` natif de pydantic-settings (`AES__CURRENT__KEY`
+→ modèle imbriqué `current.key`). Le support `.dlt/secrets.toml` a été retiré (#141) — les
+clés vivent en variables d'environnement uniquement. Rotation et trousseau N-clés : CLAUDE.md
+et [issue #221](https://github.com/Energie-De-Nantes/electricore/issues/221).
 
 ### Bases de données
 
 | variable | rôle | défaut |
 |---|---|---|
-| `DUCKDB_PATH` | la base DuckDB de production — résolue par **un seul module**, `chemin_base_duckdb()` (`electricore/config/env.py`, `.env` honoré, issue #146), consommé par les loaders core, l'API, le runner d'ingestion et les tools (`reset_incremental_state`). En Docker : `/data/flux_enedis_pipeline.duckdb` (volume) | `electricore/ingestion/flux_enedis_pipeline.duckdb` (absolu, ancré sur le dépôt — indépendant du CWD) |
-| `DBT_DUCKDB_PATH` | chemin vu par dbt (`ingestion/dbt/profiles.yml`) — **positionné automatiquement** par le runner et les tests ; ne se règle pas à la main | suit `DUCKDB_PATH` via le runner |
+| `DUCKDB_PATH` | la base DuckDB de production — résolue par le domaine `duckdb` du registre (`runtime.duckdb().chemin`, issue #146), consommé par les loaders core, l'API, le runner d'ingestion et les tools (`reset_incremental_state`). En Docker : `/data/flux_enedis_pipeline.duckdb` (volume) | `electricore/ingestion/flux_enedis_pipeline.duckdb` (absolu, ancré sur le dépôt — indépendant du CWD) |
+| `DBT_DUCKDB_PATH` | chemin vu par dbt (`ingestion/dbt/profiles.yml`) — **seul pont `os.environ`** (ADR-0025), positionné par le runner autour de l'invocation dbt (scopé `try/finally`) ; ne se règle pas à la main | suit `runtime.duckdb().chemin` via le runner |
 
 Schémas dans la base : `flux_raw` (brut JSON), `flux_enedis` (tables typées, lues par
 les loaders — figé dans `ingestion/dbt/profiles.yml`).
 
 ### API
 
-Centralisées dans `electricore/api/config.py` :
+Domaine `api` du registre (`runtime.api()`) ; `electricore/api/config.py` n'est plus
+qu'une façade de compatibilité (`settings`) déléguant au registre.
 
 | variable | rôle | défaut |
 |---|---|---|
 | `API_KEY` / `API_KEYS` | clé(s) d'authentification (`X-API-Key`) | — |
-| `ENABLE_API_KEY_HEADER` | activer l'auth par header | — |
 | `API_TITLE` / `API_DESCRIPTION` / `API_VERSION` | métadonnées OpenAPI | version du paquet |
 | `INSTANCE_SLUG` | identifiant d'instance (multi-déploiements) | `""` |
 
@@ -52,12 +57,16 @@ Centralisées dans `electricore/api/config.py` :
 | `TELEGRAM_BOT_TOKEN` | token du bot |
 | `TELEGRAM_ALLOWED_USERS` | allowlist d'IDs utilisateurs |
 | `TELEGRAM_NOTIFY_CHAT_ID` | chat des alertes proactives (échec d'un job d'ingestion, scheduler compris) ; vide = désactivé |
-| `API_BASE_URL` | URL de l'API appelée par le bot (défaut `http://localhost:8001`) |
+
+`API_BASE_URL` a été **supprimée** (#141/ADR-0025) : le bot tourne dans le processus de
+l'API et la joint en interne (`localhost:8001`) — aucune variable requise.
 
 ### Odoo (intégration)
 
-`electricore/config/odoo.py::charger_config_odoo()` — sélecteur `ODOO_ENV`
-(`test`/`prod`) puis `ODOO_{TEST|PROD}_{URL,DB,USERNAME,PASSWORD}`.
+Domaine `odoo` du registre (`runtime.odoo(env=None)`) — sélecteur `ODOO_ENV`
+(`test`/`prod`) puis `ODOO_{TEST|PROD}_{URL,DB,USERNAME,PASSWORD}` ; `charger_config_odoo()`
+reste une façade déléguant au registre. `ODOO_ENV=prod` sans variables `ODOO_PROD_*` lève
+`ConfigurationManquante` au boot (plus de retombée silencieuse sur la base test).
 
 ## 2. Fichiers de configuration versionnés
 

@@ -11,6 +11,8 @@ import dlt
 import yaml
 from dlt.sources.filesystem import filesystem
 
+from electricore.config import runtime
+
 
 def diagnostic_complet():
     """Diagnostic complet de tous les flux configurés."""
@@ -26,9 +28,8 @@ def diagnostic_complet():
     with open(config_path, encoding="utf-8") as f:
         flux_config = yaml.safe_load(f)
 
-    # 2. Configuration SFTP
-    sftp_config = dlt.secrets["sftp"]
-    sftp_url = sftp_config["url"]
+    # 2. Configuration SFTP (registre runtime, #141)
+    sftp_url = runtime.sftp().url
     print(f"🌐 SFTP: {sftp_url}")
     print()
 

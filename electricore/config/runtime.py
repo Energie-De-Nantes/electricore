@@ -248,6 +248,20 @@ def odoo_est_configure(env: str | None = None) -> bool:
     return True
 
 
+def odoo_env_actif() -> str:
+    """Valeur du sélecteur ODOO_ENV (test/prod), sans valider la config Odoo."""
+    return _instancier("odoo", _SelecteurOdoo, "").odoo_env
+
+
+def bot_est_configure() -> bool:
+    """L'instance a-t-elle un bot Telegram ? (TELEGRAM_BOT_TOKEN présent)."""
+    try:
+        bot()
+    except ConfigurationManquante:
+        return False
+    return True
+
+
 def vider_cache() -> None:
     """Vide le cache de tous les accessors (isolation des tests)."""
     for accessor in _ACCESSORS:

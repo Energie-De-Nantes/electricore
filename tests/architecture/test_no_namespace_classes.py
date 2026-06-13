@@ -10,6 +10,7 @@ Sont acceptées :
 Allow-list (types qui apportent leur propre machinerie de déclaration) :
 - `pa.DataFrameModel` / `DataFrameModel` (Pandera)
 - `BaseModel` (Pydantic)
+- `BaseSettings` (pydantic-settings — registre runtime, #141/ADR-0025)
 - `StrEnum`, `Enum`, `IntEnum` (stdlib)
 - `NamedTuple` (cas marginal autorisé explicitement)
 - `dict`, `list`, `tuple`, `set` (sous-classes utilitaires)
@@ -28,6 +29,7 @@ _ELECTRICORE_ROOT = Path(__file__).parents[2] / "electricore"
 _ALLOW_LIST_SIMPLE = {
     "DataFrameModel",
     "BaseModel",
+    "BaseSettings",
     "StrEnum",
     "Enum",
     "IntEnum",

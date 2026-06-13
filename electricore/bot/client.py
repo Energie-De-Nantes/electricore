@@ -9,12 +9,17 @@ publiques ne déclarent que le chemin et le budget de timeout.
 
 import httpx
 
-from electricore.api.config import settings
+from electricore.config import runtime
 
 # Budgets de timeout par profil d'endpoint (secondes)
 TIMEOUT_COURT = 10  # JSON légers : statuts, listes, infos de table
 TIMEOUT_EXPORT = 120  # exports XLSX de tables flux
 TIMEOUT_LOURD = 300  # livrables calculés : taxes, facturation, check Odoo
+
+# Le bot tourne dans le processus de l'API (aucun service bot dans le compose,
+# ADR-0025) : URL de base interne, pas une variable d'env. Le paramètre
+# `transport` reste le seam de réintroduction si le bot devient un conteneur séparé.
+API_BASE_URL = "http://localhost:8001"
 
 
 class APIError(Exception):
@@ -47,8 +52,9 @@ class ElectriCoreClient:
     """Client async vers l'API ElectriCore."""
 
     def __init__(self, transport: httpx.AsyncBaseTransport | None = None):
-        self._base = settings.api_base_url.rstrip("/")
-        self._headers = {"X-API-Key": settings.get_valid_api_keys()[0]} if settings.get_valid_api_keys() else {}
+        self._base = API_BASE_URL.rstrip("/")
+        cles = runtime.api().cles_valides()
+        self._headers = {"X-API-Key": cles[0]} if cles else {}
         self._transport = transport
 
     def _http(self) -> httpx.AsyncClient:

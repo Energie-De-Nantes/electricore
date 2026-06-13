@@ -222,9 +222,10 @@ Result: DuckDB database at `electricore/ingestion/flux_enedis_pipeline.duckdb`
 
 #### Rotation des clés AES Enedis
 
-Enedis effectue des rotations de clés AES périodiquement. La configuration supporte
-plusieurs clés simultanément pour couvrir la période de transition — en variables
-d'environnement (`.env`, format primaire, cf. [docs/configuration.md](docs/configuration.md)) :
+Enedis effectue des rotations de clés AES périodiquement. Le registre runtime
+(`electricore/config/runtime.py`, domaine `aes`, #141/ADR-0025) supporte deux clés
+simultanément pour couvrir la transition — **en variables d'environnement uniquement**
+(`.env` ou env système ; le support `.dlt/secrets.toml` a été retiré) :
 
 ```bash
 AES__CURRENT__KEY=nouvelle_cle_hex
@@ -233,15 +234,17 @@ AES__PREVIOUS__KEY=ancienne_cle_hex   # optionnel, garder ~4 semaines après rot
 AES__PREVIOUS__IV=ancien_iv_hex
 ```
 
-ou en `.dlt/secrets.toml` (alternative locale) avec les sections `[aes.current]` / `[aes.previous]`.
-
 Procédure de rotation :
 1. Obtenir la nouvelle clé Enedis
 2. Déplacer la clé active vers `previous`, mettre la nouvelle clé en `current`
 3. Relancer le pipeline — les anciens fichiers déchiffrent avec `previous`, les nouveaux avec `current`
 4. Après ~4 semaines : supprimer `previous`
 
-Le format plat v1 (`AES__KEY` / `[aes]`) reste supporté pour la compatibilité ascendante.
+Le format plat v1 (`AES__KEY` / `AES__IV`) reste supporté pour la compatibilité ascendante.
+La bascule **AES-128 → AES-256** (nuit du 8-9 juin 2026) est absorbée par la longueur
+de clé (16 vs 32 octets). Le cascade à deux clés ne couvre qu'une rotation ; le trousseau
+N-clés est tracé en [issue #221](https://github.com/Energie-De-Nantes/electricore/issues/221)
+(supersède [ADR-0008](docs/adr/0008-rotation-cles-aes.md)).
 
 ### 2. Core Pipelines
 

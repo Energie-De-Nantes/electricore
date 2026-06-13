@@ -8,7 +8,10 @@ from dataclasses import dataclass
 from fastapi import HTTPException, Security, status
 from fastapi.security import APIKeyHeader
 
-from electricore.api.config import settings
+from electricore.config import runtime
+
+# Endpoints publics (sans authentification) — constante, pas de la config env (ADR-0025).
+PUBLIC_ENDPOINTS = ["/", "/health", "/docs", "/redoc", "/openapi.json"]
 
 # Schéma de sécurité unique
 api_key_header = APIKeyHeader(name="X-API-Key", description="Clé API dans le header X-API-Key")
@@ -34,7 +37,7 @@ def get_api_key(api_key: str | None = Security(api_key_header)) -> str:
             headers={"WWW-Authenticate": "APIKey"},
         )
 
-    if not settings.is_valid_api_key(api_key):
+    if not runtime.api().cle_valide(api_key):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Clé API invalide", headers={"WWW-Authenticate": "APIKey"}
         )
@@ -56,7 +59,7 @@ def is_public_endpoint(path: str) -> bool:
     Returns:
         bool: True si l'endpoint est public
     """
-    return path in settings.public_endpoints
+    return path in PUBLIC_ENDPOINTS
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,7 +74,7 @@ class APIKeyInfo:
     def from_key(cls, key: str) -> "APIKeyInfo":
         return cls(
             key_preview=f"{key[:8]}..." if len(key) > 8 else "***",
-            is_valid=settings.is_valid_api_key(key),
+            is_valid=runtime.api().cle_valide(key),
         )
 
 

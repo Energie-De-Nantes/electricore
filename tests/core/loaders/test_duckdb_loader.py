@@ -12,7 +12,7 @@ from unittest.mock import Mock, patch
 import polars as pl
 import pytest
 
-from electricore.config import chemin_base_duckdb
+from electricore.config import runtime
 from electricore.core.loaders.duckdb import (
     DuckDBConfig,
     DuckDBQuery,
@@ -36,6 +36,14 @@ from electricore.core.loaders.duckdb.transforms import (
 class TestDuckDBConfig:
     """Tests pour DuckDBConfig et ses factories."""
 
+    @pytest.fixture(autouse=True)
+    def _isole_runtime(self, monkeypatch):
+        """Neutralise le .env du dépôt et vide le cache des accessors (#141)."""
+        monkeypatch.setattr(runtime, "FICHIER_ENV", None)
+        runtime.vider_cache()
+        yield
+        runtime.vider_cache()
+
     def test_from_env_meme_resolution_que_le_resolveur(self, monkeypatch):
         """from_env() délègue au résolveur partagé (issue #146) — plus de défaut propre.
 
@@ -43,12 +51,14 @@ class TestDuckDBConfig:
         son propre défaut avant que le résolveur n'ait chargé le .env.
         """
         monkeypatch.delenv("DUCKDB_PATH", raising=False)
+        runtime.vider_cache()
         depuis_config = DuckDBConfig.from_env().database_path
-        assert depuis_config == chemin_base_duckdb()
+        assert depuis_config == runtime.duckdb().chemin
 
     def test_from_env_honore_duckdb_path(self, monkeypatch):
         """DUCKDB_PATH explicite prime, telle quelle."""
         monkeypatch.setenv("DUCKDB_PATH", "/data/flux.duckdb")
+        runtime.vider_cache()
         assert DuckDBConfig.from_env().database_path == Path("/data/flux.duckdb")
 
     def test_from_path_custom_path(self):

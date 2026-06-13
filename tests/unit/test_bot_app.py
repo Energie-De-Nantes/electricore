@@ -81,7 +81,7 @@ def _taches_creees_par_demarrer(monkeypatch, chat_id: str) -> int:
     from electricore.bot import tasks
     from electricore.bot.app import demarrer
 
-    monkeypatch.setattr(settings, "telegram_notify_chat_id", chat_id, raising=False)
+    monkeypatch.setenv("TELEGRAM_NOTIFY_CHAT_ID", chat_id)
     monkeypatch.setattr(type(settings), "is_odoo_configured", property(lambda self: True))
 
     class FakeBot:
