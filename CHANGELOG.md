@@ -18,10 +18,12 @@ terme canonique de la doc. Changements cassants et transitions :
 - **Package** : `electricore/etl/` → `electricore/ingestion/` ; CLI :
   `uv run python -m electricore.ingestion <all|test|rebuild|resync|flux…>` ;
 - **Extra** : `uv sync --extra etl` → `uv sync --extra ingestion` (**cassant**) ;
-- **Routes API** : `/etl/run`, `/etl/jobs` → `/ingestion/run`, `/ingestion/jobs` —
-  les anciens chemins répondent encore **une release** (alias hors schéma OpenAPI),
-  mettre à jour la crontab déployée (`deploy/docker/crontab`) ;
-- **Bot** : `/ingestion` remplace `/etl` (qui reste en alias) ;
+- **Routes API** : `/etl/run`, `/etl/jobs` → `/ingestion/run`, `/ingestion/jobs`
+  (**cassant**) ; les alias de transition `/etl/*` sont **retirés** (#193) et
+  répondent désormais `404` — la crontab doit appeler `/ingestion/run`
+  (`deploy/docker/crontab` l'est déjà) ;
+- **Bot** : `/ingestion` remplace `/etl`, **sans alias** (#193) ; les callbacks
+  `etl:*` des claviers postés avant le renommage ne routent plus ;
 - **Compose** : service `etl-scheduler` → `ingestion-scheduler`, conteneur
   `electricore-etl` → `electricore-ingestion` (recréation au prochain pull).
 

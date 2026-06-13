@@ -1,4 +1,4 @@
-"""Tests du contrat de modes de `POST /etl/run` (#152).
+"""Tests du contrat de modes de `POST /ingestion/run` (#152).
 
 L'API accepte les modes réels du runner (`test`, `all`, `rebuild`, `resync`,
 liste de flux) — pas seulement l'enum historique. Le pipeline subprocess est
@@ -44,3 +44,11 @@ def test_run_normalise_le_mode_dans_le_job():
     response = TestClient(app).post("/ingestion/run", json={"mode": "  R151   c15 "})
     assert response.status_code == 202
     assert response.json()["mode"] == "r151 c15"
+
+
+@pytest.mark.parametrize("chemin", ["/etl/run", "/etl/jobs", "/etl/jobs/abc"])
+def test_anciens_chemins_etl_repondent_404(chemin):
+    """Les alias de transition /etl/* sont retirés (#193) — plus aucune route."""
+    client = TestClient(app)
+    response = client.post(chemin, json={"mode": "test"}) if chemin == "/etl/run" else client.get(chemin)
+    assert response.status_code == 404

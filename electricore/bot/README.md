@@ -16,7 +16,7 @@ adapté à l'instance.
 
 | Domaine | Clavier | Raccourcis |
 |---|---|---|
-| `/ingestion` (alias `/etl`) | All · Test · Rebuild · Flux… · Resync · Statut | `/ingestion rebuild`, `/ingestion r151 c15`, `/ingestion statut` |
+| `/ingestion` | All · Test · Rebuild · Flux… · Resync · Statut | `/ingestion rebuild`, `/ingestion r151 c15`, `/ingestion statut` |
 | `/flux` | tables avec descriptions, 📊 stats · 📥 export | `/flux stats c15`, `/flux export r151` |
 | `/perimetre` | 📥 Entrées · 📤 Sorties (C15) | `/perimetre entrees`, `/perimetre sorties` |
 | `/taxes` ⁽ᵉʳᵖ⁾ | Accise · CTA → trimestre (4 derniers + toutes périodes) | `/taxes accise 2025-T1`, `/taxes cta` |
