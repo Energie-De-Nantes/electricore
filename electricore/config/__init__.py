@@ -1,4 +1,4 @@
-from electricore.config.env import charger_env, chemin_base_duckdb
+from electricore.config import runtime
 from electricore.config.odoo import charger_config_odoo
 
-__all__ = ["charger_env", "charger_config_odoo", "chemin_base_duckdb"]
+__all__ = ["runtime", "charger_config_odoo"]

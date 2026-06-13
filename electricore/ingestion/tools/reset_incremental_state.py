@@ -7,7 +7,7 @@ DLT stocke l'état dans DEUX endroits :
   2. DuckDB         : flux_enedis._dlt_pipeline_state         (restauré au lancement)
 
 Ce script met à jour les deux de manière cohérente. La base visée est résolue
-par `chemin_base_duckdb()` (DUCKDB_PATH, .env compris — issue #146) : le script
+par `runtime.duckdb().chemin` (DUCKDB_PATH, .env compris — issue #146) : le script
 se lance depuis n'importe quel répertoire.
 
 Usage :
@@ -28,9 +28,9 @@ from pathlib import Path
 
 import duckdb
 
-from electricore.config import chemin_base_duckdb
+from electricore.config import runtime
 
-DB_PATH = chemin_base_duckdb()
+DB_PATH = runtime.duckdb().chemin
 DATASET = "flux_enedis"
 RESET_DATE_DEFAULT = "2026-03-17T00:00:00+00:00"
 

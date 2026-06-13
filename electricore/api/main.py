@@ -5,7 +5,6 @@ Expose les données Enedis via endpoints génériques avec authentification par 
 
 import asyncio
 import logging
-import os
 from contextlib import asynccontextmanager
 from urllib.parse import urlparse
 
@@ -19,6 +18,7 @@ from electricore.api.routers import flux as flux_router
 from electricore.api.routers import ingestion as ingestion_router
 from electricore.api.routers import taxes as taxes_router
 from electricore.api.services import duckdb_service
+from electricore.config import runtime
 from electricore.core.loaders.duckdb import DuckDBLockError
 
 logger = logging.getLogger(__name__)
@@ -28,7 +28,10 @@ _tg_app = None
 
 def _format_sftp_source() -> str:
     """Identifiant lisible de la source SFTP, sans secret (cf. ADR-0015)."""
-    raw = os.getenv("SFTP__URL", "")
+    try:
+        raw = runtime.sftp().url
+    except runtime.ConfigurationManquante:
+        raw = ""
     if not raw:
         return "(unset)"
     parsed = urlparse(raw)
@@ -42,7 +45,7 @@ def _format_sftp_source() -> str:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _tg_app
-    odoo_db = os.getenv(f"ODOO_{settings.odoo_env.upper()}_DB", "(unset)")
+    odoo_db = runtime.odoo().db if settings.is_odoo_configured else "(unset)"
     logger.info(
         "Instance=%s, odoo_env=%s, odoo_db=%s, sftp=%s",
         settings.instance_slug or "(unset)",

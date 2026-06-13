@@ -2,12 +2,11 @@
 
 from fastapi.testclient import TestClient
 
-from electricore.api.config import settings
 from electricore.api.main import app
 
 
 def test_health_expose_instance_slug_when_set(monkeypatch):
-    monkeypatch.setattr(settings, "instance_slug", "edn")
+    monkeypatch.setenv("INSTANCE_SLUG", "edn")
     client = TestClient(app)
     response = client.get("/health")
     assert response.status_code == 200
@@ -17,7 +16,7 @@ def test_health_expose_instance_slug_when_set(monkeypatch):
 
 
 def test_health_expose_empty_instance_when_unset(monkeypatch):
-    monkeypatch.setattr(settings, "instance_slug", "")
+    monkeypatch.setenv("INSTANCE_SLUG", "")
     client = TestClient(app)
     response = client.get("/health")
     assert response.status_code == 200

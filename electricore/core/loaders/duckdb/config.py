@@ -14,7 +14,7 @@ from pathlib import Path
 
 import duckdb
 
-from electricore.config import chemin_base_duckdb
+from electricore.config import runtime
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ class DuckDBConfig:
 
     @classmethod
     def from_env(cls) -> "DuckDBConfig":
-        return cls(chemin_base_duckdb())
+        return cls(runtime.duckdb().chemin)
 
     @classmethod
     def from_path(cls, path: str | Path | None) -> "DuckDBConfig":

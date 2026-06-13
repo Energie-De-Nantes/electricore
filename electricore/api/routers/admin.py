@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends
 
 from electricore.api.config import settings
-from electricore.api.security import APIKeyInfo, get_api_key_info, get_current_api_key
+from electricore.api.security import PUBLIC_ENDPOINTS, APIKeyInfo, get_api_key_info, get_current_api_key
 
 router = APIRouter(tags=["admin"])
 
@@ -24,6 +24,6 @@ async def list_api_keys(api_key: str = Depends(get_current_api_key), key_info: A
         "configuration": {
             "total_keys": len(settings.get_valid_api_keys()),
             "method": "X-API-Key header",
-            "public_endpoints": settings.public_endpoints,
+            "public_endpoints": PUBLIC_ENDPOINTS,
         },
     }

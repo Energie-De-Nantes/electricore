@@ -51,3 +51,11 @@ _Éviter_ : extraction (collision avec le E de ETL = récupération SFTP), parsi
 
 **Configuration de flux** :
 Entrée de `flux.yaml` réduite au **mouvement** : `file_pattern` (glob SFTP des zips), `format` (xml/json) et `file_regex` (fichiers à extraire). Le contrat de sélection vit dans les modèles dbt — ce qui n'est pas sélectionné par un modèle reste néanmoins disponible dans le brut (`flux_raw`), re-matérialisable à volonté (`ingestion.py rebuild`).
+
+---
+
+## Déchiffrement
+
+**Trousseau de clés AES** :
+Ensemble des clés AES qu'Enedis a successivement utilisées pour chiffrer les flux d'une instance. Une clé a une **fenêtre de validité** temporelle : les fichiers de l'archive historique sont chiffrés par la clé en vigueur à leur date d'émission. Le chiffrement lui-même a évolué dans le temps — bascule **AES-128 → AES-256 dans la nuit du 8 au 9 juin 2026** —, absorbée par la longueur de clé (16 vs 32 octets) sans branche de code distincte. Sélection **par essai** : on tente les clés du trousseau (de la plus récente à la plus ancienne), le déchiffrement est son propre oracle (padding PKCS7 + magic bytes ZIP). Les fenêtres de validité sont **dérivées** du corpus (min/max `modification_date` des fichiers qu'une clé déchiffre) et exposées pour l'observabilité — jamais le pilote de la sélection (parallèle au _millésime_ réglementaire d'[ADR-0024](../../docs/adr/0024-trois-registres-de-savoir.md)). Registre **runtime** (secret, par-instance, ajouté au déploiement), pas réglementaire. La rotation à deux clés ([ADR-0008](../../docs/adr/0008-rotation-cles-aes.md)) est le stopgap qui ne couvre qu'une rotation ; le trousseau N-clés est la cible.
+_Éviter_ : « clé courante » au singulier (le trousseau est pluriel par construction).

@@ -1,163 +1,80 @@
+"""Façade de compatibilité sur le registre runtime (#141, ADR-0025).
+
+`APISettings` ne lit plus l'environnement : elle compose les domaines runtime
+(`api`, `bot`, `odoo`). Conservée comme adaptateur mince pour la stabilité des
+appelants et des tests ; la source de vérité est `electricore/config/runtime.py`.
+
+Lectures « souples » pour le bot et Odoo : l'API ne requiert ni l'un ni l'autre
+(no-ERP servi, ADR-0022 ; l'API ne valide jamais le domaine bot, ADR-0025), donc
+l'absence de config rend une valeur vide plutôt que de lever.
 """
-Configuration de l'API ElectriCore avec gestion des clés API.
-Utilise Pydantic Settings pour une configuration basée sur les variables d'environnement.
-"""
 
-import os
-import secrets
-from importlib.metadata import PackageNotFoundError
-from importlib.metadata import version as _pkg_version
+from dataclasses import dataclass
 
-from pydantic import BaseModel, Field, validator
-
-from electricore.config.env import charger_env
-
-# Charger le .env au démarrage du module
-charger_env()
+from electricore.config import runtime
 
 
-def _default_api_version() -> str:
-    """Version du package electricore (suit pyproject.toml / tag de release)."""
-    try:
-        return _pkg_version("electricore")
-    except PackageNotFoundError:
-        return "0.0.0+unknown"
+@dataclass(frozen=True)
+class APISettings:
+    """Adaptateur sur les domaines runtime, interface héritée d'APISettings.
 
-
-class APISettings(BaseModel):
-    """
-    Configuration de l'API avec support des clés API multiples.
-
-    Les clés API peuvent être définies soit :
-    - Comme une seule clé via API_KEY
-    - Comme plusieurs clés via API_KEYS (séparées par des virgules)
+    `@dataclass` sans champ : objet-vue sans état propre (toute la config vit dans
+    le registre runtime) — la forme sanctionnée par ADR-0018 pour un adaptateur.
     """
 
-    # Configuration générale de l'API
-    api_title: str = Field(default="ElectriCore API")
-    api_version: str = Field(default_factory=_default_api_version)
-    api_description: str = Field(default="API sécurisée pour accéder aux données flux Enedis")
+    # --- domaine api (champs à défaut, n'échoue jamais) ---
+    @property
+    def api_title(self) -> str:
+        return runtime.api().titre
 
-    # Identité de l'instance (cf. ADR-0015 — déploiement multi-instance)
-    instance_slug: str = Field(default="")
+    @property
+    def api_version(self) -> str:
+        return runtime.api().version
 
-    # Configuration des clés API
-    api_key: str = Field(default="")
-    api_keys: str = Field(default="")
+    @property
+    def api_description(self) -> str:
+        return runtime.api().description
 
-    # Plus utilisé, gardé pour compatibilité
-    enable_api_key_header: bool = Field(default=True)
+    @property
+    def instance_slug(self) -> str:
+        return runtime.api().instance_slug
 
-    # Configuration Telegram
-    telegram_bot_token: str = Field(default="")
-    api_base_url: str = Field(default="http://localhost:8001")
-    telegram_allowed_users: str = Field(default="")  # IDs séparés par virgule
-    telegram_notify_chat_id: str = Field(default="")  # chat des alertes proactives (#157) ; vide = désactivé
+    def get_valid_api_keys(self) -> list[str]:
+        return runtime.api().cles_valides()
 
-    # Endpoints publics (sans authentification)
-    public_endpoints: list[str] = Field(default=["/", "/health", "/docs", "/redoc", "/openapi.json"])
+    def is_valid_api_key(self, key: str) -> bool:
+        return runtime.api().cle_valide(key)
 
-    # Environnement Odoo actif ("test" ou "prod")
-    odoo_env: str = Field(default="test")
+    # --- domaine bot (souple : l'API ne requiert pas le bot) ---
+    @property
+    def telegram_bot_token(self) -> str:
+        return runtime.bot().token if runtime.bot_est_configure() else ""
+
+    @property
+    def telegram_notify_chat_id(self) -> str:
+        return runtime.bot().notify_chat_id if runtime.bot_est_configure() else ""
+
+    def get_telegram_allowed_users(self) -> set[int]:
+        return runtime.bot().utilisateurs_autorises() if runtime.bot_est_configure() else set()
+
+    # --- odoo (souple : no-ERP servi) ---
+    @property
+    def odoo_env(self) -> str:
+        return runtime.odoo_env_actif()
+
+    def get_odoo_config(self) -> dict[str, str]:
+        return runtime.odoo().model_dump()
 
     @property
     def is_odoo_configured(self) -> bool:
-        """Vérifie que la config Odoo de l'environnement actif est complète."""
+        """Dérivé de `get_odoo_config()` : patcher cette méthode (tests) pilote
+        donc aussi `is_odoo_configured`, comportement hérité d'APISettings."""
         try:
             self.get_odoo_config()
             return True
-        except (ValueError, Exception):
+        except Exception:
             return False
 
-    def get_odoo_config(self) -> dict[str, str]:
-        """Retourne la config Odoo sous forme de dict compatible avec OdooReader."""
-        from electricore.config.odoo import charger_config_odoo
 
-        return charger_config_odoo(env=self.odoo_env)
-
-    def __init__(self, **kwargs):
-        # Charger depuis les variables d'environnement
-        env_values = {
-            "api_title": os.getenv("API_TITLE", "ElectriCore API"),
-            "api_version": os.getenv("API_VERSION") or _default_api_version(),
-            "api_description": os.getenv("API_DESCRIPTION", "API sécurisée pour accéder aux données flux Enedis"),
-            "instance_slug": os.getenv("INSTANCE_SLUG", ""),
-            "api_key": os.getenv("API_KEY", ""),
-            "api_keys": os.getenv("API_KEYS", ""),
-            "enable_api_key_header": os.getenv("ENABLE_API_KEY_HEADER", "true").lower() == "true",
-            "telegram_bot_token": os.getenv("TELEGRAM_BOT_TOKEN", ""),
-            "api_base_url": os.getenv("API_BASE_URL", "http://localhost:8001"),
-            "telegram_allowed_users": os.getenv("TELEGRAM_ALLOWED_USERS", ""),
-            "telegram_notify_chat_id": os.getenv("TELEGRAM_NOTIFY_CHAT_ID", ""),
-            "odoo_env": os.getenv("ODOO_ENV", "test"),
-        }
-
-        # Combiner avec les kwargs fournis
-        env_values.update(kwargs)
-        super().__init__(**env_values)
-
-    @validator("api_keys", pre=True)
-    def parse_api_keys(cls, v, values):
-        """Parse les clés API multiples et combine avec la clé principale."""
-        keys = []
-
-        # Ajouter la clé principale si définie
-        if values.get("api_key"):
-            keys.append(values["api_key"])
-
-        # Ajouter les clés multiples si définies
-        if v:
-            additional_keys = [k.strip() for k in v.split(",") if k.strip()]
-            keys.extend(additional_keys)
-
-        return ",".join(keys) if keys else ""
-
-    def get_valid_api_keys(self) -> list[str]:
-        """
-        Retourne la liste des clés API valides.
-
-        Returns:
-            List[str]: Liste des clés API configurées
-        """
-        if not self.api_keys:
-            return []
-        return [k.strip() for k in self.api_keys.split(",") if k.strip()]
-
-    def is_valid_api_key(self, key: str) -> bool:
-        """
-        Vérifie si une clé API est valide en utilisant une comparaison sécurisée.
-
-        Args:
-            key: Clé API à vérifier
-
-        Returns:
-            bool: True si la clé est valide
-        """
-        if not key:
-            return False
-
-        valid_keys = self.get_valid_api_keys()
-        if not valid_keys:
-            return False
-
-        # Utilisation de secrets.compare_digest pour éviter les attaques de timing
-        return any(secrets.compare_digest(key, valid_key) for valid_key in valid_keys)
-
-    def get_telegram_allowed_users(self) -> set[int]:
-        """Retourne l'ensemble des user IDs Telegram autorisés."""
-        if not self.telegram_allowed_users:
-            return set()
-        return {int(uid.strip()) for uid in self.telegram_allowed_users.split(",") if uid.strip().isdigit()}
-
-    def generate_api_key(self) -> str:
-        """
-        Génère une nouvelle clé API sécurisée.
-
-        Returns:
-            str: Clé API générée
-        """
-        return secrets.token_urlsafe(32)
-
-
-# Instance globale de la configuration
+# Instance globale (façade) — la config réelle vit dans le registre runtime.
 settings = APISettings()

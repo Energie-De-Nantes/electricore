@@ -18,22 +18,19 @@ Chemin de production (#134) : la base par défaut est la base de prod
 dans `flux_raw`. `--db` permet une base jetable pour les validations.
 """
 
-# Charger .env avant que DLT lise ses secrets depuis os.environ (SFTP__URL, AES__*).
-from electricore.config import charger_env, chemin_base_duckdb
-
-charger_env()
-
 import argparse
 import logging
 import os
 import sys
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
 import dlt
 import yaml
 
+from electricore.config import runtime
 from electricore.ingestion.sources.sftp_enedis_brut import flux_enedis_brut
 
 # DLT écrit sur stderr — on laisse faire, on ne lit que stdout
@@ -46,8 +43,25 @@ PROJET_DBT = ICI / "dbt"
 def chemin_db_defaut() -> Path:
     """Base cible par défaut : DUCKDB_PATH (.env compris, volume Docker via compose)
     sinon la base de prod locale — résolution partagée avec l'API et les loaders
-    core (`chemin_base_duckdb`, issue #146)."""
-    return chemin_base_duckdb()
+    core via le registre runtime (`runtime.duckdb().chemin`, #141/#146)."""
+    return runtime.duckdb().chemin
+
+
+@contextmanager
+def pont_dbt_duckdb(db_path: str | Path):
+    """Seul pont os.environ → dbt (ADR-0025) : pose DBT_DUCKDB_PATH le temps de
+    l'invocation in-process, restaure l'état antérieur ensuite (try/finally) pour
+    ne pas survivre dans un éventuel process API. `env_var()` est l'unique
+    mécanisme de paramétrage de `profiles.yml` côté dbt."""
+    ancienne = os.environ.get("DBT_DUCKDB_PATH")
+    os.environ["DBT_DUCKDB_PATH"] = str(db_path)
+    try:
+        yield
+    finally:
+        if ancienne is None:
+            os.environ.pop("DBT_DUCKDB_PATH", None)
+        else:
+            os.environ["DBT_DUCKDB_PATH"] = ancienne
 
 
 def _out(msg: str) -> None:
@@ -133,20 +147,20 @@ def construire_dbt(db_path: Path) -> bool:
         _out("  aucune table brute landée — rien à construire")
         return False
 
-    os.environ["DBT_DUCKDB_PATH"] = str(db_path)
-    resultat = dbtRunner().invoke(
-        [
-            "build",
-            "--select",
-            *selection,
-            "--project-dir",
-            str(PROJET_DBT),
-            "--profiles-dir",
-            str(PROJET_DBT),
-            "--target-path",
-            str(db_path.parent / f".dbt_target_{db_path.stem}"),
-        ]
-    )
+    with pont_dbt_duckdb(db_path):
+        resultat = dbtRunner().invoke(
+            [
+                "build",
+                "--select",
+                *selection,
+                "--project-dir",
+                str(PROJET_DBT),
+                "--profiles-dir",
+                str(PROJET_DBT),
+                "--target-path",
+                str(db_path.parent / f".dbt_target_{db_path.stem}"),
+            ]
+        )
     return bool(resultat.success)
 
 
@@ -189,6 +203,13 @@ def main() -> None:
     args = parseur.parse_args()
 
     plan = interpreter_flux(args.flux, args.max_files)
+
+    # Fail-fast par point d'entrée (ADR-0025) : rebuild ne touche ni SFTP ni AES.
+    if plan.rebuild:
+        runtime.valider(runtime.duckdb)
+    else:
+        runtime.valider(runtime.sftp, runtime.aes, runtime.duckdb)
+
     args.db = args.db or chemin_db_defaut()
 
     if plan.rebuild:

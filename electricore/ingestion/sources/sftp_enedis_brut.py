@@ -14,11 +14,11 @@ double-comptait.
 
 import json
 import logging
-import os
 from collections.abc import Iterator
 
 import dlt
 
+from electricore.config import runtime
 from electricore.ingestion.parsing.xml import xml_vers_dict
 from electricore.ingestion.sources.sftp_enedis import create_sftp_resource, mask_password_in_url
 from electricore.ingestion.transformers.archive import create_unzip_transformer
@@ -54,7 +54,7 @@ def flux_enedis_brut(flux_config: dict, max_files: int = None):
             format (xml/json) et file_regex (fichiers à extraire des zips).
         max_files: Limitation par flux (smoke tests).
     """
-    sftp_url = os.environ.get("SFTP__URL") or dlt.secrets["sftp"]["url"]
+    sftp_url = runtime.sftp().url
     logger.info("Source URL: %s", mask_password_in_url(sftp_url))
 
     decrypt_transformer = create_decrypt_transformer()

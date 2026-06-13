@@ -1,15 +1,10 @@
-"""
-Helper partagé pour charger la configuration Odoo depuis les variables d'environnement.
+"""Façade de compatibilité pour la configuration Odoo (#141, ADR-0025).
 
-Utilisé par l'API, les notebooks, et tout module nécessitant une connexion Odoo.
-La source de vérité est le fichier `.env` à la racine du projet.
-
-Supporte deux environnements (test / prod) via le sélecteur ODOO_ENV.
+Le registre runtime (`runtime.odoo()`) est la source de vérité ; cette façade
+préserve l'API `charger_config_odoo()` documentée dans 8 notebooks in-repo.
 """
 
-import os
-
-from electricore.config.env import charger_env
+from electricore.config import runtime
 
 
 def charger_config_odoo(env: str | None = None) -> dict:
@@ -17,14 +12,14 @@ def charger_config_odoo(env: str | None = None) -> dict:
     Charge la configuration Odoo pour l'environnement spécifié.
 
     Args:
-        env: "test" ou "prod". Si None, lit la variable ODOO_ENV
-            (défaut : "test").
+        env: "test" ou "prod". Si None, lit le sélecteur ODOO_ENV (défaut : "test").
 
     Returns:
         dict: Configuration avec les clés url, db, username, password.
 
     Raises:
-        ValueError: Si des variables ODOO_<ENV>_* sont manquantes dans .env.
+        ConfigurationManquante: Si des variables ODOO_<ENV>_* manquent
+            (sous-classe ValueError — compatible avec les `except ValueError`).
 
     Example:
         >>> from electricore.config import charger_config_odoo
@@ -33,22 +28,4 @@ def charger_config_odoo(env: str | None = None) -> dict:
         >>> with OdooReader(config=config) as odoo:
         ...     ...
     """
-    charger_env()
-    env = env or os.getenv("ODOO_ENV", "test")
-    prefix = f"ODOO_{env.upper()}_"
-
-    config = {
-        "url": os.getenv(f"{prefix}URL", ""),
-        "db": os.getenv(f"{prefix}DB", ""),
-        "username": os.getenv(f"{prefix}USERNAME", ""),
-        "password": os.getenv(f"{prefix}PASSWORD", ""),
-    }
-
-    manquantes = [k for k, v in config.items() if not v]
-    if manquantes:
-        vars_manquantes = [f"{prefix}{k.upper()}" for k in manquantes]
-        raise ValueError(
-            f"Configuration Odoo [{env}] incomplète. Définissez {', '.join(vars_manquantes)} dans le fichier .env"
-        )
-
-    return config
+    return runtime.odoo(env).model_dump()

@@ -16,6 +16,8 @@ import polars as pl
 import pytest
 from hypothesis import HealthCheck, settings
 
+from electricore.config import runtime
+
 # =========================================================================
 # PROFIL HYPOTHESIS - CI bornée, pas de deadline flaky (issue #194)
 # =========================================================================
@@ -27,6 +29,22 @@ settings.register_profile(
     suppress_health_check=[HealthCheck.too_slow],
 )
 settings.load_profile("ci")
+
+
+@pytest.fixture(autouse=True)
+def _runtime_cache_isole():
+    """Vide le cache des accessors runtime entre les tests (#141).
+
+    Les accessors `runtime.duckdb()`/`sftp()`/… sont `lru_cache`d : sans ce reset,
+    un `monkeypatch.setenv` dans un test ne serait pas relu si l'accessor a déjà
+    été appelé. Le `.env` du dépôt reste actif (`FICHIER_ENV`) — un test qui exige
+    son absence le neutralise localement (`monkeypatch.setattr(runtime,
+    "FICHIER_ENV", None)`).
+    """
+    runtime.vider_cache()
+    yield
+    runtime.vider_cache()
+
 
 # =========================================================================
 # FIXTURES - DONNÉES DE TEST MINIMALES

@@ -35,7 +35,7 @@ def fake_update(user_id: int = 42) -> SimpleNamespace:
 @pytest.fixture(autouse=True)
 def _instance_edn(monkeypatch):
     monkeypatch.setattr(type(settings), "get_telegram_allowed_users", lambda self: {42})
-    monkeypatch.setattr(settings, "instance_slug", "edn")
+    monkeypatch.setenv("INSTANCE_SLUG", "edn")
 
 
 def test_start_annonce_l_instance(monkeypatch):
@@ -57,7 +57,7 @@ def test_start_liste_la_surface_de_commandes(monkeypatch):
 
 
 def test_start_sans_slug_reste_generique(monkeypatch):
-    monkeypatch.setattr(settings, "instance_slug", "")
+    monkeypatch.setenv("INSTANCE_SLUG", "")
     update = fake_update()
     asyncio.run(cmd_start(update, context=None))
 

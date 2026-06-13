@@ -11,7 +11,6 @@ Nécessite l'extra [ingestion] : uv sync --extra ingestion
 
 import io
 import zipfile
-from unittest.mock import patch
 
 import pytest
 
@@ -20,6 +19,7 @@ pytest.importorskip("Crypto", reason="Nécessite l'extra [ingestion] : uv sync -
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
 
+from electricore.config import runtime
 from electricore.ingestion.transformers.crypto import (
     decrypt_file_aes,
     decrypt_with_key_chain,
@@ -33,11 +33,8 @@ from electricore.ingestion.transformers.crypto import (
 
 @pytest.fixture(autouse=True)
 def _isoler_env_aes(monkeypatch):
-    """Efface les vars AES__* d'os.environ pour isoler les tests crypto.
-
-    Sinon, tout test qui importe l'API en amont pollue os.environ via
-    `charger_env()` et fait court-circuiter le mock `dlt.secrets`.
-    """
+    """Isole les tests crypto : vars AES__* effacées, .env du dépôt neutralisé,
+    cache des accessors runtime vidé (#141)."""
     for var in (
         "AES__CURRENT__KEY",
         "AES__CURRENT__IV",
@@ -47,6 +44,10 @@ def _isoler_env_aes(monkeypatch):
         "AES__IV",
     ):
         monkeypatch.delenv(var, raising=False)
+    monkeypatch.setattr(runtime, "FICHIER_ENV", None)
+    runtime.vider_cache()
+    yield
+    runtime.vider_cache()
 
 
 @pytest.fixture
@@ -190,69 +191,52 @@ def test_decrypt_with_key_chain_single_key(encrypted_zip, zip_bytes, aes_key, ae
 
 
 # =============================================================================
-# TESTS load_aes_key_chain (mock dlt.secrets)
+# TESTS load_aes_key_chain (registre runtime — #141, ADR-0025 ; rotation ADR-0008)
 # =============================================================================
 
 
 @pytest.mark.unit
-def test_load_key_chain_v1_format(aes_key, aes_iv):
-    """Format v1 [aes] plat → une clé nommée 'legacy'."""
-    mock_aes = {"key": aes_key.hex(), "iv": aes_iv.hex()}
+def test_load_key_chain_v1_format(aes_key, aes_iv, monkeypatch):
+    """Format plat v1 (AES__KEY/AES__IV) → une clé nommée 'legacy'."""
+    monkeypatch.setenv("AES__KEY", aes_key.hex())
+    monkeypatch.setenv("AES__IV", aes_iv.hex())
+    runtime.vider_cache()
 
-    with patch("electricore.ingestion.transformers.crypto.dlt") as mock_dlt:
-        mock_dlt.secrets = {"aes": mock_aes}
-        chain = load_aes_key_chain()
+    chain = load_aes_key_chain()
 
-    assert len(chain) == 1
-    name, key, iv = chain[0]
-    assert name == "legacy"
-    assert key == aes_key
-    assert iv == aes_iv
+    assert chain == [("legacy", aes_key, aes_iv)]
 
 
 @pytest.mark.unit
-def test_load_key_chain_v2_current_only(aes_key, aes_iv):
-    """Format v2 [aes.current] sans previous → une clé nommée 'current'."""
-    mock_aes = {"current": {"key": aes_key.hex(), "iv": aes_iv.hex()}}
+def test_load_key_chain_v2_current_only(aes_key, aes_iv, monkeypatch):
+    """AES__CURRENT__* sans previous → une clé nommée 'current'."""
+    monkeypatch.setenv("AES__CURRENT__KEY", aes_key.hex())
+    monkeypatch.setenv("AES__CURRENT__IV", aes_iv.hex())
+    runtime.vider_cache()
 
-    with patch("electricore.ingestion.transformers.crypto.dlt") as mock_dlt:
-        mock_dlt.secrets = {"aes": mock_aes}
-        chain = load_aes_key_chain()
+    chain = load_aes_key_chain()
 
-    assert len(chain) == 1
-    assert chain[0][0] == "current"
-    assert chain[0][1] == aes_key
-    assert chain[0][2] == aes_iv
+    assert chain == [("current", aes_key, aes_iv)]
 
 
 @pytest.mark.unit
-def test_load_key_chain_v2_with_previous(aes_key, aes_iv):
-    """Format v2 [aes.current] + [aes.previous] → deux clés, current en premier."""
+def test_load_key_chain_v2_with_previous(aes_key, aes_iv, monkeypatch):
+    """AES__CURRENT__* + AES__PREVIOUS__* → deux clés, current en premier."""
     old_key = bytes([0xFF] * 16)
     old_iv = bytes([0xFE] * 16)
+    monkeypatch.setenv("AES__CURRENT__KEY", aes_key.hex())
+    monkeypatch.setenv("AES__CURRENT__IV", aes_iv.hex())
+    monkeypatch.setenv("AES__PREVIOUS__KEY", old_key.hex())
+    monkeypatch.setenv("AES__PREVIOUS__IV", old_iv.hex())
+    runtime.vider_cache()
 
-    mock_aes = {
-        "current": {"key": aes_key.hex(), "iv": aes_iv.hex()},
-        "previous": {"key": old_key.hex(), "iv": old_iv.hex()},
-    }
+    chain = load_aes_key_chain()
 
-    with patch("electricore.ingestion.transformers.crypto.dlt") as mock_dlt:
-        mock_dlt.secrets = {"aes": mock_aes}
-        chain = load_aes_key_chain()
-
-    assert len(chain) == 2
-    assert chain[0][0] == "current"
-    assert chain[1][0] == "previous"
-    assert chain[0][1] == aes_key
-    assert chain[1][1] == old_key
+    assert chain == [("current", aes_key, aes_iv), ("previous", old_key, old_iv)]
 
 
 @pytest.mark.unit
-def test_load_key_chain_invalid_format():
-    """Format [aes] sans key/iv ni sous-sections → ValueError."""
-    mock_aes = {"unknown_field": "something"}
-
-    with patch("electricore.ingestion.transformers.crypto.dlt") as mock_dlt:
-        mock_dlt.secrets = {"aes": mock_aes}
-        with pytest.raises(ValueError, match="Format \\[aes\\] invalide"):
-            load_aes_key_chain()
+def test_load_key_chain_sans_cles_leve_configuration_manquante():
+    """Aucune variable AES__* → ConfigurationManquante nommant les vars attendues."""
+    with pytest.raises(runtime.ConfigurationManquante, match="AES__CURRENT__KEY"):
+        load_aes_key_chain()
