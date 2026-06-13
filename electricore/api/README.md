@@ -75,8 +75,6 @@ API_VERSION="1.0.0"
 - `GET /facturation/...` - Documents mensuels ; `GET /facturation/check/odoo.xlsx` - check pré-facturation
 - `GET /admin/api-keys` - Configuration des clés API
 
-Les routes `/etl/*` restent des alias hors schéma OpenAPI de `/ingestion/*` pour une release (cf. issue #193).
-
 ## 🚀 Exemples d'utilisation
 
 ### Lister les tables disponibles

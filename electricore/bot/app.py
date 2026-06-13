@@ -32,9 +32,7 @@ def build_application(token: str) -> Application:
     application.add_handler(CommandHandler("help", start.cmd_help))
     # Domaine /ingestion (#152, ex-/etl) — clavier inline + raccourcis, absorbe /status.
     application.add_handler(CommandHandler("ingestion", ingestion.cmd_ingestion))
-    # Alias de transition pour la mémoire musculaire des opérateurs.
-    application.add_handler(CommandHandler("etl", ingestion.cmd_ingestion))
-    application.add_handler(CallbackQueryHandler(ingestion.on_callback, pattern="^(ingestion|etl):"))
+    application.add_handler(CallbackQueryHandler(ingestion.on_callback, pattern="^ingestion:"))
     # Domaine /flux (#153) — stats + exports des tables brutes, absorbe /stats et /export.
     application.add_handler(CommandHandler("flux", flux.cmd_flux))
     application.add_handler(CallbackQueryHandler(flux.on_callback, pattern="^flux:"))

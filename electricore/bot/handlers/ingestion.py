@@ -169,11 +169,7 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     query = update.callback_query
     await query.answer()
     chat_id, message_id = query.message.chat_id, query.message.message_id
-    # Compat transition : les claviers postés avant le renommage portent encore
-    # des callbacks `etl:*` — normalisés ici plutôt que cassés.
     data = query.data
-    if data.startswith("etl:"):
-        data = "ingestion:" + data.removeprefix("etl:")
 
     if data == "ingestion:menu":
         await context.bot.edit_message_text(

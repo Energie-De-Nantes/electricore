@@ -62,7 +62,7 @@ def test_les_callbacks_des_domaines_sont_routes():
         h.pattern for handlers in tg_app.handlers.values() for h in handlers if isinstance(h, CallbackQueryHandler)
     ]
     assert any(p.match("ingestion:menu") for p in patterns)
-    assert any(p.match("etl:menu") for p in patterns), "compat claviers postés avant le renommage"
+    assert not any(p.match("etl:menu") for p in patterns), "alias /etl retiré (#193) : etl:* ne route plus"
     assert any(p.match("flux:menu") for p in patterns)
     assert any(p.match("perimetre:menu") for p in patterns)
     assert any(p.match("taxes:menu") for p in patterns)

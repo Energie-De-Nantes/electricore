@@ -1,6 +1,6 @@
 """Contrat CLI du runner de production dbt (#134).
 
-L'API (`/etl/run`) subprocess le runner avec un mode : chaque valeur de `ModeIngestion`
+L'API (`/ingestion/run`) subprocess le runner avec un mode : chaque valeur de `ModeIngestion`
 doit être interprétable par `ingestion`, avec la même sémantique que l'ex-runner
 legacy (test = échantillon, all = tout, sélection de flux, reset = re-téléchargement
 complet via drop_sources).
@@ -61,7 +61,7 @@ def test_la_base_par_defaut_honore_le_dotenv(tmp_path, monkeypatch):
 
 
 def test_l_api_subprocess_le_runner_dbt():
-    """La bascule #134 : /etl/run lance le chemin dbt, plus le parseur legacy."""
+    """La bascule #134 : /ingestion/run lance le chemin dbt, plus le parseur legacy."""
     from electricore.api.services.ingestion_service import _build_pipeline_command
 
     commande = _build_pipeline_command("all")

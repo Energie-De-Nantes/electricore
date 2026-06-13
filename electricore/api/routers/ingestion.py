@@ -8,12 +8,8 @@ from electricore.api.services import ingestion_service
 
 router = APIRouter(tags=["ingestion"])
 
-# Alias de transition : les anciens chemins /etl/* répondent encore une release
-# (crontabs déployées), hors schéma OpenAPI. À retirer à la release suivante.
-
 
 @router.post("/ingestion/run", response_model=IngestionJobResponse, status_code=202)
-@router.post("/etl/run", response_model=IngestionJobResponse, status_code=202, include_in_schema=False)
 async def run_ingestion(
     body: IngestionRunRequest,
     api_key: str = Depends(get_current_api_key),
@@ -66,7 +62,6 @@ async def run_ingestion(
 
 
 @router.get("/ingestion/jobs", response_model=list[IngestionJobResponse])
-@router.get("/etl/jobs", response_model=list[IngestionJobResponse], include_in_schema=False)
 async def list_ingestion_jobs(
     limit: int = Query(20, ge=1, le=50, description="Nombre de jobs à retourner"),
     api_key: str = Depends(get_current_api_key),
@@ -92,7 +87,6 @@ async def list_ingestion_jobs(
 
 
 @router.get("/ingestion/jobs/{job_id}", response_model=IngestionJobResponse)
-@router.get("/etl/jobs/{job_id}", response_model=IngestionJobResponse, include_in_schema=False)
 async def get_ingestion_job(
     job_id: str,
     api_key: str = Depends(get_current_api_key),
