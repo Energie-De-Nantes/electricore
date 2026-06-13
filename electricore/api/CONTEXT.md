@@ -5,7 +5,10 @@ Vocabulaire spécifique au service REST qui expose `core` et l'orchestration de 
 ## API
 
 **API** :
-Service REST FastAPI ([electricore/api/](.)) exposant les flux Enedis (`/flux/*`), les déclenchements d'ingestion (`/ingestion/*`), les calculs de taxes (`/taxes/*`), les exports de facturation et vérifications pré-facturation (`/facturation/*`, dont `/facturation/check/odoo.xlsx`).
+Service REST FastAPI ([electricore/api/](.)) exposant les flux Enedis (`/flux/*`), les déclenchements d'ingestion (`/ingestion/*`), les calculs de taxes (`/taxes/*`), les exports de facturation et vérifications pré-facturation (`/facturation/*`, dont `/facturation/check/odoo.xlsx`), et la lecture des méta-périodes mensuelles (`/facturation/meta-periodes`, cf. *Endpoint méta-périodes*).
+
+**Endpoint méta-périodes** :
+`GET /facturation/meta-periodes` — endpoint de lecture par lequel un ERP **tire** les *méta-périodes mensuelles* d'electricore (Odoo construit ses `souscription.periode` à partir de ce flux). JSON enveloppé (`mois` / `contract_version` / `filters` / `pagination` / `data`), ERP-agnostique (zéro `integrations/odoo`, [ADR-0027](../../docs/adr/0027-endpoint-lecture-meta-periodes-odoo-tire.md)). Contrat figé : [docs/contrat-meta-periodes.md](../../docs/contrat-meta-periodes.md). Distinct des autres `/facturation/*` qui, eux, lisent Odoo. Charge utile **non valorisée aux prix fournisseur** : quantités physiques + montants réseau (TURPE, CTA) + *taux* accise.
 
 **Endpoint sécurisé** :
 Endpoint nécessitant la clé `X-API-Key` (header) ou `?api_key=` (query). Tous les endpoints sont sécurisés sauf `/`, `/health`, `/docs`, `/redoc`.
