@@ -181,6 +181,28 @@ grep -q "^INSTANCE_SLUG=edn$" "$tmp_env" && ok "prepend: INSTANCE_SLUG survit au
 rm -f "$tmp_env"
 
 echo
+echo "→ env_validate.sh / strip_validation_error_block"
+# Cas 1 : bloc présent + validate_env_file OK → bloc supprimé
+tmp_env=$(mktemp); cp "${FIXTURES_DIR}/env-valid" "$tmp_env"
+prepend_errors_to_env "$tmp_env" "erreur temporaire"
+grep -q "VALIDATION-ERROR-BLOCK-BEGIN" "$tmp_env" || { ko "setup: bloc absent avant strip"; rm -f "$tmp_env"; }
+strip_validation_error_block "$tmp_env"
+grep -q "VALIDATION-ERROR-BLOCK-BEGIN" "$tmp_env" && ko "strip: bloc toujours présent après strip" || ok "strip: bloc absent après strip"
+# Cas 2 : idempotent — aucun bloc → no-op, fichier inchangé
+cp "${FIXTURES_DIR}/env-valid" "$tmp_env"
+checksum_before=$(md5sum "$tmp_env" | awk '{print $1}')
+strip_validation_error_block "$tmp_env"
+checksum_after=$(md5sum "$tmp_env" | awk '{print $1}')
+assert_eq "$checksum_after" "$checksum_before" "strip: no-op si aucun bloc présent"
+# Cas 3 : les vraies données survivent au strip
+cp "${FIXTURES_DIR}/env-valid" "$tmp_env"
+prepend_errors_to_env "$tmp_env" "erreur x"
+strip_validation_error_block "$tmp_env"
+grep -q "^INSTANCE_SLUG=edn$" "$tmp_env" && ok "strip: INSTANCE_SLUG survit" || ko "strip: INSTANCE_SLUG effacé"
+grep -q "^API_KEY=" "$tmp_env" && ok "strip: API_KEY survit" || ko "strip: API_KEY effacé"
+rm -f "$tmp_env"
+
+echo
 if [[ "$FAIL" -eq 0 ]]; then
     printf "\033[32m%d passed, %d failed\033[0m\n" "$PASS" "$FAIL"
     exit 0

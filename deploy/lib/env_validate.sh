@@ -69,6 +69,25 @@ validate_env_file() {
     return 0
 }
 
+# strip_validation_error_block <env_file>
+# Supprime le bloc d'erreurs (marqueurs VALIDATION-ERROR-BLOCK-BEGIN/END et
+# son contenu) du .env, quand la validation vient de réussir. Idempotent :
+# no-op si aucun bloc n'est présent. Les clés et séparateurs # === sont préservés.
+strip_validation_error_block() {
+    local env_file="$1"
+    local start='# >>>VALIDATION-ERROR-BLOCK-BEGIN<<<'
+    local end='# >>>VALIDATION-ERROR-BLOCK-END<<<'
+    # Vérifie si le bloc est présent avant de réécrire le fichier
+    grep -qF "$start" "$env_file" 2>/dev/null || return 0
+    local owner; owner=$(stat -c '%u:%g' "$env_file" 2>/dev/null || echo "")
+    local tmp; tmp=$(mktemp)
+    # Supprime le bloc (début inclus, fin incluse) et la ligne vide qui le suit
+    sed "/${start}/,/${end}/d" "$env_file" | sed '/./,$!d' > "$tmp"
+    mv "$tmp" "$env_file"
+    [[ -n "$owner" ]] && chown "$owner" "$env_file" 2>/dev/null || true
+    chmod 600 "$env_file"
+}
+
 # prepend_errors_to_env <env_file> <errors_text>
 # Réécrit le .env avec un bloc d'erreurs en tête (commenté), pour guider la
 # ré-édition de l'utilisateur.
