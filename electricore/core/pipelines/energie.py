@@ -11,6 +11,7 @@ import polars as pl
 from pandera.typing.polars import LazyFrame
 
 from electricore.core.models.cadrans import CADRANS, SOUS_CADRANS, col_energie, col_index
+from electricore.core.models.chronologie_releves import ChronologieReleves
 from electricore.core.models.historique import Historique
 from electricore.core.models.periode_energie import PeriodeEnergie
 from electricore.core.models.releve_index import RelevéIndex
@@ -20,6 +21,48 @@ from electricore.core.pipelines.periodes import exprs_meta_periode
 
 # Import du calcul TURPE variable
 from electricore.core.pipelines.turpe import ajouter_turpe_variable
+
+# =============================================================================
+# CONSTANTES DE LA CHRONOLOGIE DES RELEVÉS (issue #180, ADR-0028)
+# =============================================================================
+
+# Tolérance d'appariement dans le join_asof (stratégie "nearest") : absorbe le
+# décalage horaire entre événements C15 (00:01) et relevés R151 (02:00). Au-delà,
+# le relevé est considéré manquant. Constante nommée plutôt qu'un littéral noyé.
+TOLERANCE_APPARIEMENT_RELEVES: str = "4h"
+
+# Priorité **explicite** des sources quand un même relevé logique
+# (ref_situation_contractuelle, date_releve, ordre_index) existe dans plusieurs flux.
+# Rang croissant = priorité décroissante : la source de plus petit rang gagne.
+#
+#   flux_C15 > flux_R64 > flux_R151
+#
+# C15 reste prioritaire (relevés contractuels aux bornes de vie) ; R64 passe devant
+# R151 car c'est la source de référence porteuse de la donnée corrigée. Remplace le
+# tri alphabétique historique (`flux_C15 < flux_R151 < flux_R64`), qui faisait gagner
+# R151 sur R64 par accident lexical (ADR-0028).
+PRIORITE_SOURCES: dict[str, int] = {
+    "flux_C15": 0,
+    "flux_R64": 1,
+    "flux_R151": 2,
+    "flux_R15": 3,
+}
+# Rang attribué aux sources hors table (gagnent toujours après les sources connues).
+_RANG_SOURCE_INCONNUE: int = 99
+
+
+def expr_priorite_source() -> pl.Expr:
+    """Expression du rang de priorité d'une source (cf. `PRIORITE_SOURCES`, ADR-0028).
+
+    Plus petit rang = plus prioritaire. Sert de clé de tri avant le dédoublonnage
+    `unique(keep="first")` sur le triplet métier.
+    """
+    return pl.col("source").replace_strict(
+        PRIORITE_SOURCES,
+        default=_RANG_SOURCE_INCONNUE,
+        return_dtype=pl.Int32,
+    )
+
 
 # =============================================================================
 # EXPRESSIONS PURES ATOMIQUES POUR LE CALCUL D'ÉNERGIE
@@ -239,7 +282,8 @@ def extraire_releves_evenements(historique: pl.LazyFrame) -> pl.LazyFrame:
     Génère des relevés d'index (avant/après) à partir d'un historique enrichi des événements contractuels - Version Polars.
 
     Convertit les colonnes Avant_* et Après_* des événements en relevés d'index séparés
-    avec ordre_index=0 pour "avant" et ordre_index=1 pour "après".
+    avec ordre_index=False pour "avant" et ordre_index=True pour "après" (discriminant
+    booléen unifié, ADR-0028).
 
     Args:
         historique: LazyFrame contenant l'historique des événements contractuels validé Pandera
@@ -263,7 +307,7 @@ def extraire_releves_evenements(historique: pl.LazyFrame) -> pl.LazyFrame:
     metadata_cols = ["id_calendrier_distributeur"]
     identifiants = ["pdl", "ref_situation_contractuelle", "formule_tarifaire_acheminement"]
 
-    # Relevés "avant" (ordre_index=0)
+    # Relevés "avant" (ordre_index=False)
     releves_avant = (
         historique.select(
             identifiants
@@ -280,7 +324,7 @@ def extraire_releves_evenements(historique: pl.LazyFrame) -> pl.LazyFrame:
         )
         .with_columns(
             [
-                pl.lit(0, dtype=pl.Int32).alias("ordre_index"),
+                pl.lit(False, dtype=pl.Boolean).alias("ordre_index"),
                 pl.lit("flux_C15").alias("source"),
                 pl.lit("kWh").alias("unite"),
                 pl.lit("kWh").alias("precision"),
@@ -290,7 +334,7 @@ def extraire_releves_evenements(historique: pl.LazyFrame) -> pl.LazyFrame:
         )
     )
 
-    # Relevés "après" (ordre_index=1)
+    # Relevés "après" (ordre_index=True)
     releves_apres = (
         historique.select(
             identifiants
@@ -307,7 +351,7 @@ def extraire_releves_evenements(historique: pl.LazyFrame) -> pl.LazyFrame:
         )
         .with_columns(
             [
-                pl.lit(1, dtype=pl.Int32).alias("ordre_index"),
+                pl.lit(True, dtype=pl.Boolean).alias("ordre_index"),
                 pl.lit("flux_C15").alias("source"),
                 pl.lit("kWh").alias("unite"),
                 pl.lit("kWh").alias("precision"),
@@ -340,7 +384,8 @@ def interroger_releves(requete: pl.LazyFrame, releves: pl.LazyFrame) -> pl.LazyF
     """
     Interroge les relevés avec tolérance temporelle et GARANTIT un résultat de même taille que la requête.
 
-    Utilise join_asof avec tolérance de 4h pour gérer le décalage horaire entre :
+    Utilise join_asof avec tolérance `TOLERANCE_APPARIEMENT_RELEVES` pour gérer le
+    décalage horaire entre :
     - Événements C15 : 00:01 (minuit et 1 minute)
     - Relevés R151 : 02:00 (2 heures du matin)
 
@@ -362,17 +407,15 @@ def interroger_releves(requete: pl.LazyFrame, releves: pl.LazyFrame) -> pl.LazyF
             on="date_releve",
             by="pdl",
             strategy="nearest",
-            tolerance="4h",  # Tolérance de 4 heures comme dans le pipeline pandas
+            tolerance=TOLERANCE_APPARIEMENT_RELEVES,
         )
         .with_columns(
             [
                 # Flag pour tracer les relevés manquants
                 pl.col("source").is_null().alias("releve_manquant"),
-                # Ajouter ordre_index par défaut pour les relevés R151 (pour déduplication)
-                pl.when(pl.col("ordre_index").is_null())
-                .then(pl.lit(0, dtype=pl.Int32))
-                .otherwise(pl.col("ordre_index").cast(pl.Int32))
-                .alias("ordre_index"),
+                # ordre_index par défaut pour les relevés périodiques (pour déduplication) :
+                # discriminant booléen unifié, False = relevé périodique / avant (ADR-0028).
+                pl.col("ordre_index").cast(pl.Boolean, strict=False).fill_null(False).alias("ordre_index"),
                 # Assurer que id_calendrier_distributeur est en String pour cohérence avec C15
                 pl.col("id_calendrier_distributeur").cast(pl.Utf8, strict=False),
             ]
@@ -380,23 +423,26 @@ def interroger_releves(requete: pl.LazyFrame, releves: pl.LazyFrame) -> pl.LazyF
     )
 
 
-def reconstituer_chronologie_releves(evenements: pl.LazyFrame, releves: pl.LazyFrame) -> pl.LazyFrame:
-    """
-    Reconstitue la chronologie complète des relevés nécessaires pour la facturation - Version Polars.
+def _assembler_chronologie(evenements: pl.LazyFrame, releves: pl.LazyFrame) -> pl.LazyFrame:
+    """Assemble la chronologie des relevés (implémentation, sans validation Pandera).
 
-    Assemble tous les relevés aux dates pertinentes en combinant :
-    - Les relevés aux dates d'événements contractuels (flux C15 : MES, RES, MCT)
-    - Les relevés aux dates de facturation (données depuis R151)
+    Combine les relevés aux dates pertinentes en concentrant les cinq invariants
+    derrière une seule fonction (issue #180, ADR-0028) :
+    - relevés aux événements contractuels C15 (avant/après) ;
+    - relevés périodiques (R151/R64) interrogés aux dates de facturation, avec la
+      tolérance d'appariement `TOLERANCE_APPARIEMENT_RELEVES` ;
+    - **attribution contractuelle** par forward-fill de la RSC sur le PDL (les relevés
+      périodiques n'en portent pas) ;
+    - **priorité des sources explicite** `flux_C15 > flux_R64 > flux_R151`
+      (`PRIORITE_SOURCES`) — plus de tri alphabétique ;
+    - **dédoublonnage** sur le triplet métier `(RSC, date_releve, ordre_index)`.
 
     Args:
         evenements: LazyFrame des événements contractuels + événements FACTURATION
-        releves: LazyFrame des relevés d'index quotidiens complets (flux R151)
+        releves: LazyFrame des relevés d'index périodiques (flux R151/R64)
 
     Returns:
-        LazyFrame chronologique avec priorité : flux_C15 > flux_R151
-
-    Example:
-        >>> chronologie = reconstituer_chronologie_releves(evt_lf, releves_lf)
+        LazyFrame chronologique (1 ligne par (RSC, date_releve, ordre_index)).
     """
     # 1. Séparer les événements contractuels des événements FACTURATION
     evt_contractuels = evenements.filter(pl.col("evenement_declencheur") != "FACTURATION")
@@ -426,22 +472,65 @@ def reconstituer_chronologie_releves(evenements: pl.LazyFrame, releves: pl.LazyF
         # Tri chronologique par PDL pour les opérations .over("pdl") (évite warning sortedness)
         .sort(["pdl", "date_releve", "ordre_index"])
         .set_sorted("pdl")  # Indiquer explicitement que PDL est trié
-        # Propager les références contractuelles avec forward fill par PDL
+        # Attribution contractuelle : forward-fill de la RSC/FTA par PDL (les relevés
+        # périodiques n'en portent pas → héritent de l'événement précédent).
         .with_columns(
             [
                 pl.col("ref_situation_contractuelle").fill_null(strategy="forward").over("pdl"),
                 pl.col("formule_tarifaire_acheminement").fill_null(strategy="forward").over("pdl"),
             ]
         )
-        # Appliquer priorité des sources (flux_C15 < flux_R151 alphabétiquement)
-        .sort(["pdl", "date_releve", "source"])
+        # Priorité des sources : tri sur le rang explicite (C15 > R64 > R151, ADR-0028),
+        # plus l'alphabétique accidentel. La source de plus petit rang gagne le dédoublonnage.
+        .with_columns(expr_priorite_source().alias("_priorite_source"))
+        .sort(["pdl", "date_releve", "ordre_index", "_priorite_source"])
         .set_sorted("pdl")
-        # Déduplication par contrat, gardant la première occurrence (priorité alphabétique)
+        # Déduplication par triplet métier, gardant la première occurrence (= source prioritaire).
         .unique(subset=["ref_situation_contractuelle", "date_releve", "ordre_index"], keep="first")
-        # Tri final chronologique
+        # Retirer la colonne de travail et trier chronologiquement
+        .drop("_priorite_source")
         .sort(["pdl", "date_releve", "ordre_index"])
         .set_sorted("pdl")
     )
+
+
+@pa.check_types(lazy=True)
+def chronologie_releves(
+    historique: LazyFrame[Historique], releves: LazyFrame[RelevéIndex]
+) -> LazyFrame[ChronologieReleves]:
+    """Chronologie des relevés d'un contrat : ligne de temps énergie dédoublonnée.
+
+    Interface publique du module *Chronologie des relevés* (issue #180, ADR-0023,
+    ADR-0028). Concentre derrière un contrat Pandera (`ChronologieReleves`) les cinq
+    invariants jusqu'ici encodés incidemment dans l'implémentation : priorité de
+    sources explicite, attribution RSC par forward-fill, dédoublonnage sur le triplet
+    métier, tolérance d'appariement nommée, et discriminant `ordre_index` booléen.
+
+    Le dépivotage C15 avant/après, la résolution asof et le dédoublonnage deviennent de
+    l'*implémentation* (`_assembler_chronologie`) derrière cette interface.
+
+    Args:
+        historique: événements contractuels enrichis (C15 + événements FACTURATION).
+        releves: relevés d'index périodiques disponibles (R151/R64).
+
+    Returns:
+        `LazyFrame[ChronologieReleves]` : 1 ligne par (RSC, date_releve, ordre_index),
+        RSC non-null, source dans l'énumération, prêt pour `calculer_periodes_energie`.
+
+    Example:
+        >>> chronologie = chronologie_releves(historique_lf, releves_lf)
+    """
+    return _assembler_chronologie(historique, releves)
+
+
+def reconstituer_chronologie_releves(evenements: pl.LazyFrame, releves: pl.LazyFrame) -> pl.LazyFrame:
+    """Alias historique de `chronologie_releves` sans validation Pandera (compat).
+
+    Conserve l'ancienne signature `LazyFrame -> LazyFrame` pour les appelants internes
+    et tests qui passent des frames partiels. Préfère `chronologie_releves` pour la
+    nouvelle interface contractuelle.
+    """
+    return _assembler_chronologie(evenements, releves)
 
 
 @pa.check_types(lazy=True)
@@ -521,7 +610,10 @@ def pipeline_energie(historique: LazyFrame[Historique], releves: LazyFrame[Relev
     """
     return (
         historique.filter(pl.col("impacte_energie"))
-        .pipe(reconstituer_chronologie_releves, releves)
+        # Chronologie des relevés (issue #180) : assemblage interne sans re-validation
+        # Pandera (historique/releves déjà typés à l'entrée du pipeline). L'interface
+        # publique typée est `chronologie_releves`.
+        .pipe(_assembler_chronologie, releves)
         .pipe(calculer_periodes_energie)
         .pipe(ajouter_turpe_variable)
         # Sélection finale des colonnes (exclut les index bruts BASE, HP, HC, etc.)
