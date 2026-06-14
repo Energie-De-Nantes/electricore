@@ -1,13 +1,15 @@
 -- Modèle de relevés canonique (ADR-0029) : la ligne de temps des relevés consommée
--- par l'aval. Union des sources périodiques télérelevées (1 ligne = 1 relevé), dates
--- harmonisées « début de journée » Europe/Paris (ADR-0003 : R151 J → J+1), dedup
--- même-source par releve_id (clé métier ADR-0028 — on garde la livraison la plus
--- récente). Reproduit le périmètre de l'ex-loader `releves_harmonises` (R151 + R64),
--- l'entrée actuelle du pipeline énergie.
+-- par l'aval. Union des sources (1 ligne = 1 relevé) : périodiques télérelevées
+-- (R151, R64) + relevés contractuels C15 avant/après dépivotés. Dates harmonisées
+-- « début de journée » Europe/Paris (ADR-0003 : R151 J → J+1). Mint uniforme de
+-- releve_id (clé métier ADR-0028) pour TOUTES les sources, C15 comprise (l'exception
+-- « en core pour c15 » d'ADR-0028 disparaît). Dedup même-source par releve_id (on
+-- garde la livraison la plus récente).
 --
--- À VENIR : relevés C15 avant/après dépivotés (#242), enrichissement contractuel
--- RSC/FTA piloté par C15 (#243). L'arbitrage de priorité inter-sources (C15 > R64 >
--- R151) et la sélection des bornes de facturation restent au cœur (#244, ADR-0029).
+-- À VENIR : enrichissement contractuel RSC/FTA des lignes périodiques, piloté par C15
+-- (#243). L'arbitrage de priorité inter-sources (C15 > R64 > R151) et la sélection des
+-- bornes de facturation restent au cœur (#244, ADR-0029). flux_c15 reste fidèle :
+-- avant/après y sont conservés (fidélité de l'événement + substrat d'impacte_energie).
 
 with unifies as (
     -- R151 : télérelevés périodiques. Harmonisation J → J+1 (ADR-0003) puis ancrage
@@ -49,6 +51,57 @@ with unifies as (
         index_base_kwh, index_hp_kwh, index_hc_kwh,
         index_hph_kwh, index_hpb_kwh, index_hch_kwh, index_hcb_kwh
     from {{ ref('flux_r64') }}
+
+    union all
+
+    -- C15 « avant » : index relevé immédiatement AVANT l'événement contractuel
+    -- (ordre_index = false). date_releve = date_evenement (instant). RSC/FTA sont
+    -- portées NATIVEMENT par l'événement (C15 = source contractuelle). releve_id minté
+    -- en dbt comme les autres sources (discriminant = ordre_index).
+    select
+        {{ mint_releve_id("'flux_C15'", "pdl", "date_evenement", "false") }}        as releve_id,
+        'flux_C15'                                                                  as source,
+        pdl,
+        date_evenement                                                              as date_releve,
+        false                                                                       as ordre_index,
+        {{ nature_depuis_nature_index("avant_nature_index") }}                      as nature_index,
+        cast(null as varchar)                                                       as id_releve,
+        cast(null as varchar)                                                       as occurrence_id,
+        ref_situation_contractuelle,
+        formule_tarifaire_acheminement,
+        avant_id_calendrier_distributeur                                            as id_calendrier_distributeur,
+        avant_index_base_kwh as index_base_kwh, avant_index_hp_kwh as index_hp_kwh, avant_index_hc_kwh as index_hc_kwh,
+        avant_index_hph_kwh as index_hph_kwh, avant_index_hpb_kwh as index_hpb_kwh,
+        avant_index_hch_kwh as index_hch_kwh, avant_index_hcb_kwh as index_hcb_kwh
+    from {{ ref('flux_c15') }}
+    where coalesce(
+        avant_index_base_kwh, avant_index_hp_kwh, avant_index_hc_kwh, avant_index_hph_kwh,
+        avant_index_hpb_kwh, avant_index_hch_kwh, avant_index_hcb_kwh
+    ) is not null
+
+    union all
+
+    -- C15 « après » : index relevé immédiatement APRÈS l'événement (ordre_index = true).
+    select
+        {{ mint_releve_id("'flux_C15'", "pdl", "date_evenement", "true") }}         as releve_id,
+        'flux_C15'                                                                  as source,
+        pdl,
+        date_evenement                                                              as date_releve,
+        true                                                                        as ordre_index,
+        {{ nature_depuis_nature_index("apres_nature_index") }}                      as nature_index,
+        cast(null as varchar)                                                       as id_releve,
+        cast(null as varchar)                                                       as occurrence_id,
+        ref_situation_contractuelle,
+        formule_tarifaire_acheminement,
+        apres_id_calendrier_distributeur                                            as id_calendrier_distributeur,
+        apres_index_base_kwh as index_base_kwh, apres_index_hp_kwh as index_hp_kwh, apres_index_hc_kwh as index_hc_kwh,
+        apres_index_hph_kwh as index_hph_kwh, apres_index_hpb_kwh as index_hpb_kwh,
+        apres_index_hch_kwh as index_hch_kwh, apres_index_hcb_kwh as index_hcb_kwh
+    from {{ ref('flux_c15') }}
+    where coalesce(
+        apres_index_base_kwh, apres_index_hp_kwh, apres_index_hc_kwh, apres_index_hph_kwh,
+        apres_index_hpb_kwh, apres_index_hch_kwh, apres_index_hcb_kwh
+    ) is not null
 )
 
 select *
