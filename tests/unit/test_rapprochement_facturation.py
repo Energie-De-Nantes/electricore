@@ -114,6 +114,7 @@ def _ctx(
         historique_enrichi=historique,
         abonnements=pl.LazyFrame(),
         energie=pl.LazyFrame(),
+        releves_utilises=pl.LazyFrame(),
         facturation_mensuelle=fact_mensuelle,
     )
 

@@ -45,6 +45,7 @@ def _contexte_synthetique() -> ContexteMensuel:
         historique_enrichi=vide,
         abonnements=vide,
         energie=vide,
+        releves_utilises=vide,
         facturation_mensuelle=facturation,
     )
 
@@ -103,6 +104,7 @@ def test_meta_periodes_source_hash_change_si_quantite_change(monkeypatch):
         historique_enrichi=base.historique_enrichi,
         abonnements=base.abonnements,
         energie=base.energie,
+        releves_utilises=base.releves_utilises,
         facturation_mensuelle=fm_modifie,
     )
     monkeypatch.setattr(meta_periodes_service, "contexte_du_mois", lambda mois=None: ctx_modifie)

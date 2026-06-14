@@ -24,8 +24,8 @@ TZ = ZoneInfo("Europe/Paris")
 
 def _make_stub_composition(
     *, debuts_mois: list[datetime]
-) -> tuple[pl.LazyFrame, pl.LazyFrame, pl.LazyFrame, pl.LazyFrame]:
-    """Construit le tuple de 4 LazyFrames renvoyé par `_composer`.
+) -> tuple[pl.LazyFrame, pl.LazyFrame, pl.LazyFrame, pl.LazyFrame, pl.LazyFrame]:
+    """Construit le tuple de 5 LazyFrames renvoyé par `_composer`.
 
     `debuts_mois` peuple `facturation_mensuelle.debut` — c'est l'unique colonne
     dont `charger()` se sert pour résoudre le mois par défaut. Depuis ADR-0019
@@ -36,9 +36,10 @@ def _make_stub_composition(
         pl.col("debut").dt.replace_time_zone("Europe/Paris")
     )
     return (
-        pl.LazyFrame({"sentinel": [1]}),
-        pl.LazyFrame({"sentinel": [2]}),
-        pl.LazyFrame({"sentinel": [3]}),
+        pl.LazyFrame({"sentinel": [1]}),  # historique_enrichi
+        pl.LazyFrame({"sentinel": [2]}),  # abonnements
+        pl.LazyFrame({"sentinel": [3]}),  # energie
+        pl.LazyFrame({"sentinel": [4]}),  # releves_utilises (journal #233)
         facturation_lf,
     )
 
@@ -109,6 +110,8 @@ class TestChargerFramesQuiPassent:
         assert ctx.historique_enrichi.collect()["sentinel"].item() == 1
         assert ctx.abonnements.collect()["sentinel"].item() == 2
         assert ctx.energie.collect()["sentinel"].item() == 3
+        # releves_utilises : le journal des relevés consommés (#233) est exposé.
+        assert ctx.releves_utilises.collect()["sentinel"].item() == 4
         # facturation_mensuelle est une DataFrame (déjà collectée)
         assert isinstance(ctx.facturation_mensuelle, pl.DataFrame)
         assert "debut" in ctx.facturation_mensuelle.columns

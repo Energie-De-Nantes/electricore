@@ -70,6 +70,7 @@ def _ctx(fact: pl.DataFrame, mois: str = "2025-03-01") -> ContexteMensuel:
         historique_enrichi=historique,
         abonnements=pl.LazyFrame(),
         energie=pl.LazyFrame(),
+        releves_utilises=pl.LazyFrame(),
         facturation_mensuelle=fact,
     )
 
