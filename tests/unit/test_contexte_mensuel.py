@@ -158,7 +158,7 @@ class TestContexteDuMois:
     """`contexte_du_mois()` — l'entrée I/O (#145) : loaders DuckDB par défaut, puis `charger()`."""
 
     def test_cable_les_loaders_et_delegue_a_charger(self, monkeypatch):
-        """c15 → historique, releves_harmonises → relevés (sentinelles : l'inversion échoue)."""
+        """c15 → historique, releves_canoniques → relevés (sentinelles : l'inversion échoue)."""
         import electricore.core.builds.contexte_mensuel as cm
 
         hist_sentinel = pl.LazyFrame({"source": ["c15"]})
@@ -172,7 +172,7 @@ class TestContexteDuMois:
                 return self._lf
 
         monkeypatch.setattr(cm, "c15", lambda: _Query(hist_sentinel))
-        monkeypatch.setattr(cm, "releves_harmonises", lambda: _Query(rel_sentinel))
+        monkeypatch.setattr(cm, "releves_canoniques", lambda: _Query(rel_sentinel))
 
         captures: dict = {}
         composition = _make_stub_composition(debuts_mois=[datetime(2025, 3, 1)])

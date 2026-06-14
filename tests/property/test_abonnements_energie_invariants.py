@@ -199,25 +199,33 @@ def _historique_energie(jours: list[dt.date], hp: list[float], hc: list[float]) 
 
 
 def _releves_r151(jours: list[dt.date], hp: list[float], hc: list[float]) -> pl.LazyFrame:
-    """Relevés R151 aux dates intermédiaires (celles des événements FACTURATION)."""
-    interieurs = list(range(1, len(jours) - 1))
+    """Relevés canoniques (ADR-0029) : relevés C15 aux bornes de vie (après MES, avant
+    RES) + R151 aux dates intermédiaires (FACTURATION). Les relevés C15 viennent désormais
+    du modèle canonique, plus de l'historique."""
+    n = len(jours)
+    interieurs = list(range(1, n - 1))
+    # MES après (ordre True) à la 1ʳᵉ borne, R151 (ordre False) au milieu, RES avant
+    # (ordre False) à la dernière borne.
+    idxs = [0, *interieurs, n - 1]
+    sources = ["flux_C15", *["flux_R151"] * len(interieurs), "flux_C15"]
+    ordres = [True, *[False] * len(interieurs), False]
     data = {
-        "pdl": [_PDL] * len(interieurs),
-        "ref_situation_contractuelle": [_RSC] * len(interieurs),
-        "formule_tarifaire_acheminement": [_FTA] * len(interieurs),
-        "date_releve": [_ts(jours[i]) for i in interieurs],
-        "source": ["flux_R151"] * len(interieurs),
-        "unite": ["kWh"] * len(interieurs),
-        "precision": ["kWh"] * len(interieurs),
-        "ordre_index": [False] * len(interieurs),
-        "id_calendrier_distributeur": ["DI000002"] * len(interieurs),
-        "index_base_kwh": [None] * len(interieurs),
-        "index_hp_kwh": [hp[i] for i in interieurs],
-        "index_hc_kwh": [hc[i] for i in interieurs],
-        "index_hch_kwh": [None] * len(interieurs),
-        "index_hph_kwh": [None] * len(interieurs),
-        "index_hpb_kwh": [None] * len(interieurs),
-        "index_hcb_kwh": [None] * len(interieurs),
+        "pdl": [_PDL] * len(idxs),
+        "ref_situation_contractuelle": [_RSC] * len(idxs),
+        "formule_tarifaire_acheminement": [_FTA] * len(idxs),
+        "date_releve": [_ts(jours[i]) for i in idxs],
+        "source": sources,
+        "unite": ["kWh"] * len(idxs),
+        "precision": ["kWh"] * len(idxs),
+        "ordre_index": ordres,
+        "id_calendrier_distributeur": ["DI000002"] * len(idxs),
+        "index_base_kwh": [None] * len(idxs),
+        "index_hp_kwh": [hp[i] for i in idxs],
+        "index_hc_kwh": [hc[i] for i in idxs],
+        "index_hch_kwh": [None] * len(idxs),
+        "index_hph_kwh": [None] * len(idxs),
+        "index_hpb_kwh": [None] * len(idxs),
+        "index_hcb_kwh": [None] * len(idxs),
     }
     return pl.DataFrame(
         data,
