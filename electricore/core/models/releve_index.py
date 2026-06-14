@@ -15,6 +15,18 @@ class RelevéIndex(pa.DataFrameModel):
     date_releve: DateTime = pa.Field(nullable=False, dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"})
     ordre_index: pl.Boolean = pa.Field(default=False)
 
+    # 🆔 Identité du relevé (ADR-0028, #232)
+    # releve_id : CLÉ MÉTIER déterministe (source|pdl|date|discriminant), stable sur
+    #   re-livraison. Mintée au seam dbt (r151/r15/r64) ou dérivée en core (C15
+    #   avant/après). Optionnelle ici : les fixtures légères des pipelines l'omettent.
+    releve_id: pl.Utf8 | None = pa.Field(nullable=True)
+    # id_releve : Id_Releve Enedis natif, conservé comme PROVENANCE (jamais comme clé).
+    #   NULL pour les sources sans id natif (R151, R64, C15).
+    id_releve: pl.Utf8 | None = pa.Field(nullable=True)
+    # nature_index : nature CANONIQUE de l'index (réel/estimé/corrigé), projetée depuis
+    #   Nature_Index (R15/C15) ou etape_metier (R64) ; réel par défaut pour R151.
+    nature_index: pl.Utf8 | None = pa.Field(nullable=True, isin=["réel", "estimé", "corrigé"])
+
     # 🔹 Identifiant du Point de Livraison (PDL)
     pdl: pl.Utf8 = pa.Field(nullable=False)
     ref_situation_contractuelle: pl.Utf8 | None = pa.Field(nullable=True)

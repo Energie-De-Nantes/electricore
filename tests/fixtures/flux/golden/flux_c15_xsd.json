@@ -19,11 +19,11 @@
     "avant_index_base_kwh": 1000,
     "apres_index_base_kwh": 1333,
     "avant_date_releve": "2024-06-15T00:01:00+02:00",
-    "avant_nature_index": "REEL",
+    "avant_nature_index": "réel",
     "avant_id_calendrier_distributeur": "TEXTE",
     "avant_id_calendrier_fournisseur": "TEXTE",
     "apres_date_releve": "2024-06-15T00:01:00+02:00",
-    "apres_nature_index": "ESTIME",
+    "apres_nature_index": "estimé",
     "apres_id_calendrier_distributeur": "TEXTE",
     "apres_id_calendrier_fournisseur": "TEXTE"
   },
@@ -47,11 +47,11 @@
     "avant_index_base_kwh": 1777,
     "apres_index_base_kwh": 2110,
     "avant_date_releve": "2024-06-15T00:01:00+02:00",
-    "avant_nature_index": "REEL",
+    "avant_nature_index": "réel",
     "avant_id_calendrier_distributeur": "TEXTE",
     "avant_id_calendrier_fournisseur": "TEXTE",
     "apres_date_releve": "2024-06-15T00:01:00+02:00",
-    "apres_nature_index": "ESTIME",
+    "apres_nature_index": "estimé",
     "apres_id_calendrier_distributeur": "TEXTE",
     "apres_id_calendrier_fournisseur": "TEXTE"
   }

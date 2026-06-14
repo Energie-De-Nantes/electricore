@@ -224,6 +224,10 @@ SCHEMA_R151 = FluxSchema(
             sql_expr="timezone('Europe/Paris', CAST(date_releve AS TIMESTAMP) + INTERVAL '1 day')",
             alias="date_releve",
         ),
+        # Identité du relevé (ADR-0028, #232) : clé métier + provenance + nature.
+        col_simple("releve_id"),
+        col_simple("id_releve"),
+        col_simple("nature_index"),
         col_simple("pdl"),
         col_cast_null_varchar("ref_situation_contractuelle"),
         col_cast_null_varchar("formule_tarifaire_acheminement"),
@@ -259,6 +263,10 @@ SCHEMA_R15 = FluxSchema(
     table="flux_enedis.flux_r15",
     columns=(
         col_simple("date_releve"),
+        # Identité du relevé (ADR-0028, #232) : clé métier + Id_Releve natif + nature.
+        col_simple("releve_id"),
+        col_simple("id_releve"),
+        col_simple("nature_index"),
         col_simple("pdl"),
         col_simple("ref_situation_contractuelle"),
         col_cast_null_varchar("formule_tarifaire_acheminement"),
@@ -316,6 +324,10 @@ SCHEMA_R64 = FluxSchema(
     table="flux_enedis.flux_r64",
     columns=(
         col_paris("date_releve"),
+        # Identité du relevé (ADR-0028, #232) : clé métier + nature ; pas d'id natif.
+        col_simple("releve_id"),
+        col_simple("id_releve"),
+        col_simple("nature_index"),
         col_simple("pdl"),
         col_simple("etape_metier"),
         col_simple("contexte_releve"),
@@ -374,6 +386,9 @@ WITH releves_unifies AS (
     -- Flux R151 (relevés périodiques) — date nue ancrée en heure-mur Paris
     SELECT
         timezone('Europe/Paris', CAST(date_releve AS TIMESTAMP)) as date_releve,
+        releve_id,
+        id_releve,
+        nature_index,
         pdl,
         CAST(NULL AS VARCHAR) as ref_situation_contractuelle,
         CAST(NULL AS VARCHAR) as formule_tarifaire_acheminement,
@@ -400,6 +415,9 @@ WITH releves_unifies AS (
     -- Flux R15 (relevés avec événements)
     SELECT
         date_releve,
+        releve_id,
+        id_releve,
+        nature_index,
         pdl,
         ref_situation_contractuelle,
         CAST(NULL AS VARCHAR) as formule_tarifaire_acheminement,
@@ -448,6 +466,9 @@ WITH releves_harmonises AS (
     -- Donc R151 : date J → J+1 pour harmoniser
     SELECT
         timezone('Europe/Paris', CAST(date_releve AS TIMESTAMP) + INTERVAL '1 day') as date_releve,
+        releve_id,
+        id_releve,
+        nature_index,
         pdl,
         CAST(false AS BOOLEAN) as ordre_index,
         CAST(index_hp_kwh AS DOUBLE) as index_hp_kwh,
@@ -479,6 +500,9 @@ WITH releves_harmonises AS (
     -- Flux R64 (relevés JSON timeseries)
     SELECT
         timezone('Europe/Paris', CAST(date_releve AS TIMESTAMP)) as date_releve,
+        releve_id,
+        id_releve,
+        nature_index,
         pdl,
         CAST(false AS BOOLEAN) as ordre_index,
         CAST(index_hp_kwh AS DOUBLE) as index_hp_kwh,

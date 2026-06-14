@@ -1,5 +1,7 @@
 [
   {
+    "releve_id": "flux_R64|99331145115979|2026-06-01 00:00:00|AQ",
+    "nature_index": "réel",
     "pdl": "99331145115979",
     "etape_metier": "BRUT",
     "contexte_releve": "COL",
@@ -11,6 +13,7 @@
     "si_demandeur": "501",
     "code_flux": "R64",
     "format": "JSON",
+    "occurrence_id": "r64.json#2",
     "date_releve": "2026-06-01T00:00:00",
     "index_hcb_kwh": 13514462,
     "index_hch_kwh": 7742696,
@@ -18,6 +21,8 @@
     "index_hph_kwh": 10497780
   },
   {
+    "releve_id": "flux_R64|99103630318530|2026-06-01 00:00:00|AQ",
+    "nature_index": "réel",
     "pdl": "99103630318530",
     "etape_metier": "BRUT",
     "contexte_releve": "COL",
@@ -29,6 +34,7 @@
     "si_demandeur": "501",
     "code_flux": "R64",
     "format": "JSON",
+    "occurrence_id": "r64.json#1",
     "date_releve": "2026-06-01T00:00:00",
     "index_hcb_kwh": 789363,
     "index_hch_kwh": 1941120,

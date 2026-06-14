@@ -13,6 +13,12 @@ models:
       - name: date_releve
         description: Date du relevé.
         data_tests: [not_null]
+      - name: releve_id
+        description: Clé métier déterministe (ADR-0028) source|pdl|date|type_releve.
+        data_tests: [not_null, unique]
+      - name: nature_index
+        description: Nature canonique (réel/estimé/corrigé), dérivée d'etapeMetier.
+        data_tests: [not_null]
 
   - name: flux_c15
     description: >
@@ -40,6 +46,15 @@ models:
       - name: date_releve
         description: Horodatage du relevé (instant, TIMESTAMPTZ).
         data_tests: [not_null]
+      - name: releve_id
+        description: Clé métier déterministe (ADR-0028) source|pdl|date|ordre_index.
+        data_tests: [not_null]
+      - name: id_releve
+        description: Id_Releve Enedis natif (provenance, présent pour R15).
+        data_tests: [not_null]
+      - name: nature_index
+        description: Nature canonique (réel/estimé), projetée depuis Nature_Index.
+        data_tests: [not_null]
 
   - name: flux_r15_acc
     description: >
@@ -64,6 +79,12 @@ models:
         data_tests: [not_null]
       - name: date_releve
         description: Date du relevé (date nue, pas d'horodatage).
+        data_tests: [not_null]
+      - name: releve_id
+        description: Clé métier déterministe (ADR-0028) source|pdl|date|ordre_index.
+        data_tests: [not_null]
+      - name: nature_index
+        description: Nature canonique 'réel' (télérelevé périodique).
         data_tests: [not_null]
 
   - name: flux_f12_detail

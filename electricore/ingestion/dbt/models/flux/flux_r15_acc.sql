@@ -6,18 +6,22 @@
 -- colonnes nommées avant le WHERE (anti-pushdown). Quand aucune donnée ACC : le PIVOT
 -- ne produit aucune colonne ea_*, la ligne plate est préservée par le left join.
 
+-- Identité (ADR-0028, #232) : releve_id = CLÉ MÉTIER déterministe, Id_Releve natif
+-- en provenance (id_releve), Nature_Index projeté en nature canonique. occurrence_id
+-- = id d'occurrence fichier (provenance forensique).
 with flat as (
     select
-        releve_id,
+        releve_id as occurrence_id,
         pdl,
         cast(releve ->> '$.Date_Releve' as timestamptz) as date_releve,
+        releve ->> '$.Id_Releve'                       as id_releve,
         releve ->> '$.Id_Calendrier'                   as id_calendrier,
         releve ->> '$.Id_Calendrier_Distributeur'      as id_calendrier_distributeur,
         releve ->> '$.Ref_Situation_Contractuelle'     as ref_situation_contractuelle,
         releve ->> '$.Type_Compteur'                   as type_compteur,
         releve ->> '$.Motif_Releve'                    as motif_releve,
         releve ->> '$.Id_Affaire'                      as id_affaire,
-        releve ->> '$.Nature_Index'                    as nature_index,
+        releve ->> '$.Nature_Index'                    as nature_index_source,
         releve ->> '$.Statut_Releve'                   as statut_releve,
         releve ->> '$.Autoconsommation_Collective'     as autoconsommation_collective,
         unite
@@ -25,14 +29,14 @@ with flat as (
 ),
 
 classes as (
-    select releve_id, c.classe
+    select releve_id as occurrence_id, c.classe
     from {{ ref('stg_r15') }},
         unnest(cast(releve -> '$.Classe_Temporelle_Distributeur' as json[])) as c(classe)
 ),
 
 extrait as (
     select
-        releve_id,
+        occurrence_id,
         classe ->> '$.Classe_Mesure'               as classe_mesure,
         lower(classe ->> '$.Id_Classe_Temporelle') as cadran,
         classe ->> '$.Valeur'                      as valeur
@@ -41,7 +45,7 @@ extrait as (
 
 ea as (
     select
-        releve_id,
+        occurrence_id,
         case classe_mesure
             when '3' then 'ea_autoproduite_'
             when '4' then 'ea_alloproduite_'
@@ -54,7 +58,14 @@ ea as (
 ),
 
 pivot_ea as (
-    pivot ea on ea_col using first(valeur) group by releve_id
+    pivot ea on ea_col using first(valeur) group by occurrence_id
 )
 
-select * exclude (releve_id) from flat left join pivot_ea using (releve_id)
+select
+    {{ mint_releve_id("'flux_R15'", "pdl", "date_releve", "false") }} as releve_id,
+    id_releve,
+    {{ nature_depuis_nature_index("nature_index_source") }}          as nature_index,
+    flat.* exclude (occurrence_id, id_releve, nature_index_source),
+    occurrence_id,
+    pivot_ea.* exclude (occurrence_id)
+from flat left join pivot_ea using (occurrence_id)

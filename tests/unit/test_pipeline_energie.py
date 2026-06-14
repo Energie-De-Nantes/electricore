@@ -86,6 +86,69 @@ class TestExtraireRelevesEvenementsPolars:
         assert avant["source"][0] == "flux_C15"
         assert avant["ordre_index"][0] == 0
 
+    def test_identite_c15_mintee_en_core(self):
+        """C15 (ADR-0028, #232) : releve_id avant/après minté en core, id_releve NULL,
+        nature_index canonique repris de avant_/apres_nature_index."""
+        historique = pl.LazyFrame(
+            {
+                "pdl": ["PDL001"],
+                "ref_situation_contractuelle": ["REF001"],
+                "formule_tarifaire_acheminement": ["TURPE 5"],
+                "date_evenement": [datetime(2024, 1, 15, 0, 1)],
+                "avant_index_base_kwh": [1000.0],
+                "apres_index_base_kwh": [1500.0],
+                "avant_nature_index": ["réel"],
+                "apres_nature_index": ["estimé"],
+                **{
+                    f"{pos}_index_{cad}_kwh": [None]
+                    for pos in ("avant", "apres")
+                    for cad in ("hp", "hc", "hch", "hph", "hcb", "hpb")
+                },
+                "avant_id_calendrier_distributeur": [1],
+                "apres_id_calendrier_distributeur": [1],
+            }
+        )
+
+        result = extraire_releves_evenements(historique).collect()
+
+        # releve_id présent, déterministe, distinct avant/après (discriminant ordre_index).
+        assert "releve_id" in result.columns
+        assert result["releve_id"].null_count() == 0
+        assert result["releve_id"].n_unique() == 2
+        assert all(r.startswith("flux_C15|PDL001|") for r in result["releve_id"].to_list())
+
+        # id_releve NULL (C15 Donnees_Releve n'a pas d'Id_Releve natif).
+        assert result["id_releve"].null_count() == len(result)
+
+        # nature_index canonique repris des colonnes avant/après.
+        avant = result.filter(~pl.col("ordre_index"))
+        apres = result.filter(pl.col("ordre_index"))
+        assert avant["nature_index"].to_list() == ["réel"]
+        assert apres["nature_index"].to_list() == ["estimé"]
+
+    def test_identite_c15_tolere_natures_absentes(self):
+        """Fixture légère sans colonnes de nature : pas de crash, nature_index NULL."""
+        historique = pl.LazyFrame(
+            {
+                "pdl": ["PDL001"],
+                "ref_situation_contractuelle": ["REF001"],
+                "formule_tarifaire_acheminement": ["TURPE 5"],
+                "date_evenement": [datetime(2024, 1, 15)],
+                "avant_index_base_kwh": [1000.0],
+                "apres_index_base_kwh": [1500.0],
+                **{
+                    f"{pos}_index_{cad}_kwh": [None]
+                    for pos in ("avant", "apres")
+                    for cad in ("hp", "hc", "hch", "hph", "hcb", "hpb")
+                },
+                "avant_id_calendrier_distributeur": [1],
+                "apres_id_calendrier_distributeur": [1],
+            }
+        )
+        result = extraire_releves_evenements(historique).collect()
+        assert "releve_id" in result.columns
+        assert result["nature_index"].null_count() == len(result)
+
 
 class TestInterrogerRelevesPolars:
     """Tests pour interroger_releves."""
