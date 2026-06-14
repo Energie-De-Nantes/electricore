@@ -42,6 +42,7 @@ def test_cta_par_contrat_service_delegue_a_contexte_du_mois(monkeypatch):
         historique_enrichi=pl.LazyFrame(),
         abonnements=pl.LazyFrame(),
         energie=pl.LazyFrame(),
+        releves_utilises=pl.LazyFrame(),
         facturation_mensuelle=df_facturation,
     )
     appels: list = []

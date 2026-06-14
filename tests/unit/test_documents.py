@@ -51,6 +51,7 @@ def _ctx(mois: str = "2025-01-01") -> ContexteMensuel:
         historique_enrichi=historique,
         abonnements=pl.LazyFrame(),
         energie=pl.LazyFrame(),
+        releves_utilises=pl.LazyFrame(),
         facturation_mensuelle=fact,
     )
 
@@ -189,6 +190,7 @@ class TestChangementsPuissance:
             historique_enrichi=ctx.historique_enrichi,
             abonnements=ctx.abonnements,
             energie=ctx.energie,
+            releves_utilises=ctx.releves_utilises,
             facturation_mensuelle=fact_avec_memo,
         )
 

@@ -33,7 +33,7 @@ from electricore.core.models.cadrans import col_energie
 from electricore.core.models.lignes_facture import LignesFacture
 from electricore.core.models.lignes_facture_rapprochees import LignesFactureRapprochees
 from electricore.core.pipelines.abonnements import pipeline_abonnements
-from electricore.core.pipelines.energie import pipeline_energie
+from electricore.core.pipelines.energie import chronologie_releves, pipeline_energie
 from electricore.core.pipelines.facturation import pipeline_facturation
 from electricore.core.pipelines.historique import horizon_par_defaut, pipeline_historique
 
@@ -85,12 +85,17 @@ class ContexteMensuel:
     historique_enrichi: pl.LazyFrame
     abonnements: pl.LazyFrame
     energie: pl.LazyFrame
+    # Journal des relevés effectivement consommés par le calcul d'énergie (#233,
+    # ADR-0029) : un relevé par (RSC, date, ordre_index), registres réels d'index +
+    # `releve_id` + `nature_index`, conservé pour la traçabilité jusqu'à la facture.
+    # Un changement de config en cours de mois (MCT) y figure sans cas particulier.
+    releves_utilises: pl.LazyFrame
     facturation_mensuelle: pl.DataFrame
 
 
 def _composer(
     historique: pl.LazyFrame, releves: pl.LazyFrame, horizon: dt.datetime
-) -> tuple[pl.LazyFrame, pl.LazyFrame, pl.LazyFrame, pl.LazyFrame]:
+) -> tuple[pl.LazyFrame, pl.LazyFrame, pl.LazyFrame, pl.LazyFrame, pl.LazyFrame]:
     """Compose la séquence canonique des pipelines de facturation.
 
     `pipeline_historique` (1 fois, borné par `horizon`) → `pipeline_abonnements` +
@@ -110,8 +115,15 @@ def _composer(
     # conformité à `RelevéIndex` est garantie à l'exécution par le décorateur
     # Pandera de `pipeline_energie`.
     energie = pipeline_energie(historique_enrichi, releves)  # type: ignore[arg-type]
+    # Journal des relevés utilisés (#233, ADR-0029) : ré-assemble la chronologie sur
+    # les mêmes entrées que `pipeline_energie` (historique impacté + relevés canoniques)
+    # et la conserve dans le bundle. Calcul indépendant — les énergies restent intactes.
+    releves_utilises = chronologie_releves(
+        historique_enrichi.filter(pl.col("impacte_energie")),
+        releves,  # type: ignore[arg-type]
+    )
     facturation_mensuelle = pipeline_facturation(abonnements, energie)
-    return historique_enrichi, abonnements, energie, facturation_mensuelle
+    return historique_enrichi, abonnements, energie, releves_utilises, facturation_mensuelle
 
 
 def charger(
@@ -136,7 +148,9 @@ def charger(
     if horizon is None:
         horizon = horizon_par_defaut()
 
-    historique_enrichi, abonnements, energie, facturation_mensuelle_lf = _composer(historique, releves, horizon)
+    historique_enrichi, abonnements, energie, releves_utilises, facturation_mensuelle_lf = _composer(
+        historique, releves, horizon
+    )
 
     # Matérialisation au boundary du build (ADR-0019) : pipeline_facturation
     # reste lazy, le build collecte pour stocker dans le bundle ContexteMensuel.
@@ -151,6 +165,7 @@ def charger(
         historique_enrichi=historique_enrichi,
         abonnements=abonnements,
         energie=energie,
+        releves_utilises=releves_utilises,
         facturation_mensuelle=facturation_mensuelle,
     )
 

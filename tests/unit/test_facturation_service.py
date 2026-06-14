@@ -45,6 +45,7 @@ def test_documents_facturation_du_mois_returns_fr_sheet_names(monkeypatch):
         ),
         abonnements=pl.LazyFrame(),
         energie=pl.LazyFrame(),
+        releves_utilises=pl.LazyFrame(),
         facturation_mensuelle=df_fact_mensuelle,
     )
     # Un seul nom à patcher depuis #145 (contre charger + c15 + releves_harmonises avant) ;
