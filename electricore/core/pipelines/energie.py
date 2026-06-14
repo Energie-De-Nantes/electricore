@@ -448,10 +448,18 @@ def _assembler_chronologie(evenements: pl.LazyFrame, releves: pl.LazyFrame) -> p
     evt_contractuels = evenements.filter(pl.col("evenement_declencheur") != "FACTURATION")
     evt_facturation = evenements.filter(pl.col("evenement_declencheur") == "FACTURATION")
 
-    # 2. Extraire les relevés des événements contractuels
-    rel_evenements = extraire_releves_evenements(evt_contractuels)
+    # 2. Relevés contractuels C15 : depuis le modèle canonique `releves` (dépivotés +
+    #    releve_id minté au seam dbt, ADR-0029), restreints aux événements qui impactent
+    #    l'énergie. L'historique est déjà filtré `impacte_energie` en amont du pipeline ;
+    #    le semi-join garantit la parité avec l'ex-extraction historique.
+    cles_impacte = evt_contractuels.select(["pdl", pl.col("date_evenement").alias("date_releve")]).unique()
+    rel_evenements = releves.filter(pl.col("source") == "flux_C15").join(
+        cles_impacte, on=["pdl", "date_releve"], how="semi"
+    )
 
-    # 3. Pour FACTURATION : construire requête et interroger les relevés existants
+    # 3. Pour FACTURATION : interroger les relevés PÉRIODIQUES (tout sauf C15) aux dates
+    #    de facturation. La priorité inter-sources est arbitrée au dédoublonnage ci-dessous.
+    rel_periodiques = releves.filter(pl.col("source") != "flux_C15")
     requete_facturation = evt_facturation.select(
         [
             "pdl",
@@ -461,7 +469,7 @@ def _assembler_chronologie(evenements: pl.LazyFrame, releves: pl.LazyFrame) -> p
         ]
     )
 
-    rel_facturation = interroger_releves(requete_facturation, releves)
+    rel_facturation = interroger_releves(requete_facturation, rel_periodiques)
 
     # 4. Combiner les deux sources de relevés
     return (

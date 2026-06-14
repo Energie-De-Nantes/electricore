@@ -150,7 +150,16 @@ def test_priorite_c15_bat_periodique():
             _evenement("PDL001", "REF001", datetime(2024, 1, 15), "FACTURATION"),
         ]
     )
-    releves = _releves([_releve("PDL001", datetime(2024, 1, 15), "flux_R151", 9999.0, ref="REF001")])
+    # C15 (avant/après) et R151 au même jour : C15 vient désormais du modèle canonique
+    # `releves` (ADR-0029), aux côtés du périodique. L'événement reste dans l'historique
+    # pour le semi-join d'impact.
+    releves = _releves(
+        [
+            _releve("PDL001", datetime(2024, 1, 15), "flux_C15", 1000.0, ref="REF001", ordre_index=False),
+            _releve("PDL001", datetime(2024, 1, 15), "flux_C15", 1500.0, ref="REF001", ordre_index=True),
+            _releve("PDL001", datetime(2024, 1, 15), "flux_R151", 9999.0, ref="REF001"),
+        ]
+    )
 
     result = _assembler_chronologie(historique, releves).collect()
     a_la_date = result.filter(pl.col("date_releve") == datetime(2024, 1, 15, tzinfo=PARIS))
@@ -262,7 +271,13 @@ def test_ordre_index_booleen_avant_apres():
             _evenement("PDL001", "REF001", datetime(2024, 2, 1), "FACTURATION"),
         ]
     )
-    releves = _releves([_releve("PDL001", datetime(2024, 2, 1), "flux_R151", 2000.0, ref="REF001")])
+    releves = _releves(
+        [
+            _releve("PDL001", datetime(2024, 1, 15), "flux_C15", 1000.0, ref="REF001", ordre_index=False),
+            _releve("PDL001", datetime(2024, 1, 15), "flux_C15", 1500.0, ref="REF001", ordre_index=True),
+            _releve("PDL001", datetime(2024, 2, 1), "flux_R151", 2000.0, ref="REF001"),
+        ]
+    )
 
     result = _assembler_chronologie(historique, releves).collect()
     assert result.schema["ordre_index"] == pl.Boolean

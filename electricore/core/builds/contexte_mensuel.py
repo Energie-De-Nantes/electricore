@@ -28,7 +28,7 @@ import pandera.polars as pa
 import polars as pl
 from pandera.typing.polars import DataFrame
 
-from electricore.core.loaders import c15, releves_harmonises
+from electricore.core.loaders import c15, releves_canoniques
 from electricore.core.models.cadrans import col_energie
 from electricore.core.models.lignes_facture import LignesFacture
 from electricore.core.models.lignes_facture_rapprochees import LignesFactureRapprochees
@@ -173,7 +173,7 @@ def contexte_du_mois(mois: str | None = None, horizon: dt.datetime | None = None
         FileNotFoundError: si la base DuckDB est absente (levée par les loaders
             à l'appel — leur `.lazy()` exécute la lecture immédiatement).
     """
-    return charger(c15().lazy(), releves_harmonises().lazy(), mois=mois, horizon=horizon)
+    return charger(c15().lazy(), releves_canoniques().lazy(), mois=mois, horizon=horizon)
 
 
 @pa.check_types(lazy=True)

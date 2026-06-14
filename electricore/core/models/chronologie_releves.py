@@ -49,6 +49,13 @@ class ChronologieReleves(pa.DataFrameModel):
     # Source gagnante (table de priorité explicite C15 > R64 > R151).
     source: pl.Utf8 = pa.Field(nullable=False, isin=SOURCES_CHRONOLOGIE)
 
+    # 🆔 Identité (ADR-0028/0029, #244) portée jusqu'au journal (#233). Mintée au seam
+    # dbt pour toutes les sources. Nullable : un relevé interrogé absent (releve_manquant)
+    # n'en porte pas.
+    releve_id: pl.Utf8 | None = pa.Field(nullable=True)
+    # Nature canonique (réel/estimé/corrigé) ; nullable pour la même raison.
+    nature_index: pl.Utf8 | None = pa.Field(nullable=True, isin=["réel", "estimé", "corrigé"])
+
     # 🏢 Référence calendrier distributeur (utile au contrôle des cadrans attendus)
     id_calendrier_distributeur: pl.Utf8 | None = pa.Field(nullable=True)
 

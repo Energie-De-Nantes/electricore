@@ -206,7 +206,22 @@ def releves_canoniques(database_path: str | Path | None = None) -> DuckDBQuery:
         >>> r64_only = releves_canoniques().filter({"source": "flux_R64"}).collect()
     """
     union_schema = FluxSchema(flux_name="RELEVES_CANONIQUES", table="", columns=())
-    config = QueryConfig(schema=union_schema, transform=lambda lf: lf, validator=None)
+    # Les index sont matérialisés en BIGINT par dbt ; l'aval (chronologie / énergie)
+    # attend des Float64. Cast au boundary loader, comme l'ex-`releves_harmonises`.
+    index_cols = (
+        "index_base_kwh",
+        "index_hp_kwh",
+        "index_hc_kwh",
+        "index_hph_kwh",
+        "index_hpb_kwh",
+        "index_hch_kwh",
+        "index_hcb_kwh",
+    )
+    config = QueryConfig(
+        schema=union_schema,
+        transform=lambda lf: lf.with_columns([pl.col(c).cast(pl.Float64, strict=False) for c in index_cols]),
+        validator=None,
+    )
     return DuckDBQuery(config=config, database_path=database_path, base_sql="SELECT * FROM flux_enedis.releves")
 
 

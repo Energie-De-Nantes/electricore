@@ -185,14 +185,17 @@ class TestReconstituerChronologieRelevesPolars:
         )
 
         # Base de relevés R151 (seulement PDL001)
+        # Relevés canoniques (ADR-0029) : C15 (avant/après du MES) + périodique R151.
         releves = pl.LazyFrame(
             {
-                "pdl": ["PDL001"],
-                "date_releve": [datetime(2024, 2, 1)],
-                "source": ["flux_R151"],
-                "index_base_kwh": [2000.0],
-                "ordre_index": [0],
-                "id_calendrier_distributeur": ["DI000001"],
+                "pdl": ["PDL001", "PDL001", "PDL001"],
+                "date_releve": [datetime(2024, 1, 15), datetime(2024, 1, 15), datetime(2024, 2, 1)],
+                "source": ["flux_C15", "flux_C15", "flux_R151"],
+                "index_base_kwh": [1000.0, 1500.0, 2000.0],
+                "index_hp_kwh": [500.0, 750.0, None],
+                "ordre_index": [False, True, False],
+                "ref_situation_contractuelle": ["REF001", "REF001", None],
+                "id_calendrier_distributeur": ["DI000001", "DI000001", "DI000001"],
             }
         )
 
@@ -238,15 +241,16 @@ class TestReconstituerChronologieRelevesPolars:
             ]
         )
 
-        # Relevé R151 à la même date
+        # C15 (avant/après) + R151 au même jour : C15 doit gagner (ADR-0029).
         releves = pl.LazyFrame(
             {
-                "pdl": ["PDL001"],
-                "date_releve": [datetime(2024, 1, 15)],
-                "source": ["flux_R151"],
-                "index_base_kwh": [9999.0],  # Valeur différente pour détecter le conflit
-                "ordre_index": [0],
-                "id_calendrier_distributeur": ["DI000001"],
+                "pdl": ["PDL001", "PDL001", "PDL001"],
+                "date_releve": [datetime(2024, 1, 15), datetime(2024, 1, 15), datetime(2024, 1, 15)],
+                "source": ["flux_C15", "flux_C15", "flux_R151"],
+                "index_base_kwh": [1000.0, 1500.0, 9999.0],  # 9999 = conflit R151 à écarter
+                "ordre_index": [False, True, False],
+                "ref_situation_contractuelle": ["REF001", "REF001", "REF001"],
+                "id_calendrier_distributeur": ["DI000001", "DI000001", "DI000001"],
             }
         )
 
