@@ -64,7 +64,7 @@ cadrans as (
 )
 
 select
-    {{ mint_releve_id("'flux_R15'", "pdl", "date_releve", "false") }} as releve_id,
+    {{ mint_releve_id("'flux_R15'", "pdl", "(date_releve at time zone 'Europe/Paris')", "false") }} as releve_id,
     id_releve,
     {{ nature_depuis_nature_index("nature_index_source") }}          as nature_index,
     flat.* exclude (occurrence_id, id_releve, nature_index_source),

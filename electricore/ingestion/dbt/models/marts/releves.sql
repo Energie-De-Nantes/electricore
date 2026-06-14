@@ -59,7 +59,7 @@ with unifies as (
     -- portées NATIVEMENT par l'événement (C15 = source contractuelle). releve_id minté
     -- en dbt comme les autres sources (discriminant = ordre_index).
     select
-        {{ mint_releve_id("'flux_C15'", "pdl", "date_evenement", "false") }}        as releve_id,
+        {{ mint_releve_id("'flux_C15'", "pdl", "(date_evenement at time zone 'Europe/Paris')", "false") }} as releve_id,
         'flux_C15'                                                                  as source,
         pdl,
         date_evenement                                                              as date_releve,
@@ -83,7 +83,7 @@ with unifies as (
 
     -- C15 « après » : index relevé immédiatement APRÈS l'événement (ordre_index = true).
     select
-        {{ mint_releve_id("'flux_C15'", "pdl", "date_evenement", "true") }}         as releve_id,
+        {{ mint_releve_id("'flux_C15'", "pdl", "(date_evenement at time zone 'Europe/Paris')", "true") }} as releve_id,
         'flux_C15'                                                                  as source,
         pdl,
         date_evenement                                                              as date_releve,

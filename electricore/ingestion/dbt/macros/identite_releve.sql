@@ -12,8 +12,13 @@
 -- rejeté comme clé par l'ADR-0028) ni avec l'`Id_Releve` natif (provenance seule).
 --
 -- Format lisible et stable : `source|pdl|date_iso|discriminant`. La date est
--- normalisée en ISO (instant pour les timestamps, date nue pour R151) afin que la
--- même lecture logique produise toujours la même chaîne.
+-- normalisée en ISO afin que la même lecture logique produise toujours la même chaîne.
+--
+-- ⚠️ DÉTERMINISME / FUSEAU : `cast(timestamptz as varchar)` rend la date dans le fuseau
+-- de SESSION (Paris en local, UTC en CI) → clé instable entre environnements. Les
+-- appelants dont la date est un `timestamptz` (R15, C15) DOIVENT la normaliser :
+-- `(date at time zone 'Europe/Paris')` (→ timestamp naïf, rendu stable). R151 passe une
+-- `date` nue et R64 un `timestamp` naïf : déjà stables, pas de normalisation requise.
 {% macro mint_releve_id(source, pdl, date_releve, discriminant) %}
     {{ source }} || '|' || {{ pdl }} || '|' || cast({{ date_releve }} as varchar) || '|' || coalesce(cast({{ discriminant }} as varchar), '')
 {% endmacro %}
