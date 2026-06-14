@@ -547,6 +547,35 @@ def reconstituer_chronologie_releves(evenements: pl.LazyFrame, releves: pl.LazyF
     return _assembler_chronologie(evenements, releves)
 
 
+def journal_releves_utilises(
+    historique: LazyFrame[Historique], releves: LazyFrame[RelevéIndex]
+) -> LazyFrame[ChronologieReleves]:
+    """Journal des relevés effectivement consommés par le calcul d'énergie (issue #233).
+
+    Promeut la *Chronologie des relevés* enrichie — jusqu'ici calculée puis détruite
+    par `pipeline_energie` (la sélection finale écartait les index bruts) — en **livrable
+    conservé**. Conserve, jusqu'à la facture (cf. `core/CONTEXT.md`, *Traçabilité des
+    index*), les relevés bornant chaque période : identité (`releve_id`/`id_releve`),
+    *nature d'index*, `source`, `date_releve`, et les **index en registres réels par
+    cadran** — jamais de cadran synthétisé.
+
+    Strictement le même assemblage que celui consommé en interne par `pipeline_energie`
+    (mêmes filtre `impacte_energie` + `_assembler_chronologie`) : le journal est un
+    artefact **additionnel**, pas une altération du calcul d'énergie. Un changement de
+    configuration en cours de mois (MCT) y apparaît sans cas particulier — les relevés
+    intermédiaires sont simplement des lignes en plus.
+
+    Args:
+        historique: événements contractuels enrichis (C15 + événements FACTURATION).
+        releves: relevés d'index périodiques disponibles (R151/R64).
+
+    Returns:
+        `LazyFrame[ChronologieReleves]` : 1 ligne par (RSC, date_releve, ordre_index),
+        index réels par cadran conservés, prêt à être scopé au mois par le build.
+    """
+    return historique.filter(pl.col("impacte_energie")).pipe(_assembler_chronologie, releves)
+
+
 @pa.check_types(lazy=True)
 def calculer_periodes_energie(lf: pl.LazyFrame) -> LazyFrame[PeriodeEnergie]:
     """

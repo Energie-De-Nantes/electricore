@@ -24,21 +24,55 @@ TZ = ZoneInfo("Europe/Paris")
 
 def _make_stub_composition(
     *, debuts_mois: list[datetime]
-) -> tuple[pl.LazyFrame, pl.LazyFrame, pl.LazyFrame, pl.LazyFrame]:
-    """Construit le tuple de 4 LazyFrames renvoyé par `_composer`.
+) -> tuple[pl.LazyFrame, pl.LazyFrame, pl.LazyFrame, pl.LazyFrame, pl.LazyFrame]:
+    """Construit le tuple de 5 LazyFrames renvoyé par `_composer`.
 
     `debuts_mois` peuple `facturation_mensuelle.debut` — c'est l'unique colonne
     dont `charger()` se sert pour résoudre le mois par défaut. Depuis ADR-0019
     (#110), `pipeline_facturation` retourne un LazyFrame ; la matérialisation
     est portée par `charger()` au boundary du build.
+
+    Les 4ᵉ/5ᵉ éléments sont le journal des relevés (`releves_utilises`, issue #233)
+    et `facturation_mensuelle`. Le journal est scopé par `charger()` aux relevés
+    bornant les périodes d'énergie du mois résolu : on fournit donc un `energie`
+    et un journal cohérents pour que le scopage soit observable (cf. tests dédiés).
     """
+    paris = ZoneInfo("Europe/Paris")
     facturation_lf = pl.LazyFrame({"debut": debuts_mois}).with_columns(
         pl.col("debut").dt.replace_time_zone("Europe/Paris")
+    )
+    # Énergie + journal minimaux et cohérents pour le scopage du mois résolu.
+    dernier = max(debuts_mois)
+    prefixe = f"{dernier.year:04d}-{dernier.month:02d}"
+    debut = datetime(dernier.year, dernier.month, 1, tzinfo=paris)
+    fin = datetime(dernier.year + (dernier.month // 12), (dernier.month % 12) + 1, 1, tzinfo=paris)
+    energie_lf = pl.LazyFrame(
+        {
+            "ref_situation_contractuelle": ["REF001"],
+            "debut": [debut],
+            "fin": [fin],
+            "mois_annee": [prefixe],
+        },
+        schema_overrides={
+            "debut": pl.Datetime("us", "Europe/Paris"),
+            "fin": pl.Datetime("us", "Europe/Paris"),
+        },
+    )
+    journal_lf = pl.LazyFrame(
+        {
+            "ref_situation_contractuelle": ["REF001", "REF001"],
+            "date_releve": [debut, fin],
+            "ordre_index": [False, False],
+            "releve_id": ["flux_R151|PDL|debut|false", "flux_R151|PDL|fin|false"],
+            "index_base_kwh": [1000.0, 1500.0],
+        },
+        schema_overrides={"date_releve": pl.Datetime("us", "Europe/Paris")},
     )
     return (
         pl.LazyFrame({"sentinel": [1]}),
         pl.LazyFrame({"sentinel": [2]}),
-        pl.LazyFrame({"sentinel": [3]}),
+        energie_lf,
+        journal_lf,
         facturation_lf,
     )
 
@@ -97,9 +131,9 @@ class TestChargerMoisParDefaut:
 
 
 class TestChargerFramesQuiPassent:
-    """`ContexteMensuel` doit exposer les 4 frames produits par la composition des pipelines."""
+    """`ContexteMensuel` doit exposer les frames produits par la composition des pipelines."""
 
-    def test_expose_les_quatre_frames_du_resultat(self, stub_composer):
+    def test_expose_les_frames_du_resultat(self, stub_composer):
         # Sentinelles distinctes pour identifier chaque frame en sortie
         stub_composer(_make_stub_composition(debuts_mois=[datetime(2024, 1, 1)]))
 
@@ -108,10 +142,15 @@ class TestChargerFramesQuiPassent:
         # Les LazyFrames doivent porter les sentinelles définies dans le stub
         assert ctx.historique_enrichi.collect()["sentinel"].item() == 1
         assert ctx.abonnements.collect()["sentinel"].item() == 2
-        assert ctx.energie.collect()["sentinel"].item() == 3
+        # energie passe en LazyFrame (l'énergie du stub porte mois_annee/bornes)
+        assert "mois_annee" in ctx.energie.collect_schema().names()
         # facturation_mensuelle est une DataFrame (déjà collectée)
         assert isinstance(ctx.facturation_mensuelle, pl.DataFrame)
         assert "debut" in ctx.facturation_mensuelle.columns
+        # releves_utilises (journal #233) est matérialisé et scopé au boundary du build.
+        assert isinstance(ctx.releves_utilises, pl.DataFrame)
+        assert {"releve_id", "date_releve", "index_base_kwh"} <= set(ctx.releves_utilises.columns)
+        assert len(ctx.releves_utilises) == 2  # relevés de début + fin de la période du mois
 
 
 class TestChargerHorizon:
