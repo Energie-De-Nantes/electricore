@@ -1,5 +1,8 @@
 [
   {
+    "releve_id": "flux_R15|99100000000000|2024-06-15 00:01:00+02|false",
+    "id_releve": "TEXTE",
+    "nature_index": "réel",
     "pdl": "99100000000000",
     "date_releve": "2024-06-15T00:01:00+02:00",
     "id_calendrier": "TEXTE",
@@ -8,11 +11,14 @@
     "type_compteur": "CCB",
     "motif_releve": "TEXTE",
     "id_affaire": "TEXTE",
-    "nature_index": "REEL",
     "statut_releve": "INITIAL",
-    "autoconsommation_collective": "0"
+    "autoconsommation_collective": "0",
+    "occurrence_id": "r15_xsd.xml#1#1"
   },
   {
+    "releve_id": "flux_R15|99100000000001|2024-06-15 00:01:00+02|false",
+    "id_releve": "TEXTE",
+    "nature_index": "réel",
     "pdl": "99100000000001",
     "date_releve": "2024-06-15T00:01:00+02:00",
     "id_calendrier": "TEXTE",
@@ -21,11 +27,14 @@
     "type_compteur": "CCB",
     "motif_releve": "TEXTE",
     "id_affaire": "TEXTE",
-    "nature_index": "REEL",
     "statut_releve": "INITIAL",
-    "autoconsommation_collective": "0"
+    "autoconsommation_collective": "0",
+    "occurrence_id": "r15_xsd.xml#2#1"
   },
   {
+    "releve_id": "flux_R15|99100000000000|2024-06-15 00:01:00+02|false",
+    "id_releve": "TEXTE",
+    "nature_index": "estimé",
     "pdl": "99100000000000",
     "date_releve": "2024-06-15T00:01:00+02:00",
     "id_calendrier": "TEXTE",
@@ -34,11 +43,14 @@
     "type_compteur": "CEB",
     "motif_releve": "TEXTE",
     "id_affaire": "TEXTE",
-    "nature_index": "ESTIME",
     "statut_releve": "RECTIFICATIF",
-    "autoconsommation_collective": "1"
+    "autoconsommation_collective": "1",
+    "occurrence_id": "r15_xsd.xml#1#2"
   },
   {
+    "releve_id": "flux_R15|99100000000001|2024-06-15 00:01:00+02|false",
+    "id_releve": "TEXTE",
+    "nature_index": "estimé",
     "pdl": "99100000000001",
     "date_releve": "2024-06-15T00:01:00+02:00",
     "id_calendrier": "TEXTE",
@@ -47,8 +59,8 @@
     "type_compteur": "CEB",
     "motif_releve": "TEXTE",
     "id_affaire": "TEXTE",
-    "nature_index": "ESTIME",
     "statut_releve": "RECTIFICATIF",
-    "autoconsommation_collective": "1"
+    "autoconsommation_collective": "1",
+    "occurrence_id": "r15_xsd.xml#2#2"
   }
 ]
