@@ -1,0 +1,79 @@
+"""Modèle Pandera de la *Chronologie des relevés* (issue #180, ADR-0023, ADR-0028).
+
+La chronologie des relevés est la ligne de temps **énergie** d'un contrat : tous les
+relevés d'index aux dates qui bornent ses périodes (événements C15 *avant*/*après* et
+dates de facturation interrogées dans R151/R64), assemblés, dédoublonnés par source
+prioritaire et ordonnés. C'est l'entrée pure de `calculer_periodes_energie`.
+
+Ce schéma matérialise comme **contrat** les invariants jusqu'ici encodés
+incidemment dans l'implémentation :
+
+- **1 ligne par `(ref_situation_contractuelle, date_releve, ordre_index)`** — la clé
+  métier de dédoublonnage (cf. ADR-0028, *Identité de relevé*).
+- **`ref_situation_contractuelle` non-null** — l'attribution contractuelle est garantie
+  (forward-fill par PDL des relevés périodiques qui n'en portent pas).
+- **`source` dans une énumération fermée** — la source gagnante d'un relevé est l'une des
+  sources connues, choisie par la table de priorité explicite `flux_C15 > flux_R64 >
+  flux_R151` (ADR-0028), jamais par hasard.
+- **`ordre_index` booléen** (`False` = avant / relevé périodique, `True` = après C15) —
+  type unique de bout en bout (fin de la divergence Boolean-modèle / Int32-code).
+"""
+
+import pandera.polars as pa
+import polars as pl
+from pandera.engines.polars_engine import DateTime
+
+# Énumération fermée des sources d'un relevé dans la chronologie.
+SOURCES_CHRONOLOGIE: tuple[str, ...] = ("flux_C15", "flux_R64", "flux_R151", "flux_R15")
+
+
+class ChronologieReleves(pa.DataFrameModel):
+    """📌 Chronologie des relevés d'un contrat : ligne de temps énergie dédoublonnée.
+
+    Sortie de `chronologie_releves()`, entrée de `calculer_periodes_energie()`.
+    Grain garanti : 1 ligne par `(ref_situation_contractuelle, date_releve, ordre_index)`.
+    """
+
+    # 🔹 Identifiants
+    pdl: pl.Utf8 = pa.Field(nullable=False)
+    # Attribution contractuelle garantie (forward-fill par PDL) — invariant fort.
+    ref_situation_contractuelle: pl.Utf8 = pa.Field(nullable=False)
+    formule_tarifaire_acheminement: pl.Utf8 | None = pa.Field(nullable=True)
+
+    # 📆 Date du relevé (tz-aware Europe/Paris, comme RelevéIndex)
+    date_releve: DateTime = pa.Field(nullable=False, dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"})
+
+    # Discriminant avant/après : False = avant ou relevé périodique, True = après C15.
+    ordre_index: pl.Boolean = pa.Field(nullable=False)
+
+    # Source gagnante (table de priorité explicite C15 > R64 > R151).
+    source: pl.Utf8 = pa.Field(nullable=False, isin=SOURCES_CHRONOLOGIE)
+
+    # 🏢 Référence calendrier distributeur (utile au contrôle des cadrans attendus)
+    id_calendrier_distributeur: pl.Utf8 | None = pa.Field(nullable=True)
+
+    # ⚡ Index de compteurs (valeurs cumulées en kWh)
+    index_hp_kwh: pl.Float64 | None = pa.Field(nullable=True)
+    index_hc_kwh: pl.Float64 | None = pa.Field(nullable=True)
+    index_hch_kwh: pl.Float64 | None = pa.Field(nullable=True)
+    index_hph_kwh: pl.Float64 | None = pa.Field(nullable=True)
+    index_hpb_kwh: pl.Float64 | None = pa.Field(nullable=True)
+    index_hcb_kwh: pl.Float64 | None = pa.Field(nullable=True)
+    index_base_kwh: pl.Float64 | None = pa.Field(nullable=True)
+
+    # 🚩 Flag de complétude : relevé attendu mais absent à cette date (relevés interrogés).
+    releve_manquant: pl.Boolean | None = pa.Field(nullable=True)
+
+    @pa.dataframe_check
+    def verifier_grain_unique(cls, data) -> bool:
+        """Garantit 1 ligne par `(ref_situation_contractuelle, date_releve, ordre_index)`."""
+        df = data.lazyframe
+        cle = ["ref_situation_contractuelle", "date_releve", "ordre_index"]
+        nb_total = df.select(pl.len()).collect().item()
+        nb_uniques = df.select(cle).unique().select(pl.len()).collect().item()
+        return nb_total == nb_uniques
+
+    class Config:
+        """Permet les colonnes supplémentaires (passe-plat des métadonnées source)."""
+
+        strict = False
