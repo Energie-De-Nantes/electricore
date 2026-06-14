@@ -1,41 +1,53 @@
 [
   {
+    "releve_id": "flux_R151|99100000000000|2024-06-15|false",
+    "nature_index": "réel",
     "pdl": "99100000000000",
     "date_releve": "2024-06-15",
     "id_calendrier_fournisseur": "TEXTE",
     "id_calendrier_distributeur": "TEXTE",
     "id_affaire": "ABCD",
     "unite": "TEXTE",
+    "occurrence_id": "r151_xsd.xml#1#1",
     "index_base_kwh": 5218,
     "index_hp_kwh": 5329
   },
   {
+    "releve_id": "flux_R151|99100000000000|2024-06-15|false",
+    "nature_index": "réel",
     "pdl": "99100000000000",
     "date_releve": "2024-06-15",
     "id_calendrier_fournisseur": "TEXTE",
     "id_calendrier_distributeur": "TEXTE",
     "id_affaire": "ABCD",
     "unite": "TEXTE",
+    "occurrence_id": "r151_xsd.xml#1#2",
     "index_base_kwh": 5662,
     "index_hp_kwh": 5773
   },
   {
+    "releve_id": "flux_R151|99100000000001|2024-06-15|false",
+    "nature_index": "réel",
     "pdl": "99100000000001",
     "date_releve": "2024-06-15",
     "id_calendrier_fournisseur": "TEXTE",
     "id_calendrier_distributeur": "TEXTE",
     "id_affaire": "ABCD",
     "unite": "TEXTE",
+    "occurrence_id": "r151_xsd.xml#2#1",
     "index_base_kwh": 6106,
     "index_hp_kwh": 6217
   },
   {
+    "releve_id": "flux_R151|99100000000001|2024-06-15|false",
+    "nature_index": "réel",
     "pdl": "99100000000001",
     "date_releve": "2024-06-15",
     "id_calendrier_fournisseur": "TEXTE",
     "id_calendrier_distributeur": "TEXTE",
     "id_affaire": "ABCD",
     "unite": "TEXTE",
+    "occurrence_id": "r151_xsd.xml#2#2",
     "index_base_kwh": 6550,
     "index_hp_kwh": 6661
   }
