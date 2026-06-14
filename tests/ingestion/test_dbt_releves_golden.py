@@ -145,3 +145,55 @@ def test_releves_inclut_c15_avant_apres(base_periodiques):
     # releve_id minté + nature canonique mappée.
     assert all(r["releve_id"] and r["releve_id"].startswith("flux_C15|") for r in c15)
     assert all(r["nature_index"] in {"réel", "estimé", "corrigé"} for r in c15)
+
+
+def test_forward_fill_rsc_pilote_par_c15():
+    """Enrichissement contractuel (#243) : une ligne périodique hérite la RSC/FTA du
+    dernier relevé C15 amont (par PDL). Vérifie la fenêtre de forward-fill du modèle
+    `releves` sur une entrée synthétique (les fixtures ont des PDL disjoints inter-flux ;
+    la parité sur données réelles est la garde de la bascule cœur #244)."""
+    con = duckdb.connect()
+    con.execute(
+        """
+        create table synth (
+            pdl varchar, date_releve timestamptz, source varchar, ordre_index boolean,
+            ref_situation_contractuelle varchar, formule_tarifaire_acheminement varchar
+        )
+        """
+    )
+    con.execute(
+        """
+        insert into synth values
+          -- PDL A : entrée C15 (après, RSC1/FTA1) puis 2 télérelevés périodiques (RSC nulle)
+          ('A', timestamptz '2026-01-01 00:00:00+01', 'flux_C15',  true,  'RSC1', 'FTA1'),
+          ('A', timestamptz '2026-01-05 00:00:00+01', 'flux_R151', false, null,   null),
+          ('A', timestamptz '2026-02-01 00:00:00+01', 'flux_R64',  false, null,   null),
+          -- PDL B : un télérelevé AVANT tout C15 → reste sans RSC
+          ('B', timestamptz '2026-01-03 00:00:00+01', 'flux_R151', false, null,   null)
+        """
+    )
+    rows = con.execute(
+        """
+        select pdl, strftime(date_releve at time zone 'Europe/Paris', '%Y-%m-%d') as jour,
+            coalesce(ref_situation_contractuelle,
+                     last_value(ref_situation_contractuelle ignore nulls) over w) as rsc,
+            coalesce(formule_tarifaire_acheminement,
+                     last_value(formule_tarifaire_acheminement ignore nulls) over w) as fta
+        from synth
+        window w as (
+            partition by pdl
+            order by date_releve,
+                     case source when 'flux_C15' then 0 when 'flux_R64' then 1 else 2 end,
+                     ordre_index
+            rows between unbounded preceding and current row
+        )
+        """
+    ).fetchall()
+    con.close()
+
+    by = {(r[0], r[1]): (r[2], r[3]) for r in rows}
+    # PDL A : les périodiques héritent RSC1/FTA1 du C15 amont.
+    assert by[("A", "2026-01-05")] == ("RSC1", "FTA1")
+    assert by[("A", "2026-02-01")] == ("RSC1", "FTA1")
+    # PDL B : périodique avant tout C15 → pas de RSC propagée.
+    assert by[("B", "2026-01-03")] == (None, None)

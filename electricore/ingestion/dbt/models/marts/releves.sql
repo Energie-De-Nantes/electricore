@@ -102,12 +102,42 @@ with unifies as (
         apres_index_base_kwh, apres_index_hp_kwh, apres_index_hc_kwh, apres_index_hph_kwh,
         apres_index_hpb_kwh, apres_index_hch_kwh, apres_index_hcb_kwh
     ) is not null
-)
+),
 
-select *
-from unifies
 -- Dedup même-source (re-livraison) : 1 ligne par relevé logique = 1 par releve_id
 -- (clé métier ADR-0028, encode source|pdl|date|discriminant). On garde la livraison
 -- la plus récente ; occurrence_id (fichier#position / mesure_id) départage de façon
 -- déterministe. R64 est déjà unique en amont (qualify dans flux_r64).
-qualify row_number() over (partition by releve_id order by occurrence_id desc) = 1
+dedup as (
+    select *
+    from unifies
+    qualify row_number() over (partition by releve_id order by occurrence_id desc) = 1
+)
+
+-- Enrichissement contractuel piloté par C15 (#243, ADR-0029) : les lignes périodiques
+-- (R151/R64) ne portent pas de RSC/FTA ; on les propage (forward-fill) depuis les
+-- relevés C15 — la source contractuelle — par PDL, le long du temps. Remplace le
+-- join_asof incident sur les événements FACTURATION par une attribution déterministe
+-- et découplée de la facturation. Tie-break à date égale : C15 d'abord (sa RSC est vue
+-- par un relevé périodique du même jour), puis « après » avant « avant » non — on
+-- ordonne ordre_index croissant pour que la situation APRÈS l'événement (nouvelle RSC
+-- d'une entrée) prime. Multi-source préservé : pas de dedup inter-sources ici,
+-- l'arbitrage de priorité reste au cœur (#244).
+select * replace (
+    coalesce(
+        ref_situation_contractuelle,
+        last_value(ref_situation_contractuelle ignore nulls) over w
+    ) as ref_situation_contractuelle,
+    coalesce(
+        formule_tarifaire_acheminement,
+        last_value(formule_tarifaire_acheminement ignore nulls) over w
+    ) as formule_tarifaire_acheminement
+)
+from dedup
+window w as (
+    partition by pdl
+    order by date_releve,
+             case source when 'flux_C15' then 0 when 'flux_R64' then 1 else 2 end,
+             ordre_index
+    rows between unbounded preceding and current row
+)
