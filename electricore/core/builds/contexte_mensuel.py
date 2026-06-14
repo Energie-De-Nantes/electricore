@@ -22,7 +22,7 @@ filtre F15 et C15 sur le mois du contexte, applique `rapprocher()`, extrait
 """
 
 import datetime as dt
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import pandera.polars as pa
 import polars as pl
@@ -33,7 +33,7 @@ from electricore.core.models.cadrans import col_energie
 from electricore.core.models.lignes_facture import LignesFacture
 from electricore.core.models.lignes_facture_rapprochees import LignesFactureRapprochees
 from electricore.core.pipelines.abonnements import pipeline_abonnements
-from electricore.core.pipelines.energie import pipeline_energie
+from electricore.core.pipelines.energie import journal_releves_utilises, pipeline_energie
 from electricore.core.pipelines.facturation import pipeline_facturation
 from electricore.core.pipelines.historique import horizon_par_defaut, pipeline_historique
 
@@ -76,9 +76,19 @@ _COLONNES_CALCULEES: tuple[str, ...] = (
 
 @dataclass(frozen=True, slots=True)
 class ContexteMensuel:
-    """Bundle immutable des 4 frames dérivés pour produire la facturation d'un mois.
+    """Bundle immutable des frames dérivés pour produire la facturation d'un mois.
 
-    Voir `core/CONTEXT.md` (entrée *Contexte mensuel de facturation*).
+    Voir `core/CONTEXT.md` (entrées *Contexte mensuel de facturation* et
+    *Traçabilité des index*).
+
+    `releves_utilises` (issue #233) est le **journal des relevés effectivement
+    consommés** par le calcul d'énergie du mois : 1 ligne par relevé bornant une
+    période du mois, clé `(ref_situation_contractuelle, date_releve, ordre_index)`,
+    portant identité (`releve_id`/`id_releve`), *nature d'index*, `source` et les
+    **index en registres réels par cadran** (jamais de cadran synthétisé). Un
+    changement de configuration en cours de mois (MCT) y figure sans cas
+    particulier : les relevés intermédiaires sont des lignes supplémentaires.
+    Matérialisé (`pl.DataFrame`) au boundary du build, comme `facturation_mensuelle`.
     """
 
     mois: str
@@ -86,19 +96,27 @@ class ContexteMensuel:
     abonnements: pl.LazyFrame
     energie: pl.LazyFrame
     facturation_mensuelle: pl.DataFrame
+    # Journal des relevés consommés (issue #233). Défaut vide pour les prefabs de
+    # tests d'autres features (taxes, documents…) qui n'exercent pas la traçabilité ;
+    # `charger()` / `contexte_du_mois()` le peuplent toujours.
+    releves_utilises: pl.DataFrame = field(default_factory=pl.DataFrame)
 
 
 def _composer(
     historique: pl.LazyFrame, releves: pl.LazyFrame, horizon: dt.datetime
-) -> tuple[pl.LazyFrame, pl.LazyFrame, pl.LazyFrame, pl.LazyFrame]:
+) -> tuple[pl.LazyFrame, pl.LazyFrame, pl.LazyFrame, pl.LazyFrame, pl.LazyFrame]:
     """Compose la séquence canonique des pipelines de facturation.
 
     `pipeline_historique` (1 fois, borné par `horizon`) → `pipeline_abonnements` +
     `pipeline_energie` (sur l'historique enrichi) → `pipeline_facturation`
-    (agrégation mensuelle, toujours lazy). Retourne les 4 LazyFrames dans
-    l'ordre `(historique_enrichi, abonnements, energie, facturation_mensuelle)`.
-    La matérialisation de `facturation_mensuelle` est portée par `charger()`,
-    au boundary du build (ADR-0019).
+    (agrégation mensuelle, toujours lazy). En parallèle de `pipeline_energie`,
+    `journal_releves_utilises` (issue #233) conserve la *Chronologie des relevés*
+    enrichie (mêmes entrées, donc énergies inchangées) comme livrable.
+
+    Retourne les 5 LazyFrames dans l'ordre `(historique_enrichi, abonnements,
+    energie, releves_utilises, facturation_mensuelle)`. Le scopage du journal au
+    mois et la matérialisation de `facturation_mensuelle` / `releves_utilises` sont
+    portés par `charger()`, au boundary du build (ADR-0019).
 
     L'`horizon` est résolu *une seule fois* par l'appelant (`charger`) au boundary
     I/O et passé explicitement : le pipeline reste une transformation pure, sans
@@ -110,8 +128,42 @@ def _composer(
     # conformité à `RelevéIndex` est garantie à l'exécution par le décorateur
     # Pandera de `pipeline_energie`.
     energie = pipeline_energie(historique_enrichi, releves)  # type: ignore[arg-type]
+    # Journal des relevés consommés : même assemblage que celui qu'utilise
+    # `pipeline_energie` en interne — artefact additionnel, pas de calcul d'énergie.
+    releves_utilises = journal_releves_utilises(historique_enrichi, releves)  # type: ignore[arg-type]
     facturation_mensuelle = pipeline_facturation(abonnements, energie)
-    return historique_enrichi, abonnements, energie, facturation_mensuelle
+    return historique_enrichi, abonnements, energie, releves_utilises, facturation_mensuelle
+
+
+def _scoper_journal_au_mois(journal: pl.LazyFrame, energie: pl.LazyFrame, mois: str) -> pl.DataFrame:
+    """Restreint le journal des relevés aux **relevés utilisés dans le mois** (issue #233).
+
+    « Utilisé dans le mois » = relevé qui borne (début **ou** fin) une période d'énergie
+    agrégée au mois cible (`mois_annee == mois[:7]`). On dérive donc des périodes
+    d'énergie du mois l'ensemble des couples `(ref_situation_contractuelle, date_releve)`
+    de leurs bornes, puis on garde du journal les lignes correspondantes (`semi` join).
+
+    Conséquences, sans aucun cas particulier :
+    - les **deux** relevés bornant chaque période (ouverture *et* clôture) figurent ;
+    - un changement de configuration en cours de mois (MCT) découpe la période en
+      sous-périodes du même mois → leurs bornes intermédiaires sont des relevés
+      supplémentaires du journal.
+    """
+    prefixe_mois = mois[:7]
+    periodes_du_mois = energie.filter(pl.col("mois_annee") == prefixe_mois)
+
+    bornes = pl.concat(
+        [
+            periodes_du_mois.select("ref_situation_contractuelle", pl.col("debut").alias("date_releve")),
+            periodes_du_mois.select("ref_situation_contractuelle", pl.col("fin").alias("date_releve")),
+        ]
+    ).unique()
+
+    return (
+        journal.join(bornes, on=["ref_situation_contractuelle", "date_releve"], how="semi")
+        .sort(["ref_situation_contractuelle", "date_releve", "ordre_index"])
+        .collect()
+    )
 
 
 def charger(
@@ -136,7 +188,9 @@ def charger(
     if horizon is None:
         horizon = horizon_par_defaut()
 
-    historique_enrichi, abonnements, energie, facturation_mensuelle_lf = _composer(historique, releves, horizon)
+    historique_enrichi, abonnements, energie, releves_utilises_lf, facturation_mensuelle_lf = _composer(
+        historique, releves, horizon
+    )
 
     # Matérialisation au boundary du build (ADR-0019) : pipeline_facturation
     # reste lazy, le build collecte pour stocker dans le bundle ContexteMensuel.
@@ -146,11 +200,16 @@ def charger(
         debut_mois_expr = pl.col("debut").dt.truncate("1mo").dt.date()
         mois = str(facturation_mensuelle.select(debut_mois_expr.alias("m"))["m"].max())
 
+    # Journal des relevés (issue #233) : scopé au mois résolu (relevés bornant les
+    # périodes d'énergie du mois) puis matérialisé, comme `facturation_mensuelle`.
+    releves_utilises = _scoper_journal_au_mois(releves_utilises_lf, energie, mois)
+
     return ContexteMensuel(
         mois=mois,
         historique_enrichi=historique_enrichi,
         abonnements=abonnements,
         energie=energie,
+        releves_utilises=releves_utilises,
         facturation_mensuelle=facturation_mensuelle,
     )
 
