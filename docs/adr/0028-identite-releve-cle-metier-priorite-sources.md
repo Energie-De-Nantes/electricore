@@ -1,5 +1,11 @@
 # Identité de relevé : clé métier stable et priorité des sources explicite
 
+> **Superseded en partie par [ADR-0029](0029-modele-releves-canonique-dbt-assemble-coeur-arbitre.md)** — la
+> *localisation* du mint de l'identité C15 (« dérivée de l'événement + marqueur avant/après **en core**
+> pour c15 », ci-dessous) est remplacée : le mint devient **uniforme au seam dbt pour toutes les sources**
+> (modèle de relevés canonique). Le reste de cet ADR — identité = clé métier déterministe, priorité des
+> sources `flux_C15 > flux_R64 > flux_R151`, nature canonique — reste en vigueur.
+
 ## Contexte
 
 La traçabilité légale des index — faire figurer sur la facture les relevés réellement
