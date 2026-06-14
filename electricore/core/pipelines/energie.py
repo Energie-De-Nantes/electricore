@@ -51,6 +51,26 @@ PRIORITE_SOURCES: dict[str, int] = {
 _RANG_SOURCE_INCONNUE: int = 99
 
 
+def expr_mint_releve_id(source: str, discriminant: pl.Expr) -> pl.Expr:
+    """Mint la clé métier `releve_id` en core (ADR-0028, #232).
+
+    Même contrat que le macro dbt `mint_releve_id` : `source|pdl|date_iso|discriminant`.
+    Utilisé pour les relevés C15 avant/après, dérivés de l'événement + `ordre_index`
+    (le cast booléen rend `true`/`false`, cohérent avec le rendu dbt). Déterministe :
+    le même relevé logique produit toujours la même clé, sans dépendre d'un id natif
+    (C15 Donnees_Releve n'en a pas) ni de la position fichier.
+    """
+    return pl.concat_str(
+        [
+            pl.lit(source),
+            pl.col("pdl").cast(pl.Utf8),
+            pl.col("date_releve").cast(pl.Utf8),
+            discriminant.cast(pl.Utf8),
+        ],
+        separator="|",
+    )
+
+
 def expr_priorite_source() -> pl.Expr:
     """Expression du rang de priorité d'une source (cf. `PRIORITE_SOURCES`, ADR-0028).
 
@@ -304,62 +324,56 @@ def extraire_releves_evenements(historique: pl.LazyFrame) -> pl.LazyFrame:
         "index_hpb_kwh",
         "index_hcb_kwh",
     ]
-    metadata_cols = ["id_calendrier_distributeur"]
+    # Métadonnées dépivotées avant/après : id_calendrier + nature canonique (ADR-0028).
+    metadata_cols = ["id_calendrier_distributeur", "nature_index"]
     identifiants = ["pdl", "ref_situation_contractuelle", "formule_tarifaire_acheminement"]
 
-    # Relevés "avant" (ordre_index=False)
-    releves_avant = (
-        historique.select(
-            identifiants
-            + ["date_evenement"]
-            + [f"avant_{col}" for col in index_cols]
-            + [f"avant_{col}" for col in metadata_cols]
-        )
-        .rename(
-            {
-                "date_evenement": "date_releve",
-                **{f"avant_{col}": col for col in index_cols},
-                **{f"avant_{col}": col for col in metadata_cols},
-            }
-        )
-        .with_columns(
-            [
-                pl.lit(False, dtype=pl.Boolean).alias("ordre_index"),
-                pl.lit("flux_C15").alias("source"),
-                pl.lit("kWh").alias("unite"),
-                pl.lit("kWh").alias("precision"),
-                # Assurer que id_calendrier_distributeur est en String
-                pl.col("id_calendrier_distributeur").cast(pl.Utf8, strict=False),
-            ]
-        )
+    # Tolérer l'absence des colonnes de nature (fixtures légères) : les créer en NULL.
+    historique = historique.with_columns(
+        [
+            pl.col(f"{pos}_nature_index").cast(pl.Utf8)
+            if f"{pos}_nature_index" in historique.collect_schema().names()
+            else pl.lit(None, dtype=pl.Utf8).alias(f"{pos}_nature_index")
+            for pos in ("avant", "apres")
+        ]
     )
 
-    # Relevés "après" (ordre_index=True)
-    releves_apres = (
-        historique.select(
-            identifiants
-            + ["date_evenement"]
-            + [f"apres_{col}" for col in index_cols]
-            + [f"apres_{col}" for col in metadata_cols]
+    def _depivot(prefixe: str, ordre: bool) -> pl.LazyFrame:
+        """Dépivote un côté (avant/après) en relevé, avec identité mintée (ADR-0028)."""
+        return (
+            historique.select(
+                identifiants
+                + ["date_evenement"]
+                + [f"{prefixe}_{col}" for col in index_cols]
+                + [f"{prefixe}_{col}" for col in metadata_cols]
+            )
+            .rename(
+                {
+                    "date_evenement": "date_releve",
+                    **{f"{prefixe}_{col}": col for col in index_cols},
+                    **{f"{prefixe}_{col}": col for col in metadata_cols},
+                }
+            )
+            .with_columns(
+                [
+                    pl.lit(ordre, dtype=pl.Boolean).alias("ordre_index"),
+                    pl.lit("flux_C15").alias("source"),
+                    pl.lit("kWh").alias("unite"),
+                    pl.lit("kWh").alias("precision"),
+                    # Assurer que id_calendrier_distributeur est en String
+                    pl.col("id_calendrier_distributeur").cast(pl.Utf8, strict=False),
+                ]
+            )
+            .with_columns(
+                # Identité métier (ADR-0028) : releve_id minté depuis l'événement +
+                # discriminant ordre_index ; pas d'Id_Releve natif côté C15.
+                expr_mint_releve_id("flux_C15", pl.lit(ordre, dtype=pl.Boolean)).alias("releve_id"),
+                pl.lit(None, dtype=pl.Utf8).alias("id_releve"),
+            )
         )
-        .rename(
-            {
-                "date_evenement": "date_releve",
-                **{f"apres_{col}": col for col in index_cols},
-                **{f"apres_{col}": col for col in metadata_cols},
-            }
-        )
-        .with_columns(
-            [
-                pl.lit(True, dtype=pl.Boolean).alias("ordre_index"),
-                pl.lit("flux_C15").alias("source"),
-                pl.lit("kWh").alias("unite"),
-                pl.lit("kWh").alias("precision"),
-                # Assurer que id_calendrier_distributeur est en String
-                pl.col("id_calendrier_distributeur").cast(pl.Utf8, strict=False),
-            ]
-        )
-    )
+
+    releves_avant = _depivot("avant", False)
+    releves_apres = _depivot("apres", True)
 
     # Combiner et filtrer les lignes avec des index valides
     return (

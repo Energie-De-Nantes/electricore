@@ -130,3 +130,27 @@ def test_releves_unifies_preservent_les_instants(base_prod_dbt):
     par_source = {r["source"]: r["date_releve"] for r in df.iter_rows(named=True)}
     assert par_source["flux_R151"] == datetime(2024, 4, 4, 0, 0, tzinfo=PARIS)
     assert par_source["flux_R15"] == datetime(2024, 7, 30, 0, 1, tzinfo=PARIS)
+
+
+def test_loaders_surfacent_identite_releve(base_prod_dbt):
+    """L'identité (releve_id/id_releve/nature_index, ADR-0028) remonte jusqu'au loader.
+
+    R151 : releve_id minté, id_releve NULL (pas d'id natif), nature 'réel'.
+    R15  : releve_id minté + id_releve = Id_Releve natif (provenance) + nature 'réel'.
+    """
+    from electricore.core.loaders import r15, r151, releves
+
+    d151 = r151(database_path=base_prod_dbt).collect()
+    assert {"releve_id", "id_releve", "nature_index"} <= set(d151.columns)
+    assert d151["releve_id"].null_count() == 0
+    assert d151["id_releve"].null_count() == len(d151)  # pas d'id natif R151
+    assert set(d151["nature_index"].to_list()) == {"réel"}
+
+    d15 = r15(database_path=base_prod_dbt).collect()
+    assert {"releve_id", "id_releve", "nature_index"} <= set(d15.columns)
+    assert d15["releve_id"].null_count() == 0
+    assert d15["id_releve"].null_count() == 0  # Id_Releve natif présent
+
+    # L'union expose aussi l'identité (consommée par la chronologie en aval).
+    du = releves(database_path=base_prod_dbt).collect()
+    assert {"releve_id", "id_releve", "nature_index"} <= set(du.columns)

@@ -1,5 +1,8 @@
 [
   {
+    "releve_id": "flux_R15|99147508449444|2024-07-30 00:01:00+02|false",
+    "id_releve": "0305020435564306",
+    "nature_index": "réel",
     "pdl": "99147508449444",
     "date_releve": "2024-07-30T00:01:00+02:00",
     "id_calendrier": "FC022034",
@@ -7,9 +10,9 @@
     "ref_situation_contractuelle": "554933217",
     "type_compteur": "CCB",
     "motif_releve": "CFNS",
-    "nature_index": "REEL",
     "statut_releve": "INITIAL",
     "autoconsommation_collective": "1",
+    "occurrence_id": "r15_acc.xml#1#1",
     "ea_alloproduite_index_base_kwh": 400,
     "ea_autoconsommee_index_hc_kwh": 30,
     "ea_autoconsommee_index_hp_kwh": 70,

@@ -81,6 +81,8 @@ def _releve(
     *,
     ref: str | None = None,
     ordre_index: bool = False,
+    releve_id: str | None = None,
+    nature_index: str | None = "réel",
 ) -> dict:
     d = {
         "pdl": pdl,
@@ -89,6 +91,10 @@ def _releve(
         "index_base_kwh": base,
         "ordre_index": ordre_index,
         "id_calendrier_distributeur": "DI000001",
+        # Identité métier (ADR-0028) portée par les relevés périodiques.
+        "releve_id": releve_id or f"{source}|{pdl}|{date.isoformat()}|{str(ordre_index).lower()}",
+        "id_releve": None,
+        "nature_index": nature_index,
     }
     if ref is not None:
         d["ref_situation_contractuelle"] = ref
@@ -276,6 +282,33 @@ def test_ordre_index_booleen_avant_apres():
 
 
 # ---------------------------------------------------------------------------
+# Invariant 6 : releve_id + nature_index portés sur chaque ligne (ADR-0028, #232)
+# ---------------------------------------------------------------------------
+
+
+def test_chronologie_porte_releve_id_et_nature():
+    """Chaque ligne porte releve_id (clé métier) + nature_index, mêlant C15 et R151."""
+    historique = _historique_brut(
+        [
+            _evenement("PDL001", "REF001", datetime(2024, 1, 15), "MES", 1000.0, 1500.0),
+            _evenement("PDL001", "REF001", datetime(2024, 2, 1), "FACTURATION"),
+        ]
+    )
+    releves = _releves([_releve("PDL001", datetime(2024, 2, 1), "flux_R151", 2000.0, ref="REF001")])
+
+    result = _assembler_chronologie(historique, releves).collect()
+
+    assert "releve_id" in result.columns
+    assert "nature_index" in result.columns
+    # releve_id non-null partout (C15 minté en core + R151 minté au seam).
+    assert result["releve_id"].null_count() == 0
+    # C15 (avant/après) et R151 ont une identité distincte par ligne.
+    assert result["releve_id"].n_unique() == len(result)
+    # nature canonique présente (réel par défaut).
+    assert set(result["nature_index"].drop_nulls().to_list()) <= {"réel", "estimé", "corrigé"}
+
+
+# ---------------------------------------------------------------------------
 # Contrat de bout en bout : chronologie_releves sur un Historique conforme
 # ---------------------------------------------------------------------------
 
@@ -346,7 +379,12 @@ def _releve_index_conforme() -> pl.LazyFrame:
             "precision": ["kWh"],
             "index_base_kwh": [2000.0],
             "id_calendrier_distributeur": ["DI000001"],
-        }
+            # Identité métier (ADR-0028) portée par le relevé périodique.
+            "releve_id": ["flux_R151|PDL001|2024-02-01|false"],
+            "id_releve": [None],
+            "nature_index": ["réel"],
+        },
+        schema_overrides={"id_releve": pl.Utf8},
     )
     return df.with_columns(
         pl.col("date_releve").dt.replace_time_zone("Europe/Paris"),
@@ -363,6 +401,9 @@ def test_chronologie_contrat_bout_en_bout():
     assert result["ref_situation_contractuelle"].null_count() == 0
     assert set(result["source"].unique().to_list()) <= set(SOURCES_CHRONOLOGIE)
     assert result.schema["ordre_index"] == pl.Boolean
+    # Identité métier portée de bout en bout (ADR-0028, #232).
+    assert {"releve_id", "id_releve", "nature_index"} <= set(result.columns)
+    assert result["releve_id"].null_count() == 0
 
 
 # ---------------------------------------------------------------------------

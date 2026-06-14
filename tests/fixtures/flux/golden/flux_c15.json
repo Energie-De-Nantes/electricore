@@ -21,11 +21,11 @@
     "apres_index_hch_kwh": 1065,
     "apres_index_hcb_kwh": 2531,
     "avant_date_releve": "2024-10-04T00:01:00+02:00",
-    "avant_nature_index": "REEL",
+    "avant_nature_index": "réel",
     "avant_id_calendrier_distributeur": "DI000001",
     "avant_id_calendrier_fournisseur": "FC022034",
     "apres_date_releve": "2024-10-04T00:02:00+02:00",
-    "apres_nature_index": "REEL",
+    "apres_nature_index": "réel",
     "apres_id_calendrier_distributeur": "DI000003",
     "apres_id_calendrier_fournisseur": "FC022034"
   }

@@ -46,6 +46,16 @@ class ChronologieReleves(pa.DataFrameModel):
     # Discriminant avant/après : False = avant ou relevé périodique, True = après C15.
     ordre_index: pl.Boolean = pa.Field(nullable=False)
 
+    # 🆔 Identité du relevé (ADR-0028, #232) portée sur chaque ligne de la chronologie.
+    # releve_id : clé métier (handle stable tiré jusqu'à la facture via le journal #233).
+    # Non-null : C15 minté en core, périodiques mintés au seam dbt → tout relevé en porte.
+    releve_id: pl.Utf8 = pa.Field(nullable=False)
+    # id_releve : Id_Releve natif (provenance) ; NULL hors R15/F15.
+    id_releve: pl.Utf8 | None = pa.Field(nullable=True)
+    # nature_index : nature canonique (réel/estimé/corrigé) ; nullable car un relevé
+    # interrogé absent (releve_manquant) n'en porte pas.
+    nature_index: pl.Utf8 | None = pa.Field(nullable=True, isin=["réel", "estimé", "corrigé"])
+
     # Source gagnante (table de priorité explicite C15 > R64 > R151).
     source: pl.Utf8 = pa.Field(nullable=False, isin=SOURCES_CHRONOLOGIE)
 

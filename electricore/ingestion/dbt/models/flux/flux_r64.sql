@@ -139,7 +139,16 @@ en_tete as (
     from {{ ref('stg_r64') }}
 )
 
+-- Identité (ADR-0028, #232) : releve_id = CLÉ MÉTIER déterministe avec discriminant
+-- type_releve (R64 distingue ses relevés par type, pas par avant/après). R64 n'a pas
+-- d'Id_Releve natif → id_releve NULL ; nature canonique dérivée d'etapeMetier
+-- (BRUT/VALID→réel, CORR→corrigé). occurrence_id = mesure_id (id d'occurrence
+-- fichier, provenance forensique). La clé métier ne dépend pas de la livraison
+-- gagnante du qualify : stable malgré les fenêtres chevauchantes.
 select
+    {{ mint_releve_id("'flux_R64'", "meta.pdl", "pivot_cadrans.date_releve", "meta.type_releve") }} as releve_id,
+    cast(null as varchar)   as id_releve,
+    {{ nature_depuis_etape_metier("meta.etape_metier") }} as nature_index,
     meta.pdl,
     meta.etape_metier,
     meta.contexte_releve,
@@ -151,6 +160,7 @@ select
     en_tete.si_demandeur,
     en_tete.code_flux,
     en_tete.format,
+    mesure_id as occurrence_id,
     pivot_cadrans.* exclude (mesure_id)
 from pivot_cadrans
 join meta using (mesure_id)

@@ -111,11 +111,14 @@ releves_agg as (
         max(case when prefixe = 'apres_' and cadran = 'hch' then valeur end) as apres_index_hch_kwh,
         max(case when prefixe = 'apres_' and cadran = 'hcb' then valeur end) as apres_index_hcb_kwh,
         max(case when prefixe = 'avant_' then date_releve end)                as avant_date_releve,
-        max(case when prefixe = 'avant_' then nature_index end)               as avant_nature_index,
+        -- Nature canonique (ADR-0028) : REEL/ESTIME → réel/estimé. C15 n'a pas
+        -- d'Id_Releve natif ; l'identité avant/après est mintée EN CORE depuis
+        -- l'événement + le marqueur ordre_index (energie.py).
+        {{ nature_depuis_nature_index("max(case when prefixe = 'avant_' then nature_index end)") }} as avant_nature_index,
         max(case when prefixe = 'avant_' then id_calendrier_distributeur end) as avant_id_calendrier_distributeur,
         max(case when prefixe = 'avant_' then id_calendrier_fournisseur end)  as avant_id_calendrier_fournisseur,
         max(case when prefixe = 'apres_' then date_releve end)                as apres_date_releve,
-        max(case when prefixe = 'apres_' then nature_index end)               as apres_nature_index,
+        {{ nature_depuis_nature_index("max(case when prefixe = 'apres_' then nature_index end)") }} as apres_nature_index,
         max(case when prefixe = 'apres_' then id_calendrier_distributeur end) as apres_id_calendrier_distributeur,
         max(case when prefixe = 'apres_' then id_calendrier_fournisseur end)  as apres_id_calendrier_fournisseur
     from releves
