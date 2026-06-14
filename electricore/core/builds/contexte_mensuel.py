@@ -21,6 +21,7 @@ filtre F15 et C15 sur le mois du contexte, applique `rapprocher()`, extrait
 `xlsx_multi_sheet` + le suffixe `YYYY-MM` pour la nomenclature du fichier.
 """
 
+import datetime as dt
 from dataclasses import dataclass
 
 import pandera.polars as pa
@@ -34,7 +35,7 @@ from electricore.core.models.lignes_facture_rapprochees import LignesFactureRapp
 from electricore.core.pipelines.abonnements import pipeline_abonnements
 from electricore.core.pipelines.energie import pipeline_energie
 from electricore.core.pipelines.facturation import pipeline_facturation
-from electricore.core.pipelines.historique import pipeline_historique
+from electricore.core.pipelines.historique import horizon_par_defaut, pipeline_historique
 
 # Les clés sont des *catégories produit* (labels ERP, cf. LignesFacture) —
 # concept distinct des cadrans malgré l'homonymie ; seules les valeurs
@@ -88,18 +89,22 @@ class ContexteMensuel:
 
 
 def _composer(
-    historique: pl.LazyFrame, releves: pl.LazyFrame
+    historique: pl.LazyFrame, releves: pl.LazyFrame, horizon: dt.datetime
 ) -> tuple[pl.LazyFrame, pl.LazyFrame, pl.LazyFrame, pl.LazyFrame]:
     """Compose la séquence canonique des pipelines de facturation.
 
-    `pipeline_historique` (1 fois) → `pipeline_abonnements` +
+    `pipeline_historique` (1 fois, borné par `horizon`) → `pipeline_abonnements` +
     `pipeline_energie` (sur l'historique enrichi) → `pipeline_facturation`
     (agrégation mensuelle, toujours lazy). Retourne les 4 LazyFrames dans
     l'ordre `(historique_enrichi, abonnements, energie, facturation_mensuelle)`.
     La matérialisation de `facturation_mensuelle` est portée par `charger()`,
     au boundary du build (ADR-0019).
+
+    L'`horizon` est résolu *une seule fois* par l'appelant (`charger`) au boundary
+    I/O et passé explicitement : le pipeline reste une transformation pure, sans
+    lecture d'horloge (issue #179, ADR-0019).
     """
-    historique_enrichi = pipeline_historique(historique)
+    historique_enrichi = pipeline_historique(historique, horizon=horizon)
     abonnements = pipeline_abonnements(historique_enrichi)
     # `releves` arrive en `pl.LazyFrame` brut depuis l'appelant (DuckDB) ; la
     # conformité à `RelevéIndex` est garantie à l'exécution par le décorateur
@@ -113,6 +118,7 @@ def charger(
     historique: pl.LazyFrame,
     releves: pl.LazyFrame,
     mois: str | None = None,
+    horizon: dt.datetime | None = None,
 ) -> ContexteMensuel:
     """Compose les pipelines de facturation et résout le mois cible.
 
@@ -121,8 +127,16 @@ def charger(
         releves: relevés harmonisés (sortie de `releves_harmonises().lazy()`).
         mois: format `YYYY-MM-DD` (premier jour du mois). `None` → dernier mois
             disponible dans `facturation_mensuelle`.
+        horizon: borne de facturation (`datetime` Europe/Paris) passée à
+            `pipeline_historique`. `None` → 1er du mois courant, **résolu ici une
+            seule fois** (boundary I/O, ADR-0019) — c'est l'unique site de lecture
+            d'horloge de la chaîne de facturation (issue #179). Fournir un horizon
+            explicite rend le contexte mensuel déterministe (tests, rejeu).
     """
-    historique_enrichi, abonnements, energie, facturation_mensuelle_lf = _composer(historique, releves)
+    if horizon is None:
+        horizon = horizon_par_defaut()
+
+    historique_enrichi, abonnements, energie, facturation_mensuelle_lf = _composer(historique, releves, horizon)
 
     # Matérialisation au boundary du build (ADR-0019) : pipeline_facturation
     # reste lazy, le build collecte pour stocker dans le bundle ContexteMensuel.
@@ -141,7 +155,7 @@ def charger(
     )
 
 
-def contexte_du_mois(mois: str | None = None) -> ContexteMensuel:
+def contexte_du_mois(mois: str | None = None, horizon: dt.datetime | None = None) -> ContexteMensuel:
     """Entrée I/O du contexte mensuel : sources par défaut puis `charger()` (#145).
 
     Résout les deux sources canoniques (loaders DuckDB `c15` et
@@ -152,12 +166,14 @@ def contexte_du_mois(mois: str | None = None) -> ContexteMensuel:
     Args:
         mois: format `YYYY-MM-DD` (premier jour du mois). `None` → dernier mois
             disponible.
+        horizon: borne de facturation transmise à `charger()` ; `None` → 1er du
+            mois courant résolu une seule fois au boundary (issue #179).
 
     Raises:
         FileNotFoundError: si la base DuckDB est absente (levée par les loaders
             à l'appel — leur `.lazy()` exécute la lecture immédiatement).
     """
-    return charger(c15().lazy(), releves_harmonises().lazy(), mois=mois)
+    return charger(c15().lazy(), releves_harmonises().lazy(), mois=mois, horizon=horizon)
 
 
 @pa.check_types(lazy=True)
