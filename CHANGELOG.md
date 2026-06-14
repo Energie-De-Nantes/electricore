@@ -9,6 +9,51 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.0.0rc3] - 2026-06-15
+
+Incrément de la candidate : **modèle de relevés canonique** et **traçabilité des
+index** de bout en bout. Pose les fondations du futur affichage des index sur la
+facture (#180 → #232 → #244 → #233, ADR-0029).
+
+### ✨ Modèle de relevés canonique en dbt (ADR-0029)
+
+Nouveau modèle dbt `releves` (`models/marts/releves.sql`) : la **ligne de temps des
+relevés** consommée par l'aval, assemblée à la source.
+
+- **Union** des sources (1 ligne = 1 relevé) : R151 (harmonisé J→J+1, ADR-0003) + R64
+  + **relevés contractuels C15 avant/après dépivotés** (#241, #242).
+- **Mint uniforme** de `releve_id` (clé métier déterministe, ADR-0028) pour **toutes**
+  les sources, C15 comprise — l'exception « en core pour c15 » disparaît. `nature_index`
+  canonique (réel/estimé/corrigé), `id_releve` (provenance), `occurrence_id` (forensique).
+- **Enrichissement contractuel piloté par C15** : forward-fill RSC/FTA sur les relevés
+  périodiques, en remplacement du `join_asof` incident sur les événements FACTURATION (#243).
+- **Dedup même-source** (re-livraison) par `releve_id`, livraison la plus récente.
+- `flux_r64` : PIVOT → agrégation conditionnelle (contrat de colonnes stable).
+
+### ✨ Bascule cœur + journal des relevés utilisés (#244, #233)
+
+- La *Chronologie des relevés* consomme `releves` via `releves_canoniques()` ; elle
+  arbitre la priorité des sources (C15 > R64 > R151), sélectionne les bornes de
+  facturation et flag les manquants. **Énergies inchangées** (parité vérifiée).
+- `ChronologieReleves` porte `releve_id` + `nature_index`.
+- `ContexteMensuel.releves_utilises` : **journal des relevés effectivement consommés**
+  (registres réels + identité + nature), conservé pour la traçabilité jusqu'à la facture ;
+  un MCT en cours de mois y figure sans cas particulier.
+
+### 🐛 Corrections
+
+- `releve_id` **déterministe** : les dates `timestamptz` (R15/C15) sont normalisées en
+  `Europe/Paris` au mint — sinon la clé variait selon le fuseau de session (#232).
+
+### 🔭 Suites tracées
+
+Cycle de vie des relevés (correction/annulation) #240 ; nettoyage du dead-code de
+l'ancien chemin #248 ; doc CONTEXT #249 ; réparation du harnais snapshot #250.
+
+> **⚠️ Migration de données** : cette candidate ajoute le modèle dbt `releves`, désormais
+> requis par le chemin énergie. **Relancer `dbt build` (pipeline d'ingestion)** pour
+> matérialiser `flux_enedis.releves` avant de calculer la facturation sur une base existante.
+
 ## [3.0.0rc2] - 2026-06-13
 
 Incrément de la candidate : ajoute l'**endpoint de lecture des méta-périodes**,
