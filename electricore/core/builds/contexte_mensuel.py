@@ -119,7 +119,7 @@ def _composer(
     # les mêmes entrées que `pipeline_energie` (historique impacté + relevés canoniques)
     # et la conserve dans le bundle. Calcul indépendant — les énergies restent intactes.
     releves_utilises = chronologie_releves(
-        historique_enrichi.filter(pl.col("impacte_energie")),
+        historique_enrichi.filter(pl.col("impacte_energie")),  # type: ignore[arg-type]
         releves,  # type: ignore[arg-type]
     )
     facturation_mensuelle = pipeline_facturation(abonnements, energie)
