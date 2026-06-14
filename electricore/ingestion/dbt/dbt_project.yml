@@ -17,3 +17,6 @@ models:
     flux:
       # Tables : les flux linéarisés sont les tables consommées par core/.
       +materialized: table
+    marts:
+      # Tables : modèles transverses (cross-flux) consommés par core/ (ADR-0029).
+      +materialized: table

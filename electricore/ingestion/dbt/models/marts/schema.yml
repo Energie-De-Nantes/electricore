@@ -1,0 +1,23 @@
+version: 2
+
+models:
+  - name: releves
+    description: >
+      Modèle de relevés canonique (ADR-0029) — union des sources périodiques
+      harmonisées (R151 J+1, R64), dedup même-source par clé métier. Entrée de la
+      chronologie au cœur (arbitrage de priorité + bornes côté cœur).
+    columns:
+      - name: releve_id
+        description: >
+          Clé métier déterministe (ADR-0028) source|pdl|date|discriminant. Unique
+          dans le modèle canonique — le dedup même-source collapse les re-livraisons.
+        data_tests: [not_null, unique]
+      - name: source
+        description: Source du relevé (flux_R151, flux_R64, …).
+        data_tests: [not_null]
+      - name: date_releve
+        description: Date du relevé harmonisée (début de journée, Europe/Paris).
+        data_tests: [not_null]
+      - name: ordre_index
+        description: Discriminant avant/après (False = avant / relevé périodique).
+        data_tests: [not_null]

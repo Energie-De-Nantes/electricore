@@ -33,6 +33,7 @@ from .helpers import (
     r64,
     r151,
     releves,
+    releves_canoniques,
     releves_harmonises,
 )
 from .query import DuckDBQuery
@@ -56,6 +57,7 @@ __all__ = [
     "f15",
     "r64",
     "releves",
+    "releves_canoniques",
     "releves_harmonises",
     # Groupings C15 canoniques (cf. CONTEXT.md)
     "ENTREES_C15",
