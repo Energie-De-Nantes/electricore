@@ -183,6 +183,33 @@ def releves_harmonises(database_path: str | Path | None = None) -> DuckDBQuery:
     return DuckDBQuery(config=config, database_path=database_path, base_sql=BASE_QUERY_RELEVES_HARMONISES)
 
 
+def releves_canoniques(database_path: str | Path | None = None) -> DuckDBQuery:
+    """
+    Crée un DuckDBQuery pour le modèle de relevés canonique `releves` (ADR-0029).
+
+    Modèle dbt transverse : union des sources périodiques harmonisées, dédoublonnées
+    même-source par clé métier. C'est l'entrée (côté cœur) de la chronologie qui
+    arbitre la priorité des sources (C15 > R64 > R151), sélectionne les bornes de
+    facturation et flag les manquants.
+
+    Pas de validation Pandera ici : le contrat est porté par la chronologie en aval
+    (`ChronologieReleves`), pas par le loader.
+
+    Args:
+        database_path: Chemin vers la base DuckDB (optionnel)
+
+    Returns:
+        DuckDBQuery configuré pour le modèle `releves`
+
+    Example:
+        >>> df = releves_canoniques().collect()
+        >>> r64_only = releves_canoniques().filter({"source": "flux_R64"}).collect()
+    """
+    union_schema = FluxSchema(flux_name="RELEVES_CANONIQUES", table="", columns=())
+    config = QueryConfig(schema=union_schema, transform=lambda lf: lf, validator=None)
+    return DuckDBQuery(config=config, database_path=database_path, base_sql="SELECT * FROM flux_enedis.releves")
+
+
 # =============================================================================
 # UTILITAIRES
 # =============================================================================

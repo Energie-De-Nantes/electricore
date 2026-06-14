@@ -114,7 +114,7 @@ points as (
 points_valides as (
     select
         mesure_id,
-        'index_' || lower(id_classe) || '_kwh' as cadran_col,
+        lower(id_classe)                       as cadran,
         cast(date_point as timestamp)          as date_releve,
         cast(valeur_point as bigint)           as valeur
     from points
@@ -130,8 +130,22 @@ points_valides as (
       and valeur_point is not null
 ),
 
+-- Agrégation conditionnelle sur le DOMAINE FERMÉ des 7 cadrans (comme flux_r151).
+-- Contrat de colonnes stable quel que soit le corpus, là où un PIVOT ne crée que les
+-- cadrans rencontrés → binder error en aval sur les absents (ex. modèle `releves`).
 pivot_cadrans as (
-    pivot points_valides on cadran_col using first(valeur) group by mesure_id, date_releve
+    select
+        mesure_id,
+        date_releve,
+        max(case when cadran = 'base' then valeur end) as index_base_kwh,
+        max(case when cadran = 'hp'   then valeur end) as index_hp_kwh,
+        max(case when cadran = 'hc'   then valeur end) as index_hc_kwh,
+        max(case when cadran = 'hph'  then valeur end) as index_hph_kwh,
+        max(case when cadran = 'hpb'  then valeur end) as index_hpb_kwh,
+        max(case when cadran = 'hch'  then valeur end) as index_hch_kwh,
+        max(case when cadran = 'hcb'  then valeur end) as index_hcb_kwh
+    from points_valides
+    group by mesure_id, date_releve
 ),
 
 en_tete as (
