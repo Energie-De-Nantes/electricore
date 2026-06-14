@@ -53,7 +53,7 @@ def stub_composer(monkeypatch):
     def _install(resultat):
         monkeypatch.setattr(
             "electricore.core.builds.contexte_mensuel._composer",
-            lambda historique, releves: resultat,
+            lambda historique, releves, horizon: resultat,
         )
 
     return _install
@@ -114,6 +114,46 @@ class TestChargerFramesQuiPassent:
         assert "debut" in ctx.facturation_mensuelle.columns
 
 
+class TestChargerHorizon:
+    """`charger()` résout l'horizon au boundary (défaut) ou propage l'explicite (issue #179)."""
+
+    def test_resout_l_horizon_par_defaut_quand_absent(self, monkeypatch):
+        """Sans `horizon`, `charger()` résout le 1er du mois courant une seule fois et le passe à `_composer`."""
+        import electricore.core.builds.contexte_mensuel as cm
+
+        captures: dict = {}
+
+        def _composer_capture(historique, releves, horizon):
+            captures["horizon"] = horizon
+            return _make_stub_composition(debuts_mois=[datetime(2024, 1, 1)])
+
+        monkeypatch.setattr(cm, "_composer", _composer_capture)
+
+        cm.charger(historique=pl.LazyFrame({}), releves=pl.LazyFrame({}), mois="2024-01-01")
+
+        # Un horizon (datetime Paris, 1er du mois) a bien été résolu et propagé.
+        assert isinstance(captures["horizon"], datetime)
+        assert captures["horizon"].day == 1
+        assert str(captures["horizon"].tzinfo) == "Europe/Paris"
+
+    def test_propage_l_horizon_explicite(self, monkeypatch):
+        """Un `horizon` explicite est transmis tel quel à `_composer` (déterminisme)."""
+        import electricore.core.builds.contexte_mensuel as cm
+
+        captures: dict = {}
+        horizon = datetime(2024, 5, 1, tzinfo=ZoneInfo("Europe/Paris"))
+
+        def _composer_capture(historique, releves, horizon):
+            captures["horizon"] = horizon
+            return _make_stub_composition(debuts_mois=[datetime(2024, 1, 1)])
+
+        monkeypatch.setattr(cm, "_composer", _composer_capture)
+
+        cm.charger(historique=pl.LazyFrame({}), releves=pl.LazyFrame({}), mois="2024-01-01", horizon=horizon)
+
+        assert captures["horizon"] == horizon
+
+
 class TestContexteDuMois:
     """`contexte_du_mois()` — l'entrée I/O (#145) : loaders DuckDB par défaut, puis `charger()`."""
 
@@ -137,9 +177,10 @@ class TestContexteDuMois:
         captures: dict = {}
         composition = _make_stub_composition(debuts_mois=[datetime(2025, 3, 1)])
 
-        def _composer_capture(historique, releves):
+        def _composer_capture(historique, releves, horizon):
             captures["historique"] = historique
             captures["releves"] = releves
+            captures["horizon"] = horizon
             return composition
 
         monkeypatch.setattr(cm, "_composer", _composer_capture)
@@ -148,5 +189,7 @@ class TestContexteDuMois:
 
         assert captures["historique"] is hist_sentinel
         assert captures["releves"] is rel_sentinel
+        # L'horizon est résolu au boundary (1er du mois courant) et passé à `_composer`.
+        assert captures["horizon"] is not None
         assert isinstance(ctx, ContexteMensuel)
         assert ctx.mois == "2025-03-01"

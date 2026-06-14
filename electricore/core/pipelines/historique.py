@@ -8,7 +8,20 @@ qui peuvent être composées entre elles.
 Le pipeline `pipeline_historique` produit l'Historique enrichi au sens du
 glossaire (cf. `electricore/core/CONTEXT.md` et ADR-0013) : événements C15
 + détection des points de rupture + événements FACTURATION artificiels.
+
+Horizon de facturation (issue #179) : le pipeline est paramétré par un unique
+`horizon` (un `datetime` en Europe/Paris) qui sert *à la fois* de borne haute des
+événements retenus *et* de fin par défaut des périodes ouvertes (génération des
+FACTURATION). Cet horizon est l'unique source de temps du pipeline : aucune
+lecture d'horloge n'a lieu dans le cœur pur — la résolution du défaut « 1er du
+mois courant » est faite une seule fois, au boundary I/O (cf. `core/builds/
+contexte_mensuel.py`, ADR-0019). Quand un caller direct (test, notebook) ne fournit
+pas d'horizon, le pipeline résout ce défaut *une fois* et le propage partout, ce qui
+rend structurellement impossible l'ancienne incohérence à deux fuseaux.
 """
+
+import datetime as dt
+from zoneinfo import ZoneInfo
 
 import pandera.polars as pa
 import polars as pl
@@ -16,6 +29,31 @@ from pandera.typing.polars import LazyFrame
 
 from electricore.core.models.cadrans import CADRANS, col_index
 from electricore.core.models.historique import Historique
+
+_PARIS = ZoneInfo("Europe/Paris")
+
+
+def horizon_par_defaut() -> dt.datetime:
+    """Résout le défaut « 1er du mois courant » en *vraie* heure de Paris.
+
+    Seul point de lecture d'horloge lié à l'horizon de facturation. Appelé au
+    boundary I/O (build `contexte_mensuel`) ou, à défaut, une seule fois par
+    `pipeline_historique` quand le caller ne fournit pas d'horizon.
+
+    Contrairement au bug #179 (heure murale UTC renommée Paris → décalage 1–2 h),
+    on lit l'instant courant *dans* le fuseau Paris avant d'en tronquer le mois.
+    """
+    maintenant = dt.datetime.now(_PARIS)
+    return dt.datetime(maintenant.year, maintenant.month, 1, tzinfo=_PARIS)
+
+
+def _horizon_expr(horizon: pl.Expr | dt.datetime | None) -> pl.Expr:
+    """Normalise l'horizon en expression Polars (résout le défaut si `None`)."""
+    if horizon is None:
+        return pl.lit(horizon_par_defaut())
+    if isinstance(horizon, dt.datetime):
+        return pl.lit(horizon)
+    return horizon
 
 
 def expr_changement(col_name: str, over: str = "ref_situation_contractuelle") -> pl.Expr:
@@ -411,30 +449,32 @@ def expr_date_entree_periode() -> pl.Expr:
     return pl.when(expr_evenement_entree()).then(pl.col("date_evenement")).min()
 
 
-def expr_date_sortie_periode() -> pl.Expr:
+def expr_date_sortie_periode(horizon: pl.Expr | dt.datetime | None = None) -> pl.Expr:
     """
     Calcule la date de sortie du périmètre (dernière date d'événement de sortie ou défaut).
 
-    Si aucune sortie, utilise le début du mois courant pour la facturation.
+    Si aucune sortie, utilise la fin par défaut dérivée de l'`horizon` de
+    facturation : le 1er du mois de l'horizon (issue #179). L'horizon est donc
+    l'unique source de temps — plus aucune lecture d'horloge ici.
+
+    Args:
+        horizon: borne de facturation (`datetime` Europe/Paris, `pl.Expr`, ou
+            `None` → 1er du mois courant résolu une fois en vraie heure de Paris).
 
     Returns:
-        Expression retournant la date maximale des événements RES/CFNS ou date par défaut
+        Expression retournant la date maximale des événements RES/CFNS ou la fin par défaut
 
     Example:
         >>> df.group_by("ref_situation_contractuelle").agg(
-        ...     expr_date_sortie_periode().alias("fin")
+        ...     expr_date_sortie_periode(horizon).alias("fin")
         ... )
     """
-    import datetime as dt
-
-    fin_par_defaut = (
-        pl.lit(dt.datetime.now(tz=dt.UTC).replace(tzinfo=None)).dt.replace_time_zone("Europe/Paris").dt.month_start()
-    )
+    fin_par_defaut = _horizon_expr(horizon).dt.month_start()
 
     return pl.when(expr_evenement_sortie()).then(pl.col("date_evenement")).max().fill_null(fin_par_defaut)
 
 
-def generer_dates_facturation(lf: pl.LazyFrame) -> pl.LazyFrame:
+def generer_dates_facturation(lf: pl.LazyFrame, horizon: pl.Expr | dt.datetime | None = None) -> pl.LazyFrame:
     """
     Génère un LazyFrame des événements de facturation mensuels.
 
@@ -443,21 +483,21 @@ def generer_dates_facturation(lf: pl.LazyFrame) -> pl.LazyFrame:
 
     Args:
         lf: LazyFrame contenant l'historique des événements
+        horizon: borne de facturation (`datetime` Europe/Paris, `pl.Expr`, ou
+            `None` → 1er du mois courant). Sert de fin par défaut des périodes
+            ouvertes (PDL non résiliés) — l'unique source de temps, plus aucune
+            lecture d'horloge ici (issue #179).
 
     Returns:
         LazyFrame contenant uniquement les événements FACTURATION artificiels
         avec les colonnes minimales (Ref, pdl, date_evenement, colonnes génériques)
 
     Example:
-        >>> evenements = generer_dates_facturation(historique_lf)
+        >>> evenements = generer_dates_facturation(historique_lf, horizon)
         >>> print(evenements.collect())
     """
-    import datetime as dt
-
-    # Date par défaut = début du mois courant
-    fin_defaut = (
-        pl.lit(dt.datetime.now(tz=dt.UTC).replace(tzinfo=None)).dt.replace_time_zone("Europe/Paris").dt.month_start()
-    )
+    # Fin par défaut = 1er du mois de l'horizon de facturation
+    fin_defaut = _horizon_expr(horizon).dt.month_start()
 
     return (
         lf
@@ -568,7 +608,7 @@ def expr_colonnes_a_propager(columns: list[str] | None = None) -> list[pl.Expr]:
     return expressions
 
 
-def inserer_evenements_facturation(lf: pl.LazyFrame) -> pl.LazyFrame:
+def inserer_evenements_facturation(lf: pl.LazyFrame, horizon: pl.Expr | dt.datetime | None = None) -> pl.LazyFrame:
     """
     Insère des événements de facturation artificiels au 1er de chaque mois.
 
@@ -579,6 +619,8 @@ def inserer_evenements_facturation(lf: pl.LazyFrame) -> pl.LazyFrame:
 
     Args:
         lf: LazyFrame contenant l'historique des événements
+        horizon: borne de facturation propagée à `generer_dates_facturation`
+            (cf. issue #179).
 
     Returns:
         LazyFrame enrichi avec les événements de facturation
@@ -587,11 +629,11 @@ def inserer_evenements_facturation(lf: pl.LazyFrame) -> pl.LazyFrame:
         >>> lf_enrichi = (
         ...     lf
         ...     .pipe(detecter_points_de_rupture)
-        ...     .pipe(inserer_evenements_facturation)
+        ...     .pipe(inserer_evenements_facturation, horizon)
         ... )
     """
     # Étape 1 : Générer les événements artificiels
-    evenements_facturation = generer_dates_facturation(lf)
+    evenements_facturation = generer_dates_facturation(lf, horizon)
 
     # Étape 2 : Fusionner avec l'historique original
     fusioned = pl.concat([lf, evenements_facturation], how="diagonal_relaxed")
@@ -608,46 +650,52 @@ def inserer_evenements_facturation(lf: pl.LazyFrame) -> pl.LazyFrame:
 
 
 @pa.check_types(lazy=True)
-def pipeline_historique(historique: pl.LazyFrame, date_limite: pl.Expr | None = None) -> LazyFrame[Historique]:
+def pipeline_historique(
+    historique: pl.LazyFrame, horizon: pl.Expr | dt.datetime | None = None
+) -> LazyFrame[Historique]:
     """
     Pipeline complet de production de l'Historique enrichi.
 
     Ce pipeline orchestre :
     1. La détection des points de rupture
-    2. L'insertion des événements FACTURATION artificiels
-    3. Le filtrage optionnel par date limite
+    2. L'insertion des événements FACTURATION artificiels (jusqu'à l'horizon)
+    3. Le filtrage des événements postérieurs à l'horizon
+
+    L'`horizon` de facturation (issue #179) est l'**unique** paramètre temporel :
+    il borne à la fois les événements retenus (`date_evenement <= horizon`) *et* la
+    fin par défaut des périodes ouvertes (génération des FACTURATION). À horizon
+    fixé, deux exécutions donnent une sortie identique, indépendamment de l'heure
+    murale — le pipeline est une transformation pure (ADR-0019). Il remplace et
+    unifie l'ancien `date_limite` (qui ne bornait que les événements) avec le défaut
+    de fin de période, supprimant le bug à deux fuseaux décrit en #179.
 
     Args:
         historique: LazyFrame contenant les événements contractuels bruts (sortie de `c15()`)
-        date_limite: Expression Polars pour filtrer les événements après cette date
-                    (défaut: 1er du mois courant si None)
+        horizon: borne de facturation, un `datetime` en Europe/Paris (ou `pl.Expr`).
+            `None` → 1er du mois courant, résolu *une seule fois* en vraie heure de
+            Paris puis propagé partout. Au boundary I/O (build `contexte_mensuel`),
+            l'horizon est résolu explicitement et passé en argument.
 
     Returns:
         LazyFrame validé par le modèle `Historique`
 
     Example:
         >>> from datetime import datetime
+        >>> from zoneinfo import ZoneInfo
         >>> import polars as pl
         >>>
-        >>> # Pipeline complet
+        >>> # Défaut : 1er du mois courant (heure de Paris)
         >>> enrichi = pipeline_historique(historique_lf)
         >>>
-        >>> # Avec date limite
-        >>> date_limite = pl.lit(datetime(2024, 1, 1))
-        >>> enrichi = pipeline_historique(historique_lf, date_limite)
+        >>> # Avec horizon explicite (déterministe)
+        >>> horizon = datetime(2024, 5, 1, tzinfo=ZoneInfo("Europe/Paris"))
+        >>> enrichi = pipeline_historique(historique_lf, horizon)
     """
-    # Appliquer le filtrage par date si spécifié
-    if date_limite is not None:
-        historique_filtre = historique.filter(pl.col("date_evenement") <= date_limite)
-    else:
-        # Date limite par défaut : 1er du mois courant avec timezone Europe/Paris
-        from datetime import datetime
-        from zoneinfo import ZoneInfo
+    # Résolution unique de l'horizon (défaut 1er du mois courant si None) : la même
+    # expression borne les événements et alimente la fin de période par défaut.
+    horizon_expr = _horizon_expr(horizon)
 
-        maintenant = datetime.now(ZoneInfo("Europe/Paris"))
-        premier_du_mois = datetime(maintenant.year, maintenant.month, 1, tzinfo=ZoneInfo("Europe/Paris"))
-        date_limite_defaut = pl.lit(premier_du_mois)
-        historique_filtre = historique.filter(pl.col("date_evenement") <= date_limite_defaut)
+    historique_filtre = historique.filter(pl.col("date_evenement") <= horizon_expr)
 
-    # Pipeline : détection ruptures + insertion événements facturation
-    return historique_filtre.pipe(detecter_points_de_rupture).pipe(inserer_evenements_facturation)
+    # Pipeline : détection ruptures + insertion événements facturation (bornés par l'horizon)
+    return historique_filtre.pipe(detecter_points_de_rupture).pipe(inserer_evenements_facturation, horizon_expr)
