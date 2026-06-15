@@ -24,3 +24,26 @@ def test_feuille_scalaire_conteneur_toujours_liste():
         "b": [{"c": ["x", "y"]}],  # conteneur unique → liste ; feuille répétée → liste
         "d": [{"e": "z"}],  # conteneur unique → liste de 1
     }
+
+
+def test_attributs_de_conteneur_captures_avec_prefixe():
+    # X12/X13 portent leurs données dans des *attributs* XML (id d'affaire, codes
+    # statut/objet/état) — les autres flux sont element-only, d'où l'ignorance
+    # historique des attributs. Le convertisseur expose désormais les attributs d'un
+    # *conteneur* sous une clé préfixée `@`, à côté des enfants, pour que le modèle dbt
+    # les sélectionne (`$.statut[0]."@code"`). Les feuilles restent scalaires (zéro
+    # régression : aucun flux element-only ne change).
+    xml = b"""<root>
+        <affaire id="G08TJ7VC">
+            <statut code="TERMN"><libelle>Termine</libelle></statut>
+        </affaire>
+    </root>"""
+
+    assert xml_vers_dict(xml) == {
+        "affaire": [
+            {
+                "@id": "G08TJ7VC",
+                "statut": [{"@code": "TERMN", "libelle": "Termine"}],
+            }
+        ]
+    }

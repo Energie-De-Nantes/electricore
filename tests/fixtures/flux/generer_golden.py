@@ -47,6 +47,9 @@ CAS_GOLDEN: list[tuple[str, str, str, str | None]] = [
     ("f15_xsd.xml", "raw_f15", "flux_f15_detail", "flux_f15_detail_xsd"),
     # R64 : document JSON natif, même landing.
     ("r64.json", "raw_r64", "flux_r64", None),
+    # X12/X13 (affaires SGE) : même source raw_affaires, origine dérivée du file_name.
+    ("affaires_X12.xml", "raw_affaires", "flux_affaires", None),
+    ("affaires_X13.xml", "raw_affaires", "flux_affaires", "flux_affaires_x13"),
 ]
 
 

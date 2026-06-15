@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Fixture X13 forgée (PII-free) : affaire *reçue* (initiée par un autre acteur) →
+     origine = recue. Une seule affaire (X13 est quasi vide en C5) ; pas de bloc
+     referenceDemandeur (côté reçu). -->
+<affaires>
+  <enteteFlux>
+    <idFlux>X13</idFlux>
+    <libelle>Suivi des affaires reçues</libelle>
+    <versionXsd>2.0.0</versionXsd>
+    <idEmetteur>17XFICTIF000001X</idEmetteur>
+    <idDestinataire>17XFICTIF000002X</idDestinataire>
+    <dateCreation>2024-11-23T09:17:12</dateCreation>
+  </enteteFlux>
+  <nbAffaires>1</nbAffaires>
+  <affaire id="AFF0000099">
+    <donneesGenerales>
+      <statut code="TERMN"><libelle>Terminé</libelle></statut>
+      <jalons>
+        <jalon><num>1</num><dateHeure>2024-11-22T16:00:00.000+01:00</dateHeure><affaireDateEffet>2024-11-22+01:00</affaireDateEffet><affaireEtat code="DMTR"><libelle>Demande transmise</libelle></affaireEtat></jalon>
+        <jalon><num>2</num><dateHeure>2024-11-23T09:00:00.000+01:00</dateHeure><affaireDateEffet>2024-11-23+01:00</affaireDateEffet><affaireEtat code="CPRE"><libelle>Close, prestation réalisée</libelle></affaireEtat></jalon>
+      </jalons>
+      <donneesPoint><id>99000000000048</id><segmentClientele code="C5"><libelle>C5</libelle></segmentClientele></donneesPoint>
+      <segment>C5</segment>
+    </donneesGenerales>
+    <demande>
+      <donneesGenerales>
+        <objet code="CFN"><libelle>Changement de fournisseur</libelle></objet>
+        <pointId>99000000000048</pointId>
+      </donneesGenerales>
+    </demande>
+  </affaire>
+</affaires>

@@ -32,9 +32,14 @@ def xml_vers_dict(xml_bytes: bytes) -> dict:
 def _element_vers_dict(element: Any) -> Any:
     enfants = list(element)
     if not enfants:
-        # Feuille : sa valeur texte (None si vide, pour rester sérialisable).
+        # Feuille : sa valeur texte (None si vide, pour rester sérialisable). Les
+        # attributs d'une feuille sont ignorés — aucun flux n'en porte de signifiants,
+        # et renvoyer un dict casserait le type scalaire attendu par l'aval element-only.
         return element.text.strip() if element.text and element.text.strip() else None
-    resultat: dict[str, Any] = {}
+    # Conteneur : ses attributs sous une clé préfixée `@` (X12/X13 portent l'id
+    # d'affaire et les codes statut/objet/état en attributs). Le préfixe évite toute
+    # collision avec un tag enfant et reste sélectionnable en JSON path (`."@code"`).
+    resultat: dict[str, Any] = {f"@{cle}": val for cle, val in element.attrib.items()}
     for enfant in enfants:
         valeur = _element_vers_dict(enfant)
         if len(enfant) > 0:

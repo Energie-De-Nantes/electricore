@@ -1,0 +1,32 @@
+[
+  {
+    "affaire_id": "AFF0000099",
+    "origine": "recue",
+    "prestation": "CFN",
+    "prestation_libelle": "Changement de fournisseur",
+    "statut": "TERMN",
+    "pdl": "99000000000048",
+    "segment": "C5",
+    "jalon_num": 1,
+    "affaire_jalon_id": "AFF0000099#1",
+    "jalon_date_heure": "2024-11-22T16:00:00+01:00",
+    "affaire_date_effet": "2024-11-22",
+    "affaire_etat": "DMTR",
+    "affaire_etat_libelle": "Demande transmise"
+  },
+  {
+    "affaire_id": "AFF0000099",
+    "origine": "recue",
+    "prestation": "CFN",
+    "prestation_libelle": "Changement de fournisseur",
+    "statut": "TERMN",
+    "pdl": "99000000000048",
+    "segment": "C5",
+    "jalon_num": 2,
+    "affaire_jalon_id": "AFF0000099#2",
+    "jalon_date_heure": "2024-11-23T09:00:00+01:00",
+    "affaire_date_effet": "2024-11-23",
+    "affaire_etat": "CPRE",
+    "affaire_etat_libelle": "Close, prestation réalisée"
+  }
+]

@@ -110,3 +110,31 @@ models:
       - name: id_ev
         description: Identifiant de l'élément de valorisation.
         data_tests: [not_null]
+
+  - name: flux_affaires
+    description: >
+      Affaires SGE (X12 + X13) linéarisées : une ligne par (affaire, jalon
+      d'avancement), dédupliquée sur la clé logique (affaire_id, jalon_num) — les flux
+      quotidiens sont des snapshots cumulatifs (ADR-0028). Parité golden.
+    columns:
+      - name: affaire_id
+        description: Identifiant Enedis de l'affaire (== Id_Affaire des événements C15).
+        data_tests: [not_null]
+      - name: affaire_jalon_id
+        description: Clé logique du grain (affaire_id#jalon_num).
+        data_tests: [not_null, unique]
+      - name: origine
+        description: initiee (X12, on initie) / recue (X13, autre acteur).
+        data_tests: [not_null]
+      - name: statut
+        description: Cycle de vie grossier COURS / TERMN / ANNUL.
+        data_tests: [not_null]
+      - name: jalon_num
+        description: Numéro d'ordre du jalon dans l'affaire.
+        data_tests: [not_null]
+      - name: jalon_date_heure
+        description: Horodatage de création du jalon (instant, TIMESTAMPTZ).
+        data_tests: [not_null]
+      - name: affaire_etat
+        description: État fin de l'affaire au jalon (DMTR, DMREC, CPRE, CPNR…).
+        data_tests: [not_null]

@@ -171,6 +171,23 @@ SPECS = [
         cas="flux_f15_detail_xsd",
         numeric_cols=frozenset({"prix_unitaire", "quantite", "montant_ht"}),
     ),
+    # X12/X13 (affaires SGE) : id d'affaire + codes statut/objet/état portés en
+    # *attributs* XML (premier flux à en exposer) ; origine dérivée du file_name.
+    FluxSpec(
+        "flux_affaires",
+        "affaires_X12.xml",
+        "raw_affaires",
+        instant_cols=frozenset({"jalon_date_heure"}),
+        type_contract={"jalon_date_heure": TZ, "affaire_date_effet": DATE, "jalon_num": "INTEGER"},
+    ),
+    FluxSpec(
+        "flux_affaires",
+        "affaires_X13.xml",
+        "raw_affaires",
+        cas="flux_affaires_x13",
+        instant_cols=frozenset({"jalon_date_heure"}),
+        type_contract={"jalon_date_heure": TZ, "affaire_date_effet": DATE, "jalon_num": "INTEGER"},
+    ),
 ]
 
 

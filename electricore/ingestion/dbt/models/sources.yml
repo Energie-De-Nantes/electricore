@@ -68,3 +68,15 @@ sources:
             description: Nom du fichier source (traçabilité).
           - name: modification_date
             description: Date de modification SFTP (clé d'incrémental dlt).
+      - name: raw_affaires
+        description: >
+          Flux X12 + X13 (suivi des affaires SGE), un document XML→dict par ligne.
+          Source partagée par les deux flux (même schéma) ; l'origine (X12=initiee,
+          X13=recue) se dérive de file_name dans flux_affaires.
+        columns:
+          - name: content
+            description: Document JSON intégral (enteteFlux + affaire[]).
+          - name: file_name
+            description: Nom du fichier source (origine X12/X13 + traçabilité).
+          - name: modification_date
+            description: Date de modification SFTP (clé d'incrémental dlt + dédup jalons).
