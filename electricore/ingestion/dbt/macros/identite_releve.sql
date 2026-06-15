@@ -28,15 +28,15 @@
 --
 -- Chaque source porte sa propre nomenclature ; on la projette sur le vocabulaire
 -- canonique unique consommé par l'aval (RelevéIndex / ChronologieReleves) :
--- - R15/C15 `Nature_Index` : REEL → réel, ESTIME → estimé (autres → estimé par défaut
---   prudent, jamais réel par erreur) ;
+-- - R15/C15 `Nature_Index` : REEL → réel, ESTIME → estimé (autres ET absent/NULL →
+--   estimé par défaut prudent, jamais réel par erreur — sur données réelles certains
+--   relevés R15 n'ont pas de Nature_Index) ;
 -- - R64 `etapeMetier` : BRUT/VALID → réel, CORR → corrigé ;
 -- - R151 (télérelevé périodique) : pas de Nature_Index → réel par défaut.
 {% macro nature_depuis_nature_index(nature_index) %}
     case
         when upper({{ nature_index }}) = 'REEL' then 'réel'
         when upper({{ nature_index }}) = 'ESTIME' then 'estimé'
-        when {{ nature_index }} is null then null
         else 'estimé'
     end
 {% endmacro %}

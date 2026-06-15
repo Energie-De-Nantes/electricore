@@ -143,6 +143,12 @@ def construire_dbt(db_path: Path) -> bool:
     presentes = {t for (t,) in con.execute("select table_name from information_schema.tables").fetchall()}
     con.close()
     selection = [f"+{modele}" for raw, modeles in MODELES_PAR_RAW.items() if raw in presentes for modele in modeles]
+    # Le modèle de relevés canonique `releves` (mart, ADR-0029) est un DESCENDANT des
+    # flux : les `+flux_*` (ancêtres) ne l'atteignent pas. On l'ajoute explicitement dès
+    # que ses trois sources sont matérialisables (C15 + périodiques R151/R64) — sinon un
+    # arm d'union pointerait un flux non construit. Ses ancêtres sont déjà dans `selection`.
+    if {"raw_c15", "raw_r151", "raw_r64"} <= presentes:
+        selection.append("releves")
     if not selection:
         _out("  aucune table brute landée — rien à construire")
         return False
@@ -161,7 +167,21 @@ def construire_dbt(db_path: Path) -> bool:
                 str(db_path.parent / f".dbt_target_{db_path.stem}"),
             ]
         )
-    return bool(resultat.success)
+    success = bool(resultat.success)
+    if not success:
+        # Surfacer les nœuds en échec : sinon le runner masque l'erreur dbt réelle
+        # (OOM, data test, SQL) et le diagnostic exige de relancer dbt à la main.
+        try:
+            res = getattr(resultat, "result", None)
+            for noeud in getattr(res, "results", res) or []:
+                statut = str(getattr(noeud, "status", "")).lower()
+                if "error" in statut or "fail" in statut:
+                    nom = getattr(getattr(noeud, "node", None), "name", "?")
+                    msg = " ".join(str(getattr(noeud, "message", "")).split())
+                    _out(f"  ✗ {nom} [{statut}] — {msg}")
+        except Exception:  # noqa: BLE001 — le diagnostic ne doit jamais masquer l'échec
+            pass
+    return success
 
 
 def bilan(db_path: Path) -> None:
