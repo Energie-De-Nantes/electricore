@@ -50,6 +50,15 @@ check "backend=systemd dans la conf"             "grep -q 'backend  = systemd' /
 check "jail sshd présent (fail2ban-client)"      "fail2ban-client status sshd"
 
 echo
+echo "→ Durcissement #261 : unattended-upgrades + auto-reboot 04:30"
+check "paquet unattended-upgrades installé"      "dpkg -s unattended-upgrades"
+check "20auto-upgrades active l'unattended"      "grep -q 'APT::Periodic::Unattended-Upgrade \"1\"' /etc/apt/apt.conf.d/20auto-upgrades"
+check "origine sécurité activée (50unattended)"  "grep -iE '^[[:space:]]*[^/[:space:]].*security' /etc/apt/apt.conf.d/50unattended-upgrades"
+check "Automatic-Reboot true"                    "grep -q 'Automatic-Reboot \"true\"' /etc/apt/apt.conf.d/52electricore-unattended"
+check "Automatic-Reboot-Time 04:30"              "grep -q 'Automatic-Reboot-Time \"04:30\"' /etc/apt/apt.conf.d/52electricore-unattended"
+check "timer apt-daily-upgrade activé"           "systemctl is-enabled apt-daily-upgrade.timer"
+
+echo
 if [[ "$FAIL" -eq 0 ]]; then
     printf "\033[32m%d passed, %d failed\033[0m\n" "$PASS" "$FAIL"
     exit 0

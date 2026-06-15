@@ -349,6 +349,24 @@ sudo fail2ban-client status sshd   # IP bannies, compteurs
 fail2ban est marginal une fois le mot de passe SSH coupé (plus rien à brute-forcer) ;
 il sert surtout à réduire le bruit des scanners dans les logs.
 
+### Mises à jour automatiques (unattended-upgrades)
+
+Le durcissement installe `unattended-upgrades` et active les **correctifs de
+sécurité** automatiques (`/etc/apt/apt.conf.d/20auto-upgrades`), avec un
+**redémarrage automatique à 04:30** Europe/Paris
+(`/etc/apt/apt.conf.d/52electricore-unattended`,
+`Automatic-Reboot "true"` + `Automatic-Reboot-Time "04:30"`).
+
+Pourquoi 04:30 et pourquoi rebooter :
+
+- **Après le backup de 03:30** (cf. [Sauvegarde](#sauvegarde-et-restauration)) :
+  on ne reboote jamais au milieu d'un snapshot.
+- **Sans reboot, les patchs kernel/openssl restent dormants.** Le redémarrage
+  nocturne les applique réellement.
+- **Risque faible** : la stack est `restart: unless-stopped` et Docker démarre au
+  boot — elle revient seule en ~1 min. Micro-coupure non planifiée seulement les
+  nuits où un reboot est en attente (VPS sans HA, ADR-0011).
+
 ## Accès distant depuis un notebook Python
 
 Depuis la v1.5, l'API expose les résultats des pipelines opérationnels en flux
