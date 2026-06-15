@@ -89,6 +89,17 @@ rm -f "$tmp_ak"
 assert_fail "fichier absent → 1"               authorized_keys_present "/nonexistent-ak-$$"
 
 echo
+echo "→ harden.sh / render_sshd_hardening (drop-in sshd)"
+sshd_conf="$(render_sshd_hardening)"
+grep -qx "PermitRootLogin no"              <<<"$sshd_conf" && ok "drop-in: PermitRootLogin no" || ko "drop-in PermitRootLogin"
+grep -qx "PasswordAuthentication no"       <<<"$sshd_conf" && ok "drop-in: PasswordAuthentication no" || ko "drop-in PasswordAuthentication"
+grep -qx "KbdInteractiveAuthentication no" <<<"$sshd_conf" && ok "drop-in: KbdInteractiveAuthentication no" || ko "drop-in KbdInteractive"
+grep -qx "PubkeyAuthentication yes"        <<<"$sshd_conf" && ok "drop-in: PubkeyAuthentication yes (clé conservée)" || ko "drop-in Pubkey"
+grep -qx "X11Forwarding no"                <<<"$sshd_conf" && ok "drop-in: X11Forwarding no" || ko "drop-in X11Forwarding"
+grep -qx "MaxAuthTries 3"                  <<<"$sshd_conf" && ok "drop-in: MaxAuthTries 3" || ko "drop-in MaxAuthTries"
+! grep -qi "AllowUsers" <<<"$sshd_conf"    && ok "drop-in: pas d'AllowUsers (piège évité, ADR-0031)" || ko "drop-in AllowUsers présent"
+
+echo
 echo "→ cli.sh / parse_args"
 ( parse_args --slug edn --domain edn.fr >/dev/null 2>&1
   [[ "$OPT_SLUG" == "edn" && "$OPT_DOMAIN" == "edn.fr" && "$OPT_VERSION" == "latest" ]]

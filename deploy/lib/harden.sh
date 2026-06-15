@@ -100,16 +100,67 @@ admin_has_authorized_key() {
     authorized_keys_present "${home}/.ssh/authorized_keys"
 }
 
+# ─── Verrouillage sshd ──────────────────────────────────────────────────────
+
+# Drop-in de durcissement. Le répertoire sshd_config.d/ est inclus par défaut
+# sur Debian 12 / Ubuntu 22.04+ (cf. is_supported_os). Override pour les tests.
+SSHD_HARDEN_DROPIN="${SSHD_HARDEN_DROPIN:-/etc/ssh/sshd_config.d/50-electricore-harden.conf}"
+
+# render_sshd_hardening
+# Émet le contenu du drop-in sshd sur stdout. Pur, sans side-effect — testable.
+render_sshd_hardening() {
+    cat <<'EOF'
+# Durcissement SSH ElectriCore (ADR-0031) — généré par deploy/lib/harden.sh.
+# Ne pas éditer à la main : régénéré à chaque durcissement. Rechargé via
+# `systemctl reload ssh` après validation `sshd -t`.
+PermitRootLogin no
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PubkeyAuthentication yes
+X11Forwarding no
+MaxAuthTries 3
+EOF
+}
+
+# harden_sshd
+# Pose le drop-in (root-off, clé uniquement), valide par `sshd -t`, puis
+# `reload` (jamais `restart` — les sessions ouvertes survivent). Précédé du
+# garde-fou anti-verrouillage : refuse de basculer si l'admin n'a pas de clé.
+harden_sshd() {
+    local user="${HARDEN_ADMIN_USER}"
+    # ── Garde-fou anti-verrouillage (ordre impératif, ADR-0031) ──
+    if ! admin_has_authorized_key "$user"; then
+        die "garde-fou anti-verrouillage : $user n'a pas de clé SSH exploitable." \
+            "Refus de couper le SSH root. Fournir --admin-pubkey puis relancer."
+    fi
+    install -d -m 755 "$(dirname "$SSHD_HARDEN_DROPIN")"
+    render_sshd_hardening > "$SSHD_HARDEN_DROPIN"
+    chmod 0644 "$SSHD_HARDEN_DROPIN"
+    # Valider AVANT de recharger : une conf cassée empêcherait sshd de démarrer.
+    if ! sshd -t 2>/dev/null; then
+        rm -f "$SSHD_HARDEN_DROPIN"
+        die "sshd -t a rejeté le durcissement — drop-in retiré, sshd inchangé."
+    fi
+    # reload, jamais restart : ne tue pas les sessions en cours (dont la session
+    # root d'installation). Les nouveaux logins root/mot-de-passe échouent.
+    if systemctl reload ssh 2>/dev/null || systemctl reload sshd 2>/dev/null; then
+        :
+    else
+        die "échec du reload sshd — vérifier 'systemctl status ssh'."
+    fi
+    log_ok "sshd durci : root-off, clé uniquement, MaxAuthTries 3 (${SSHD_HARDEN_DROPIN})"
+}
+
 # ─── Orchestrateur ──────────────────────────────────────────────────────────
 
 # harden_vps
 # Orchestre le durcissement (ADR-0031). Lit les globals OPT_* posés par cli.sh :
 #   OPT_ADMIN_PUBKEY   clé SSH override pour l'admin (sinon copie root)
 #
-# Cette tranche ne pose que la partie SÛRE : utilisateur admin + sudo + clé.
-# Aucune modification sshd ici → le SSH root reste actif, aucun verrouillage
-# possible. Le verrouillage sshd, fail2ban et unattended-upgrades arrivent dans
-# les tranches suivantes.
+# Ordre impératif (ADR-0031) : on amorce d'abord l'admin (user + sudo + clé),
+# le garde-fou anti-verrouillage (au seuil de harden_sshd) vérifie que ops a une
+# clé exploitable, et SEULEMENT ensuite on coupe le SSH root. La session root en
+# cours survit au `reload` ; la prochaine connexion se fait en ops.
 harden_vps() {
     local user="${HARDEN_ADMIN_USER}"
     local pubkey="${OPT_ADMIN_PUBKEY:-}"
@@ -117,4 +168,5 @@ harden_vps() {
     ensure_admin_user "$user"
     seed_admin_key "$user" "$pubkey"
     grant_nopasswd_sudo "$user"
+    harden_sshd
 }

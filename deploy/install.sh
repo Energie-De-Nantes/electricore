@@ -9,7 +9,7 @@
 #   3. Docker (idempotent)
 #   4. UFW : OpenSSH + 80 + 443
 #   5. Création user système <slug> + SSH key
-#   6. Durcissement VPS (admin ops + sudo + clé, ADR-0031 ; --no-harden pour sauter)
+#   6. Durcissement VPS (admin ops + sudo + clé + verrouillage sshd, ADR-0031 ; --no-harden)
 #   7. Téléchargement config tag-pinné
 #   8. Substitutions (slug, domaine, email)
 #   9. Édition .env + validation (loop)
@@ -161,7 +161,7 @@ main() {
     # ─── Étape 6 : durcissement VPS (ADR-0031) ──────────────────────────────
     # Actif par défaut, juste après l'étape user/clé. Le garde-fou anti-verrouillage
     # (clé de ops non vide) protège la bascule root-off ; --no-harden pour sauter.
-    log_step "Durcissement VPS — utilisateur admin ops"
+    log_step "Durcissement VPS — admin ops + verrouillage sshd"
     if [[ "${OPT_NO_HARDEN:-0}" -eq 1 ]]; then
         log_skip "durcissement ignoré (--no-harden)"
     else
@@ -252,13 +252,21 @@ main() {
 
     # ─── Étape 13 : récap ───────────────────────────────────────────────────
     log_step "Récapitulatif"
+    # Récap SSH : une fois durci (ADR-0031), l'admin passe par ops (root SSH coupé) ;
+    # le user de service <slug> reste joignable. Sans durcissement, seul <slug>.
+    if [[ "${OPT_NO_HARDEN:-0}" -eq 1 ]]; then
+        ssh_recap="  SSH (service)    ssh ${OPT_SLUG}@${OPT_DOMAIN}"
+    else
+        ssh_recap="  SSH (admin)      ssh ops@${OPT_DOMAIN}   ← root SSH désactivé
+  SSH (service)    ssh ${OPT_SLUG}@${OPT_DOMAIN}"
+    fi
     cat <<EOF
 
   ${_C_GREEN}${_C_BOLD}✓ Instance ${OPT_SLUG} opérationnelle.${_C_RESET}
 
   URL              https://${OPT_DOMAIN}
   /health          curl https://${OPT_DOMAIN}/health
-  SSH              ssh ${OPT_SLUG}@${OPT_DOMAIN}
+${ssh_recap}
   Logs             sudo -u ${OPT_SLUG} docker compose -f ${DOCKER_DIR}/docker-compose.yml logs -f
   Stop/Start       sudo -u ${OPT_SLUG} docker compose -f ${DOCKER_DIR}/docker-compose.yml {down,up -d}
   Backups          ${HOME_DIR}/backups/ (rotation 14 snapshots, cron 03:30 Europe/Paris)
