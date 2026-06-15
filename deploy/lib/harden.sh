@@ -151,6 +151,47 @@ harden_sshd() {
     log_ok "sshd durci : root-off, clé uniquement, MaxAuthTries 3 (${SSHD_HARDEN_DROPIN})"
 }
 
+# ─── fail2ban ───────────────────────────────────────────────────────────────
+
+# Jail fail2ban. Override pour les tests.
+FAIL2BAN_JAIL="${FAIL2BAN_JAIL:-/etc/fail2ban/jail.d/electricore.conf}"
+
+# render_fail2ban_jail
+# Émet la conf du jail sshd sur stdout. Pur, sans side-effect — testable.
+# `backend = systemd` est REQUIS : sur Debian/Ubuntu récents les logins SSH vont
+# dans le journal systemd, pas dans /var/log/auth.log (le défaut historique ne
+# lirait rien). Cf. ADR-0031, alternative écartée « backend auth.log ».
+render_fail2ban_jail() {
+    cat <<'EOF'
+# Jail fail2ban ElectriCore (ADR-0031) — généré par deploy/lib/harden.sh.
+[sshd]
+enabled  = true
+backend  = systemd
+port     = ssh
+maxretry = 3
+findtime = 10m
+bantime  = 1h
+EOF
+}
+
+# setup_fail2ban
+# Installe fail2ban et active le jail sshd (backend systemd). Idempotent :
+# ensure_packages saute si déjà là, la conf est réécrite, le service redémarré
+# pour recharger le jail. Marginal une fois le mot de passe coupé — sert surtout
+# à réduire le bruit des scanners dans les logs.
+setup_fail2ban() {
+    ensure_packages fail2ban
+    install -d -m 755 "$(dirname "$FAIL2BAN_JAIL")"
+    render_fail2ban_jail > "$FAIL2BAN_JAIL"
+    chmod 0644 "$FAIL2BAN_JAIL"
+    systemctl enable fail2ban >/dev/null 2>&1 || true
+    if systemctl restart fail2ban 2>/dev/null || systemctl start fail2ban 2>/dev/null; then
+        log_ok "fail2ban actif : jail sshd, backend=systemd (${FAIL2BAN_JAIL})"
+    else
+        die "échec du (re)démarrage de fail2ban — vérifier 'systemctl status fail2ban'."
+    fi
+}
+
 # ─── Orchestrateur ──────────────────────────────────────────────────────────
 
 # harden_vps
@@ -169,4 +210,5 @@ harden_vps() {
     seed_admin_key "$user" "$pubkey"
     grant_nopasswd_sudo "$user"
     harden_sshd
+    setup_fail2ban
 }

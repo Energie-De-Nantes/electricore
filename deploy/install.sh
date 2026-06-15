@@ -9,7 +9,7 @@
 #   3. Docker (idempotent)
 #   4. UFW : OpenSSH + 80 + 443
 #   5. Création user système <slug> + SSH key
-#   6. Durcissement VPS (admin ops + sudo + clé + verrouillage sshd, ADR-0031 ; --no-harden)
+#   6. Durcissement VPS (admin ops + sshd root-off + fail2ban, ADR-0031 ; --no-harden)
 #   7. Téléchargement config tag-pinné
 #   8. Substitutions (slug, domaine, email)
 #   9. Édition .env + validation (loop)
@@ -161,7 +161,7 @@ main() {
     # ─── Étape 6 : durcissement VPS (ADR-0031) ──────────────────────────────
     # Actif par défaut, juste après l'étape user/clé. Le garde-fou anti-verrouillage
     # (clé de ops non vide) protège la bascule root-off ; --no-harden pour sauter.
-    log_step "Durcissement VPS — admin ops + verrouillage sshd"
+    log_step "Durcissement VPS — admin ops + sshd + fail2ban"
     if [[ "${OPT_NO_HARDEN:-0}" -eq 1 ]]; then
         log_skip "durcissement ignoré (--no-harden)"
     else
