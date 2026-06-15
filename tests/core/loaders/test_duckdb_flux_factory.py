@@ -67,13 +67,18 @@ class TestPorteeFluxFactory:
             flux("releves")
 
 
-class TestFactoriesNommeesDeleguent:
-    """#273 : c15()…r64() délèguent à `flux()` — une seule résolution registre."""
+class TestFactoriesNommeesEquivalentesAFlux:
+    """#273 : c15()…r64() produisent la même requête que `flux(nom)`.
+
+    On teste l'**équivalence observable** (la requête SQL bâtie), pas le mécanisme
+    de délégation — qu'une factory nommée appelle `flux()` ou `make_query()` est de
+    l'implémentation ; ce qui compte, et ce qui survit à un refactor, c'est qu'elle
+    cible le même flux. Le collapse #273 doit préserver cette équivalence.
+    """
 
     @pytest.mark.parametrize("nom", ["c15", "r151", "r15", "f15", "r64"])
-    def test_la_factory_nommee_route_la_meme_config_que_flux(self, nom):
+    def test_factory_nommee_batit_la_meme_requete_que_flux(self, nom):
         from electricore.core.loaders.duckdb import c15, f15, r15, r64, r151
 
         nommee = {"c15": c15, "r151": r151, "r15": r15, "f15": f15, "r64": r64}[nom]
-        # Même entrée de registre que la résolution dynamique : preuve de la délégation.
-        assert nommee().config is flux(nom).config
+        assert nommee()._build_final_query() == flux(nom)._build_final_query()
