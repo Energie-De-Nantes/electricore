@@ -9,6 +9,21 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.0.0rc5] - 2026-06-15
+
+Correctif mémoire du build dbt sur VPS contraint — le rebuild rc4 OOMait encore sur
+`flux_r64` (unnest des points R64), bloquant la matérialisation du mart `releves`.
+
+### 🐛 Corrections (ingestion)
+
+- **OOM `flux_r64` / `flux_r151`** : l'opérateur fautif (unnest + agrégation par hachage)
+  ne déverse pas sur disque ; son pic mémoire est proportionnel au **nombre de threads**.
+  → `threads: 1` dans le profil dbt (à mémoire machine pleine). Validé sur données
+  réelles : la chaîne complète **+ le mart `releves`** se construisent, tous les data
+  tests passent (`unique_releves_releve_id`, `not_null_releves_*`). Batch nocturne :
+  la lenteur mono-thread est acceptable.
+- `releves` apparaît désormais au `📊 Bilan` du runner d'ingestion.
+
 ## [3.0.0rc4] - 2026-06-15
 
 Correctifs du build dbt **sur données réelles** : le rebuild rc3 échouait sur le
