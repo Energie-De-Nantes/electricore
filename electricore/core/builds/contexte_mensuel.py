@@ -5,7 +5,7 @@ Voir `core/CONTEXT.md` (entrée *Contexte mensuel de facturation*).
 `charger()` prend `historique` et `relevés` en LazyFrame et ne déclenche
 aucune I/O — c'est la composition pure, l'interface des tests (fixtures).
 `contexte_du_mois()` est l'entrée I/O (#145) : elle résout les sources par
-défaut (loaders DuckDB `c15` / `releves_harmonises`) puis délègue à
+défaut (loaders DuckDB `c15` / `releves`) puis délègue à
 `charger()` — application du scindage pur/I-O prévu par les « Limites »
 d'ADR-0019.
 
@@ -28,7 +28,7 @@ import pandera.polars as pa
 import polars as pl
 from pandera.typing.polars import DataFrame
 
-from electricore.core.loaders import c15, releves_canoniques
+from electricore.core.loaders import c15, releves
 from electricore.core.models.cadrans import col_energie
 from electricore.core.models.lignes_facture import LignesFacture
 from electricore.core.models.lignes_facture_rapprochees import LignesFactureRapprochees
@@ -136,7 +136,7 @@ def charger(
 
     Args:
         historique: événements C15 (sortie de `c15().lazy()` côté DuckDB).
-        releves: relevés harmonisés (sortie de `releves_harmonises().lazy()`).
+        releves: relevés du modèle canonique (sortie de `releves().lazy()`).
         mois: format `YYYY-MM-DD` (premier jour du mois). `None` → dernier mois
             disponible dans `facturation_mensuelle`.
         horizon: borne de facturation (`datetime` Europe/Paris) passée à
@@ -173,10 +173,10 @@ def charger(
 def contexte_du_mois(mois: str | None = None, horizon: dt.datetime | None = None) -> ContexteMensuel:
     """Entrée I/O du contexte mensuel : sources par défaut puis `charger()` (#145).
 
-    Résout les deux sources canoniques (loaders DuckDB `c15` et
-    `releves_harmonises`) et délègue la composition à `charger()`. Qui dispose
-    déjà de frames (tests, notebooks, autre source) appelle `charger()`
-    directement.
+    Résout les deux sources canoniques (loaders DuckDB `c15` et `releves`,
+    ce dernier = modèle de relevés canonique dbt) et délègue la composition à
+    `charger()`. Qui dispose déjà de frames (tests, notebooks, autre source)
+    appelle `charger()` directement.
 
     Args:
         mois: format `YYYY-MM-DD` (premier jour du mois). `None` → dernier mois
@@ -188,7 +188,7 @@ def contexte_du_mois(mois: str | None = None, horizon: dt.datetime | None = None
         FileNotFoundError: si la base DuckDB est absente (levée par les loaders
             à l'appel — leur `.lazy()` exécute la lecture immédiatement).
     """
-    return charger(c15().lazy(), releves_canoniques().lazy(), mois=mois, horizon=horizon)
+    return charger(c15().lazy(), releves().lazy(), mois=mois, horizon=horizon)
 
 
 @pa.check_types(lazy=True)

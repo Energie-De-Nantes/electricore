@@ -325,10 +325,10 @@ class TestLoadFunctions:
             c15(database_path="nonexistent_test.duckdb").lazy()
 
     def test_releves_requete_cte_et_chainage(self):
-        """releves() porte une requête CTE pré-construite et reste chaînable."""
+        """releves() porte une requête SQL pré-construite (modèle canonique dbt) et reste chaînable."""
         query = releves()
         assert isinstance(query, DuckDBQuery)
-        assert query.base_sql is not None  # Vérifie que c'est une requête CTE
+        assert query.base_sql is not None  # Vérifie que c'est une requête pré-construite
 
         query_filtered = query.filter({"pdl": ["PDL123"]}).limit(50)
         assert isinstance(query_filtered, DuckDBQuery)

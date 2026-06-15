@@ -75,8 +75,8 @@ def _(r64_df):
 
 @app.cell
 def _():
-    from electricore.core.loaders import releves_harmonises
-    df = releves_harmonises().validate(True).lazy().collect()
+    from electricore.core.loaders import releves
+    df = releves().validate(False).lazy().collect()
     df
     return
 

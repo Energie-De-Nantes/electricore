@@ -30,8 +30,8 @@ _TABLE_MAPPINGS = {
         "description": "Historique des événements contractuels avec relevés avant/après",
     },
     "releves": {
-        "source_tables": ["flux_enedis.flux_r151", "flux_enedis.flux_r15"],
-        "description": "Relevés de compteurs unifiés depuis R151 et R15",
+        "source_tables": ["flux_enedis.releves"],
+        "description": "Modèle de relevés canonique dbt (C15 + R64 + R151, ADR-0029)",
     },
 }
 

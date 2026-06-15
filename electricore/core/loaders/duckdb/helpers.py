@@ -12,14 +12,10 @@ from pathlib import Path
 
 import polars as pl
 
-# Imports de validation
-from electricore.core.models.releve_index import RelevéIndex
-
 from .config import DuckDBConfig, duckdb_readonly_conn
 from .query import DuckDBQuery, QueryConfig, make_query
 from .registry import FLUX_CONFIGS
-from .sql import BASE_QUERY_RELEVES_HARMONISES, BASE_QUERY_RELEVES_UNIFIES, FluxSchema
-from .transforms import transform_releves, transform_releves_harmonises
+from .sql import FluxSchema
 
 # =============================================================================
 # API FLUIDE - FONCTIONS FACTORY PAR FLUX
@@ -122,75 +118,16 @@ def r64(database_path: str | Path | None = None) -> DuckDBQuery:
 
 def releves(database_path: str | Path | None = None) -> DuckDBQuery:
     """
-    Crée un DuckDBQuery pour les relevés unifiés (R151 + R15).
-
-    Cette fonction combine automatiquement les données des flux R151 et R15
-    dans un format unifié.
-
-    Args:
-        database_path: Chemin vers la base DuckDB (optionnel)
-
-    Returns:
-        DuckDBQuery configuré pour les relevés unifiés
-
-    Example:
-        >>> # Tous les relevés récents
-        >>> df = releves().filter({"date_releve": ">= '2024-01-01'"}).collect()
-        >>>
-        >>> # Relevés par source
-        >>> r151_only = releves().filter({"source": "flux_R151"}).collect()
-    """
-    # Schéma factice pour UNION (la requête est déjà complète)
-    union_schema = FluxSchema(
-        flux_name="RELEVES_UNIFIES",
-        table="",  # Pas utilisé (requête CTE)
-        columns=(),  # Pas utilisé (requête CTE)
-    )
-
-    config = QueryConfig(schema=union_schema, transform=transform_releves, validator=RelevéIndex)
-
-    # Utiliser base_sql pour la requête CTE pré-construite
-    return DuckDBQuery(config=config, database_path=database_path, base_sql=BASE_QUERY_RELEVES_UNIFIES)
-
-
-def releves_harmonises(database_path: str | Path | None = None) -> DuckDBQuery:
-    """
-    Crée un DuckDBQuery pour les relevés harmonisés (R151 + R64).
-
-    Cette fonction unifie les 2 flux de relevés quotidiens :
-    - R151 : Relevés périodiques XML (particuliers et petites entreprises)
-    - R64 : Relevés JSON timeseries (gros consommateurs industriels)
-
-    Args:
-        database_path: Chemin vers la base DuckDB (optionnel)
-
-    Returns:
-        DuckDBQuery configuré pour les relevés harmonisés
-
-    Example:
-        >>> # Tous les relevés harmonisés (R151 + R64 seulement)
-        >>> df = releves_harmonises().collect()
-        >>>
-        >>> # Relevés par flux d'origine
-        >>> df = releves_harmonises().filter({"flux_origine": "R64"}).collect()
-    """
-    # Schéma factice pour UNION
-    union_schema = FluxSchema(flux_name="RELEVES_HARMONISES", table="", columns=())
-
-    config = QueryConfig(schema=union_schema, transform=transform_releves_harmonises, validator=RelevéIndex)
-
-    # Utiliser base_sql pour la requête CTE pré-construite
-    return DuckDBQuery(config=config, database_path=database_path, base_sql=BASE_QUERY_RELEVES_HARMONISES)
-
-
-def releves_canoniques(database_path: str | Path | None = None) -> DuckDBQuery:
-    """
     Crée un DuckDBQuery pour le modèle de relevés canonique `releves` (ADR-0029).
 
-    Modèle dbt transverse : union des sources périodiques harmonisées, dédoublonnées
-    même-source par clé métier. C'est l'entrée (côté cœur) de la chronologie qui
-    arbitre la priorité des sources (C15 > R64 > R151), sélectionne les bornes de
-    facturation et flag les manquants.
+    Modèle dbt transverse : union des sources de relevés harmonisées (C15, R64, R151),
+    dédoublonnées même-source par clé métier. Depuis la bascule relevés canoniques
+    (#248), c'est **l'unique** façon de lire les relevés côté cœur — l'ancien couple
+    `releves()` (R151+R15) / `releves_harmonises()` (R151+R64), dont l'union vivait en
+    SQL ici, a été retiré : l'arbitrage des sources est désormais porté par dbt.
+
+    C'est l'entrée (côté cœur) de la chronologie qui arbitre la priorité des sources
+    (C15 > R64 > R151), sélectionne les bornes de facturation et flag les manquants.
 
     Pas de validation Pandera ici : le contrat est porté par la chronologie en aval
     (`ChronologieReleves`), pas par le loader.
@@ -202,8 +139,8 @@ def releves_canoniques(database_path: str | Path | None = None) -> DuckDBQuery:
         DuckDBQuery configuré pour le modèle `releves`
 
     Example:
-        >>> df = releves_canoniques().collect()
-        >>> r64_only = releves_canoniques().filter({"source": "flux_R64"}).collect()
+        >>> df = releves().collect()
+        >>> r64_only = releves().filter({"source": "flux_R64"}).collect()
     """
     union_schema = FluxSchema(flux_name="RELEVES_CANONIQUES", table="", columns=())
     # Les index sont matérialisés en BIGINT par dbt ; l'aval (chronologie / énergie)

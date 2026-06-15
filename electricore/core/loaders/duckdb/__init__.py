@@ -14,8 +14,8 @@ Architecture :
 - helpers.py : Fonctions factory et utilitaires
 
 API publique :
-- c15(), r151(), r15(), f15(), r64() : Query builders par flux
-- releves(), releves_harmonises() : Vues unifiées
+- c15(), r151(), r15(), f15(), r64() : Query builders par flux individuel
+- releves() : modèle de relevés canonique dbt (C15 + R64 + R151, ADR-0029)
 - DuckDBQuery : Builder immutable avec méthodes chainables
 - Utilitaires : get_available_tables(), execute_custom_query()
 """
@@ -33,8 +33,6 @@ from .helpers import (
     r64,
     r151,
     releves,
-    releves_canoniques,
-    releves_harmonises,
 )
 from .query import DuckDBQuery
 from .registry import ENTREES_C15, SORTIES_C15
@@ -57,8 +55,6 @@ __all__ = [
     "f15",
     "r64",
     "releves",
-    "releves_canoniques",
-    "releves_harmonises",
     # Groupings C15 canoniques (cf. CONTEXT.md)
     "ENTREES_C15",
     "SORTIES_C15",

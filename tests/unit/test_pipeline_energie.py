@@ -9,7 +9,6 @@ from electricore.core.pipelines.energie import (
     calculer_periodes_energie,
     # Tests d'expressions ajoutés localement dans chaque test
     expr_bornes_depuis_shift,
-    extraire_releves_evenements,
     interroger_releves,
     reconstituer_chronologie_releves,
 )
@@ -41,50 +40,6 @@ def test_expr_bornes_depuis_shift():
     # Vérifier les sources
     sources_avant_attendues = [None, "flux_R151", "flux_R151", None, "flux_C15"]
     assert result["source_avant"].to_list() == sources_avant_attendues
-
-
-class TestExtraireRelevesEvenementsPolars:
-    """Tests pour extraire_releves_evenements."""
-
-    def test_extraction_releves_avant_apres(self):
-        """Test nominal : extraction des relevés avant et après d'un événement."""
-        historique = pl.LazyFrame(
-            {
-                "pdl": ["PDL001"],
-                "ref_situation_contractuelle": ["REF001"],
-                "formule_tarifaire_acheminement": ["TURPE 5"],
-                "date_evenement": [datetime(2024, 1, 15, 10, 0)],
-                "avant_index_base_kwh": [1000.0],
-                "apres_index_base_kwh": [1500.0],
-                "avant_index_hp_kwh": [500.0],
-                "apres_index_hp_kwh": [750.0],
-                "avant_index_hc_kwh": [None],
-                "apres_index_hc_kwh": [None],
-                "avant_index_hch_kwh": [None],
-                "apres_index_hch_kwh": [None],
-                "avant_index_hph_kwh": [None],
-                "apres_index_hph_kwh": [None],
-                "avant_index_hcb_kwh": [None],
-                "apres_index_hcb_kwh": [None],
-                "avant_index_hpb_kwh": [None],
-                "apres_index_hpb_kwh": [None],
-                "avant_id_calendrier_distributeur": [1],
-                "apres_id_calendrier_distributeur": [1],
-            }
-        )
-
-        result = extraire_releves_evenements(historique).collect()
-
-        assert len(result) == 2  # avant + après
-
-        # Test relevé "avant" (ordre_index=0)
-        avant = result.filter(pl.col("ordre_index") == 0)
-        assert len(avant) == 1
-        assert avant["pdl"][0] == "PDL001"
-        assert avant["index_base_kwh"][0] == 1000.0
-        assert avant["index_hp_kwh"][0] == 500.0
-        assert avant["source"][0] == "flux_C15"
-        assert avant["ordre_index"][0] == 0
 
 
 class TestInterrogerRelevesPolars:
