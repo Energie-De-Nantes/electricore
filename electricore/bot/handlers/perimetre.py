@@ -13,8 +13,8 @@ from electricore.bot.auth import require_allowed
 from electricore.bot.client import ElectriCoreClient
 from electricore.bot.format import escape
 
-_TITRE_MENU = "<b>Périmètre</b> — exports C15 :"
-_USAGE = "Usage : /perimetre — ou /perimetre entrees, /perimetre sorties"
+_TITRE_MENU = "<b>Périmètre</b> — exports C15 + affaires SGE en cours :"
+_USAGE = "Usage : /perimetre — ou /perimetre entrees, /perimetre sorties, /perimetre affaires"
 
 _EXPORTS = {
     "entrees": ("entrees_c15.xlsx", "Entrées C15 (PMES, MES, CFNE)"),
@@ -28,9 +28,38 @@ def clavier_principal() -> InlineKeyboardMarkup:
             [
                 InlineKeyboardButton("📥 Entrées", callback_data="perimetre:entrees"),
                 InlineKeyboardButton("📤 Sorties", callback_data="perimetre:sorties"),
-            ]
+            ],
+            [InlineKeyboardButton("🗂 Affaires en cours", callback_data="perimetre:affaires")],
         ]
     )
+
+
+def _formater_affaires(affaires: list[dict]) -> str:
+    """Rend la vue cockpit des affaires non soldées (texte HTML Telegram)."""
+    if not affaires:
+        return "✅ Aucune affaire en cours."
+    lignes = [f"<b>Affaires en cours</b> ({len(affaires)}) :"]
+    for a in affaires:
+        prestation = a.get("prestation_libelle") or a.get("prestation") or "?"
+        etat = a.get("dernier_etat_libelle") or a.get("dernier_etat") or "?"
+        lignes.append(
+            f"• <code>{escape(a.get('pdl'))}</code> — {escape(prestation)} · "
+            f"{escape(etat)} · {a.get('anciennete_jours')} j"
+        )
+    return "\n".join(lignes)
+
+
+async def _envoyer_affaires(bot, chat_id: int, message_id: int) -> None:
+    """Vue texte (pas d'export) des affaires SGE en cours, hors AME."""
+    client = ElectriCoreClient()
+    try:
+        affaires = await client.get_affaires_ouvertes()
+    except Exception as e:
+        await bot.edit_message_text(
+            f"❌ Erreur : <code>{escape(e)}</code>", chat_id=chat_id, message_id=message_id, parse_mode="HTML"
+        )
+        return
+    await bot.edit_message_text(_formater_affaires(affaires), chat_id=chat_id, message_id=message_id, parse_mode="HTML")
 
 
 async def _envoyer_export(bot, chat_id: int, message_id: int, sens: str) -> None:
@@ -62,6 +91,10 @@ async def cmd_perimetre(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         return
 
     sens = context.args[0].lower()
+    if sens == "affaires":
+        msg = await update.effective_message.reply_html("⏳ Affaires en cours…")
+        await _envoyer_affaires(context.bot, msg.chat_id, msg.message_id)
+        return
     if sens not in _EXPORTS:
         await update.effective_message.reply_text(_USAGE)
         return
@@ -74,5 +107,7 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     query = update.callback_query
     await query.answer()
     sens = query.data.removeprefix("perimetre:")
-    if sens in _EXPORTS:
+    if sens == "affaires":
+        await _envoyer_affaires(context.bot, query.message.chat_id, query.message.message_id)
+    elif sens in _EXPORTS:
         await _envoyer_export(context.bot, query.message.chat_id, query.message.message_id, sens)

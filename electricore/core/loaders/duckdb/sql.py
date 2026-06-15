@@ -347,6 +347,31 @@ SCHEMA_R64 = FluxSchema(
 )
 
 
+# Flux X12/X13 - Affaires SGE (suivi opérationnel, grain = un jalon)
+SCHEMA_AFFAIRES = FluxSchema(
+    flux_name="AFFAIRES",
+    table="flux_enedis.flux_affaires",
+    columns=(
+        col_simple("affaire_id"),
+        col_simple("affaire_jalon_id"),
+        col_simple("origine"),
+        col_simple("prestation"),
+        col_simple("prestation_libelle"),
+        col_simple("statut"),
+        col_simple("pdl"),
+        col_simple("segment"),
+        col_simple("jalon_num"),
+        # jalon_date_heure est déjà TIMESTAMPTZ (XSD dateTime) — ne pas l'écraser en
+        # naïf (cf. test_loaders_sur_base_dbt : décalerait l'instant d'1-2 h).
+        col_simple("jalon_date_heure"),
+        col_simple("affaire_date_effet"),
+        col_simple("affaire_etat"),
+        col_simple("affaire_etat_libelle"),
+        col_literal("flux_X12X13", "source"),
+    ),
+)
+
+
 # =============================================================================
 # REGISTRE FONCTIONNEL (Mapping immutable)
 # =============================================================================
@@ -357,4 +382,5 @@ FLUX_SCHEMAS: dict[str, FluxSchema] = {
     "r15": SCHEMA_R15,
     "f15": SCHEMA_F15,
     "r64": SCHEMA_R64,
+    "affaires": SCHEMA_AFFAIRES,
 }

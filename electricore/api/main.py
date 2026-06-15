@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse
 
 from electricore.api.config import settings
 from electricore.api.routers import admin as admin_router
+from electricore.api.routers import affaires as affaires_router
 from electricore.api.routers import facturation as facturation_router
 from electricore.api.routers import flux as flux_router
 from electricore.api.routers import ingestion as ingestion_router
@@ -132,6 +133,7 @@ app.include_router(taxes_router.router)
 app.include_router(facturation_router.router)
 app.include_router(meta_periodes_router.router)
 app.include_router(turpe_variable_router.router)
+app.include_router(affaires_router.router)
 
 
 @app.get("/", tags=["public"])

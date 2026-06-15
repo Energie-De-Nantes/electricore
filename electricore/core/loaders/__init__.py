@@ -8,6 +8,7 @@ from .duckdb import (
     DuckDBConfig,
     DuckDBQuery,
     # API fluide
+    affaires,
     c15,
     execute_custom_query,
     f15,
@@ -31,6 +32,7 @@ __all__ = [
     "f15",
     "r64",
     "releves",
+    "affaires",
     "DuckDBQuery",
     # Utilitaires DuckDB
     "get_available_tables",

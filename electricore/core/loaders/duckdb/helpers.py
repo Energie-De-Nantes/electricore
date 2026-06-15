@@ -144,6 +144,27 @@ def r64(database_path: str | Path | None = None) -> DuckDBQuery:
     return flux("r64", database_path)
 
 
+def affaires(database_path: str | Path | None = None) -> DuckDBQuery:
+    """
+    Crée un DuckDBQuery pour les affaires SGE (flux X12/X13, suivi opérationnel).
+
+    Grain : un jalon d'avancement par ligne (dédupliqué sur (affaire_id, jalon_num)
+    côté dbt). Lecture seule ; la vue « affaires ouvertes » (rollup non soldées +
+    ancienneté) se calcule à la lecture via `core.pipelines.affaires.affaires_ouvertes`.
+
+    Args:
+        database_path: Chemin vers la base DuckDB (optionnel)
+
+    Returns:
+        DuckDBQuery configuré pour flux_affaires
+
+    Example:
+        >>> # Affaires initiées encore en cours
+        >>> df = affaires().filter({"origine": "initiee", "statut": "COURS"}).collect()
+    """
+    return flux("affaires", database_path)
+
+
 def releves(database_path: str | Path | None = None) -> DuckDBQuery:
     """
     Crée un DuckDBQuery pour le modèle de relevés canonique `releves` (ADR-0029).

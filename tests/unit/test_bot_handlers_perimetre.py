@@ -22,6 +22,7 @@ from tests.unit.telegram_fakes import (
 class FakeClient:
     def __init__(self):
         self.exports: list[str] = []
+        self.affaires_appels = 0
 
     async def get_entrees_xlsx(self) -> bytes:
         self.exports.append("entrees")
@@ -30,6 +31,19 @@ class FakeClient:
     async def get_sorties_xlsx(self) -> bytes:
         self.exports.append("sorties")
         return b"PK\x03\x04sorties"
+
+    async def get_affaires_ouvertes(self) -> list[dict]:
+        self.affaires_appels += 1
+        return [
+            {
+                "pdl": "99000000000017",
+                "prestation": "CFN",
+                "prestation_libelle": "Changement de fournisseur",
+                "dernier_etat": "INPL",
+                "dernier_etat_libelle": "Intervention planifiée",
+                "anciennete_jours": 5,
+            }
+        ]
 
 
 @pytest.fixture(autouse=True)
@@ -95,3 +109,61 @@ def test_raccourci_inconnu_affiche_l_usage(client):
     ((texte, _),) = update.effective_message.replies
     assert "entrees" in texte and "sorties" in texte
     assert client.exports == []
+
+
+# =============================================================================
+# Affaires SGE en cours (cockpit read-only, #276)
+# =============================================================================
+
+
+def test_formater_affaires_liste_etat_et_anciennete():
+    txt = handlers_perimetre._formater_affaires(
+        [
+            {
+                "pdl": "99000000000017",
+                "prestation": "CFN",
+                "prestation_libelle": "Changement de fournisseur",
+                "dernier_etat": "INPL",
+                "dernier_etat_libelle": "Intervention planifiée",
+                "anciennete_jours": 5,
+            }
+        ]
+    )
+    assert "Changement de fournisseur" in txt
+    assert "Intervention planifiée" in txt
+    assert "5" in txt
+
+
+def test_formater_affaires_vide():
+    txt = handlers_perimetre._formater_affaires([])
+    assert "aucune" in txt.lower()
+
+
+def test_menu_propose_les_affaires(client):
+    update = update_commande()
+
+    asyncio.run(handlers_perimetre.cmd_perimetre(update, contexte()))
+
+    ((_, kwargs),) = update.effective_message.replies
+    assert "perimetre:affaires" in callbacks_du_markup(kwargs)
+
+
+def test_callback_affaires_affiche_la_liste(client):
+    update = update_callback("perimetre:affaires")
+    bot = FakeBot()
+
+    asyncio.run(handlers_perimetre.on_callback(update, contexte(bot=bot)))
+
+    assert client.affaires_appels == 1
+    assert client.exports == []  # vue texte, pas d'export XLSX
+    textes = " ".join(texte for _, _, texte, _ in bot.edits)
+    assert "Intervention planifiée" in textes
+
+
+def test_raccourci_texte_affaires(client):
+    update = update_commande()
+    bot = FakeBot()
+
+    asyncio.run(handlers_perimetre.cmd_perimetre(update, contexte(args=["affaires"], bot=bot)))
+
+    assert client.affaires_appels == 1
