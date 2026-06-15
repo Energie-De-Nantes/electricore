@@ -9,6 +9,39 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.0.0rc6] - 2026-06-15
+
+Calculateur TURPE variable (Odoo fournit l'assiette) et fin de la bascule relevés
+canoniques (nettoyage de l'ancien chemin + garde de non-régression restaurée).
+
+### ✨ Nouveautés (api)
+
+- **`POST /facturation/turpe-variable`** ([ADR-0030](docs/adr/0030-calculateur-turpe-variable-odoo-fournit-assiette.md)) :
+  calculateur **sans état** où Odoo POST l'assiette (énergies par cadran + FTA + `debut`)
+  et electricore renvoie le **montant** € (`Σ energie_cadran × c_cadran(FTA, debut) / 100`).
+  Lot + `id` opaque ré-émis, **succès partiel** par ligne (montant *xor* motif d'erreur :
+  FTA inconnue / aucune règle pour la date), 7 cadrans passés et arbitrage par les zéros
+  de la règle FTA. JSON enveloppé (`contract_version`/`results`), auth `X-API-Key`,
+  ERP-agnostique. Contrat figé : [docs/contrat-turpe-variable.md](docs/contrat-turpe-variable.md).
+
+### 🧹 Nettoyage (relevés canoniques, suite [ADR-0029](docs/adr/0029-modele-releves-canonique-dbt-assemble-coeur-arbitre.md))
+
+- Retrait de l'ancien chemin relevés (zéro consommateur production) : `extraire_releves_evenements`,
+  loaders `releves()` (R151+R15) / `releves_harmonises()` (R151+R64) + leurs requêtes SQL et
+  transforms (cascade morte incluse).
+- **Renommage `releves_canoniques()` → `releves()`** : une seule façon de lire les relevés
+  (modèle dbt canonique), le nom court est libéré. `transform_releves` (endpoints `/flux/r151`,
+  `/flux/r15`) conservé ; notebooks migrés.
+
+### 🧪 Tests & docs
+
+- Garde de l'**invariant FTA** load-bearing du calculateur (une seule granularité de cadrans
+  non-nulle par règle `turpe_rules.csv` — sinon double comptage silencieux).
+- Harnais snapshot `test_pipelines_snapshot.py` réparé (était *stale* + *skip*) : composition
+  `pipeline_historique → abonnements/energie` sur fixtures conformes, horizon figé
+  (déterminisme), agrégé en `energie_*_kwh` ; **8 snapshots** générés et actifs.
+- `core/CONTEXT.md` rafraîchi (chronologie lit le modèle dbt, contexte mensuel 4 → 5 frames).
+
 ## [3.0.0rc5] - 2026-06-15
 
 Correctif mémoire du build dbt sur VPS contraint — le rebuild rc4 OOMait encore sur
