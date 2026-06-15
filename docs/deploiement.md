@@ -14,15 +14,16 @@ de bout en bout. Ce document décrit son usage, puis ce qu'il fait sous le capot
 3. [Variables `.env`](#variables-env)
 4. [Provisionner une nouvelle instance](#provisionner-une-nouvelle-instance)
 5. [Reconfigurer une instance existante](#reconfigurer-une-instance-existante)
-6. [Accès distant depuis un notebook Python](#accès-distant-depuis-un-notebook-python)
-7. [Mode SFTP distant vs fichiers collocés](#mode-sftp-distant-vs-fichiers-collocés)
-8. [Rotation des clés AES](#rotation-des-clés-aes)
-9. [Sauvegarde et restauration](#sauvegarde-et-restauration)
-10. [Mise à jour de version](#mise-à-jour-de-version)
-11. [Fenêtre d'ingestion et concurrence DuckDB](#fenêtre-dingestion-et-concurrence-duckdb)
-12. [Migration depuis l'ancien layout `/opt/electricore/`](#migration-depuis-lancien-layout-optelectricore)
-13. [Annexe : déploiement manuel pas-à-pas](#annexe--déploiement-manuel-pas-à-pas)
-14. [Dépannage](#dépannage)
+6. [Durcissement du VPS](#durcissement-du-vps)
+7. [Accès distant depuis un notebook Python](#accès-distant-depuis-un-notebook-python)
+8. [Mode SFTP distant vs fichiers collocés](#mode-sftp-distant-vs-fichiers-collocés)
+9. [Rotation des clés AES](#rotation-des-clés-aes)
+10. [Sauvegarde et restauration](#sauvegarde-et-restauration)
+11. [Mise à jour de version](#mise-à-jour-de-version)
+12. [Fenêtre d'ingestion et concurrence DuckDB](#fenêtre-dingestion-et-concurrence-duckdb)
+13. [Migration depuis l'ancien layout `/opt/electricore/`](#migration-depuis-lancien-layout-optelectricore)
+14. [Annexe : déploiement manuel pas-à-pas](#annexe--déploiement-manuel-pas-à-pas)
+15. [Dépannage](#dépannage)
 
 ---
 
@@ -68,8 +69,11 @@ du layout `/srv/<slug>/` + user dédié.
 
 - **VPS Linux** Ubuntu 22.04+/24.04+ ou Debian 12+, 2 vCPU et 4 Go RAM minimum,
   40 Go SSD recommandés.
-- **Accès root SSH** sur le VPS (le script copie `~root/.ssh/authorized_keys`
-  vers le home du user `<slug>` pour permettre `ssh <slug>@<vps>` ensuite).
+- **Accès root SSH** sur le VPS — **uniquement pour la première installation**.
+  Le script copie `~root/.ssh/authorized_keys` vers les users `ops` (admin) et
+  `<slug>` (service), puis **désactive le SSH root** (durcissement par défaut,
+  ADR-0031). Les opérations suivantes passent par `ssh ops@<vps>` — voir
+  [Durcissement du VPS](#durcissement-du-vps).
 - **Un nom de domaine** avec un A-record pointant vers l'IP publique du VPS.
 - **Ports 80 et 443** ouverts dans le pare-feu cloud (ACME HTTP-01 + HTTPS).
 - **Les clés AES Enedis** (clé + IV en hexadécimal) — fournies par Enedis au
@@ -195,17 +199,20 @@ publique doit donc déjà se trouver dans `~root/.ssh/authorized_keys` du VPS.
    ```
    Host electricore-<slug>
        HostName <slug>.electricore.fr   # ou l'IP publique du VPS
-       User <slug>                       # root avant l'install, <slug> après
+       User ops                          # root pour la 1ʳᵉ install ; ops (admin) après durcissement
        IdentityFile ~/.ssh/id_ed25519
        IdentitiesOnly yes
    ```
 
-   Ensuite : `ssh electricore-<slug>` suffit.
+   Ensuite : `ssh electricore-<slug>` suffit. (`User <slug>` pour un login sur le
+   compte de service plutôt que l'admin.)
 
-> Le script propage ensuite `~root/.ssh/authorized_keys` vers le user `<slug>`,
-> ce qui permet `ssh <slug>@<vps>` après l'installation. Pour donner au user
-> `<slug>` une clé dédiée plutôt qu'hériter de celles de root, passer l'option
-> `--ssh-pubkey "ssh-ed25519 ..."` au script (cf. [Lancer le script](#5-lancer-le-script)).
+> Le script propage `~root/.ssh/authorized_keys` vers `ops` (admin) **et** vers
+> `<slug>` (service), ce qui permet `ssh ops@<vps>` et `ssh <slug>@<vps>` après
+> l'installation. Pour donner à `<slug>` ou à `ops` une clé dédiée plutôt
+> qu'hériter de celles de root, passer `--ssh-pubkey "ssh-ed25519 ..."` (service)
+> ou `--admin-pubkey "ssh-ed25519 ..."` (admin) au script
+> (cf. [Lancer le script](#5-lancer-le-script)).
 
 ### 5. Lancer le script
 
@@ -268,9 +275,14 @@ l'instance, backup `.env` vers `.env.bak.<timestamp>`, ouvre `$EDITOR`, valide,
 restart la stack. **Jamais touche à la DB ni aux backups.**
 
 ```bash
-ssh root@<vps>
+# VPS durci (ADR-0031) : login admin via ops — le SSH root est désactivé
+ssh ops@<vps>
 sudo bash /srv/<slug>/deploy/install.sh --slug <slug> --domain <slug>.electricore.fr
 ```
+
+> Sur un VPS pas encore durci (ancienne instance, ou install lancée avec
+> `--no-harden`), c'est encore `ssh root@<vps>`. Le durcissement est idempotent :
+> le reconfigure le (re)pose au passage.
 
 Couvre les cas :
 
@@ -284,6 +296,43 @@ Couvre les cas :
 > le piège stale-lib où un `install.sh` à jour sourçait un `lib/` figé sur une
 > version antérieure (cas reproduit lors de la migration rc2 → rc3). Override
 > possible via `INSTALL_BASE_URL` pour pinner sur un tag spécifique en dev.
+
+## Durcissement du VPS
+
+Depuis [ADR-0031](adr/0031-durcissement-ssh-vps-utilisateur-ops.md), `install.sh`
+durcit le VPS **par défaut** (étape 6, juste après la création du user de service).
+Trois rôles distincts par construction :
+
+| Rôle | Compte | Accès | Usage |
+|---|---|---|---|
+| **admin** | `ops` | SSH par clé, **sudo NOPASSWD** | login humain, lance `install.sh` (install + reconfigure) |
+| **service** | `<slug>` | SSH par clé, groupe `docker`, **pas de sudo** | possède `/srv/<slug>/`, fait tourner la stack (ADR-0017) |
+| ~~root~~ | `root` | **SSH désactivé**, local + sudo depuis `ops` | — |
+
+Pour sauter entièrement le durcissement : `--no-harden`. Pour rétro-durcir un VPS
+déjà déployé sans reconfigure complet, voir le script autonome
+[`deploy/harden.sh`](#rétro-durcir-un-vps-existant).
+
+### SSH (root-off, clé uniquement)
+
+Le durcissement pose un drop-in `/etc/ssh/sshd_config.d/50-electricore-harden.conf` :
+
+- `PermitRootLogin no` — plus de login root en SSH.
+- `PasswordAuthentication no` + `KbdInteractiveAuthentication no` — clé uniquement.
+- `PubkeyAuthentication yes`, `X11Forwarding no`, `MaxAuthTries 3`.
+
+La config est validée par `sshd -t` **avant** un `systemctl reload ssh` (jamais
+`restart`) : la session root en cours **survit**, seuls les nouveaux logins
+root/mot-de-passe échouent. La connexion suivante se fait en `ops`.
+
+**Garde-fou anti-verrouillage** : la bascule root-off est refusée tant que `ops`
+n'a pas de `authorized_keys` exploitable — impossible de se verrouiller dehors.
+La clé de `ops` est amorcée depuis `~root/.ssh/authorized_keys` (override
+`--admin-pubkey "ssh-ed25519 …"`).
+
+> ⚠️ Après le premier durcissement, mets à jour ton `~/.ssh/config` :
+> `User root` → `User ops`. Ne le fais pas avant — `ops` n'existe pas tant que
+> l'install n'a pas tourné.
 
 ## Accès distant depuis un notebook Python
 

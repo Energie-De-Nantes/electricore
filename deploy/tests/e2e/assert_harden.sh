@@ -30,6 +30,18 @@ check "${ADMIN_USER} n'est PAS dans le groupe docker (rôle admin ≠ service)" 
       "! id -nG ${ADMIN_USER} | tr ' ' '\\n' | grep -qx docker"
 
 echo
+echo "→ Durcissement #259 : verrouillage sshd (config effective via sshd -T)"
+check "drop-in présent"                          "test -f /etc/ssh/sshd_config.d/50-electricore-harden.conf"
+check "sshd -t valide la config"                 "sshd -t"
+check "PermitRootLogin no (effectif)"            "sshd -T | grep -qix 'permitrootlogin no'"
+check "PasswordAuthentication no (effectif)"     "sshd -T | grep -qix 'passwordauthentication no'"
+check "KbdInteractiveAuthentication no (effectif)" "sshd -T | grep -qix 'kbdinteractiveauthentication no'"
+check "PubkeyAuthentication yes (effectif)"       "sshd -T | grep -qix 'pubkeyauthentication yes'"
+check "X11Forwarding no (effectif)"               "sshd -T | grep -qix 'x11forwarding no'"
+check "MaxAuthTries 3 (effectif)"                 "sshd -T | grep -qix 'maxauthtries 3'"
+check "service ssh actif (reload, pas restart)"   "systemctl is-active ssh || systemctl is-active sshd"
+
+echo
 if [[ "$FAIL" -eq 0 ]]; then
     printf "\033[32m%d passed, %d failed\033[0m\n" "$PASS" "$FAIL"
     exit 0
