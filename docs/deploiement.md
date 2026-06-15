@@ -334,6 +334,21 @@ La clé de `ops` est amorcée depuis `~root/.ssh/authorized_keys` (override
 > `User root` → `User ops`. Ne le fais pas avant — `ops` n'existe pas tant que
 > l'install n'a pas tourné.
 
+### fail2ban (force brute SSH)
+
+Le durcissement installe `fail2ban` et active le jail `sshd` via
+`/etc/fail2ban/jail.d/electricore.conf`, avec **`backend = systemd`** (journald).
+C'est le piège Debian/Ubuntu moderne : le défaut historique lit
+`/var/log/auth.log`, vide sur ces images — il faut lire le journal systemd.
+Paramètres : `maxretry = 3`, `findtime = 10m`, `bantime = 1h`.
+
+```bash
+sudo fail2ban-client status sshd   # IP bannies, compteurs
+```
+
+fail2ban est marginal une fois le mot de passe SSH coupé (plus rien à brute-forcer) ;
+il sert surtout à réduire le bruit des scanners dans les logs.
+
 ## Accès distant depuis un notebook Python
 
 Depuis la v1.5, l'API expose les résultats des pipelines opérationnels en flux

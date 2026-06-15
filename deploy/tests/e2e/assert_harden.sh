@@ -42,6 +42,14 @@ check "MaxAuthTries 3 (effectif)"                 "sshd -T | grep -qix 'maxautht
 check "service ssh actif (reload, pas restart)"   "systemctl is-active ssh || systemctl is-active sshd"
 
 echo
+echo "→ Durcissement #260 : fail2ban (jail sshd, backend systemd)"
+check "fail2ban installé"                        "command -v fail2ban-client"
+check "service fail2ban actif"                   "systemctl is-active fail2ban"
+check "conf jail présente"                       "test -f /etc/fail2ban/jail.d/electricore.conf"
+check "backend=systemd dans la conf"             "grep -q 'backend  = systemd' /etc/fail2ban/jail.d/electricore.conf"
+check "jail sshd présent (fail2ban-client)"      "fail2ban-client status sshd"
+
+echo
 if [[ "$FAIL" -eq 0 ]]; then
     printf "\033[32m%d passed, %d failed\033[0m\n" "$PASS" "$FAIL"
     exit 0

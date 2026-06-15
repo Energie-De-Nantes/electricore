@@ -100,6 +100,16 @@ grep -qx "MaxAuthTries 3"                  <<<"$sshd_conf" && ok "drop-in: MaxAu
 ! grep -qi "AllowUsers" <<<"$sshd_conf"    && ok "drop-in: pas d'AllowUsers (piège évité, ADR-0031)" || ko "drop-in AllowUsers présent"
 
 echo
+echo "→ harden.sh / render_fail2ban_jail (jail sshd)"
+jail_conf="$(render_fail2ban_jail)"
+grep -qx "\[sshd\]"            <<<"$jail_conf" && ok "jail: section [sshd]" || ko "jail [sshd]"
+grep -qx "enabled  = true"    <<<"$jail_conf" && ok "jail: enabled = true" || ko "jail enabled"
+grep -qx "backend  = systemd" <<<"$jail_conf" && ok "jail: backend = systemd (piège Debian/Ubuntu moderne)" || ko "jail backend systemd"
+grep -qx "maxretry = 3"       <<<"$jail_conf" && ok "jail: maxretry = 3" || ko "jail maxretry"
+grep -qE "^findtime = "       <<<"$jail_conf" && ok "jail: findtime défini" || ko "jail findtime"
+grep -qE "^bantime  = "       <<<"$jail_conf" && ok "jail: bantime défini" || ko "jail bantime"
+
+echo
 echo "→ cli.sh / parse_args"
 ( parse_args --slug edn --domain edn.fr >/dev/null 2>&1
   [[ "$OPT_SLUG" == "edn" && "$OPT_DOMAIN" == "edn.fr" && "$OPT_VERSION" == "latest" ]]
