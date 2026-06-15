@@ -17,6 +17,7 @@ from electricore.api.routers import facturation as facturation_router
 from electricore.api.routers import flux as flux_router
 from electricore.api.routers import ingestion as ingestion_router
 from electricore.api.routers import meta_periodes as meta_periodes_router
+from electricore.api.routers import releves as releves_router
 from electricore.api.routers import taxes as taxes_router
 from electricore.api.routers import turpe_variable as turpe_variable_router
 from electricore.api.services import duckdb_service
@@ -91,6 +92,11 @@ app = FastAPI(
     openapi_tags=[
         {"name": "public", "description": "Endpoints publics (sans authentification)"},
         {"name": "flux", "description": "Accès aux données flux Enedis (authentification requise)"},
+        {
+            "name": "releves",
+            "description": "Mart de relevés canonique `releves` (union arbitrée C15/R64/R151, "
+            "ADR-0029/0032 ; authentification requise)",
+        },
         {"name": "ingestion", "description": "Lancement et suivi de l'ingestion des flux (authentification requise)"},
         {"name": "admin", "description": "Endpoints d'administration (authentification requise)"},
         {
@@ -121,6 +127,7 @@ async def verrou_duckdb_en_503(request, exc: DuckDBLockError) -> JSONResponse:
 app.include_router(admin_router.router)
 app.include_router(ingestion_router.router)
 app.include_router(flux_router.router)
+app.include_router(releves_router.router)
 app.include_router(taxes_router.router)
 app.include_router(facturation_router.router)
 app.include_router(meta_periodes_router.router)
