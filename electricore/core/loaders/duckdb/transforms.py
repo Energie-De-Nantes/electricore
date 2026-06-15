@@ -19,9 +19,7 @@ from .expressions import (
     DATE_COLS_R64,
     DATE_COLS_RELEVES,
     INDEX_COLS,
-    expr_cadrans_count,
     expr_dates_with_timezone,
-    expr_has_metadata,
     expr_normalize_unit,
     expr_wh_to_kwh_multi,
 )
@@ -103,36 +101,6 @@ def transform_add_defaults(**defaults: Any) -> Callable[[pl.LazyFrame], pl.LazyF
     return _transform
 
 
-def transform_add_metadata(
-    flux_origin_col: str = "flux_origine", index_cols: tuple[str, ...] = INDEX_COLS
-) -> Callable[[pl.LazyFrame], pl.LazyFrame]:
-    """
-    Retourne une fonction d'ajout de métadonnées dérivées.
-
-    Higher-order function : Fn(str, tuple[str]) -> Fn(LazyFrame) -> LazyFrame
-
-    Ajoute :
-    - has_metadata : présence de métadonnées selon le flux
-    - cadrans_count : nombre de cadrans avec valeurs
-
-    Args:
-        flux_origin_col: Nom de la colonne flux d'origine
-        index_cols: Tuple des colonnes de cadrans
-
-    Returns:
-        Fonction de transformation LazyFrame
-
-    Example:
-        >>> transform_fn = transform_add_metadata()
-        >>> lf_transformed = transform_fn(lf)
-    """
-
-    def _transform(lf: pl.LazyFrame) -> pl.LazyFrame:
-        return lf.with_columns([expr_has_metadata(flux_origin_col), expr_cadrans_count(*index_cols)])
-
-    return _transform
-
-
 # =============================================================================
 # COMPOSITION FONCTIONNELLE
 # =============================================================================
@@ -180,7 +148,7 @@ transform_historique = compose(
 )
 
 
-# Pipeline pour relevés (flux R151, R15)
+# Pipeline pour relevés individuels (flux R151, R15 — endpoints /flux/* et registre)
 transform_releves = compose(transform_dates(DATE_COLS_RELEVES), transform_wh_to_kwh(INDEX_COLS))
 
 
@@ -199,12 +167,4 @@ transform_r64 = compose(
         ]
     ),
     transform_wh_to_kwh(INDEX_COLS),
-)
-
-
-# Pipeline pour relevés harmonisés (R151 + R64)
-transform_releves_harmonises = compose(
-    transform_dates(DATE_COLS_RELEVES),
-    transform_wh_to_kwh(INDEX_COLS),
-    transform_add_metadata(flux_origin_col="flux_origine", index_cols=INDEX_COLS),
 )

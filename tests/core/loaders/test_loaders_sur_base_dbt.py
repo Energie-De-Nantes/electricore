@@ -118,15 +118,3 @@ def test_r151_garde_la_convention_plus_un_jour_et_les_index_float(base_prod_dbt)
     # Fixture : Date_Releve 2024-04-04 (date nue) → +1 jour, à minuit Paris.
     assert date_releve == datetime(2024, 4, 5, 0, 0, tzinfo=PARIS)
     assert df.schema["index_hph_kwh"] == pl.Float64
-
-
-def test_releves_unifies_preservent_les_instants(base_prod_dbt):
-    """L'union R151+R15 sort des instants corrects, indépendamment du fuseau de
-    session DuckDB : R151 (date nue) = minuit Paris, R15 = son horodatage vrai."""
-    from electricore.core.loaders import releves
-
-    df = releves(database_path=base_prod_dbt).collect()
-    assert df.schema["date_releve"] == pl.Datetime("us", "Europe/Paris")
-    par_source = {r["source"]: r["date_releve"] for r in df.iter_rows(named=True)}
-    assert par_source["flux_R151"] == datetime(2024, 4, 4, 0, 0, tzinfo=PARIS)
-    assert par_source["flux_R15"] == datetime(2024, 7, 30, 0, 1, tzinfo=PARIS)

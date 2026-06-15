@@ -16,21 +16,21 @@ app = marimo.App(width="medium")
 def _():
     import polars as pl
     import os
-    from electricore.core.loaders import releves_harmonises, c15
+    from electricore.core.loaders import releves, c15
     from electricore.config.env import charger_env
 
     charger_env()
     PDL_CIBLE = "14290738060355"
     DB_PATH = os.getenv("DUCKDB_PATH", "electricore/ingestion/flux_enedis_pipeline.duckdb")
-    return DB_PATH, PDL_CIBLE, c15, pl, releves_harmonises
+    return DB_PATH, PDL_CIBLE, c15, pl, releves
 
 
 @app.cell
-def _(DB_PATH, PDL_CIBLE, pl, releves_harmonises):
+def _(DB_PATH, PDL_CIBLE, pl, releves):
     """Charger tous les relevés pour ce PDL"""
 
     relevés_pdl = (
-        releves_harmonises(database_path=DB_PATH)
+        releves(database_path=DB_PATH)
         .lazy()
         .filter(pl.col("pdl") == PDL_CIBLE)
         .sort("date_releve")

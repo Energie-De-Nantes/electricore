@@ -257,9 +257,9 @@ def load_pipeline_data():
     # Charger les relevés R151
     # print("📄 Chargement relevés R151...")
     # lf_releves = r151().lazy()
-    from electricore.core.loaders import releves_harmonises
+    from electricore.core.loaders import releves
 
-    lf_releves = releves_harmonises().lazy()
+    lf_releves = releves().lazy()
     df_releves = lf_releves.collect()
 
     _load_time_pipeline = time.time() - _start_time_pipeline

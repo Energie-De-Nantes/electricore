@@ -14,7 +14,7 @@ with app.setup(hide_code=True):
     if str(project_root) not in sys.path:
         sys.path.append(str(project_root))
 
-    from electricore.core.loaders import c15, releves_harmonises
+    from electricore.core.loaders import c15, releves
     from electricore.core.builds import charger
 
 
@@ -32,7 +32,7 @@ def _():
 @app.cell
 def _():
     lf_historique = c15().lazy()
-    lf_releves = releves_harmonises().lazy()
+    lf_releves = releves().lazy()
     return lf_historique, lf_releves
 
 

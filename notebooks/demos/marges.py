@@ -21,7 +21,7 @@ with app.setup(hide_code=True):
 
     # Imports des loaders DuckDB
     from electricore.core.loaders import (
-        c15, releves_harmonises
+        c15, releves
     )
     from electricore.core.builds import (
         charger
@@ -123,7 +123,7 @@ def _():
 @app.cell
 def _():
     lf_historique = c15().lazy()
-    lf_releves = releves_harmonises().lazy()
+    lf_releves = releves().lazy()
     return lf_historique, lf_releves
 
 
