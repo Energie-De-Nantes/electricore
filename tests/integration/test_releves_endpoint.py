@@ -47,7 +47,7 @@ def test_releves_arrow_returns_arrow_stream_of_the_mart(client, monkeypatch, df_
     """`GET /releves.arrow` sert le mart `releves` en flux Arrow IPC typé."""
     monkeypatch.setattr(
         "electricore.api.routers.releves._load_releves_df",
-        lambda limit: df_releves,
+        lambda **kwargs: df_releves,
     )
 
     response = client.get("/releves.arrow")
@@ -76,6 +76,22 @@ def test_releves_not_served_by_flux_catchall(client):
 
 
 # =============================================================================
+# #265 — garde de validation : source hors enum → 422
+# =============================================================================
+
+
+def test_releves_source_invalide_renvoie_422(client):
+    """Une `source` hors `flux_R151`/`flux_R64`/`flux_C15` est rejetée en 422.
+
+    La validation précède tout accès DuckDB (aucune base requise ici) et vaut
+    pour les trois formats.
+    """
+    for path in ("/releves", "/releves.arrow", "/releves.xlsx"):
+        response = client.get(path, params={"source": "flux_PIRATE"})
+        assert response.status_code == 422, f"{path} devrait rejeter une source invalide"
+
+
+# =============================================================================
 # #264 — parité de formats : JSON / XLSX / info
 # =============================================================================
 
@@ -84,7 +100,7 @@ def test_releves_json_enveloped_and_paginated(client, monkeypatch, df_releves):
     """`GET /releves` sert le JSON enveloppé paginé, shape calquée sur `/flux/{name}`."""
     monkeypatch.setattr(
         "electricore.api.routers.releves._load_releves_df",
-        lambda limit: df_releves,
+        lambda **kwargs: df_releves,
     )
 
     response = client.get("/releves", params={"limit": 1, "offset": 1})
@@ -101,7 +117,7 @@ def test_releves_xlsx_export(client, monkeypatch, df_releves):
     """`GET /releves.xlsx` sert un export XLSX du mart (téléchargement)."""
     monkeypatch.setattr(
         "electricore.api.routers.releves._load_releves_df",
-        lambda limit: df_releves,
+        lambda **kwargs: df_releves,
     )
 
     response = client.get("/releves.xlsx")

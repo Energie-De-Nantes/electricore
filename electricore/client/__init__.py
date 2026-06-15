@@ -61,7 +61,15 @@ class ElectricoreClient:
             params["prm"] = prm
         return self._get_arrow(f"/flux/{table_name}.arrow", params)
 
-    def releves(self, *, limit: int = 1_000_000) -> pl.DataFrame:
+    def releves(
+        self,
+        *,
+        prm: str | None = None,
+        source: str | None = None,
+        debut: str | None = None,
+        fin: str | None = None,
+        limit: int = 1_000_000,
+    ) -> pl.DataFrame:
         """Récupère le mart de relevés canonique `releves` (ADR-0029) en Polars.
 
         Équivalent HTTP du loader `releves()` du cœur — pour les notebooks
@@ -69,12 +77,25 @@ class ElectricoreClient:
         arbitrée des sources de relevés (C15/R64/R151).
 
         Args:
+            prm: Filtre optionnel sur la colonne `pdl`.
+            source: Filtre optionnel sur la source (`flux_R151` / `flux_R64` / `flux_C15`).
+            debut: Borne basse incluse sur `date_releve` (ex. `"2025-01-01"`).
+            fin: Borne haute incluse sur `date_releve` (ex. `"2025-12-31"`).
             limit: Nombre maximum de lignes (défaut 1 000 000, max serveur 10 000 000).
 
         Returns:
             `pl.DataFrame` typé (timezones `Europe/Paris` préservées).
         """
-        return self._get_arrow("/releves.arrow", {"limit": limit})
+        params: dict[str, str | int] = {"limit": limit}
+        if prm:
+            params["prm"] = prm
+        if source:
+            params["source"] = source
+        if debut:
+            params["debut"] = debut
+        if fin:
+            params["fin"] = fin
+        return self._get_arrow("/releves.arrow", params)
 
     def facturation(self, mois: str | None = None) -> pl.DataFrame:
         """Récupère `lignes_facture_rapprochees` pour le mois donné.
