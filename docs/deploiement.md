@@ -163,7 +163,51 @@ dig +short <slug>.electricore.fr
 Pas de wildcard `*.electricore.fr` — chaque VPS gère son propre certificat via
 HTTP-01 (cf. [ADR-0015](adr/0015-deploiement-multi-instance.md)).
 
-### 4. Lancer le script
+### 4. Configurer l'accès SSH
+
+Le script s'exécute via `ssh root@<vps>` (cf. [Prérequis](#prérequis)) — ta clé
+publique doit donc déjà se trouver dans `~root/.ssh/authorized_keys` du VPS.
+
+1. **Clé locale** — à générer une seule fois si tu n'en as pas
+   (`ls ~/.ssh/id_ed25519.pub` pour vérifier) :
+
+   ```bash
+   ssh-keygen -t ed25519 -C "ops@example.com"
+   ```
+
+2. **Déposer la clé publique sur le VPS** — soit via le panneau du fournisseur
+   cloud au moment du provisionning (champ « SSH key »), soit après coup si tu
+   disposes d'un accès mot de passe root :
+
+   ```bash
+   ssh-copy-id -i ~/.ssh/id_ed25519.pub root@<vps>
+   ```
+
+3. **Tester la connexion** :
+
+   ```bash
+   ssh root@<vps>
+   ```
+
+4. **Alias local (optionnel)** — pour éviter de retaper l'hôte à chaque fois,
+   ajouter une entrée dans `~/.ssh/config` sur ta machine :
+
+   ```
+   Host electricore-<slug>
+       HostName <slug>.electricore.fr   # ou l'IP publique du VPS
+       User <slug>                       # root avant l'install, <slug> après
+       IdentityFile ~/.ssh/id_ed25519
+       IdentitiesOnly yes
+   ```
+
+   Ensuite : `ssh electricore-<slug>` suffit.
+
+> Le script propage ensuite `~root/.ssh/authorized_keys` vers le user `<slug>`,
+> ce qui permet `ssh <slug>@<vps>` après l'installation. Pour donner au user
+> `<slug>` une clé dédiée plutôt qu'hériter de celles de root, passer l'option
+> `--ssh-pubkey "ssh-ed25519 ..."` au script (cf. [Lancer le script](#5-lancer-le-script)).
+
+### 5. Lancer le script
 
 ```bash
 ssh root@<vps>
@@ -187,7 +231,7 @@ Options notables :
   scriptés, court-circuite l'éditeur).
 - `--skip-dns` — saute la vérification DNS (test local).
 
-### 5. Vérifier le bon fonctionnement
+### 6. Vérifier le bon fonctionnement
 
 Le script affiche un récap en fin d'exécution :
 
@@ -209,7 +253,7 @@ Vérifs manuelles complémentaires :
 - [ ] Certificat Let's Encrypt valide (badge cadenas).
 - [ ] Bot Telegram répond à `/start` pour un user dans `TELEGRAM_ALLOWED_USERS`.
 
-### 6. Documenter et archiver
+### 7. Documenter et archiver
 
 - Noter les coordonnées (slug, IP, contacts fournisseur, registrar DNS).
 - Sauvegarder `/srv/<slug>/.env` dans un gestionnaire de secrets (1Password,
