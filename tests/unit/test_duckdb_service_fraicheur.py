@@ -21,6 +21,12 @@ def base_flux(tmp_path, monkeypatch):
         "INSERT INTO flux_enedis.flux_c15 VALUES ('pdl1', '2026-05-15 00:00:00'), ('pdl2', '2026-06-01 00:00:00')"
     )
     conn.execute("CREATE TABLE flux_enedis.flux_inconnue (pdl VARCHAR)")
+    # Mart de relevés canonique : table SANS préfixe `flux_`, date métier `date_releve`.
+    conn.execute("CREATE TABLE flux_enedis.releves (pdl VARCHAR, source VARCHAR, date_releve TIMESTAMP)")
+    conn.execute(
+        "INSERT INTO flux_enedis.releves VALUES "
+        "('pdl1', 'flux_R151', '2026-01-15 00:00:00'), ('pdl2', 'flux_C15', '2026-02-01 00:00:00')"
+    )
     conn.close()
     monkeypatch.setenv("DUCKDB_PATH", str(base))
     return base
@@ -38,3 +44,17 @@ def test_table_sans_colonne_date_connue_reste_servie(base_flux):
 
     assert info["derniere_date"] is None
     assert info["count"] == 0
+
+
+def test_get_table_info_pour_mart_sans_prefixe_flux(base_flux):
+    """Le mart `releves` (table sans préfixe `flux_`, #264) est interrogeable.
+
+    `prefix=""` adresse la table physique telle quelle ; `date_column` désigne
+    explicitement la colonne de date métier (le mart n'est pas dans COLONNE_DATE_METIER).
+    """
+    info = duckdb_service.get_table_info("releves", prefix="", date_column="date_releve")
+
+    assert info["table"] == "releves"
+    assert info["count"] == 2
+    assert info["derniere_date"] == "2026-02-01"
+    assert {"name": "date_releve", "type": "TIMESTAMP"} in info["columns"]

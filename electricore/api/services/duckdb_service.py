@@ -66,40 +66,46 @@ def get_freshness() -> dict:
     return payload
 
 
-def get_table_info(table_name: str) -> dict:
+def get_table_info(table_name: str, *, prefix: str = "flux_", date_column: str | None = None) -> dict:
     """
     Retourne les informations sur une table (colonnes, nombre de lignes).
 
     Args:
-        table_name: Nom de la table (sans préfixe flux_)
+        table_name: Nom logique de la table (sans préfixe pour les flux : `c15`, `r151`…).
+        prefix: Préfixe de la table physique. `"flux_"` par défaut (flux Enedis bruts) ;
+            `""` pour les marts dérivés exposés tels quels (ex. `releves`, #264/ADR-0032).
+        date_column: Colonne de date métier pour `derniere_date`. Si `None`, résolue via
+            `COLONNE_DATE_METIER[table_name]` (convention flux) ; à fournir pour les marts
+            absents de ce registre (ex. `date_releve` pour `releves`).
 
     Returns:
-        Dict avec table, count, columns
+        Dict avec table, schema, count, columns, derniere_date
     """
+    physical = f"{prefix}{table_name}"
+    colonne_date = date_column or COLONNE_DATE_METIER.get(table_name)
     with duckdb_readonly_conn(runtime.duckdb().chemin) as conn:
         # Nombre de lignes
-        count = conn.execute(f"SELECT COUNT(*) FROM {SCHEMA}.flux_{table_name}").fetchone()[0]
+        count = conn.execute(f"SELECT COUNT(*) FROM {SCHEMA}.{physical}").fetchone()[0]
 
         # Colonnes avec leurs types
         columns_result = conn.execute(f"""
-            SELECT column_name, data_type 
-            FROM information_schema.columns 
-            WHERE table_schema = '{SCHEMA}' 
-            AND table_name = 'flux_{table_name}'
+            SELECT column_name, data_type
+            FROM information_schema.columns
+            WHERE table_schema = '{SCHEMA}'
+            AND table_name = '{physical}'
             ORDER BY ordinal_position
         """).fetchall()
 
         columns = [{"name": col[0], "type": col[1]} for col in columns_result]
 
         derniere_date = None
-        colonne_date = COLONNE_DATE_METIER.get(table_name)
         if colonne_date and any(c["name"] == colonne_date for c in columns):
-            max_val = conn.execute(f"SELECT max({colonne_date}) FROM {SCHEMA}.flux_{table_name}").fetchone()[0]
+            max_val = conn.execute(f"SELECT max({colonne_date}) FROM {SCHEMA}.{physical}").fetchone()[0]
             if max_val is not None:
                 derniere_date = str(max_val)[:10]
 
         return {
-            "table": f"flux_{table_name}",
+            "table": physical,
             "schema": SCHEMA,
             "count": count,
             "columns": columns,
