@@ -241,8 +241,12 @@ setup_unattended_upgrades() {
 # ─── Orchestrateur ──────────────────────────────────────────────────────────
 
 # harden_vps
-# Orchestre le durcissement (ADR-0031). Lit les globals OPT_* posés par cli.sh :
+# Orchestre le durcissement (ADR-0031). Lit les globals OPT_* (cli.sh côté
+# install.sh, parse_harden_args côté deploy/harden.sh) :
 #   OPT_ADMIN_PUBKEY   clé SSH override pour l'admin (sinon copie root)
+#   OPT_NO_SSHD        saute le verrouillage sshd (garde root SSH actif)
+#   OPT_NO_FAIL2BAN    saute fail2ban
+#   OPT_NO_UNATTENDED  saute unattended-upgrades
 #
 # Ordre impératif (ADR-0031) : on amorce d'abord l'admin (user + sudo + clé),
 # le garde-fou anti-verrouillage (au seuil de harden_sshd) vérifie que ops a une
@@ -255,7 +259,20 @@ harden_vps() {
     ensure_admin_user "$user"
     seed_admin_key "$user" "$pubkey"
     grant_nopasswd_sudo "$user"
-    harden_sshd
-    setup_fail2ban
-    setup_unattended_upgrades
+
+    if [[ "${OPT_NO_SSHD:-0}" -eq 1 ]]; then
+        log_skip "verrouillage sshd ignoré (--no-sshd) — SSH root inchangé"
+    else
+        harden_sshd
+    fi
+    if [[ "${OPT_NO_FAIL2BAN:-0}" -eq 1 ]]; then
+        log_skip "fail2ban ignoré (--no-fail2ban)"
+    else
+        setup_fail2ban
+    fi
+    if [[ "${OPT_NO_UNATTENDED:-0}" -eq 1 ]]; then
+        log_skip "unattended-upgrades ignoré (--no-unattended-upgrades)"
+    else
+        setup_unattended_upgrades
+    fi
 }

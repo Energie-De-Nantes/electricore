@@ -20,7 +20,10 @@ Options :
   --env-from <file>      Charge un .env pré-rempli au lieu d'ouvrir l'éditeur
                          (utile pour les tests e2e et déploiements scriptés)
   --skip-dns             N'attend pas la propagation DNS (test local)
-  --no-harden            Saute le durcissement VPS (ops/sshd/fail2ban/upgrades, ADR-0031)
+  --no-harden            Saute tout le durcissement VPS (ADR-0031)
+  --no-sshd              Durcit mais ne verrouille pas sshd (garde root SSH actif)
+  --no-fail2ban          Durcit mais saute fail2ban
+  --no-unattended-upgrades  Durcit mais saute les mises à jour automatiques
   --no-color             Désactive les couleurs ANSI dans la sortie
   -h, --help             Affiche cette aide
 
@@ -29,8 +32,8 @@ EOF
 }
 
 # parse_args "$@" — remplit les vars globales OPT_SLUG, OPT_DOMAIN, OPT_SSH_PUBKEY,
-# OPT_ADMIN_PUBKEY, OPT_EMAIL, OPT_VERSION, OPT_ENV_FROM, OPT_SKIP_DNS, OPT_NO_HARDEN.
-# Renvoie 0 si OK, 1 si erreur.
+# OPT_ADMIN_PUBKEY, OPT_EMAIL, OPT_VERSION, OPT_ENV_FROM, OPT_SKIP_DNS, OPT_NO_HARDEN,
+# OPT_NO_SSHD, OPT_NO_FAIL2BAN, OPT_NO_UNATTENDED. Renvoie 0 si OK, 1 si erreur.
 parse_args() {
     OPT_SLUG=""
     OPT_DOMAIN=""
@@ -41,6 +44,9 @@ parse_args() {
     OPT_ENV_FROM=""
     OPT_SKIP_DNS=0
     OPT_NO_HARDEN=0
+    OPT_NO_SSHD=0
+    OPT_NO_FAIL2BAN=0
+    OPT_NO_UNATTENDED=0
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --slug)         OPT_SLUG="${2:-}"; shift 2 ;;
@@ -52,6 +58,9 @@ parse_args() {
             --env-from)     OPT_ENV_FROM="${2:-}"; shift 2 ;;
             --skip-dns)     OPT_SKIP_DNS=1; shift ;;
             --no-harden)    OPT_NO_HARDEN=1; shift ;;
+            --no-sshd)      OPT_NO_SSHD=1; shift ;;
+            --no-fail2ban)  OPT_NO_FAIL2BAN=1; shift ;;
+            --no-unattended-upgrades) OPT_NO_UNATTENDED=1; shift ;;
             --no-color)     export NO_COLOR=1; shift ;;
             -h|--help)      usage; exit 0 ;;
             *)

@@ -24,6 +24,12 @@ source "${LIB_DIR}/harden.sh"
 # shellcheck source=../install.sh
 source "${SCRIPT_DIR}/../install.sh"
 
+# `harden.sh` (wrapper autonome) est protégé par un guard `main_harden` ; le
+# sourcer expose `parse_harden_args` sans rien exécuter. NB : sourcer install.sh
+# ci-dessus a écrasé SCRIPT_DIR (→ deploy/) ; on passe par LIB_DIR, stable.
+# shellcheck source=../harden.sh
+source "${LIB_DIR}/../harden.sh"
+
 PASS=0; FAIL=0
 ok() { printf '  \033[32m✓\033[0m %s\n' "$1"; PASS=$((PASS+1)); }
 ko() { printf '  \033[31m✗\033[0m %s\n' "$1"; FAIL=$((FAIL+1)); }
@@ -147,6 +153,25 @@ assert_fail "parse_args flag inconnu"     parse_args --slug edn --domain edn.fr 
 ( parse_args --slug edn --domain edn.fr --admin-pubkey "ssh-ed25519 AAAA ops" >/dev/null 2>&1
   [[ "$OPT_ADMIN_PUBKEY" == "ssh-ed25519 AAAA ops" ]]
 ) && ok "parse_args: --admin-pubkey capturé" || ko "parse_args --admin-pubkey"
+
+# Toggles granulaires (cohérents avec harden.sh, #262)
+( parse_args --slug edn --domain edn.fr --no-fail2ban --no-unattended-upgrades --no-sshd >/dev/null 2>&1
+  [[ "$OPT_NO_SSHD" == "1" && "$OPT_NO_FAIL2BAN" == "1" && "$OPT_NO_UNATTENDED" == "1" ]]
+) && ok "parse_args: toggles granulaires --no-sshd/--no-fail2ban/--no-unattended-upgrades" || ko "parse_args toggles granulaires"
+
+echo
+echo "→ harden.sh (wrapper autonome) / parse_harden_args"
+( parse_harden_args >/dev/null 2>&1
+  [[ "$OPT_NO_SSHD" == "0" && "$OPT_NO_FAIL2BAN" == "0" && "$OPT_NO_UNATTENDED" == "0" && -z "$OPT_ADMIN_PUBKEY" ]]
+) && ok "parse_harden_args: défauts (tout durci, pas d'override)" || ko "parse_harden_args défauts"
+
+( parse_harden_args --admin-pubkey "ssh-ed25519 BBBB ops" --no-fail2ban >/dev/null 2>&1
+  [[ "$OPT_ADMIN_PUBKEY" == "ssh-ed25519 BBBB ops" && "$OPT_NO_FAIL2BAN" == "1" && "$OPT_NO_SSHD" == "0" ]]
+) && ok "parse_harden_args: --admin-pubkey + --no-fail2ban" || ko "parse_harden_args options"
+
+( parse_harden_args --no-sshd --no-unattended-upgrades >/dev/null 2>&1
+  [[ "$OPT_NO_SSHD" == "1" && "$OPT_NO_UNATTENDED" == "1" ]]
+) && ok "parse_harden_args: --no-sshd + --no-unattended-upgrades" || ko "parse_harden_args no-sshd/no-unattended"
 
 echo
 echo "→ install.sh / fetch_lib_files"
