@@ -61,6 +61,21 @@ class ElectricoreClient:
             params["prm"] = prm
         return self._get_arrow(f"/flux/{table_name}.arrow", params)
 
+    def releves(self, *, limit: int = 1_000_000) -> pl.DataFrame:
+        """Récupère le mart de relevés canonique `releves` (ADR-0029) en Polars.
+
+        Équivalent HTTP du loader `releves()` du cœur — pour les notebooks
+        distants sans accès local à la base DuckDB (cf. ADR-0009/0032). Union
+        arbitrée des sources de relevés (C15/R64/R151).
+
+        Args:
+            limit: Nombre maximum de lignes (défaut 1 000 000, max serveur 10 000 000).
+
+        Returns:
+            `pl.DataFrame` typé (timezones `Europe/Paris` préservées).
+        """
+        return self._get_arrow("/releves.arrow", {"limit": limit})
+
     def facturation(self, mois: str | None = None) -> pl.DataFrame:
         """Récupère `lignes_facture_rapprochees` pour le mois donné.
 

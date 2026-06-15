@@ -198,6 +198,32 @@ def test_flux_renvoie_404_pour_table_inconnue():
     assert exc_info.value.response.status_code == 404
 
 
+def test_releves_round_trip_via_endpoint(monkeypatch):
+    """`client.releves()` round-trip le mart `releves` servi par /releves.arrow."""
+    df_attendu = pl.DataFrame(
+        {
+            "pdl": ["12345678901234"],
+            "source": ["flux_R151"],
+            "date_releve": ["2025-01-15"],
+            "index_base_kwh": [123.0],
+        }
+    )
+
+    monkeypatch.setattr(
+        "electricore.api.routers.releves._load_releves_df",
+        lambda limit: df_attendu,
+    )
+
+    app.dependency_overrides[get_current_api_key] = lambda: "test-key"
+    try:
+        client = ElectricoreClient(url="http://testserver", api_key="key", http_client=TestClient(app))
+        df = client.releves()
+    finally:
+        app.dependency_overrides.clear()
+
+    assert_frame_equal(df, df_attendu)
+
+
 def test_facturation_envoie_la_cle_api_dans_le_header():
     """Le header `X-API-Key` est positionné par le client."""
     headers_recus: list[str] = []
