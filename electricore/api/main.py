@@ -18,6 +18,7 @@ from electricore.api.routers import flux as flux_router
 from electricore.api.routers import ingestion as ingestion_router
 from electricore.api.routers import meta_periodes as meta_periodes_router
 from electricore.api.routers import taxes as taxes_router
+from electricore.api.routers import turpe_variable as turpe_variable_router
 from electricore.api.services import duckdb_service
 from electricore.config import runtime
 from electricore.core.loaders.duckdb import DuckDBLockError
@@ -123,6 +124,7 @@ app.include_router(flux_router.router)
 app.include_router(taxes_router.router)
 app.include_router(facturation_router.router)
 app.include_router(meta_periodes_router.router)
+app.include_router(turpe_variable_router.router)
 
 
 @app.get("/", tags=["public"])
