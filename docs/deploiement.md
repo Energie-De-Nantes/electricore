@@ -367,6 +367,28 @@ Pourquoi 04:30 et pourquoi rebooter :
   boot — elle revient seule en ~1 min. Micro-coupure non planifiée seulement les
   nuits où un reboot est en attente (VPS sans HA, ADR-0011).
 
+### Rétro-durcir un VPS existant
+
+Pour durcir une instance **déjà déployée** sans relancer un reconfigure complet,
+le script autonome [`deploy/harden.sh`](../deploy/harden.sh) source la même
+logique (`harden_vps`) et l'applique seule. **Aucune hypothèse de layout** : la
+clé de `ops` est amorcée depuis `~root/.ssh/authorized_keys` quel que soit
+l'emplacement de la stack (`/srv/<slug>/` comme l'ancien `/opt/electricore/`).
+
+```bash
+# Instance au layout courant (arbre deploy/ présent) :
+ssh root@<vps>          # ou ssh ops@<vps> si déjà partiellement durci
+sudo bash /srv/<slug>/deploy/harden.sh
+
+# Ancien layout /opt/electricore/ (root-run), ou box sans notre arbre deploy/ :
+curl -fsSL https://raw.githubusercontent.com/Energie-De-Nantes/electricore/main/deploy/harden.sh -o harden.sh
+sudo bash harden.sh
+```
+
+Le même **garde-fou anti-verrouillage** s'applique (refus de couper root SSH si
+`ops` n'a pas de clé). Options : `--admin-pubkey "ssh-ed25519 …"`, et les `--no-*`
+(`--no-sshd`, `--no-fail2ban`, `--no-unattended-upgrades`) pour durcir par morceaux.
+
 ## Accès distant depuis un notebook Python
 
 Depuis la v1.5, l'API expose les résultats des pipelines opérationnels en flux
@@ -665,6 +687,11 @@ supprimer `/opt/electricore/` :
 ```bash
 rm -rf /opt/electricore
 ```
+
+> La migration ci-dessus ne durcit pas le VPS. Pour appliquer le durcissement
+> SSH (ADR-0031) sur la box migrée — ou directement sur l'ancien layout avant
+> migration — lancer le script autonome
+> [`deploy/harden.sh`](#rétro-durcir-un-vps-existant).
 
 ## Annexe : déploiement manuel pas-à-pas
 
