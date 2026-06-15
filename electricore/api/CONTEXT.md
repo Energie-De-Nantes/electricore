@@ -10,6 +10,9 @@ Service REST FastAPI ([electricore/api/](.)) exposant les flux Enedis (`/flux/*`
 **Endpoint méta-périodes** :
 `GET /facturation/meta-periodes` — endpoint de lecture par lequel un ERP **tire** les *méta-périodes mensuelles* d'electricore (Odoo construit ses `souscription.periode` à partir de ce flux). JSON enveloppé (`mois` / `contract_version` / `filters` / `pagination` / `data`), ERP-agnostique (zéro `integrations/odoo`, [ADR-0027](../../docs/adr/0027-endpoint-lecture-meta-periodes-odoo-tire.md)). Contrat figé : [docs/contrat-meta-periodes.md](../../docs/contrat-meta-periodes.md). Distinct des autres `/facturation/*` qui, eux, lisent Odoo. Charge utile **non valorisée aux prix fournisseur** : quantités physiques + montants réseau (TURPE, CTA) + *taux* accise.
 
+**Calculateur turpe-variable** :
+`POST /facturation/turpe-variable` — calculateur **sans état** où Odoo POST l'assiette (énergies par cadran + FTA + `debut`) et electricore renvoie le **montant** € (et non le taux : l'assiette arrive dans la requête, [ADR-0030](../../docs/adr/0030-calculateur-turpe-variable-odoo-fournit-assiette.md)). Lot + `id` opaque ré-émis, **succès partiel** par ligne (montant xor motif d'erreur), 7 cadrans passés et arbitrage par les zéros de la règle FTA (invariant sous test, #252). JSON enveloppé (`contract_version` / `results`), ERP-agnostique (zéro `integrations/odoo`). Contrat figé : [docs/contrat-turpe-variable.md](../../docs/contrat-turpe-variable.md). Complément du feed `GET /facturation/meta-periodes` (recalcule le TURPE variable depuis une énergie que seul Odoo possède — saisie manuelle).
+
 **Endpoint sécurisé** :
 Endpoint nécessitant la clé `X-API-Key` (header) ou `?api_key=` (query). Tous les endpoints sont sécurisés sauf `/`, `/health`, `/docs`, `/redoc`.
 
