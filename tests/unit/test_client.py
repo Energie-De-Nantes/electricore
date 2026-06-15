@@ -211,7 +211,7 @@ def test_releves_round_trip_via_endpoint(monkeypatch):
 
     monkeypatch.setattr(
         "electricore.api.routers.releves._load_releves_df",
-        lambda limit: df_attendu,
+        lambda **kwargs: df_attendu,
     )
 
     app.dependency_overrides[get_current_api_key] = lambda: "test-key"
@@ -222,6 +222,33 @@ def test_releves_round_trip_via_endpoint(monkeypatch):
         app.dependency_overrides.clear()
 
     assert_frame_equal(df, df_attendu)
+
+
+def test_releves_propage_les_filtres_a_lendpoint(monkeypatch):
+    """`client.releves(prm=, source=, debut=, fin=)` propage les filtres en query string."""
+    captures: dict = {}
+
+    def _capture(prm=None, source=None, debut=None, fin=None, limit=1_000_000):
+        captures.update(prm=prm, source=source, debut=debut, fin=fin, limit=limit)
+        return pl.DataFrame({"pdl": ["pdl1"]})
+
+    monkeypatch.setattr("electricore.api.routers.releves._load_releves_df", _capture)
+
+    app.dependency_overrides[get_current_api_key] = lambda: "test-key"
+    try:
+        client = ElectricoreClient(url="http://testserver", api_key="key", http_client=TestClient(app))
+        df = client.releves(prm="pdl1", source="flux_R151", debut="2025-01-01", fin="2025-03-31")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert captures == {
+        "prm": "pdl1",
+        "source": "flux_R151",
+        "debut": "2025-01-01",
+        "fin": "2025-03-31",
+        "limit": 1_000_000,
+    }
+    assert df["pdl"].to_list() == ["pdl1"]
 
 
 def test_facturation_envoie_la_cle_api_dans_le_header():
