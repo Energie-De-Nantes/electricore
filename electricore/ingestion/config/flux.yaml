@@ -36,3 +36,12 @@ R64:
   file_pattern: "**/R63_R64_R65_R66_R67_C68/*_R64_*.zip"
   format: json
   file_regex: "*.JSON"  # JSON en majuscules dans les ZIPs R64
+
+# X12 (affaires initiées par l'instance) + X13 (affaires reçues d'autres acteurs)
+# partagent le même schéma XSD → une seule table brute `raw_affaires` ; l'origine se
+# dérive du nom de fichier dans le modèle dbt. Le glob `[23]` capture X12 et X13 sans
+# attraper X14/X15 (réclamations).
+AFFAIRES:
+  file_pattern: "**/*_X1[23]_*.zip"
+  format: xml
+  file_regex: "*_X1[23]_*.xml"

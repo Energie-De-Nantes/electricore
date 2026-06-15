@@ -126,6 +126,7 @@ MODELES_PAR_RAW = {
     "raw_f12": ["flux_f12_detail"],
     "raw_f15": ["flux_f15_detail"],
     "raw_r64": ["flux_r64"],
+    "raw_affaires": ["flux_affaires"],
 }
 
 

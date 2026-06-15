@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Fixture X12 forgée (PII-free) : structure réelle, PDL fictifs (préfixe 99),
+     EIC fictifs. Couvre TERMN/COURS, prestations CFN/AME/MES, états
+     DMTR/DMREC/INPL/CPRE/CPNR, et garde AME (souscription de flux) pour prouver
+     qu'il est conservé en table (le cockpit l'écarte côté requête). -->
+<affaires>
+  <enteteFlux>
+    <idFlux>X12</idFlux>
+    <libelle>Suivi des affaires initiées par le fournisseur</libelle>
+    <versionXsd>2.0.0</versionXsd>
+    <idEmetteur>17XFICTIF000001X</idEmetteur>
+    <idDestinataire>17XFICTIF000002X</idDestinataire>
+    <dateCreation>2024-11-23T09:17:12</dateCreation>
+  </enteteFlux>
+  <nbAffaires>3</nbAffaires>
+  <affaire id="AFF0000001">
+    <donneesGenerales>
+      <referenceDemandeur>EDN</referenceDemandeur>
+      <statut code="TERMN"><libelle>Terminé</libelle></statut>
+      <jalons>
+        <jalon><num>1</num><dateHeure>2024-11-22T16:27:20.903+01:00</dateHeure><affaireDateEffet>2024-11-22+01:00</affaireDateEffet><affaireEtat code="DMTR"><libelle>Demande transmise</libelle></affaireEtat></jalon>
+        <jalon><num>2</num><dateHeure>2024-11-22T16:27:27.301+01:00</dateHeure><affaireDateEffet>2024-11-23+01:00</affaireDateEffet><affaireEtat code="DMREC"><libelle>Demande recevable</libelle></affaireEtat></jalon>
+        <jalon><num>3</num><dateHeure>2024-11-22T16:27:27.386+01:00</dateHeure><affaireDateEffet>2024-11-23+01:00</affaireDateEffet><affaireEtat code="INPL"><libelle>Intervention planifiée</libelle></affaireEtat></jalon>
+        <jalon><num>4</num><dateHeure>2024-11-23T07:27:23.385+01:00</dateHeure><affaireDateEffet>2024-11-23+01:00</affaireDateEffet><affaireEtat code="CPRE"><libelle>Close, prestation réalisée</libelle></affaireEtat></jalon>
+      </jalons>
+      <donneesPoint><id>99000000000017</id><segmentClientele code="C5"><libelle>C5</libelle></segmentClientele></donneesPoint>
+      <segment>C5</segment>
+    </donneesGenerales>
+    <demande>
+      <donneesGenerales>
+        <objet code="CFN"><libelle>Changement de fournisseur</libelle></objet>
+        <pointId>99000000000017</pointId>
+        <media code="PTL"><libelle>PORTAIL</libelle></media>
+      </donneesGenerales>
+    </demande>
+  </affaire>
+  <affaire id="AFF0000002">
+    <donneesGenerales>
+      <referenceDemandeur>EDN</referenceDemandeur>
+      <statut code="COURS"><libelle>En cours</libelle></statut>
+      <jalons>
+        <jalon><num>1</num><dateHeure>2024-11-23T08:00:00.000+01:00</dateHeure><affaireDateEffet>2024-11-23+01:00</affaireDateEffet><affaireEtat code="DMTR"><libelle>Demande transmise</libelle></affaireEtat></jalon>
+      </jalons>
+      <donneesPoint><id>99000000000024</id><segmentClientele code="C5"><libelle>C5</libelle></segmentClientele></donneesPoint>
+      <segment>C5</segment>
+    </donneesGenerales>
+    <demande>
+      <donneesGenerales>
+        <objet code="AME"><libelle>Transmission récurrente des index quotidiens et puissances maximales quotidiennes</libelle></objet>
+        <pointId>99000000000024</pointId>
+        <media code="PTL"><libelle>PORTAIL</libelle></media>
+      </donneesGenerales>
+    </demande>
+  </affaire>
+  <affaire id="AFF0000003">
+    <donneesGenerales>
+      <referenceDemandeur>EDN</referenceDemandeur>
+      <statut code="TERMN"><libelle>Terminé</libelle></statut>
+      <jalons>
+        <jalon><num>1</num><dateHeure>2024-11-20T10:00:00.000+01:00</dateHeure><affaireDateEffet>2024-11-20+01:00</affaireDateEffet><affaireEtat code="DMTR"><libelle>Demande transmise</libelle></affaireEtat></jalon>
+        <jalon><num>2</num><dateHeure>2024-11-21T11:00:00.000+01:00</dateHeure><affaireDateEffet>2024-11-21+01:00</affaireDateEffet><affaireEtat code="CPNR"><libelle>Close, prestation non réalisée</libelle></affaireEtat></jalon>
+      </jalons>
+      <donneesPoint><id>99000000000031</id><segmentClientele code="C5"><libelle>C5</libelle></segmentClientele></donneesPoint>
+      <segment>C5</segment>
+    </donneesGenerales>
+    <demande>
+      <donneesGenerales>
+        <objet code="MES"><libelle>Mise en service</libelle></objet>
+        <pointId>99000000000031</pointId>
+        <media code="PTL"><libelle>PORTAIL</libelle></media>
+      </donneesGenerales>
+    </demande>
+  </affaire>
+</affaires>

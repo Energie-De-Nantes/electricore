@@ -25,6 +25,9 @@ Synthèse mensuelle de facturation distributeur (volumes agrégés).
 **F15** :
 Facturation distributeur détaillée, utilisée pour valider les calculs TURPE.
 
+**X12 / X13** :
+Flux quotidiens de suivi des *affaires* SGE (cycle de vie des demandes de prestation). **X12** = affaires initiées par l'instance ; **X13** = affaires initiées par d'autres acteurs sur nos PDL (quasi vide en C5 — 35 affaires en 16 mois sur le corpus EDN, vs 1606 en X12). Même schéma XSD (racine `<affaires>`), distingués par le nom de fichier ; matérialisés **ensemble** dans `flux_affaires` avec une colonne `origine` ∈ {`initiee`, `recue`}. Snapshots cumulatifs : chaque jour reprend toute la liste de jalons d'une affaire qui a bougé → grain `flux_affaires` = un jalon, dédupliqué sur la clé logique `(affaire, num)`. Concepts portés (affaire, prestation, jalon, état) définis dans [`electricore/core/CONTEXT.md`](../core/CONTEXT.md).
+
 ---
 
 ## Pipeline d'ingestion

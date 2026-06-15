@@ -151,6 +151,29 @@ Changement de FTA, de puissance souscrite ou de calendrier sur un PDL actif.
 
 ---
 
+## Affaires SGE (suivi opérationnel)
+
+Le cycle de vie des demandes de prestation déposées au portail SGE, rendu requêtable et alertable. Source : flux X12/X13 (décrits dans `electricore/ingestion/CONTEXT.md`). ElectriCore *observe* l'avancement (read-only) ; il n'agit jamais sur le SGE.
+
+**Affaire** :
+Dossier de suivi d'une demande de prestation auprès d'Enedis, identifié par un code à 8 caractères (ex : `G08TJ7VC`). Porte un cycle de vie (*jalons*) du dépôt à la clôture. Son `id` est **le même identifiant** que l'`Id_Affaire` porté par les *événements contractuels* C15 : une affaire est le **précurseur opérationnel** d'un événement C15 (MES, CFN…), traçable **avant** que le C15 ne matérialise son issue contractuelle.
+_Éviter_ : dossier, demande (la demande n'est qu'une *partie* de l'affaire), commande (terme ERP/Odoo).
+
+**Prestation** :
+Type de service demandé à Enedis, porté par le code `objet` de la demande. Catalogue Enedis ~30 types. Les prestations qui **façonnent le périmètre** : `CFN` (changement de fournisseur), `MES` (mise en service), `PMS` (première MES), `CST` (changement de structure tarifaire), `RIC` (résiliation initiative client). À distinguer de **`AME`** (« transmission récurrente des index quotidiens et Pmax ») qui domine le volume (≈ 45 % des affaires EDN observées) mais n'est qu'une *souscription de flux de données* (R63B/R64/R66), pas une intervention de périmètre — le cockpit opérationnel l'écarte par défaut.
+_Éviter_ : demande (l'acte de dépôt) employé pour prestation (le type).
+
+**Jalon** :
+Étape datée de l'avancement d'une affaire (`num` d'ordre, `dateHeure`, *état d'affaire*). Une affaire accumule ses jalons (cas nominal : DMTR → DMREC → INPL → CPRE). Les flux X12/X13 sont des **snapshots cumulatifs quotidiens** : chaque livraison reprend toute la liste de jalons → la clé logique d'un jalon est `(affaire, num)`, jamais la position-fichier (même raisonnement que l'*identité de relevé*, [ADR-0028](../../docs/adr/0028-identite-releve-cle-metier-priorite-sources.md)).
+_Éviter_ : étape (vague), événement (réservé aux *événements contractuels* C15).
+
+**Statut d'affaire** vs **État d'affaire** (deux granularités, à ne pas confondre) :
+- **Statut** : cycle de vie grossier de l'affaire, 3 valeurs — `COURS` (en cours), `TERMN` (terminé), `ANNUL` (annulée). Sur le corpus EDN observé : ≈ 94 % TERMN, 5 % ANNUL, < 1 % COURS.
+- **État** (`affaireEtat`, porté par *chaque jalon*) : étape fine, ~16 valeurs observées — DMTR « demande transmise », DMREC « demande recevable », INPL « intervention planifiée », CPRE « close, prestation réalisée »… Les états d'**échec/blocage** sont `CPNR` (close, prestation non réalisée), `CNRE` (close, non recevable), et les re-planifications `INRP` — signaux exploitables pour une future alerte (faible volume : quelques-uns par mois).
+_Éviter_ : confondre *statut* (3 valeurs) et *état* (fin, ~16 valeurs).
+
+---
+
 ## Mesures et énergie
 
 **Index** :

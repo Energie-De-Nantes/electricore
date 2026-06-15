@@ -4,7 +4,7 @@ ElectriCore est organisé en modules avec leur propre vocabulaire. Le glossaire 
 
 ## Contextes
 
-- [**electricore/core/**](electricore/core/CONTEXT.md) — Vocabulaire métier ERP-agnostique (acteurs, PDL, RSC en tant que concept Enedis, FTA, cadrans, calendriers distributeur, tarification & taxes, événements C15, mesures & énergie, concepts pipeline).
+- [**electricore/core/**](electricore/core/CONTEXT.md) — Vocabulaire métier ERP-agnostique (acteurs, PDL, RSC en tant que concept Enedis, FTA, cadrans, calendriers distributeur, tarification & taxes, événements C15, affaires SGE (suivi opérationnel), mesures & énergie, concepts pipeline).
 - [**electricore/integrations/**](electricore/integrations/) — Adaptateurs vers les ERP et systèmes externes. Premier occupant : [`odoo/`](electricore/integrations/odoo/CONTEXT.md) (modèles `sale.order` / `account.move`, champs `x_*`, rapprochements Odoo ↔ Enedis).
 - [**electricore/ingestion/**](electricore/ingestion/CONTEXT.md) — Vocabulaire d'ingestion (flux Enedis, Mode, Job, Scheduler, transformers).
 - [**electricore/api/**](electricore/api/CONTEXT.md) — Vocabulaire du service REST (endpoints, services, `/health`).
