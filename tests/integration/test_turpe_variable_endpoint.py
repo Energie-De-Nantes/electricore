@@ -145,3 +145,52 @@ def test_turpe_variable_refuse_sans_api_key():
     """Endpoint sécurisé : 401 sans clé (pas d'override d'auth ici)."""
     response = TestClient(app).post("/facturation/turpe-variable", json={"lignes": []})
     assert response.status_code == 401
+
+
+def test_turpe_variable_succes_partiel(client):
+    """Lot mixte : ligne valide + FTA inconnue + date sans règle → succès partiel (#251).
+
+    Chaque `id` envoyé revient (autant de résultats que d'entrées), portant **soit**
+    `turpe_variable_eur` **soit** un motif d'erreur — jamais de silent-drop. Les lignes
+    valides du même lot conservent leur montant correct.
+    """
+    response = client.post(
+        "/facturation/turpe-variable",
+        json={
+            "lignes": [
+                {
+                    "id": "ok",
+                    "formule_tarifaire_acheminement": "BTINFCUST",
+                    "debut": "2025-08-15",
+                    "energie_base_kwh": 1000.0,
+                },
+                {
+                    "id": "inconnue",
+                    "formule_tarifaire_acheminement": "FTA_QUI_NEXISTE_PAS",
+                    "debut": "2025-08-15",
+                    "energie_base_kwh": 1000.0,
+                },
+                {
+                    "id": "hors-date",
+                    "formule_tarifaire_acheminement": "BTINFCUST",
+                    "debut": "1990-01-01",
+                    "energie_base_kwh": 1000.0,
+                },
+            ]
+        },
+    )
+    assert response.status_code == 200
+    results = response.json()["results"]
+    assert len(results) == 3  # autant de résultats que d'entrées
+    par_id = {r["id"]: r for r in results}
+
+    # Ligne valide : montant correct, pas d'erreur
+    assert par_id["ok"] == {"id": "ok", "turpe_variable_eur": 48.4}
+
+    # FTA inconnue : motif explicite, pas un drop ni un 0 silencieux
+    assert "turpe_variable_eur" not in par_id["inconnue"]
+    assert "FTA_QUI_NEXISTE_PAS" in par_id["inconnue"]["error"]
+
+    # Date sans règle temporelle : motif distinct mentionnant la date
+    assert "turpe_variable_eur" not in par_id["hors-date"]
+    assert "1990" in par_id["hors-date"]["error"]

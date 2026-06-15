@@ -466,6 +466,75 @@ def ajouter_turpe_variable(periodes: pl.LazyFrame, regles: pl.LazyFrame | None =
     )
 
 
+def ajouter_turpe_variable_par_ligne(periodes: pl.LazyFrame, regles: pl.LazyFrame | None = None) -> pl.LazyFrame:
+    """Chemin TURPE variable **sans silent-drop** : succès partiel par ligne (ADR-0030, #251).
+
+    Contrairement à `ajouter_turpe_variable` (qui filtre via `valider_regles_presentes`
+    puis le prédicat temporel — adapté aux chemins feed/GET), chaque ligne d'entrée
+    **ressort exactement une fois**, portant soit `turpe_variable_eur`, soit un motif
+    d'`error`. C'est le contrat d'un calculateur requête/réponse : ne jamais omettre
+    silencieusement une réponse demandée.
+
+    Motifs d'erreur :
+        - **FTA inconnue** : la FTA est absente de `turpe_rules.csv` (LEFT JOIN sans match).
+        - **Aucune règle pour la date** : la FTA existe mais aucune plage `start`/`end`
+          ne couvre `debut`.
+
+    Args:
+        periodes: LazyFrame d'assiette (`formule_tarifaire_acheminement`, `debut` tz-aware,
+            énergies par cadran). Pas de composante dépassement (calculateur C5, hors v1).
+        regles: règles TURPE (chargées si `None`).
+
+    Returns:
+        LazyFrame `(id, turpe_variable_eur, error)` dans l'ordre d'entrée — `error` est null
+        sur succès, `turpe_variable_eur` est null sur erreur (xor par ligne).
+    """
+    if regles is None:
+        regles = load_turpe_rules()
+
+    # Un index de ligne stable survit au LEFT JOIN (qui multiplie les lignes par règle)
+    # et à la déduplication : il garantit « une réponse par entrée », même id dupliqué.
+    indexees = periodes.with_row_index("_row")
+
+    regle_temporelle_ok = (
+        pl.col("start").is_not_null()
+        & (pl.col("debut") >= pl.col("start"))
+        & (pl.col("debut") < pl.col("end").fill_null(pl.datetime(2100, 1, 1, time_zone="Europe/Paris")))
+    ).fill_null(False)
+
+    return (
+        indexees.join(
+            regles,
+            left_on="formule_tarifaire_acheminement",
+            right_on="Formule_Tarifaire_Acheminement",
+            how="left",
+        )
+        .with_columns(regle_temporelle_ok.alias("_temporel_ok"))
+        # Garder une seule règle par ligne : la règle temporellement valide si elle existe
+        # (tri _temporel_ok décroissant), sinon une ligne témoin pour classer l'erreur.
+        .sort("_row", "_temporel_ok", descending=[False, True])
+        .unique(subset=["_row"], keep="first", maintain_order=True)
+        .with_columns(expr_calculer_turpe_contributions_cadrans())
+        .with_columns(
+            pl.when(pl.col("_temporel_ok")).then(expr_sommer_turpe_cadrans()).alias("turpe_variable_eur"),
+            pl.when(pl.col("_temporel_ok"))
+            .then(None)
+            .when(pl.col("start").is_null())
+            .then(pl.format("FTA inconnue : {}", pl.col("formule_tarifaire_acheminement")))
+            .otherwise(
+                pl.format(
+                    "Aucune règle TURPE pour la FTA {} à la date {}",
+                    pl.col("formule_tarifaire_acheminement"),
+                    pl.col("debut").dt.strftime("%Y-%m-%d"),
+                )
+            )
+            .alias("error"),
+        )
+        .sort("_row")
+        .select("id", "turpe_variable_eur", "error")
+    )
+
+
 # =============================================================================
 # FONCTIONS DE VALIDATION ET DEBUGGING
 # =============================================================================
