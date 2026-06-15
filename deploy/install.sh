@@ -62,15 +62,37 @@ _source_lib() {
     done
 }
 
-# Bootstrap initial : si lib/ est absent (quickstart `curl install.sh | bash`),
-# on télécharge les helpers depuis main (ou INSTALL_BASE_URL si surchargé).
-if [[ ! -d "${SCRIPT_DIR}/lib" ]]; then
-    echo "→ Bootstrap : téléchargement des helpers depuis ${INSTALL_BASE_URL_DEFAULT}/lib/…"
-    fetch_lib_files "${INSTALL_BASE_URL_DEFAULT}/lib" "${SCRIPT_DIR}/lib" || exit 1
-    echo "✓ Helpers téléchargés dans ${SCRIPT_DIR}/lib/"
+# lib_dir_complete <dir> : vrai si <dir> existe ET contient TOUS les helpers
+# attendus (`${LIB_FILES[@]}`). Un lib/ figé sur une version antérieure du script
+# ne contient pas les nouveaux helpers (ex. harden.sh ajouté pour ADR-0031) :
+# `_source_lib` échouerait et le vieux cli.sh rejetterait les nouvelles options
+# (#62, trap stale-lib).
+lib_dir_complete() {
+    local dir="$1" f
+    [[ -d "$dir" ]] || return 1
+    for f in "${LIB_FILES[@]}"; do
+        [[ -f "${dir}/${f}.sh" ]] || return 1
+    done
+}
+
+# Résolution du répertoire des helpers :
+#   - lib/ co-localisé ET complet (checkout repo, /srv/<slug>/deploy/, tests,
+#     run offline/pinné) → on l'utilise tel quel.
+#   - sinon (quickstart `curl install.sh`, OU lib/ figé d'un run antérieur) → on
+#     télécharge une copie FRAÎCHE dans un dossier temporaire, jamais réutilisée
+#     ni laissée à pourrir à côté du script. Élimine le trap stale-lib à la racine
+#     (pas de lib/ persistant dans /root) plutôt que de le rattraper après coup.
+HELPERS_DIR="${SCRIPT_DIR}/lib"
+HELPERS_DIR_TEMP=""
+if ! lib_dir_complete "$HELPERS_DIR"; then
+    HELPERS_DIR_TEMP="$(mktemp -d "${TMPDIR:-/tmp}/electricore-lib.XXXXXX")"
+    HELPERS_DIR="$HELPERS_DIR_TEMP"
+    echo "→ Bootstrap : téléchargement des helpers (copie fraîche) dans ${HELPERS_DIR}…"
+    fetch_lib_files "${INSTALL_BASE_URL_DEFAULT}/lib" "$HELPERS_DIR" || exit 1
+    echo "✓ Helpers téléchargés (temporaire, nettoyé en fin de run)."
 fi
 
-_source_lib "${SCRIPT_DIR}/lib"
+_source_lib "$HELPERS_DIR"
 
 
 main() {
@@ -83,6 +105,8 @@ main() {
     cleanup() {
         local rc=$?
         [[ -f /tmp/get-docker.sh ]] && rm -f /tmp/get-docker.sh
+        # Copie temporaire des helpers (bootstrap /tmp) : on nettoie en sortie.
+        [[ -n "${HELPERS_DIR_TEMP:-}" ]] && rm -rf "$HELPERS_DIR_TEMP"
         if [[ $rc -ne 0 ]] && [[ "${_CLEAN_EXIT:-0}" -ne 1 ]]; then
             echo
             printf '%s\n' "Script interrompu (exit $rc). Aucune modification destructive faite." >&2
@@ -118,14 +142,15 @@ main() {
             "État ambigu — choisir un autre slug ou supprimer ${HOME_DIR} à la main."
     fi
 
-    # En mode reconfigure : refresh inconditionnel des helpers lib/ pour éviter
-    # qu'un lib/ figé sur une version antérieure du script ne court-circuite
-    # les fixes embarqués dans cette nouvelle install.sh (#62).
-    if [[ "$MODE_RECONFIGURE" -eq 1 ]]; then
-        log_info "Mode reconfigure : refresh des helpers lib/ depuis ${INSTALL_BASE_URL_DEFAULT}/lib/…"
-        if fetch_lib_files "${INSTALL_BASE_URL_DEFAULT}/lib" "${SCRIPT_DIR}/lib"; then
-            _source_lib "${SCRIPT_DIR}/lib"
-            log_ok "Helpers lib/ rafraîchis."
+    # En mode reconfigure avec des helpers CO-LOCALISÉS : refresh pour éviter
+    # qu'un lib/ figé sur une version antérieure ne court-circuite les fixes de
+    # cette install.sh (#62). Inutile si le bootstrap a déjà tiré une copie fraîche
+    # en /tmp (HELPERS_DIR_TEMP non vide).
+    if [[ "$MODE_RECONFIGURE" -eq 1 && -z "$HELPERS_DIR_TEMP" ]]; then
+        log_info "Mode reconfigure : refresh des helpers depuis ${INSTALL_BASE_URL_DEFAULT}/lib/…"
+        if fetch_lib_files "${INSTALL_BASE_URL_DEFAULT}/lib" "$HELPERS_DIR"; then
+            _source_lib "$HELPERS_DIR"
+            log_ok "Helpers rafraîchis."
         else
             log_warn "Refresh des helpers échoué — on continue avec la version locale (potentiellement stale)."
         fi

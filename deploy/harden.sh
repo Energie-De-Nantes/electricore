@@ -25,14 +25,26 @@ INSTALL_BASE_URL_DEFAULT="${INSTALL_BASE_URL:-https://raw.githubusercontent.com/
 # Sous-ensemble de lib/ dont harden_vps() a besoin (log + die ; ensure_packages).
 HARDEN_LIB_FILES=(log system harden)
 
-# Bootstrap : si lib/ est absent (run standalone via curl sur une box sans notre
-# arbre deploy/), télécharge les helpers requis depuis main (ou INSTALL_BASE_URL).
-if [[ ! -d "${SCRIPT_DIR}/lib" ]]; then
-    echo "→ Bootstrap : téléchargement des helpers depuis ${INSTALL_BASE_URL_DEFAULT}/lib/…"
+# _lib_complete <dir> : vrai si <dir> contient tous les helpers de HARDEN_LIB_FILES.
+_lib_complete() {
+    local f
+    [[ -d "$1" ]] || return 1
+    for f in "${HARDEN_LIB_FILES[@]}"; do [[ -f "$1/${f}.sh" ]] || return 1; done
+}
+
+# Résolution des helpers : co-localisés si complets (arbre deploy/ présent),
+# sinon copie FRAÎCHE en /tmp (run standalone via curl, OU lib/ figé d'un run
+# antérieur). Jamais de lib/ persistant laissé à pourrir à côté du script.
+HELPERS_DIR="${SCRIPT_DIR}/lib"
+HELPERS_DIR_TEMP=""
+if ! _lib_complete "$HELPERS_DIR"; then
     command -v curl >/dev/null || { echo "curl introuvable, install curl puis relance." >&2; exit 1; }
-    install -d "${SCRIPT_DIR}/lib"
+    HELPERS_DIR_TEMP="$(mktemp -d "${TMPDIR:-/tmp}/electricore-lib.XXXXXX")"
+    HELPERS_DIR="$HELPERS_DIR_TEMP"
+    trap '[[ -n "${HELPERS_DIR_TEMP:-}" ]] && rm -rf "$HELPERS_DIR_TEMP"' EXIT
+    echo "→ Bootstrap : téléchargement des helpers (copie fraîche) dans ${HELPERS_DIR}…"
     for f in "${HARDEN_LIB_FILES[@]}"; do
-        if ! curl -fsSL "${INSTALL_BASE_URL_DEFAULT}/lib/${f}.sh" -o "${SCRIPT_DIR}/lib/${f}.sh"; then
+        if ! curl -fsSL "${INSTALL_BASE_URL_DEFAULT}/lib/${f}.sh" -o "${HELPERS_DIR}/${f}.sh"; then
             echo "✗ Échec téléchargement ${f}.sh depuis ${INSTALL_BASE_URL_DEFAULT}/lib/" >&2
             exit 1
         fi
@@ -41,7 +53,7 @@ fi
 
 for f in "${HARDEN_LIB_FILES[@]}"; do
     # shellcheck source=/dev/null
-    source "${SCRIPT_DIR}/lib/${f}.sh"
+    source "${HELPERS_DIR}/${f}.sh"
 done
 
 usage_harden() {
