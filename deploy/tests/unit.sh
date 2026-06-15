@@ -16,6 +16,8 @@ source "${LIB_DIR}/cli.sh"
 source "${LIB_DIR}/config.sh"
 # shellcheck source=../lib/env_validate.sh
 source "${LIB_DIR}/env_validate.sh"
+# shellcheck source=../lib/harden.sh
+source "${LIB_DIR}/harden.sh"
 
 # `install.sh` est protégé par un guard `main` ; le sourcer expose
 # `fetch_lib_files` sans déclencher l'exécution du script.
@@ -75,6 +77,18 @@ assert_fail "is_supported_os Alpine"         bash -c "export OS_RELEASE_PATH='${
 assert_fail "is_supported_os Ubuntu 20.04"   bash -c "export OS_RELEASE_PATH='${FIXTURES_DIR}/os-release-ubuntu-20.04'; source '${LIB_DIR}/os.sh'; is_supported_os"
 
 echo
+echo "→ harden.sh / authorized_keys_present (garde-fou anti-verrouillage)"
+tmp_ak=$(mktemp)
+printf 'ssh-ed25519 AAAAC3Nz... ops@host\n' > "$tmp_ak"
+assert_ok   "clé présente → 0"                 authorized_keys_present "$tmp_ak"
+: > "$tmp_ak"
+assert_fail "fichier vide → 1"                 authorized_keys_present "$tmp_ak"
+printf '# que des commentaires\n\n   \n' > "$tmp_ak"
+assert_fail "commentaires/blancs seuls → 1"    authorized_keys_present "$tmp_ak"
+rm -f "$tmp_ak"
+assert_fail "fichier absent → 1"               authorized_keys_present "/nonexistent-ak-$$"
+
+echo
 echo "→ cli.sh / parse_args"
 ( parse_args --slug edn --domain edn.fr >/dev/null 2>&1
   [[ "$OPT_SLUG" == "edn" && "$OPT_DOMAIN" == "edn.fr" && "$OPT_VERSION" == "latest" ]]
@@ -88,12 +102,25 @@ assert_fail "parse_args sans --slug"      parse_args --domain edn.fr
 assert_fail "parse_args sans --domain"    parse_args --slug edn
 assert_fail "parse_args flag inconnu"     parse_args --slug edn --domain edn.fr --foo
 
+# Durcissement (ADR-0031) : --no-harden et --admin-pubkey
+( parse_args --slug edn --domain edn.fr >/dev/null 2>&1
+  [[ "$OPT_NO_HARDEN" == "0" && -z "$OPT_ADMIN_PUBKEY" ]]
+) && ok "parse_args: durcissement actif par défaut (OPT_NO_HARDEN=0)" || ko "parse_args durcissement par défaut"
+
+( parse_args --slug edn --domain edn.fr --no-harden >/dev/null 2>&1
+  [[ "$OPT_NO_HARDEN" == "1" ]]
+) && ok "parse_args: --no-harden → OPT_NO_HARDEN=1" || ko "parse_args --no-harden"
+
+( parse_args --slug edn --domain edn.fr --admin-pubkey "ssh-ed25519 AAAA ops" >/dev/null 2>&1
+  [[ "$OPT_ADMIN_PUBKEY" == "ssh-ed25519 AAAA ops" ]]
+) && ok "parse_args: --admin-pubkey capturé" || ko "parse_args --admin-pubkey"
+
 echo
 echo "→ install.sh / fetch_lib_files"
 tmp_target=$(mktemp -d)
 fetch_lib_files "file://${FIXTURES_DIR}/fake_lib" "$tmp_target"
-[[ -f "${tmp_target}/log.sh" && -f "${tmp_target}/cli.sh" && -f "${tmp_target}/config.sh" ]] \
-    && ok "fetch_lib_files: les 11 helpers sont téléchargés au 1er appel" \
+[[ -f "${tmp_target}/log.sh" && -f "${tmp_target}/cli.sh" && -f "${tmp_target}/config.sh" && -f "${tmp_target}/harden.sh" ]] \
+    && ok "fetch_lib_files: les 12 helpers sont téléchargés au 1er appel" \
     || ko "fetch_lib_files: helpers manquants après 1er appel"
 # 2e appel idempotent (les fichiers existent déjà, doit re-télécharger sans erreur)
 fetch_lib_files "file://${FIXTURES_DIR}/fake_lib" "$tmp_target"

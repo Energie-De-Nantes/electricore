@@ -17,6 +17,8 @@ Commands:
   down              Supprime la VM (delete + purge).
   run [args...]     Exécute install.sh dans la VM.
                     Défaut: --slug test --domain test.local --skip-dns
+  verify            Lance les assertions de durcissement (ADR-0031) dans la VM,
+                    via `multipass exec` (pas SSH — survit au root-off).
   shell             Ouvre un shell interactif dans la VM.
   snap <name>       Crée un snapshot.
   restore <name>    Restaure un snapshot (rapide pour itérer).
@@ -62,6 +64,7 @@ cmd_run() {
     multipass exec "$VM_NAME" -- sudo bash /repo/deploy/install.sh "${args[@]}"
 }
 
+cmd_verify()  { multipass exec "$VM_NAME" -- sudo bash /repo/deploy/tests/e2e/assert_harden.sh "$@"; }
 cmd_shell()   { multipass shell "$VM_NAME"; }
 cmd_snap()    { multipass snapshot "$VM_NAME" --name "${1:?nom de snapshot requis}"; }
 cmd_restore() { multipass restore "${VM_NAME}.${1:?nom de snapshot requis}"; }
@@ -70,6 +73,6 @@ cmd_status()  { multipass info "$VM_NAME" 2>/dev/null || echo "VM ${VM_NAME} n'e
 require_multipass
 CMD="${1:-}"; shift || true
 case "$CMD" in
-    up|down|run|shell|snap|restore|status) "cmd_$CMD" "$@" ;;
+    up|down|run|verify|shell|snap|restore|status) "cmd_$CMD" "$@" ;;
     *) usage; exit 1 ;;
 esac
