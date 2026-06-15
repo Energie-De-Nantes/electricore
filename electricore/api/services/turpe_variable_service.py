@@ -16,7 +16,7 @@ from zoneinfo import ZoneInfo
 import polars as pl
 
 from electricore.core.models.cadrans import CADRANS, col_energie
-from electricore.core.pipelines.turpe import ajouter_turpe_variable
+from electricore.core.pipelines.turpe import ajouter_turpe_variable_par_ligne
 
 PARIS = ZoneInfo("Europe/Paris")
 
@@ -29,7 +29,7 @@ COLONNES_ENERGIE: tuple[str, ...] = tuple(col_energie(c) for c in CADRANS)
 
 
 def calculer_turpe_variable(lignes: list[dict]) -> list[dict]:
-    """Montant TURPE variable € pour chaque ligne du lot (cas nominal, #247).
+    """Montant TURPE variable € (ou motif d'erreur) pour chaque ligne du lot (#247, #251).
 
     Args:
         lignes: lot de dicts `{id, formule_tarifaire_acheminement, debut,
@@ -37,15 +37,21 @@ def calculer_turpe_variable(lignes: list[dict]) -> list[dict]:
             `debut` est un `datetime` (tz-aware ou naïf, normalisé Europe/Paris).
 
     Returns:
-        Liste de `{id, turpe_variable_eur}`, l'`id` ré-émis tel quel. Cas nominal :
-        toutes les FTA sont connues et ont une règle à la date → aucun drop.
+        Liste, dans l'ordre d'entrée, de `{id, turpe_variable_eur}` (succès) **ou**
+        `{id, error}` (FTA inconnue / aucune règle pour la date) — xor par `id`, jamais
+        de silent-drop (ADR-0030). L'`id` est ré-émis tel quel.
     """
     if not lignes:
         return []
 
     lf = _frame_assiette(lignes)
-    resultat = ajouter_turpe_variable(lf).select("id", "turpe_variable_eur").collect()
-    return resultat.to_dicts()
+    resultat = ajouter_turpe_variable_par_ligne(lf).collect()
+    return [
+        {"id": row["id"], "error": row["error"]}
+        if row["error"] is not None
+        else {"id": row["id"], "turpe_variable_eur": row["turpe_variable_eur"]}
+        for row in resultat.to_dicts()
+    ]
 
 
 def _frame_assiette(lignes: list[dict]) -> pl.LazyFrame:
