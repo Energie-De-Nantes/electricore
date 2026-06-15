@@ -194,7 +194,7 @@ def bilan(db_path: Path) -> None:
     lignes = con.execute(
         """
         select table_schema, table_name from information_schema.tables
-        where table_name like 'raw_%' or table_name like 'flux_%'
+        where table_name like 'raw_%' or table_name like 'flux_%' or table_name = 'releves'
         order by table_schema, table_name
         """
     ).fetchall()
