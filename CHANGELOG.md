@@ -9,6 +9,25 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.0.0rc4] - 2026-06-15
+
+Correctifs du build dbt **sur données réelles** : le rebuild rc3 échouait sur le
+corpus de production (fixtures trop étroites pour reproduire ces cas).
+
+### 🐛 Corrections (ingestion)
+
+- **`flux_r64` Out of Memory (~6 GiB)** : le tri de la fenêtre `qualify` (dédoublonnage
+  des fenêtres R64 chevauchantes) saturait la RAM. `preserve_insertion_order: false`
+  dans le profil dbt — DuckDB déverse sur disque (l'ordre des lignes matérialisées est
+  sans importance pour l'aval).
+- **`flux_r15.nature_index` not_null** : certains relevés R15 réels n'ont pas de
+  `Nature_Index` → la macro renvoyait `NULL`. Absent/`NULL` → `estimé` (défaut prudent,
+  ADR-0028).
+- **Mart `releves` jamais construit par le runner** : descendant des flux, il n'était
+  pas atteint par la sélection `+flux_*` (ancêtres). Ajouté à la sélection dbt dès que
+  C15 + R151 + R64 sont présents — sans quoi `flux_enedis.releves` n'existe pas et la
+  facturation échoue. Le runner **surface désormais les nœuds dbt en échec**.
+
 ## [3.0.0rc3] - 2026-06-15
 
 Incrément de la candidate : **modèle de relevés canonique** et **traçabilité des
