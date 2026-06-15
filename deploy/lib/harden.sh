@@ -276,3 +276,94 @@ harden_vps() {
         setup_unattended_upgrades
     fi
 }
+
+# ─── Réversibilité (désinstallation) ────────────────────────────────────────
+# Inverse de harden_vps : retire ce que le durcissement a posé. Idempotent.
+# Pensé pour un retour arrière sûr — rétablir l'accès root AVANT tout nettoyage.
+
+# unharden_sshd
+# Retire le drop-in de durcissement et recharge sshd → restaure le comportement
+# par défaut de l'image (root SSH ré-autorisé, auth selon le défaut cloud). C'est
+# LA réversion critique : exécutée en premier pour regagner l'accès root.
+unharden_sshd() {
+    if [[ ! -f "$SSHD_HARDEN_DROPIN" ]]; then
+        log_skip "drop-in sshd absent — sshd déjà au défaut, rien à retirer"
+        return 0
+    fi
+    rm -f "$SSHD_HARDEN_DROPIN"
+    if ! sshd -t 2>/dev/null; then
+        die "sshd -t a échoué après retrait du drop-in — vérifier la conf sshd à la main."
+    fi
+    if systemctl reload ssh 2>/dev/null || systemctl reload sshd 2>/dev/null; then
+        log_ok "drop-in sshd retiré, sshd rechargé — accès root rétabli (défaut image)"
+    else
+        die "échec du reload sshd après retrait du drop-in — vérifier 'systemctl status ssh'."
+    fi
+}
+
+# remove_fail2ban_jail
+# Retire la conf de jail ElectriCore et recharge fail2ban. Laisse le paquet
+# installé (on ne désinstalle pas : d'autres jails peuvent en dépendre).
+remove_fail2ban_jail() {
+    if [[ ! -f "$FAIL2BAN_JAIL" ]]; then
+        log_skip "jail fail2ban ElectriCore absente — rien à retirer"
+        return 0
+    fi
+    rm -f "$FAIL2BAN_JAIL"
+    systemctl restart fail2ban 2>/dev/null || true
+    log_ok "jail fail2ban ElectriCore retirée (${FAIL2BAN_JAIL})"
+}
+
+# remove_unattended_config
+# Retire les fichiers apt.conf.d posés par le durcissement (auto-reboot + maj
+# auto). N'efface pas la conf distro par défaut (50unattended-upgrades) ni le
+# paquet : on revient simplement au comportement d'origine de l'image.
+remove_unattended_config() {
+    local removed=0
+    [[ -f "$UNATTENDED_OVERRIDE" ]] && { rm -f "$UNATTENDED_OVERRIDE"; removed=1; }
+    [[ -f "$UNATTENDED_PERIODIC" ]] && { rm -f "$UNATTENDED_PERIODIC"; removed=1; }
+    if [[ "$removed" -eq 1 ]]; then
+        log_ok "conf unattended-upgrades ElectriCore retirée (auto-reboot 04:30 désactivé)"
+    else
+        log_skip "conf unattended-upgrades ElectriCore absente — rien à retirer"
+    fi
+}
+
+# remove_admin_user <user>
+# Retrait OPT-IN de l'admin (sudoers + compte + home). Destructif → réservé à
+# --purge-ops. À n'exécuter qu'après unharden_sshd (root SSH déjà rétabli),
+# sinon on se prive du seul accès non-root.
+remove_admin_user() {
+    local user="$1"
+    rm -f "/etc/sudoers.d/${user}"
+    if id "$user" >/dev/null 2>&1; then
+        if userdel -r "$user" 2>/dev/null; then
+            log_ok "user admin $user retiré (sudoers + compte + home)"
+        else
+            log_warn "échec userdel $user (session active ?) — sudoers retiré, compte à supprimer à la main."
+        fi
+    else
+        rm -f "/etc/sudoers.d/${user}"
+        log_skip "user admin $user absent — sudoers nettoyé"
+    fi
+}
+
+# unharden_vps
+# Inverse de harden_vps. Lit les globals OPT_* :
+#   OPT_PURGE_OPS   supprime aussi le user ops (destructif ; défaut: conservé)
+#
+# Ordre impératif : on rétablit le SSH root EN PREMIER (regagner l'accès), puis
+# on nettoie fail2ban + unattended ; le retrait de ops (opt-in) vient en dernier,
+# une fois root réaccessible.
+unharden_vps() {
+    local user="${HARDEN_ADMIN_USER}"
+
+    unharden_sshd
+    remove_fail2ban_jail
+    remove_unattended_config
+    if [[ "${OPT_PURGE_OPS:-0}" -eq 1 ]]; then
+        remove_admin_user "$user"
+    else
+        log_info "user admin $user conservé (le supprimer : --purge-ops ; re-durcir : deploy/harden.sh)"
+    fi
+}
