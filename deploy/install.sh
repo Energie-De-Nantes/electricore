@@ -9,13 +9,14 @@
 #   3. Docker (idempotent)
 #   4. UFW : OpenSSH + 80 + 443
 #   5. Création user système <slug> + SSH key
-#   6. Téléchargement config tag-pinné
-#   7. Substitutions (slug, domaine, email)
-#   8. Édition .env + validation (loop)
-#   9. DNS check bloquant
-#  10. docker compose up + wait_for_health
-#  11. ETL test (mode test, ~3s)
-#  12. Récap final
+#   6. Durcissement VPS (admin ops + sudo + clé, ADR-0031 ; --no-harden pour sauter)
+#   7. Téléchargement config tag-pinné
+#   8. Substitutions (slug, domaine, email)
+#   9. Édition .env + validation (loop)
+#  10. DNS check bloquant
+#  11. docker compose up + wait_for_health
+#  12. ETL test (mode test, ~3s)
+#  13. Récap final
 #
 # Mode reconfigure : si /srv/<slug>/.env existe déjà, on backup le .env,
 # on saute la création user/Docker/UFW (idempotents de toute façon), on
@@ -28,7 +29,7 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_BASE_URL_DEFAULT="${INSTALL_BASE_URL:-https://raw.githubusercontent.com/Energie-De-Nantes/electricore/main/deploy}"
-LIB_FILES=(log cli validate os system user config env_validate dns stack ingestion)
+LIB_FILES=(log cli validate os system user harden config env_validate dns stack ingestion)
 
 # fetch_lib_files <base_url> <target_dir>
 # Télécharge les helpers `${LIB_FILES[@]}` depuis <base_url> vers <target_dir>.
@@ -75,7 +76,7 @@ _source_lib "${SCRIPT_DIR}/lib"
 main() {
     set -euo pipefail
 
-    LOG_TOTAL_STEPS=12
+    LOG_TOTAL_STEPS=13
 
     # Trap propre : Ctrl+C, kill, exit non-zero. Nettoie le script get-docker.sh
     # temporaire et signale clairement l'abandon. Ne touche jamais à la DB ni au .env.
@@ -157,12 +158,22 @@ main() {
     create_instance_user "$OPT_SLUG"
     setup_ssh_authorized_keys "$OPT_SLUG" "$OPT_SSH_PUBKEY"
 
-    # ─── Étape 6 : config files ─────────────────────────────────────────────
+    # ─── Étape 6 : durcissement VPS (ADR-0031) ──────────────────────────────
+    # Actif par défaut, juste après l'étape user/clé. Le garde-fou anti-verrouillage
+    # (clé de ops non vide) protège la bascule root-off ; --no-harden pour sauter.
+    log_step "Durcissement VPS — utilisateur admin ops"
+    if [[ "${OPT_NO_HARDEN:-0}" -eq 1 ]]; then
+        log_skip "durcissement ignoré (--no-harden)"
+    else
+        harden_vps
+    fi
+
+    # ─── Étape 7 : config files ─────────────────────────────────────────────
     log_step "Téléchargement config (tag ${OPT_VERSION})"
     download_config_files "$OPT_VERSION" "$HOME_DIR"
     chown_instance_home "$OPT_SLUG"
 
-    # ─── Étape 7 : substitutions ────────────────────────────────────────────
+    # ─── Étape 8 : substitutions ────────────────────────────────────────────
     log_step "Patch des templates (slug + domaine + email)"
     substitute_env "$ENV_FILE" "$OPT_SLUG" "$OPT_VERSION"
     substitute_caddyfile "$CADDYFILE" "$OPT_DOMAIN" "$OPT_EMAIL"
@@ -171,7 +182,7 @@ main() {
                  "Éditer à la main avant de mettre en prod."
     fi
 
-    # ─── Étape 8 : édition .env + validation ────────────────────────────────
+    # ─── Étape 9 : édition .env + validation ────────────────────────────────
     log_step "Configuration .env (édition + validation)"
     if [[ "$MODE_RECONFIGURE" -eq 1 ]]; then
         backup="${ENV_FILE}.bak.$(date +%Y%m%dT%H%M%SZ)"
@@ -208,7 +219,7 @@ main() {
         sleep 2
     done
 
-    # ─── Étape 9 : DNS ──────────────────────────────────────────────────────
+    # ─── Étape 10 : DNS ─────────────────────────────────────────────────────
     log_step "Vérification DNS"
     if [[ "$OPT_SKIP_DNS" -eq 1 ]]; then
         log_skip "DNS check ignoré (--skip-dns)"
@@ -221,7 +232,7 @@ main() {
             "Vérifier le A-record de ${OPT_DOMAIN}. Relancer le script quand c'est propre."
     fi
 
-    # ─── Étape 10 : stack ───────────────────────────────────────────────────
+    # ─── Étape 11 : stack ───────────────────────────────────────────────────
     log_step "Démarrage de la stack docker compose"
     compose_up "$OPT_SLUG"
     log_info "Attente du healthcheck API (jusqu'à 60s)…"
@@ -229,7 +240,7 @@ main() {
         "API non healthy après 60s." \
         "Voir les logs : sudo -u $OPT_SLUG docker compose -f $DOCKER_DIR/docker-compose.yml logs"
 
-    # ─── Étape 11 : ETL test ────────────────────────────────────────────────
+    # ─── Étape 12 : ETL test ────────────────────────────────────────────────
     log_step "ETL test (mode test, ~3s)"
     if run_ingestion_test "$OPT_SLUG"; then
         log_ok "ETL test réussi — clés AES OK, SFTP accessible, DuckDB écrit."
@@ -239,7 +250,7 @@ main() {
         log_warn "Stack laissée en place. Corrige .env et réessaye (commande ci-dessus)."
     fi
 
-    # ─── Étape 12 : récap ───────────────────────────────────────────────────
+    # ─── Étape 13 : récap ───────────────────────────────────────────────────
     log_step "Récapitulatif"
     cat <<EOF
 
