@@ -9,9 +9,12 @@ consommé par les notebooks distants via `ElectricoreClient.releves()`.
 et `/info` (sous-ressource) DOIVENT précéder la route JSON `/releves`.
 """
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
-from electricore.api.decorators import arrow_endpoint
+from electricore.api.decorators import arrow_endpoint, xlsx_endpoint
+from electricore.api.security import get_current_api_key
+from electricore.api.services import duckdb_service
+from electricore.core.loaders.duckdb import DuckDBLockError
 
 router = APIRouter(tags=["releves"])
 
@@ -40,3 +43,55 @@ def get_releves_arrow(
 
     df = _load_releves_df(limit)
     return arrow_stream(df)
+
+
+@xlsx_endpoint(router, "/releves.xlsx", filename="releves.xlsx", error_status=500)
+def get_releves_xlsx(
+    limit: int = Query(10000, le=100000, description="Nombre maximum de lignes"),
+) -> bytes:
+    """Exporte le mart `releves` au format XLSX (max 100 000 lignes)."""
+    from electricore.api.serializers import xlsx_multi_sheet
+
+    df = _load_releves_df(limit)
+    return xlsx_multi_sheet({"releves": df})
+
+
+@router.get("/releves/info")
+async def get_releves_info(api_key: str = Depends(get_current_api_key)):
+    """Métadonnées du mart `releves` : colonnes/types, nombre de lignes, dernière `date_releve`.
+
+    **Authentification requise** — Utilisez votre clé API.
+
+    Le mart est physiquement `flux_enedis.releves` (sans préfixe `flux_`) ; sa colonne
+    de date métier est `date_releve`.
+    """
+    try:
+        return duckdb_service.get_table_info("releves", prefix="", date_column="date_releve")
+    except DuckDBLockError:
+        # Base verrouillée par l'ingestion → 503 via le handler d'app (#171).
+        raise
+    except Exception:
+        raise HTTPException(404, "Mart 'releves' introuvable (base non assemblée ?)")
+
+
+@router.get("/releves")
+async def get_releves(
+    limit: int = Query(100, le=1000, description="Nombre maximum de lignes à retourner"),
+    offset: int = Query(0, ge=0, description="Nombre de lignes à ignorer (pagination)"),
+    api_key: str = Depends(get_current_api_key),
+):
+    """Lecture JSON du mart `releves` (réponse enveloppée paginée).
+
+    **Authentification requise** — Utilisez votre clé API.
+
+    Shape calquée sur `/flux/{table_name}` : `{table, filters, pagination, data}`.
+    Le mart est physiquement `flux_enedis.releves` (sans préfixe `flux_`).
+    """
+    df = _load_releves_df(limit + offset)
+    rows = df.slice(offset, limit).to_dicts()
+    return {
+        "table": "releves",
+        "filters": None,
+        "pagination": {"limit": limit, "offset": offset, "returned": len(rows)},
+        "data": rows,
+    }

@@ -19,6 +19,7 @@ from electricore.api.main import app
 from electricore.api.security import get_current_api_key
 
 ARROW_IPC = "application/vnd.apache.arrow.stream"
+XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
 @pytest.fixture
@@ -72,3 +73,76 @@ def test_releves_not_served_by_flux_catchall(client):
     """
     assert client.get("/flux/releves.arrow").status_code == 404
     assert client.get("/flux/releves").status_code == 404
+
+
+# =============================================================================
+# #264 — parité de formats : JSON / XLSX / info
+# =============================================================================
+
+
+def test_releves_json_enveloped_and_paginated(client, monkeypatch, df_releves):
+    """`GET /releves` sert le JSON enveloppé paginé, shape calquée sur `/flux/{name}`."""
+    monkeypatch.setattr(
+        "electricore.api.routers.releves._load_releves_df",
+        lambda limit: df_releves,
+    )
+
+    response = client.get("/releves", params={"limit": 1, "offset": 1})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["table"] == "releves"
+    assert payload["pagination"] == {"limit": 1, "offset": 1, "returned": 1}
+    # offset=1, limit=1 → la 2e ligne du mart (flux_C15)
+    assert payload["data"] == [df_releves.slice(1, 1).to_dicts()[0]]
+
+
+def test_releves_xlsx_export(client, monkeypatch, df_releves):
+    """`GET /releves.xlsx` sert un export XLSX du mart (téléchargement)."""
+    monkeypatch.setattr(
+        "electricore.api.routers.releves._load_releves_df",
+        lambda limit: df_releves,
+    )
+
+    response = client.get("/releves.xlsx")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith(XLSX_MIME)
+    assert "attachment" in response.headers.get("content-disposition", "")
+
+
+def test_releves_info_metadata_targets_prefixless_mart(client, monkeypatch):
+    """`GET /releves/info` sert colonnes/types, count et dernière `date_releve`.
+
+    Le route adresse le mart sans préfixe `flux_` (`prefix=""`) et désigne
+    `date_releve` comme colonne de date métier.
+    """
+    captured: dict = {}
+
+    def _fake_info(table_name, **kwargs):
+        captured["table_name"] = table_name
+        captured["kwargs"] = kwargs
+        return {
+            "table": "releves",
+            "schema": "flux_enedis",
+            "count": 2,
+            "columns": [
+                {"name": "pdl", "type": "VARCHAR"},
+                {"name": "date_releve", "type": "TIMESTAMP"},
+            ],
+            "derniere_date": "2025-02-01",
+        }
+
+    monkeypatch.setattr("electricore.api.services.duckdb_service.get_table_info", _fake_info)
+
+    response = client.get("/releves/info")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["table"] == "releves"
+    assert body["count"] == 2
+    assert body["derniere_date"] == "2025-02-01"
+    assert {"name": "date_releve", "type": "TIMESTAMP"} in body["columns"]
+    # Le route demande bien le mart prefix-less avec sa colonne de date métier
+    assert captured["kwargs"].get("prefix") == ""
+    assert captured["kwargs"].get("date_column") == "date_releve"
