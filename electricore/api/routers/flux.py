@@ -40,21 +40,22 @@ def get_sorties_xlsx(
 
 
 def _load_flux_df(table_name: str, prm: str | None, limit: int):
-    """Charge un flux via DuckDBQuery + serializer. Whitelist déclarative via FLUX_CONFIGS.
+    """Charge un flux via la factory `flux(nom)` du loader + serializer.
 
-    Test seam : monkeypatch ce helper pour court-circuiter l'IO DuckDB dans les
-    tests d'endpoint (le SQL est paramétré et la sécurité est testée séparément).
+    Pur transport : la résolution du registre et l'erreur « flux inconnu »
+    vivent derrière l'interface du loader (`flux` / `FluxInconnu`). On se
+    contente ici de mapper `FluxInconnu` sur un 404 et d'appliquer prm/limit.
+
+    Test seam : substituer `flux` au seam du loader
+    (`electricore.core.loaders.duckdb.flux`) pour court-circuiter l'IO DuckDB.
     """
-    from electricore.core.loaders.duckdb.helpers import make_query
-    from electricore.core.loaders.duckdb.registry import FLUX_CONFIGS
+    from electricore.core.loaders.duckdb import FluxInconnu, flux
 
-    if table_name not in FLUX_CONFIGS:
-        raise HTTPException(
-            404,
-            f"Table '{table_name}' non trouvée. Tables disponibles: {sorted(FLUX_CONFIGS.keys())}",
-        )
+    try:
+        query = flux(table_name)
+    except FluxInconnu as e:
+        raise HTTPException(404, str(e))
 
-    query = make_query(FLUX_CONFIGS[table_name])
     if prm:
         query = query.filter({"pdl": prm})
     return query.limit(limit).collect()
