@@ -110,6 +110,18 @@ grep -qE "^findtime = "       <<<"$jail_conf" && ok "jail: findtime défini" || 
 grep -qE "^bantime  = "       <<<"$jail_conf" && ok "jail: bantime défini" || ko "jail bantime"
 
 echo
+echo "→ harden.sh / unattended-upgrades (maj auto + reboot 04:30)"
+periodic_conf="$(render_unattended_periodic)"
+grep -qx 'APT::Periodic::Update-Package-Lists "1";' <<<"$periodic_conf" && ok "periodic: maj des listes activée" || ko "periodic update-lists"
+grep -qx 'APT::Periodic::Unattended-Upgrade "1";'   <<<"$periodic_conf" && ok "periodic: unattended-upgrade activé" || ko "periodic unattended"
+override_conf="$(render_unattended_override)"
+grep -qx 'Unattended-Upgrade::Automatic-Reboot "true";'          <<<"$override_conf" && ok "override: Automatic-Reboot true" || ko "override reboot true"
+grep -qx 'Unattended-Upgrade::Automatic-Reboot-Time "04:30";'    <<<"$override_conf" && ok "override: reboot 04:30 (après backup 03:30)" || ko "override reboot time"
+# Heure paramétrable
+override_05="$(UNATTENDED_REBOOT_TIME=05:15 render_unattended_override)"
+grep -q '"05:15"' <<<"$override_05" && ok "override: heure de reboot paramétrable" || ko "override heure non paramétrable"
+
+echo
 echo "→ cli.sh / parse_args"
 ( parse_args --slug edn --domain edn.fr >/dev/null 2>&1
   [[ "$OPT_SLUG" == "edn" && "$OPT_DOMAIN" == "edn.fr" && "$OPT_VERSION" == "latest" ]]

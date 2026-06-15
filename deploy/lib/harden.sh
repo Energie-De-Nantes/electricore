@@ -192,6 +192,52 @@ setup_fail2ban() {
     fi
 }
 
+# ─── Mises à jour automatiques ──────────────────────────────────────────────
+
+# Fichiers apt.conf.d. Override pour les tests.
+UNATTENDED_PERIODIC="${UNATTENDED_PERIODIC:-/etc/apt/apt.conf.d/20auto-upgrades}"
+UNATTENDED_OVERRIDE="${UNATTENDED_OVERRIDE:-/etc/apt/apt.conf.d/52electricore-unattended}"
+# Après le backup de 03:30 (cf. crontab) : un patch kernel/openssl en attente
+# s'applique vraiment, et la stack revient seule (restart: unless-stopped).
+UNATTENDED_REBOOT_TIME="${UNATTENDED_REBOOT_TIME:-04:30}"
+
+# render_unattended_periodic
+# Active la maj des listes de paquets + l'application unattended. Pur, testable.
+render_unattended_periodic() {
+    cat <<'EOF'
+// ElectriCore (ADR-0031) — active les mises à jour de sécurité automatiques.
+APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Unattended-Upgrade "1";
+EOF
+}
+
+# render_unattended_override
+# Redémarrage auto après application des correctifs, à l'heure configurée. Pur.
+# Les origines de sécurité sont déjà activées par défaut dans
+# /etc/apt/apt.conf.d/50unattended-upgrades (Debian & Ubuntu) — on ne touche
+# qu'au comportement de reboot pour éviter les patterns d'origine distro-spécifiques.
+render_unattended_override() {
+    cat <<EOF
+// ElectriCore (ADR-0031) — redémarrage auto après mise à jour, après le backup.
+Unattended-Upgrade::Automatic-Reboot "true";
+Unattended-Upgrade::Automatic-Reboot-Time "${UNATTENDED_REBOOT_TIME}";
+EOF
+}
+
+# setup_unattended_upgrades
+# Installe unattended-upgrades, active les maj de sécurité + l'auto-reboot.
+# Idempotent. Risque faible : la stack est `restart: unless-stopped` et Docker
+# démarre au boot → auto-rétablissement en ~1 min après le reboot.
+setup_unattended_upgrades() {
+    ensure_packages unattended-upgrades
+    render_unattended_periodic > "$UNATTENDED_PERIODIC"
+    chmod 0644 "$UNATTENDED_PERIODIC"
+    render_unattended_override > "$UNATTENDED_OVERRIDE"
+    chmod 0644 "$UNATTENDED_OVERRIDE"
+    systemctl enable apt-daily-upgrade.timer >/dev/null 2>&1 || true
+    log_ok "unattended-upgrades : maj sécurité + reboot auto ${UNATTENDED_REBOOT_TIME} (après backup 03:30)"
+}
+
 # ─── Orchestrateur ──────────────────────────────────────────────────────────
 
 # harden_vps
@@ -211,4 +257,5 @@ harden_vps() {
     grant_nopasswd_sudo "$user"
     harden_sshd
     setup_fail2ban
+    setup_unattended_upgrades
 }
