@@ -24,6 +24,7 @@ API publique :
 from .config import DuckDBConfig, DuckDBLockError, duckdb_readonly_conn
 from .helpers import (
     # API fluide
+    affaires,
     c15,
     execute_custom_query,
     f15,
@@ -57,6 +58,7 @@ __all__ = [
     "f15",
     "r64",
     "releves",
+    "affaires",
     "FluxInconnu",
     # Groupings C15 canoniques (cf. CONTEXT.md)
     "ENTREES_C15",

@@ -55,4 +55,9 @@ FLUX_CONFIGS: dict[str, QueryConfig] = {
         transform=transform_r64,
         validator=None,  # Pas encore de modèle Pandera pour R64
     ),
+    "affaires": QueryConfig(
+        schema=FLUX_SCHEMAS["affaires"],
+        transform=lambda lf: lf,  # types déjà posés par dbt ; vue read-only, pas de rattrapage
+        validator=None,  # opérationnel (suivi des affaires SGE), pas de schéma Pandera
+    ),
 }
