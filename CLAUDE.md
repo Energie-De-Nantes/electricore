@@ -368,3 +368,26 @@ Canonical label names (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-f
 ### Domain docs
 
 Multi-context layout: [CONTEXT-MAP.md](CONTEXT-MAP.md) at root pointing to per-module `CONTEXT.md` (core/ingestion/api/bot); ADRs are repo-wide in [docs/adr/](docs/adr/). See [docs/agents/domain.md](docs/agents/domain.md).
+
+## GitHub auth & PR workflow
+
+Inside the Claude Code sandbox the global `gh` keyring login is unreachable, so plain `gh`
+commands — including the issue-tracker workflow above — fail with an authentication error.
+This repo carries a **repo-scoped** fine-grained token at `.gh-token` (gitignored). Read it
+at runtime, anchored to the repo root so it works from any subfolder:
+
+```bash
+GH_TOKEN=$(cat "$(git rev-parse --show-toplevel)/.gh-token") gh pr create --fill
+GH_TOKEN=$(cat "$(git rev-parse --show-toplevel)/.gh-token") gh issue create ...
+```
+
+The token is scoped to **only this repo** (Contents / Pull requests / Issues; no
+Administration, no CI secrets) — never copy it into `~/.config/gh`. Regenerate it with the
+token-setup helper (run from inside this repo) if it expires.
+
+**Branch & PR model** — push freely to feature branches; the default branch is protected by
+a ruleset (PR required; force-push & deletion blocked):
+
+- Never push to or merge the default branch directly.
+- For any change: branch → commit → push → `gh pr create --fill` (with the token above), then stop.
+- Merging the PR is a human step on the website.
