@@ -197,3 +197,6 @@ deploy/docker/docker-compose.*.yml
 
 # Artefacts de build dbt (target par base, cf. pipeline_dbt)
 electricore/ingestion/.dbt_target_*/
+
+# repo-scoped GitHub PAT for in-sandbox automation — never commit
+.gh-token
