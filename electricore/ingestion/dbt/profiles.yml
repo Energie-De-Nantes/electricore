@@ -9,10 +9,14 @@ electricore_flux:
       # Schéma cible = celui que lisent les loaders core (mêmes noms de tables que
       # l'ex-chemin legacy → bascule transparente pour l'aval, ADR-0020/#134).
       schema: flux_enedis
-      # Mémoire : sur gros corpus réels (R64, modèle `releves`), les tris/fenêtres
-      # (dedup `qualify`, forward-fill RSC) saturaient la RAM (OOM à ~6 GiB). Ne pas
-      # préserver l'ordre d'insertion laisse DuckDB déverser sur disque — l'ordre des
-      # lignes matérialisées n'a aucune importance (les loaders trient, golden = match
-      # modulo ordre). Cf. https://duckdb.org/docs/stable/guides/performance/how_to_tune_workloads
+      # Mémoire : sur gros corpus réels, l'unnest des points R64 + l'agrégation par
+      # hachage saturaient la RAM (OOM DuckDB ~6 GiB sur flux_r64/flux_r151). L'opérateur
+      # fautif **ne déverse pas** sur disque (baisser memory_limit échoue plus tôt) ; son
+      # pic mémoire est proportionnel au **nombre de threads** (un jeu de travail par
+      # thread). On le ramène donc à 1 thread, à la mémoire machine pleine — batch
+      # nocturne, la lenteur est acceptable. `preserve_insertion_order: false` allège les
+      # tris (ordre des lignes sans importance : loaders trient, golden = match modulo ordre).
+      # Cf. https://duckdb.org/docs/stable/guides/performance/how_to_tune_workloads
       settings:
         preserve_insertion_order: false
+        threads: 1
