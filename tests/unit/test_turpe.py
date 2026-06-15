@@ -15,6 +15,7 @@ from electricore.core.pipelines.turpe import (
     # Fonctions pipeline
     ajouter_turpe_fixe,
     ajouter_turpe_variable,
+    ajouter_turpe_variable_par_ligne,
     # Fonctions de debug
     debug_turpe_variable,
     # Expressions TURPE variable
@@ -1009,6 +1010,64 @@ class TestTurpeFixeC4:
 
         assert resultat.shape[0] == 2
         assert all(resultat["turpe_fixe_eur"] > 0)
+
+
+class TestTurpeVariableParLigne:
+    """`ajouter_turpe_variable_par_ligne` : succès partiel sans silent-drop (ADR-0030, #251)."""
+
+    def _lot(self) -> pl.LazyFrame:
+        """Lot d'assiette (les 7 cadrans présents) : 1 ligne valide BASE, 1 FTA inconnue, 1 date sans règle."""
+        paris = ZoneInfo("Europe/Paris")
+        lot = pl.LazyFrame(
+            {
+                "id": ["ok", "inconnue", "hors-date"],
+                "formule_tarifaire_acheminement": ["BTINFCUST", "FTA_QUI_NEXISTE_PAS", "BTINFCUST"],
+                "debut": [
+                    datetime(2025, 9, 1, tzinfo=paris),
+                    datetime(2025, 9, 1, tzinfo=paris),
+                    datetime(1990, 1, 1, tzinfo=paris),
+                ],
+                "energie_base_kwh": [1000.0, 1000.0, 1000.0],
+            }
+        )
+        # Les 6 autres cadrans existent (null → 0), comme la frame bâtie par le service.
+        autres = [
+            "energie_hp_kwh",
+            "energie_hc_kwh",
+            "energie_hph_kwh",
+            "energie_hpb_kwh",
+            "energie_hch_kwh",
+            "energie_hcb_kwh",
+        ]
+        return lot.with_columns([pl.lit(None, dtype=pl.Float64).alias(c) for c in autres])
+
+    def test_aucun_silent_drop(self):
+        """Chaque ligne d'entrée ressort exactement une fois (3 entrées → 3 résultats)."""
+        resultat = ajouter_turpe_variable_par_ligne(self._lot()).collect()
+        assert resultat.height == 3
+        assert resultat["id"].to_list() == ["ok", "inconnue", "hors-date"]  # ordre d'entrée préservé
+
+    def test_xor_montant_ou_erreur(self):
+        """Succès → montant + error null ; erreur → montant null + motif explicite distinct."""
+        par_id = {r["id"]: r for r in ajouter_turpe_variable_par_ligne(self._lot()).collect().to_dicts()}
+
+        # Ligne valide : BTINFCUST 2025-08-01 c_base=4.84 → 1000 × 4.84 / 100 = 48.4
+        assert par_id["ok"]["turpe_variable_eur"] == 48.4
+        assert par_id["ok"]["error"] is None
+
+        # FTA inconnue : pas de montant, motif nommant la FTA
+        assert par_id["inconnue"]["turpe_variable_eur"] is None
+        assert "FTA_QUI_NEXISTE_PAS" in par_id["inconnue"]["error"]
+
+        # Date hors de toute plage : motif distinct mentionnant la date
+        assert par_id["hors-date"]["turpe_variable_eur"] is None
+        assert "1990" in par_id["hors-date"]["error"]
+
+    def test_chemin_feed_inchange_droppe_toujours(self):
+        """Garde-fou #251 : le chemin feed `ajouter_turpe_variable` filtre toujours (silent-drop)."""
+        resultat = ajouter_turpe_variable(self._lot()).collect()
+        # Seule la ligne valide survit (FTA inconnue + date sans règle filtrées)
+        assert resultat["id"].to_list() == ["ok"]
 
 
 if __name__ == "__main__":

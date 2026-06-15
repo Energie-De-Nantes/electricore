@@ -20,7 +20,7 @@ with app.setup(hide_code=True):
         sys.path.append(str(project_root))
 
     # Imports des loaders DuckDB
-    from electricore.core.loaders import f15, c15, r151, releves_harmonises, execute_custom_query
+    from electricore.core.loaders import f15, c15, r151, releves, execute_custom_query
 
     from electricore.core.pipelines import facturation
     from electricore.integrations.odoo import OdooReader
@@ -46,7 +46,7 @@ def load_pipeline_data():
 
     # Charger les relevés R151
     print("📄 Chargement relevés R151...")
-    releves_lf = releves_harmonises().lazy()
+    releves_lf = releves().lazy()
     return historique_lf, releves_lf
 
 
