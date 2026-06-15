@@ -291,11 +291,12 @@ Couvre les cas :
 - Changement de domaine (`--domain nouveau.electricore.fr`)
 - Ajout/retrait de Telegram, Odoo, etc.
 
-> **Auto-refresh des helpers `lib/`** : en mode reconfigure, le script
-> re-télécharge inconditionnellement les helpers de `deploy/lib/` (#62). Évite
-> le piège stale-lib où un `install.sh` à jour sourçait un `lib/` figé sur une
-> version antérieure (cas reproduit lors de la migration rc2 → rc3). Override
-> possible via `INSTALL_BASE_URL` pour pinner sur un tag spécifique en dev.
+> **Helpers `lib/` toujours frais** : si le `lib/` co-localisé avec `install.sh`
+> est absent ou incomplet (un `install.sh` à jour à côté d'un `lib/` figé d'un run
+> antérieur — le piège stale-lib, #62), le script télécharge une copie **fraîche
+> dans `/tmp`** plutôt que de réutiliser/laisser pourrir un `lib/` à côté du script.
+> En mode reconfigure, un `lib/` co-localisé complet est en plus re-téléchargé.
+> Override possible via `INSTALL_BASE_URL` pour pinner sur un tag spécifique en dev.
 
 ## Durcissement du VPS
 
@@ -388,6 +389,38 @@ sudo bash harden.sh
 Le même **garde-fou anti-verrouillage** s'applique (refus de couper root SSH si
 `ops` n'a pas de clé). Options : `--admin-pubkey "ssh-ed25519 …"`, et les `--no-*`
 (`--no-sshd`, `--no-fail2ban`, `--no-unattended-upgrades`) pour durcir par morceaux.
+
+### Réverser le durcissement (désinstallation)
+
+Pour revenir en arrière — repasser sur un accès root classique, ou annuler en cas
+de souci — [`deploy/unharden.sh`](../deploy/unharden.sh) défait ce que le
+durcissement a posé :
+
+- retire le drop-in sshd → **SSH root rétabli** (défaut de l'image) ;
+- retire la jail fail2ban (laisse le paquet installé) ;
+- retire la conf unattended-upgrades (auto-reboot 04:30 désactivé).
+
+Le user admin `ops` est **conservé** par défaut ; `--purge-ops` le supprime aussi
+(sudoers + compte + home).
+
+```bash
+# Instance au layout courant :
+ssh ops@<vps>          # ou root si tu y as encore accès
+sudo bash /srv/<slug>/deploy/unharden.sh               # garde ops
+sudo bash /srv/<slug>/deploy/unharden.sh --purge-ops   # supprime aussi ops
+
+# Standalone (legacy /opt, ou box sans notre arbre deploy/) :
+curl -fsSL https://raw.githubusercontent.com/Energie-De-Nantes/electricore/main/deploy/unharden.sh -o unharden.sh
+sudo bash unharden.sh
+```
+
+La réversion rétablit le SSH root **en premier**, donc même un `--purge-ops` ne
+peut pas te verrouiller dehors. Pense ensuite à remettre `User root` dans ton
+`~/.ssh/config` si tu l'avais basculé sur `ops`.
+
+> La réversion retire entièrement `/etc/apt/apt.conf.d/20auto-upgrades`. Si ton
+> image l'avait déjà avant durcissement, les mises à jour auto repassent au défaut
+> du paquet (généralement inactif sans ce fichier).
 
 ## Accès distant depuis un notebook Python
 

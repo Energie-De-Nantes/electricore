@@ -30,6 +30,11 @@ source "${SCRIPT_DIR}/../install.sh"
 # shellcheck source=../harden.sh
 source "${LIB_DIR}/../harden.sh"
 
+# `unharden.sh` (wrapper de réversion) — guard `main_unharden` ; expose
+# parse_unharden_args + les fonctions de réversion (déjà dans lib/harden.sh).
+# shellcheck source=../unharden.sh
+source "${LIB_DIR}/../unharden.sh"
+
 PASS=0; FAIL=0
 ok() { printf '  \033[32m✓\033[0m %s\n' "$1"; PASS=$((PASS+1)); }
 ko() { printf '  \033[31m✗\033[0m %s\n' "$1"; FAIL=$((FAIL+1)); }
@@ -172,6 +177,35 @@ echo "→ harden.sh (wrapper autonome) / parse_harden_args"
 ( parse_harden_args --no-sshd --no-unattended-upgrades >/dev/null 2>&1
   [[ "$OPT_NO_SSHD" == "1" && "$OPT_NO_UNATTENDED" == "1" ]]
 ) && ok "parse_harden_args: --no-sshd + --no-unattended-upgrades" || ko "parse_harden_args no-sshd/no-unattended"
+
+echo
+echo "→ unharden.sh (réversion) / parse_unharden_args + no-op"
+( parse_unharden_args >/dev/null 2>&1; [[ "$OPT_PURGE_OPS" == "0" ]] ) \
+    && ok "parse_unharden_args: ops conservé par défaut (OPT_PURGE_OPS=0)" || ko "parse_unharden_args défaut"
+( parse_unharden_args --purge-ops >/dev/null 2>&1; [[ "$OPT_PURGE_OPS" == "1" ]] ) \
+    && ok "parse_unharden_args: --purge-ops → 1" || ko "parse_unharden_args --purge-ops"
+( parse_unharden_args --bogus >/dev/null 2>&1 ); [[ "$?" -eq 2 ]] \
+    && ok "parse_unharden_args: argument inconnu → exit 2" || ko "parse_unharden_args arg inconnu"
+# Réversions no-op (rien à retirer) — branches sûres, sans toucher sshd/systemd
+( SSHD_HARDEN_DROPIN="/nonexistent-$$" unharden_sshd >/dev/null 2>&1 ) \
+    && ok "unharden_sshd: drop-in absent → no-op (pas de reload sshd)" || ko "unharden_sshd no-op"
+( FAIL2BAN_JAIL="/nonexistent-$$" remove_fail2ban_jail >/dev/null 2>&1 ) \
+    && ok "remove_fail2ban_jail: jail absente → no-op" || ko "remove_fail2ban_jail no-op"
+( UNATTENDED_OVERRIDE="/nope1-$$" UNATTENDED_PERIODIC="/nope2-$$" remove_unattended_config >/dev/null 2>&1 ) \
+    && ok "remove_unattended_config: conf absente → no-op" || ko "remove_unattended_config no-op"
+# remove_unattended_config retire bien les fichiers présents (file-only, sûr)
+uov=$(mktemp); uop=$(mktemp)
+( UNATTENDED_OVERRIDE="$uov" UNATTENDED_PERIODIC="$uop" remove_unattended_config >/dev/null 2>&1 )
+[[ ! -f "$uov" && ! -f "$uop" ]] && ok "remove_unattended_config: retire les fichiers présents" || ko "remove_unattended_config retrait"
+rm -f "$uov" "$uop"
+
+echo
+echo "→ install.sh / lib_dir_complete (anti trap stale-lib)"
+assert_ok   "lib/ du repo est complet"          lib_dir_complete "${LIB_DIR}"
+assert_fail "répertoire absent → incomplet"     lib_dir_complete "/nonexistent-libdir-$$"
+incdir=$(mktemp -d); : > "${incdir}/log.sh"   # un seul helper sur douze
+assert_fail "lib/ partiel (helper manquant) → incomplet" lib_dir_complete "$incdir"
+rm -rf "$incdir"
 
 echo
 echo "→ install.sh / fetch_lib_files"
