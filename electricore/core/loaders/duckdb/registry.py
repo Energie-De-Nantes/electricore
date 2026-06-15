@@ -11,6 +11,7 @@ from electricore.core.models.releve_index import RelevéIndex
 from .query import QueryConfig
 from .sql import FLUX_SCHEMAS
 from .transforms import (
+    transform_dates,
     transform_factures,
     transform_historique,
     transform_r64,
@@ -56,8 +57,11 @@ FLUX_CONFIGS: dict[str, QueryConfig] = {
         validator=None,  # Pas encore de modèle Pandera pour R64
     ),
     "affaires": QueryConfig(
+        # jalon_date_heure est TIMESTAMPTZ : on le convertit en Europe/Paris (instant
+        # préservé) pour un dtype stable quel que soit le fuseau de session (poste local
+        # vs CI/VPS en UTC) — même contrat que les autres loaders (cf. transform_dates).
         schema=FLUX_SCHEMAS["affaires"],
-        transform=lambda lf: lf,  # types déjà posés par dbt ; vue read-only, pas de rattrapage
+        transform=transform_dates(("jalon_date_heure",)),
         validator=None,  # opérationnel (suivi des affaires SGE), pas de schéma Pandera
     ),
 }
