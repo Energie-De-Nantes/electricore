@@ -14,12 +14,40 @@ import polars as pl
 
 from .config import DuckDBConfig, duckdb_readonly_conn
 from .query import DuckDBQuery, QueryConfig, make_query
-from .registry import FLUX_CONFIGS
+from .registry import FLUX_CONFIGS, FluxInconnu
 from .sql import FluxSchema
 
 # =============================================================================
 # API FLUIDE - FONCTIONS FACTORY PAR FLUX
 # =============================================================================
+
+
+def flux(nom: str, database_path: str | Path | None = None) -> DuckDBQuery:
+    """Crée un DuckDBQuery pour un flux Enedis enregistré (résolution registre).
+
+    Point d'entrée dynamique : résout `nom` dans `FLUX_CONFIGS` et retourne le
+    builder configuré. Pour les 5 flux Enedis (`c15`, `r151`, `r15`, `f15`,
+    `r64`) ; le modèle de relevés canonique a sa propre factory `releves()`
+    (ADR-0029), hors périmètre.
+
+    Args:
+        nom: Nom court du flux (clé de `FLUX_CONFIGS`).
+        database_path: Chemin vers la base DuckDB (optionnel).
+
+    Returns:
+        DuckDBQuery configuré pour le flux demandé.
+
+    Raises:
+        FluxInconnu: Si `nom` n'est pas un flux enregistré (le message nomme
+            les flux disponibles). Le loader reste agnostique HTTP — c'est au
+            caller transport de mapper sur un 404.
+
+    Example:
+        >>> df = flux("c15").filter({"pdl": ["PDL123"]}).limit(100).collect()
+    """
+    if nom not in FLUX_CONFIGS:
+        raise FluxInconnu(nom, sorted(FLUX_CONFIGS))
+    return make_query(FLUX_CONFIGS[nom], database_path)
 
 
 def c15(database_path: str | Path | None = None) -> DuckDBQuery:
@@ -39,7 +67,7 @@ def c15(database_path: str | Path | None = None) -> DuckDBQuery:
         >>> # Filtrer par PDL spécifiques
         >>> lazy_df = c15().filter({"pdl": ["PDL123", "PDL456"]}).lazy()
     """
-    return make_query(FLUX_CONFIGS["c15"], database_path)
+    return flux("c15", database_path)
 
 
 def r151(database_path: str | Path | None = None) -> DuckDBQuery:
@@ -56,7 +84,7 @@ def r151(database_path: str | Path | None = None) -> DuckDBQuery:
         >>> # Relevés récents avec limite
         >>> df = r151().filter({"date_releve": ">= '2024-01-01'"}).limit(1000).collect()
     """
-    return make_query(FLUX_CONFIGS["r151"], database_path)
+    return flux("r151", database_path)
 
 
 def r15(database_path: str | Path | None = None) -> DuckDBQuery:
@@ -73,7 +101,7 @@ def r15(database_path: str | Path | None = None) -> DuckDBQuery:
         >>> # Relevés avec situation contractuelle spécifique
         >>> df = r15().filter({"ref_situation_contractuelle": "REF123"}).collect()
     """
-    return make_query(FLUX_CONFIGS["r15"], database_path)
+    return flux("r15", database_path)
 
 
 def f15(database_path: str | Path | None = None) -> DuckDBQuery:
@@ -93,7 +121,7 @@ def f15(database_path: str | Path | None = None) -> DuckDBQuery:
         >>> # Factures sur une période
         >>> df = f15().filter({"date_facture": ">= '2024-01-01'"}).limit(100).collect()
     """
-    return make_query(FLUX_CONFIGS["f15"], database_path)
+    return flux("f15", database_path)
 
 
 def r64(database_path: str | Path | None = None) -> DuckDBQuery:
@@ -113,7 +141,7 @@ def r64(database_path: str | Path | None = None) -> DuckDBQuery:
         >>> # Filtrer par PDL et type de relevé
         >>> df = r64().filter({"pdl": "PDL123", "type_releve": "AQ"}).collect()
     """
-    return make_query(FLUX_CONFIGS["r64"], database_path)
+    return flux("r64", database_path)
 
 
 def releves(database_path: str | Path | None = None) -> DuckDBQuery:

@@ -79,9 +79,25 @@ def df_flux_synthetique() -> pl.DataFrame:
     return pl.DataFrame({"pdl": ["A", "B"], "date": ["2025-01-01", "2025-01-02"]})
 
 
+class _FakeQuery:
+    """Double du `DuckDBQuery` substitué au seam du loader (`flux`) — chaînable, sans IO."""
+
+    def __init__(self, df: pl.DataFrame):
+        self._df = df
+
+    def filter(self, _filters):
+        return self
+
+    def limit(self, _n):
+        return self
+
+    def collect(self) -> pl.DataFrame:
+        return self._df
+
+
 def test_generic_flux_xlsx_extension_suffix_returns_200(client, monkeypatch, df_flux_synthetique):
     """`GET /flux/{table_name}.xlsx` (extension-suffix) sert le XLSX du flux."""
-    monkeypatch.setattr("electricore.api.routers.flux._load_flux_df", lambda t, prm, lim: df_flux_synthetique)
+    monkeypatch.setattr("electricore.core.loaders.duckdb.flux", lambda name: _FakeQuery(df_flux_synthetique))
 
     response = client.get("/flux/c15.xlsx")
 
@@ -91,7 +107,7 @@ def test_generic_flux_xlsx_extension_suffix_returns_200(client, monkeypatch, df_
 
 def test_generic_flux_arrow_extension_suffix_returns_200(client, monkeypatch, df_flux_synthetique):
     """`GET /flux/{table_name}.arrow` (extension-suffix) sert l'Arrow IPC du flux."""
-    monkeypatch.setattr("electricore.api.routers.flux._load_flux_df", lambda t, prm, lim: df_flux_synthetique)
+    monkeypatch.setattr("electricore.core.loaders.duckdb.flux", lambda name: _FakeQuery(df_flux_synthetique))
 
     response = client.get("/flux/c15.arrow")
 
@@ -131,7 +147,7 @@ def test_anciens_paths_flux_segment_404(client):
 
 def test_flux_json_endpoint_still_works(client, monkeypatch, df_flux_synthetique):
     """`GET /flux/{table_name}` (sans extension) sert toujours le JSON."""
-    monkeypatch.setattr("electricore.api.routers.flux._load_flux_df", lambda t, prm, lim: df_flux_synthetique)
+    monkeypatch.setattr("electricore.core.loaders.duckdb.flux", lambda name: _FakeQuery(df_flux_synthetique))
 
     response = client.get("/flux/c15", params={"limit": 10})
 

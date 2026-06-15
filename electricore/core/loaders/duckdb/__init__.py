@@ -27,6 +27,7 @@ from .helpers import (
     c15,
     execute_custom_query,
     f15,
+    flux,
     # Utilitaires
     get_available_tables,
     r15,
@@ -35,7 +36,7 @@ from .helpers import (
     releves,
 )
 from .query import DuckDBQuery
-from .registry import ENTREES_C15, SORTIES_C15
+from .registry import ENTREES_C15, SORTIES_C15, FluxInconnu
 
 # =============================================================================
 # EXPORTS PUBLICS
@@ -49,12 +50,14 @@ __all__ = [
     # Query builder
     "DuckDBQuery",
     # API fluide (recommandée)
+    "flux",
     "c15",
     "r151",
     "r15",
     "f15",
     "r64",
     "releves",
+    "FluxInconnu",
     # Groupings C15 canoniques (cf. CONTEXT.md)
     "ENTREES_C15",
     "SORTIES_C15",
