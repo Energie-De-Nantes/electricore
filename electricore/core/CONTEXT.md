@@ -177,8 +177,8 @@ _Éviter_ : confondre *statut* (3 valeurs) et *état* (fin, ~16 valeurs).
 ## Mesures et énergie
 
 **Index** :
-Valeur cumulée affichée par le compteur à une date donnée, en kWh. Un index par cadran (`index_hp_kwh`, `index_hph_kwh`…).
-_Éviter_ : mesure (trop générique), valeur.
+Valeur cumulée affichée par le compteur à une date donnée, en **kWh entiers** — le grain facturable. Un index par cadran (`index_hp_kwh`, `index_hph_kwh`…). Enedis livre les index en Wh (R151/R64) ; la résolution sub-kWh est délibérément abandonnée au boundary d'ingestion (l'analyse fine relève des *courbes de charge*, pas des différences d'index), la normalisation Wh→kWh par `floor` est actée par [ADR-0034](../../docs/adr/0034-index-kwh-entiers-floor-au-boundary-dbt.md).
+_Éviter_ : mesure (trop générique), valeur ; un `index_*_kwh` en Wh (le suffixe `_kwh` est un contrat).
 
 **Relevé** :
 Événement de lecture d'index à une date donnée, contenant un ou plusieurs index selon le calendrier. Source : flux R151 (périodique) ou R15 (ponctuel).
