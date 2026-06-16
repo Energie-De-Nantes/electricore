@@ -9,6 +9,31 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.0.0rc10] - 2026-06-16
+
+Robustesse des affaires SGE et lisibilité des échecs d'ingestion — deux correctifs
+révélés en déployant rc9 sur données réelles.
+
+### 🐛 Correctifs (ingestion + core)
+
+- **`flux_affaires.statut` nullable + cockpit « en attente Enedis »** ([#296](https://github.com/Energie-De-Nantes/electricore/issues/296)) :
+  Enedis envoie un `<statut>` vide (→ null) pour une affaire fraîchement initiée qu'il n'a
+  pas encore rangée (jalon 0, demande transmise, pas d'objet) ; le `not_null` faisait échouer
+  `dbt build` en prod (45 lignes) → job d'ingestion en échec. `statut` devient nullable (fidèle
+  à la source, [ADR-0029](docs/adr/0029-modele-releves-canonique-dbt-assemble-coeur-arbitre.md)),
+  et `affaires_ouvertes` traite null comme **ouvert** au même titre que `COURS` — les demandes
+  tout juste déposées apparaissent au cockpit avec leur dernier état. rc8 n'avait couvert que le
+  cas `<statut code="X"/>` (attribut sur feuille), pas le `<statut>` vide.
+- **Job d'ingestion : la vraie erreur au lieu d'un « exit code 1 » nu** ([#298](https://github.com/Energie-De-Nantes/electricore/issues/298)) :
+  dlt/dbt loguent leurs diagnostics sur stdout. Un job en échec capture désormais cette sortie
+  (`output` dans tous les cas, `error` = stderr sinon le tail de stdout) au lieu de la jeter —
+  un échec d'ingestion devient lisible au niveau job/API. Suivi : [#299](https://github.com/Energie-De-Nantes/electricore/issues/299)
+  (le step « ETL test » de l'installeur doit poller l'issue du job au lieu de verdir sur le 202).
+
+### 🔧 Dépendances
+
+- Bump starlette 1.2.1 → 1.3.1, cryptography 48.0.0 → 48.0.1 (Dependabot).
+
 ## [3.0.0rc9] - 2026-06-16
 
 Correctif de correctness : les index R151/R64 étaient ~1000× trop grands dans le mart
