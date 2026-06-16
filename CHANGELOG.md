@@ -9,6 +9,23 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.0.0rc8] - 2026-06-16
+
+Correctif d'ingestion : `ingestion all` échouait en prod sur le data test `not_null`
+de `flux_affaires.statut` (rc7).
+
+### 🐛 Correctifs (ingestion)
+
+- **`xml_vers_dict` garde les attributs des feuilles** : en données réelles, certains
+  `<statut code="COURS"/>` n'ont pas d'enfant `<libelle>` (feuille porteuse d'attribut) ;
+  le parseur ne capturait les attributs que sur les *conteneurs* → `@code` perdu →
+  `statut` null → `not_null` KO → `dbt build` KO → job d'ingestion en échec. Une feuille
+  à attribut devient désormais un nœud `{"@code": …}` listé (même forme que le conteneur,
+  accès `statut[0]."@code"` uniforme) ; une feuille sans attribut reste scalaire (zéro
+  régression element-only). Vérifié sur le corpus réel EDN : 0 `statut` null (était 14).
+- Les **commentaires / PI XML** (`.tag` non-`str`) sont ignorés au parsing (sinon clé de
+  dict non sérialisable au landing JSON).
+
 ## [3.0.0rc7] - 2026-06-16
 
 Suivi opérationnel des **affaires SGE** (flux X12/X13) de bout en bout, parité de
