@@ -9,6 +9,26 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.0.0rc9] - 2026-06-16
+
+Correctif de correctness : les index R151/R64 étaient ~1000× trop grands dans le mart
+relevés canonique (Wh stockés dans des colonnes `index_*_kwh`, mélangés aux index C15
+nativement en kWh) — corrompant énergie, TURPE variable, accise et facturation.
+
+### 🐛 Correctifs (ingestion + core)
+
+- **Normalisation des index Wh→kWh au boundary dbt** ([#285](https://github.com/Energie-De-Nantes/electricore/issues/285), [ADR-0034](docs/adr/0034-index-kwh-entiers-floor-au-boundary-dbt.md)) :
+  R151 et R64 sont livrés en **Wh** par Enedis ; la conversion vivait dans les transforms
+  Polars du loader et a été perdue à la bascule relevés canoniques (rc7, [#248](https://github.com/Energie-De-Nantes/electricore/issues/248)).
+  Elle descend dans la **linéarisation dbt** (`flux_r151`/`flux_r64` : `floor(valeur/1000)`
+  par index → kWh entier, `unite='kWh'`), honorée à toute couche (mart, API `/flux`). Retrait
+  du convertisseur loader (sinon double-division des endpoints `r151()`/`r64()`) et du no-op
+  d'arrondi en cœur. Garde-fous dbt (tests singuliers) : ces modèles n'émettent **jamais**
+  `'Wh'`. Floor par index sûr — l'erreur télescope, bornée **< 1 kWh** sur la vie d'un registre
+  (~< 0,20 €) ; parité `/releves` rc7 préservée. Golden `flux_r151`/`flux_r64` régénérés (÷1000).
+- Suivi : [#286](https://github.com/Energie-De-Nantes/electricore/issues/286) — vérifier l'unité
+  native de R15 (`col_literal('kWh')` masque un bug Wh latent éventuel ; R15 hors mart `releves`).
+
 ## [3.0.0rc8] - 2026-06-16
 
 Correctif d'ingestion : `ingestion all` échouait en prod sur le data test `not_null`
