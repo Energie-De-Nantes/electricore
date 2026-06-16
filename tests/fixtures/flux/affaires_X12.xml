@@ -71,4 +71,24 @@
       </donneesGenerales>
     </demande>
   </affaire>
+  <affaire id="AFF0000004">
+    <donneesGenerales>
+      <referenceDemandeur>EDN</referenceDemandeur>
+      <!-- statut SANS enfant libelle (forme observée en prod) : l'attribut @code
+           doit survivre malgré l'absence de contenu textuel. -->
+      <statut code="COURS"/>
+      <jalons>
+        <jalon><num>1</num><dateHeure>2024-11-24T09:00:00.000+01:00</dateHeure><affaireDateEffet>2024-11-24+01:00</affaireDateEffet><affaireEtat code="DMTR"><libelle>Demande transmise</libelle></affaireEtat></jalon>
+      </jalons>
+      <donneesPoint><id>99000000000055</id><segmentClientele code="C5"><libelle>C5</libelle></segmentClientele></donneesPoint>
+      <segment>C5</segment>
+    </donneesGenerales>
+    <demande>
+      <donneesGenerales>
+        <objet code="CFN"><libelle>Changement de fournisseur</libelle></objet>
+        <pointId>99000000000055</pointId>
+        <media code="PTL"><libelle>PORTAIL</libelle></media>
+      </donneesGenerales>
+    </demande>
+  </affaire>
 </affaires>

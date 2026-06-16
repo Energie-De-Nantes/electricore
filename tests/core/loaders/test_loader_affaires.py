@@ -78,21 +78,24 @@ def test_affaires_charge_attributs_et_instant_tzaware(base_affaires):
     df = affaires(database_path=base_affaires).collect()
 
     assert df.schema["jalon_date_heure"] == pl.Datetime("us", "Europe/Paris")
-    assert df.height == 7  # 4 + 1 + 2 jalons des 3 affaires de la fixture
+    assert df.height == 8  # 4 + 1 + 2 + 1 jalons des 4 affaires de la fixture
     assert df["origine"].unique().to_list() == ["initiee"]
     # L'état CPNR (porté par l'attribut affaireEtat/@code) est bien remonté.
     assert "CPNR" in df["affaire_etat"].to_list()
+    # statut COURS porté par un attribut SEUL (<statut code="COURS"/>) survit jusqu'au DataFrame.
+    assert "COURS" in df["statut"].to_list()
 
 
 def test_affaires_ouvertes_bout_en_bout(base_affaires):
-    """DB → loader → rollup : la seule affaire COURS de la fixture (AME) ressort
-    quand on n'exclut pas AME, avec son dernier état."""
+    """DB → loader → rollup : l'affaire CFN en cours (statut COURS porté par attribut
+    seul) ressort — AME écartée par défaut — avec son dernier état."""
     from electricore.core.loaders import affaires
     from electricore.core.pipelines.affaires import affaires_ouvertes
 
     df = affaires(database_path=base_affaires).collect()
-    vue = affaires_ouvertes(df, maintenant=datetime(2024, 11, 25, 9, tzinfo=PARIS), exclure_prestations=())
+    vue = affaires_ouvertes(df, maintenant=datetime(2024, 11, 25, 9, tzinfo=PARIS))
 
-    assert vue["affaire_id"].to_list() == ["AFF0000002"]
+    # AFF0000004 = CFN COURS (statut attribut-seul) ; AFF0000002 = AME COURS, exclue par défaut.
+    assert vue["affaire_id"].to_list() == ["AFF0000004"]
     assert vue["dernier_etat"].to_list() == ["DMTR"]
-    assert vue["prestation"].to_list() == ["AME"]
+    assert vue["prestation"].to_list() == ["CFN"]

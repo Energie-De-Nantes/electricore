@@ -47,3 +47,22 @@ def test_attributs_de_conteneur_captures_avec_prefixe():
             }
         ]
     }
+
+
+def test_feuille_porteuse_dattribut_devient_un_noeud_liste():
+    # Observé en prod X12 : <statut code="COURS"/> SANS enfant libelle. Une feuille
+    # porteuse d'attribut n'est pas un scalaire — l'attribut est de la donnée. Elle
+    # devient un nœud `[{"@code": ...}]`, MÊME forme que le conteneur, pour que le modèle
+    # dbt y accède uniformément (`statut[0]."@code"`) qu'il y ait un libelle ou non.
+    # Une feuille SANS attribut reste scalaire (zéro régression element-only).
+    assert xml_vers_dict(b'<root><statut code="COURS"/><vide/><texte>x</texte></root>') == {
+        "statut": [{"@code": "COURS"}],  # feuille à attribut → nœud listé
+        "vide": None,  # feuille sans attribut ni texte → scalaire None
+        "texte": "x",  # feuille texte sans attribut → scalaire
+    }
+
+
+def test_commentaires_xml_ignores():
+    # lxml expose un commentaire comme un nœud dont `.tag` est une fonction (pas une
+    # chaîne) — utilisé tel quel en clé de dict, il casse le landing JSON. On l'ignore.
+    assert xml_vers_dict(b"<root><!-- note --><a>1</a></root>") == {"a": "1"}
