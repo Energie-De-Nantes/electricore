@@ -29,7 +29,11 @@ def affaires_ouvertes(
         Une ligne par affaire en cours, avec son dernier état (jalon de `num` max) et
         son ancienneté en jours (maintenant − premier jalon).
     """
-    lf = jalons.lazy().filter(pl.col("statut") == "COURS")
+    # « Non soldée » = COURS, mais aussi statut NULL : Enedis envoie un <statut> vide pour
+    # une affaire fraîchement initiée qu'il n'a pas encore rangée (jalon 0 DMTR, demande
+    # transmise). C'est l'affaire la plus ouverte qui soit — « en attente Enedis ». Seules
+    # TERMN/ANNUL sont soldées (#296).
+    lf = jalons.lazy().filter((pl.col("statut") == "COURS") | pl.col("statut").is_null())
     if exclure_prestations:
         # is_in(...) renvoie null pour une prestation nulle → fill_null(False) garde la
         # réclamation (prestation absente), seules les prestations exclues sont retirées.
