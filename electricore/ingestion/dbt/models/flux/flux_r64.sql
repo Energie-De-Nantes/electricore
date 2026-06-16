@@ -114,6 +114,7 @@ points as (
 points_valides as (
     select
         mesure_id,
+        id_calendrier,
         lower(id_classe)                       as cadran,
         cast(date_point as timestamp)          as date_releve,
         cast(valeur_point as bigint)           as valeur
@@ -137,6 +138,10 @@ pivot_cadrans as (
     select
         mesure_id,
         date_releve,
+        -- Calendrier distributeur de la mesure (points déjà filtrés sur les calendriers
+        -- distributeur ci-dessus) : conservé au lieu d'être jeté (#304). Un (mesure, date)
+        -- n'a qu'un calendrier distributeur actif → max() est déterministe.
+        max(id_calendrier)                            as id_calendrier_distributeur,
         max(case when cadran = 'base' then valeur end) as index_base_kwh,
         max(case when cadran = 'hp'   then valeur end) as index_hp_kwh,
         max(case when cadran = 'hc'   then valeur end) as index_hc_kwh,
