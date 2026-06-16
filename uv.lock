@@ -761,6 +761,7 @@ ingestion = [
     { name = "dlt", extra = ["filesystem"] },
     { name = "lxml" },
     { name = "paramiko" },
+    { name = "psutil" },
     { name = "pycryptodome" },
 ]
 viz = [
@@ -800,6 +801,7 @@ requires-dist = [
     { name = "paramiko", marker = "extra == 'ingestion'", specifier = ">=4.0.0,<5.0.0" },
     { name = "plotly", extras = ["express"], marker = "extra == 'viz'", specifier = ">=6.2.0" },
     { name = "polars", specifier = ">=1.0.0,<2.0.0" },
+    { name = "psutil", marker = "extra == 'ingestion'", specifier = ">=5.9.0,<8.0.0" },
     { name = "pyarrow", specifier = ">=23.0.1,<24.0.0" },
     { name = "pycryptodome", marker = "extra == 'ingestion'", specifier = ">=3.23.0,<4.0.0" },
     { name = "pydantic-settings", specifier = ">=2.14.1" },
