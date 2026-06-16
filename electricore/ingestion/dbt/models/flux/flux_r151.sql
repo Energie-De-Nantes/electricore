@@ -20,7 +20,8 @@ with flat as (
         releve ->> '$.Id_Calendrier_Fournisseur'       as id_calendrier_fournisseur,
         releve ->> '$.Id_Calendrier_Distributeur'      as id_calendrier_distributeur,
         releve ->> '$.Id_Affaire'                      as id_affaire,
-        unite
+        -- Unité normalisée en kWh au boundary (ADR-0034) : Enedis livre en Wh.
+        case when unite = 'Wh' then 'kWh' else unite end as unite
     from {{ ref('stg_r151') }}
 ),
 
@@ -28,7 +29,13 @@ classes as (
     select
         releve_id as occurrence_id,
         lower(c.classe ->> '$.Id_Classe_Temporelle')   as cadran,
-        cast(c.classe ->> '$.Valeur' as bigint)        as valeur
+        -- Wh → kWh entier (floor par index, ADR-0034). // = division entière DuckDB ;
+        -- les index sont des cumuls non négatifs → floor exact. L'erreur de troncature
+        -- télescope (< 1 kWh sur la vie du registre).
+        case when unite = 'Wh'
+             then cast(c.classe ->> '$.Valeur' as bigint) // 1000
+             else cast(c.classe ->> '$.Valeur' as bigint)
+        end                                            as valeur
     from {{ ref('stg_r151') }},
         unnest(cast(releve -> '$.Classe_Temporelle_Distributeur' as json[])) as c(classe)
 ),

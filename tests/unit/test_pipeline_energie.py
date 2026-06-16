@@ -316,26 +316,6 @@ def test_mois_annee_au_format_cle_calculable():
     assert periodes["mois_annee"].to_list() == ["2024-01", "2024-02"]
 
 
-def test_expr_arrondir_index_kwh():
-    """Teste l'arrondi des index à l'entier inférieur."""
-    df = pl.DataFrame(
-        {
-            "index_base_kwh": [1000.8, 1001.2, None],
-            "index_hp_kwh": [500.9, None, 502.1],
-            "index_hc_kwh": [None, 400.7, 401.3],
-        }
-    ).lazy()
-
-    from electricore.core.pipelines.energie import expr_arrondir_index_kwh
-
-    result = df.with_columns(expr_arrondir_index_kwh(["index_base_kwh", "index_hp_kwh", "index_hc_kwh"])).collect()
-
-    # Vérifier l'arrondi à l'entier inférieur
-    assert result["index_base_kwh"].to_list() == [1000.0, 1001.0, None]
-    assert result["index_hp_kwh"].to_list() == [500.0, None, 502.0]
-    assert result["index_hc_kwh"].to_list() == [None, 400.0, 401.0]
-
-
 def test_expr_calculer_energie_cadran():
     """Teste le calcul d'énergie pour un cadran."""
     df = pl.DataFrame(

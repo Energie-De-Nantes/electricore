@@ -96,29 +96,6 @@ def expr_bornes_depuis_shift(over: str = "ref_situation_contractuelle") -> list[
     ]
 
 
-def expr_arrondir_index_kwh(cadrans: list[str]) -> list[pl.Expr]:
-    """
-    Expressions pour arrondir les index à l'entier inférieur (kWh complets).
-
-    Note: La conversion Wh -> kWh est maintenant gérée au niveau du loader DuckDB.
-    Cette fonction ne fait plus que l'arrondissement final des valeurs déjà en kWh.
-
-    Args:
-        cadrans: Liste des colonnes de cadrans à arrondir
-
-    Returns:
-        Liste d'expressions Polars pour l'arrondissement
-
-    Example:
-        >>> expressions = expr_arrondir_index_kwh(["BASE", "HP", "HC"])
-        >>> lf = lf.with_columns(expressions)
-    """
-    return [
-        pl.when(pl.col(cadran).is_not_null()).then(pl.col(cadran).floor()).otherwise(pl.col(cadran)).alias(cadran)
-        for cadran in cadrans
-    ]
-
-
 def expr_calculer_energie_cadran(index_col: str, over: str = "ref_situation_contractuelle") -> pl.Expr:
     """
     Calcule l'énergie pour un cadran donné (différence avec relevé précédent).
@@ -452,11 +429,10 @@ def calculer_periodes_energie(lf: pl.LazyFrame) -> LazyFrame[PeriodeEnergie]:
     Pipeline de transformation :
     1. tri temporel des relevés
     2. Calcul des décalages par contrat avec window functions
-    3. Arrondi des index à l'entier inférieur (kWh complets)
-    4. Calcul vectorisé des énergies tous cadrans
-    5. Calcul des flags de qualité
-    6. Filtrage des périodes valides
-    7. Enrichissement hiérarchique des cadrans
+    3. Calcul vectorisé des énergies tous cadrans
+    4. Calcul des flags de qualité
+    5. Filtrage des périodes valides
+    6. Enrichissement hiérarchique des cadrans
 
     Args:
         lf: LazyFrame contenant les relevés d'index chronologiques
@@ -475,10 +451,9 @@ def calculer_periodes_energie(lf: pl.LazyFrame) -> LazyFrame[PeriodeEnergie]:
         # Tri par contrat et chronologique pour optimiser les .over("ref_situation_contractuelle")
         .sort(["ref_situation_contractuelle", "date_releve", "ordre_index"])
         .set_sorted("ref_situation_contractuelle")  # Indiquer explicitement que ref_situation_contractuelle est trié
-        # Étape 1 : Bornes temporelles + arrondi index (indépendants)
-        .with_columns(
-            [*expr_bornes_depuis_shift(over="ref_situation_contractuelle"), *expr_arrondir_index_kwh(colonnes_index)]
-        )
+        # Étape 1 : Bornes temporelles. Les index arrivent déjà en kWh entiers depuis
+        # le boundary dbt (ADR-0034) — plus d'arrondi à faire ici.
+        .with_columns([*expr_bornes_depuis_shift(over="ref_situation_contractuelle")])
         # Étape 2 : Calcul énergies + méta-colonnes de période (bundle partagé, cf. periodes.py)
         .with_columns([*expr_calculer_energies_tous_cadrans(colonnes_index), *exprs_meta_periode()])
         # Étape 3 : Flag de complétude des données

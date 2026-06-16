@@ -29,6 +29,9 @@ from electricore.core.loaders.duckdb.transforms import (
     transform_historique as _transform_historique,
 )
 from electricore.core.loaders.duckdb.transforms import (
+    transform_r64 as _transform_r64,
+)
+from electricore.core.loaders.duckdb.transforms import (
     transform_releves as _transform_releves,
 )
 
@@ -181,114 +184,60 @@ class TestTransformationFunctions:
         assert "unite" in df.columns
         assert "precision" in df.columns
 
-    def test_transform_releves_conversion_wh_to_kwh(self):
-        """Test de la conversion Wh -> kWh avec troncature."""
-        # Test de la logique de conversion sans la conversion de timezone
-        index_cols = ["BASE", "HP", "HC", "HPH", "HPB", "HCB", "HCH"]
+    def test_transform_releves_ne_convertit_plus_les_index(self):
+        """Le loader ne convertit plus Wh→kWh (ADR-0034) : la normalisation vit au
+        boundary de linéarisation dbt (flux_r151/flux_r64 émettent des kWh entiers).
+        Reconvertir ici diviserait deux fois — le loader passe les index inchangés."""
+        from datetime import datetime
 
         test_data = pl.DataFrame(
             {
-                "pdl": ["PDL123", "PDL124"],
-                "BASE": [13874.0, 16017.0],  # Valeurs d'exemple en Wh
-                "HP": [None, 5500.0],
-                "HC": [2500.0, None],
-                "HPH": [None, None],
-                "HPB": [None, None],
-                "HCB": [None, None],
-                "HCH": [None, None],
-                "unite": ["Wh", "Wh"],
-                "precision": ["Wh", "Wh"],
-            }
-        ).lazy()
-
-        # Appliquer uniquement la logique de conversion (sans date timezone)
-        result = test_data.with_columns(
-            [
-                # Conversion Wh -> kWh avec troncature
-                *[
-                    pl.when(pl.col("unite") == "Wh")
-                    .then(pl.when(pl.col(col).is_not_null()).then((pl.col(col) / 1000).floor()).otherwise(pl.col(col)))
-                    .otherwise(pl.col(col))
-                    .alias(col)
-                    for col in index_cols
-                ],
-                # Mettre à jour l'unité après conversion
-                pl.when(pl.col("unite") == "Wh").then(pl.lit("kWh")).otherwise(pl.col("unite")).alias("unite"),
-                # Mettre à jour la précision après conversion
-                pl.when(pl.col("precision") == "Wh")
-                .then(pl.lit("kWh"))
-                .otherwise(pl.col("precision"))
-                .alias("precision"),
-            ]
-        )
-
-        df = result.collect()
-
-        # Vérifier la conversion des valeurs
-        assert df["BASE"][0] == 13.0  # floor(13874 / 1000) = 13
-        assert df["BASE"][1] == 16.0  # floor(16017 / 1000) = 16
-        assert df["HP"][0] is None  # Les valeurs null restent null
-        assert df["HP"][1] == 5.0  # floor(5500 / 1000) = 5
-        assert df["HC"][0] == 2.0  # floor(2500 / 1000) = 2
-        assert df["HC"][1] is None
-
-        # Vérifier que les unités ont été mises à jour
-        assert df["unite"][0] == "kWh"
-        assert df["unite"][1] == "kWh"
-        assert df["precision"][0] == "kWh"
-        assert df["precision"][1] == "kWh"
-
-    def test_transform_releves_no_conversion_kwh(self):
-        """Test que les valeurs déjà en kWh ne sont pas modifiées."""
-        # Test de la logique de non-conversion
-        index_cols = ["BASE", "HP", "HC", "HPH", "HPB", "HCB", "HCH"]
-
-        test_data = pl.DataFrame(
-            {
+                "date_releve": [datetime(2024, 1, 1, 10, 0, 0, tzinfo=UTC)],
                 "pdl": ["PDL123"],
-                "BASE": [13.874],  # Déjà en kWh avec décimales
-                "HP": [5.5],
-                "HC": [None],
-                "HPH": [None],
-                "HPB": [None],
-                "HCB": [None],
-                "HCH": [None],
+                "index_base_kwh": [13874.0],
+                "index_hp_kwh": [5500.0],
+                "index_hc_kwh": [None],
+                "index_hph_kwh": [None],
+                "index_hpb_kwh": [None],
+                "index_hcb_kwh": [None],
+                "index_hch_kwh": [None],
                 "unite": ["kWh"],
-                "precision": ["kWh"],
             }
         ).lazy()
 
-        # Appliquer uniquement la logique de conversion (sans date timezone)
-        result = test_data.with_columns(
-            [
-                # Conversion Wh -> kWh avec troncature
-                *[
-                    pl.when(pl.col("unite") == "Wh")
-                    .then(pl.when(pl.col(col).is_not_null()).then((pl.col(col) / 1000).floor()).otherwise(pl.col(col)))
-                    .otherwise(pl.col(col))
-                    .alias(col)
-                    for col in index_cols
-                ],
-                # Mettre à jour l'unité après conversion
-                pl.when(pl.col("unite") == "Wh").then(pl.lit("kWh")).otherwise(pl.col("unite")).alias("unite"),
-                # Mettre à jour la précision après conversion
-                pl.when(pl.col("precision") == "Wh")
-                .then(pl.lit("kWh"))
-                .otherwise(pl.col("precision"))
-                .alias("precision"),
-            ]
-        )
+        df = _transform_releves(test_data).collect()
 
-        df = result.collect()
-
-        # Vérifier que les valeurs ne sont pas modifiées
-        assert df["BASE"][0] == 13.874  # Pas de conversion
-        assert df["HP"][0] == 5.5  # Pas de conversion
-        assert df["HC"][0] is None
-
-        # Vérifier que les unités restent inchangées
+        # Valeurs inchangées : aucune division par 1000 au loader.
+        assert df["index_base_kwh"][0] == 13874.0
+        assert df["index_hp_kwh"][0] == 5500.0
         assert df["unite"][0] == "kWh"
-        assert df["precision"][0] == "kWh"
+
+    def test_transform_r64_ne_convertit_plus_les_index(self):
+        """Idem côté R64 (ADR-0034) : transform_r64 n'harmonise que les dates ; la
+        conversion Wh→kWh est portée par flux_r64 en dbt."""
+        from datetime import datetime
+
+        test_data = pl.DataFrame(
+            {
+                "date_releve": [datetime(2024, 1, 1, 10, 0, 0, tzinfo=UTC)],
+                "modification_date": [datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC)],
+                "pdl": ["PDL123"],
+                "index_hph_kwh": [7672.0],
+                "index_hpb_kwh": [None],
+                "index_hch_kwh": [None],
+                "index_hcb_kwh": [None],
+                "index_base_kwh": [None],
+                "index_hp_kwh": [None],
+                "index_hc_kwh": [None],
+                "unite": ["kWh"],
+            }
+        ).lazy()
+
+        df = _transform_r64(test_data).collect()
+
+        # Valeur inchangée : pas de re-division au loader.
+        assert df["index_hph_kwh"][0] == 7672.0
+        assert df["unite"][0] == "kWh"
 
 
 class TestApiLegacySupprimee:
