@@ -6,11 +6,11 @@ import polars as pl
 import pytest
 
 from electricore.core.pipelines.energie import (
+    _assembler_chronologie,
     calculer_periodes_energie,
     # Tests d'expressions ajoutés localement dans chaque test
     expr_bornes_depuis_shift,
     interroger_releves,
-    reconstituer_chronologie_releves,
 )
 
 
@@ -105,8 +105,8 @@ class TestInterrogerRelevesPolars:
         assert pdl001["releve_manquant"][0] is False
 
 
-class TestReconstituerChronologieRelevesPolars:
-    """Tests pour reconstituer_chronologie_releves."""
+class TestAssemblerChronologiePolars:
+    """Tests pour _assembler_chronologie (assemblage de la chronologie des relevés)."""
 
     def test_reconstitution_avec_evenements_et_facturation(self):
         """Test nominal : combinaison d'événements contractuels + facturation."""
@@ -154,7 +154,7 @@ class TestReconstituerChronologieRelevesPolars:
             }
         )
 
-        result = reconstituer_chronologie_releves(evenements, releves).collect()
+        result = _assembler_chronologie(evenements, releves).collect()
 
         # Vérifications
         assert len(result) >= 3  # Au moins : MES avant, MES après, FACTURATION PDL001
@@ -209,7 +209,7 @@ class TestReconstituerChronologieRelevesPolars:
             }
         )
 
-        result = reconstituer_chronologie_releves(evenements, releves).collect()
+        result = _assembler_chronologie(evenements, releves).collect()
 
         # À cette date, seuls les relevés flux_C15 doivent rester (priorité)
         releves_date = result.filter(pl.col("date_releve") == datetime(2024, 1, 15))

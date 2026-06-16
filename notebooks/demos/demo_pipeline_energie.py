@@ -26,7 +26,6 @@ with app.setup:
     # Import des pipelines Polars
     from electricore.core.pipelines.energie import (
         pipeline_energie,
-        reconstituer_chronologie_releves,
         calculer_periodes_energie,
     )
     from electricore.core.pipelines.historique import detecter_points_de_rupture, inserer_evenements_facturation
