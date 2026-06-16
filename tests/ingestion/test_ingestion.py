@@ -67,3 +67,31 @@ def test_l_api_subprocess_le_runner_dbt():
     commande = _build_pipeline_command("all")
     assert "electricore.ingestion" in commande
     assert "electricore.ingestion.pipeline_production" not in commande
+
+
+def test_job_en_echec_expose_la_sortie_reelle(monkeypatch):
+    """dlt/dbt écrivent leurs diagnostics sur stdout : un job en échec doit exposer cette
+    sortie — `error` lisible ET `output` capturé — pas un « exit code 1 » nu (#298)."""
+    import subprocess
+    from datetime import datetime
+
+    from electricore.api.services import ingestion_service
+    from electricore.api.services.ingestion_service import (
+        JobIngestion,
+        StatutIngestion,
+        _run_pipeline,
+    )
+
+    erreur_dbt = "Failure in test not_null_flux_affaires_statut — Got 45 results"
+    monkeypatch.setattr(
+        ingestion_service.subprocess,
+        "run",
+        lambda *a, **k: subprocess.CompletedProcess(args=a, returncode=1, stdout=f"{erreur_dbt}\n", stderr=""),
+    )
+
+    job = JobIngestion(id="j1", mode="test", status=StatutIngestion.running, started_at=datetime.now())
+    _run_pipeline(job)
+
+    assert job.status == StatutIngestion.failed
+    assert erreur_dbt in (job.error or ""), "l'erreur doit porter la vraie cause (stdout), pas « exit code 1 »"
+    assert erreur_dbt in (job.output or ""), "stdout doit être capturé même en échec"
