@@ -405,16 +405,6 @@ def chronologie_releves(
     return _assembler_chronologie(historique, releves)
 
 
-def reconstituer_chronologie_releves(evenements: pl.LazyFrame, releves: pl.LazyFrame) -> pl.LazyFrame:
-    """Alias historique de `chronologie_releves` sans validation Pandera (compat).
-
-    Conserve l'ancienne signature `LazyFrame -> LazyFrame` pour les appelants internes
-    et tests qui passent des frames partiels. Préfère `chronologie_releves` pour la
-    nouvelle interface contractuelle.
-    """
-    return _assembler_chronologie(evenements, releves)
-
-
 @pa.check_types(lazy=True)
 def calculer_periodes_energie(lf: pl.LazyFrame) -> LazyFrame[PeriodeEnergie]:
     """
