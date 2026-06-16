@@ -344,6 +344,63 @@ def test_pipeline_energie_rejette_releves_sans_source(historique_enrichi_valide)
         pipeline_energie(historique_enrichi_valide, releves_invalides).collect()
 
 
+def test_releve_index_accepte_la_forme_du_mart_sans_unite_precision():
+    """Régression /facturation/meta-periodes : le modèle de relevés canonique `releves`
+    ne porte NI `unite` NI `precision` — tout est en kWh entiers, le grain facturable
+    atomique (ADR-0034). Le contrat `RelevéIndex` ne doit donc plus les exiger, sinon
+    `pipeline_energie` (qui valide son entrée contre `RelevéIndex`) lève `SchemaError:
+    column 'unite' not in dataframe` → 500 sur /meta-periodes. Garde le chemin réel
+    (forme du mart) que les anciens tests, alimentés en frames déjà conformes, ne
+    couvraient pas."""
+    from electricore.core.models.releve_index import RelevéIndex
+
+    frame = pl.DataFrame(
+        {
+            # Toutes les colonnes déclarées par RelevéIndex SAUF unite/precision (retirées).
+            "source": ["flux_R64"],
+            "pdl": ["PDL00001"],
+            "date_releve": [datetime(2024, 1, 1, tzinfo=PARIS)],
+            "ordre_index": [False],
+            "ref_situation_contractuelle": ["RSC1"],
+            "formule_tarifaire_acheminement": ["BTINFCUST"],
+            "id_calendrier_fournisseur": [None],
+            "id_calendrier_distributeur": ["DI000001"],
+            "id_affaire": [None],
+            "index_base_kwh": [100.0],
+            "index_hp_kwh": [None],
+            "index_hc_kwh": [None],
+            "index_hph_kwh": [None],
+            "index_hpb_kwh": [None],
+            "index_hch_kwh": [None],
+            "index_hcb_kwh": [None],
+            "type_releve": [None],
+            "contexte_releve": [None],
+            "etape_metier": [None],
+            "grandeur_physique": [None],
+            "grandeur_metier": [None],
+        },
+        schema_overrides={
+            "date_releve": pl.Datetime(time_unit="us", time_zone="Europe/Paris"),
+            "id_calendrier_fournisseur": pl.Utf8,
+            "id_affaire": pl.Utf8,
+            "type_releve": pl.Utf8,
+            "contexte_releve": pl.Utf8,
+            "etape_metier": pl.Utf8,
+            "grandeur_physique": pl.Utf8,
+            "grandeur_metier": pl.Utf8,
+            "index_hp_kwh": pl.Float64,
+            "index_hc_kwh": pl.Float64,
+            "index_hph_kwh": pl.Float64,
+            "index_hpb_kwh": pl.Float64,
+            "index_hch_kwh": pl.Float64,
+            "index_hcb_kwh": pl.Float64,
+        },
+    )
+    # Ne doit PAS lever : le contrat n'exige plus unite/precision (DI000001 ⟹ base présent,
+    # verifier_presence_mesures satisfait).
+    RelevéIndex.validate(frame, lazy=True)
+
+
 # =============================================================================
 # Cycle 6 — pipeline_energie produit une sortie conforme à `PeriodeEnergie`
 # =============================================================================

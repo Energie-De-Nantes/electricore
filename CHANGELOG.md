@@ -9,6 +9,23 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.0.0rc13] - 2026-06-16
+
+Hotfix rc12 : `/facturation/meta-periodes` renvoyait une 500 — `RelevéIndex` exigeait
+`unite`/`precision` que le modèle de relevés canonique ne porte pas.
+
+### 🐛 Correctif (core)
+
+- **Retrait de `unite`/`precision` du contrat `RelevéIndex`** : vestiges de l'ère Wh,
+  rendus inutiles par [ADR-0034](docs/adr/0034-index-kwh-entiers-floor-au-boundary-dbt.md)
+  (tout est en kWh entiers — le grain facturable atomique). Le modèle de relevés canonique
+  `releves` (#248) ne les a jamais produits → `pipeline_energie`, qui valide son entrée
+  contre `RelevéIndex`, levait `SchemaError: column 'unite' not in dataframe` = 500 sur
+  `/facturation/meta-periodes`. Bug **pré-existant** (depuis la bascule mart canonique),
+  révélé en testant rc12. Régression couverte par un test sur la **forme réelle du mart**
+  (les anciens tests, alimentés en frames déjà conformes, ne traversaient pas ce chemin).
+  Les loaders `/flux` conservent leur colonne `unite` (tolérée hors contrat, `strict=False`).
+
 ## [3.0.0rc12] - 2026-06-16
 
 Hotfix rc11 : l'ingestion de prod échouait au `dbt build` — l'adapter intermédiaire
