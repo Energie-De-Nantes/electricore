@@ -18,10 +18,7 @@ from .expressions import (
     DATE_COLS_HISTORIQUE,
     DATE_COLS_R64,
     DATE_COLS_RELEVES,
-    INDEX_COLS,
     expr_dates_with_timezone,
-    expr_normalize_unit,
-    expr_wh_to_kwh_multi,
 )
 
 # =============================================================================
@@ -49,31 +46,6 @@ def transform_dates(date_cols: tuple[str, ...], tz: str = "Europe/Paris") -> Cal
 
     def _transform(lf: pl.LazyFrame) -> pl.LazyFrame:
         return lf.with_columns(expr_dates_with_timezone(*date_cols, tz=tz))
-
-    return _transform
-
-
-def transform_wh_to_kwh(index_cols: tuple[str, ...] = INDEX_COLS) -> Callable[[pl.LazyFrame], pl.LazyFrame]:
-    """
-    Retourne une fonction de conversion Wh -> kWh avec normalisation unités.
-
-    Higher-order function : Fn(tuple[str]) -> Fn(LazyFrame) -> LazyFrame
-
-    Args:
-        index_cols: Tuple des colonnes d'index à convertir
-
-    Returns:
-        Fonction de transformation LazyFrame
-
-    Example:
-        >>> transform_fn = transform_wh_to_kwh(("hp", "hc", "base"))
-        >>> lf_transformed = transform_fn(lf)
-    """
-
-    def _transform(lf: pl.LazyFrame) -> pl.LazyFrame:
-        return lf.with_columns(
-            [*expr_wh_to_kwh_multi(*index_cols), expr_normalize_unit("unite"), expr_normalize_unit("precision")]
-        )
 
     return _transform
 
@@ -123,7 +95,6 @@ def compose(*transforms: Callable[[pl.LazyFrame], pl.LazyFrame]) -> Callable[[pl
     Example:
         >>> transform_pipeline = compose(
         ...     transform_dates(("date_releve",)),
-        ...     transform_wh_to_kwh(),
         ...     transform_add_defaults(source="flux_R151")
         ... )
         >>> lf_result = transform_pipeline(lf)
@@ -148,23 +119,16 @@ transform_historique = compose(
 )
 
 
-# Pipeline pour relevés individuels (flux R151, R15 — endpoints /flux/* et registre)
-transform_releves = compose(transform_dates(DATE_COLS_RELEVES), transform_wh_to_kwh(INDEX_COLS))
+# Pipeline pour relevés individuels (flux R151, R15 — endpoints /flux/* et registre).
+# La conversion Wh→kWh vit désormais au boundary de linéarisation dbt (ADR-0034) :
+# flux_r151 émet des index en kWh entiers. Le loader ne fait plus que l'harmonisation
+# des dates ; convertir ici doublerait la division.
+transform_releves = transform_dates(DATE_COLS_RELEVES)
 
 
 # Pipeline pour factures (flux F15)
 transform_factures = transform_dates(DATE_COLS_FACTURES)
 
 
-# Pipeline pour relevés R64
-# Note: R64 n'a pas de colonne "precision" dans le SQL source,
-# on doit la créer avant la conversion Wh->kWh
-transform_r64 = compose(
-    transform_dates(DATE_COLS_R64),
-    lambda lf: lf.with_columns(
-        [
-            pl.col("unite").alias("precision")  # Créer precision depuis unite
-        ]
-    ),
-    transform_wh_to_kwh(INDEX_COLS),
-)
+# Pipeline pour relevés R64 — conversion Wh→kWh portée par flux_r64 en dbt (ADR-0034).
+transform_r64 = transform_dates(DATE_COLS_R64)

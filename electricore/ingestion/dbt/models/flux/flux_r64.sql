@@ -169,13 +169,25 @@ select
     meta.type_releve,
     meta.grandeur_physique,
     meta.grandeur_metier,
-    meta.unite,
+    -- Unité normalisée en kWh au boundary (ADR-0034) : Enedis livre en Wh.
+    case when meta.unite = 'Wh' then 'kWh' else meta.unite end as unite,
     en_tete.id_demande,
     en_tete.si_demandeur,
     en_tete.code_flux,
     en_tete.format,
     mesure_id as occurrence_id,
-    pivot_cadrans.* exclude (mesure_id)
+    -- Wh → kWh entier (floor par index, ADR-0034). meta.unite est l'unité déclarée
+    -- (1er couple CONS/EA) ; // = division entière DuckDB, NULL-safe, exacte sur des
+    -- cumuls non négatifs. L'erreur de troncature télescope (< 1 kWh / vie du registre).
+    pivot_cadrans.* exclude (mesure_id) replace (
+        case when meta.unite = 'Wh' then index_base_kwh // 1000 else index_base_kwh end as index_base_kwh,
+        case when meta.unite = 'Wh' then index_hp_kwh   // 1000 else index_hp_kwh   end as index_hp_kwh,
+        case when meta.unite = 'Wh' then index_hc_kwh   // 1000 else index_hc_kwh   end as index_hc_kwh,
+        case when meta.unite = 'Wh' then index_hph_kwh  // 1000 else index_hph_kwh  end as index_hph_kwh,
+        case when meta.unite = 'Wh' then index_hpb_kwh  // 1000 else index_hpb_kwh  end as index_hpb_kwh,
+        case when meta.unite = 'Wh' then index_hch_kwh  // 1000 else index_hch_kwh  end as index_hch_kwh,
+        case when meta.unite = 'Wh' then index_hcb_kwh  // 1000 else index_hcb_kwh  end as index_hcb_kwh
+    )
 from pivot_cadrans
 join meta using (mesure_id)
 join en_tete using (mesure_id)

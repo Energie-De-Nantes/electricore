@@ -8,17 +8,17 @@
     "type_releve": "AQ",
     "grandeur_physique": "EA",
     "grandeur_metier": "CONS",
-    "unite": "Wh",
+    "unite": "kWh",
     "id_demande": "62314283",
     "si_demandeur": "501",
     "code_flux": "R64",
     "format": "JSON",
     "occurrence_id": "r64.json#2",
     "date_releve": "2026-06-01T00:00:00",
-    "index_hcb_kwh": 13514462,
-    "index_hch_kwh": 7742696,
-    "index_hpb_kwh": 15923474,
-    "index_hph_kwh": 10497780
+    "index_hph_kwh": 10497,
+    "index_hpb_kwh": 15923,
+    "index_hch_kwh": 7742,
+    "index_hcb_kwh": 13514
   },
   {
     "releve_id": "flux_R64|99103630318530|2026-06-01 00:00:00|AQ",
@@ -29,16 +29,16 @@
     "type_releve": "AQ",
     "grandeur_physique": "EA",
     "grandeur_metier": "CONS",
-    "unite": "Wh",
+    "unite": "kWh",
     "id_demande": "62314283",
     "si_demandeur": "501",
     "code_flux": "R64",
     "format": "JSON",
     "occurrence_id": "r64.json#1",
     "date_releve": "2026-06-01T00:00:00",
-    "index_hcb_kwh": 789363,
-    "index_hch_kwh": 1941120,
-    "index_hpb_kwh": 2675549,
-    "index_hph_kwh": 6038145
+    "index_hph_kwh": 6038,
+    "index_hpb_kwh": 2675,
+    "index_hch_kwh": 1941,
+    "index_hcb_kwh": 789
   }
 ]

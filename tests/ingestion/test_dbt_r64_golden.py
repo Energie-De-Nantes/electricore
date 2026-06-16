@@ -72,9 +72,10 @@ def test_flux_r64_reproduit_le_golden(base_avec_brut):
         ]
     )
     # `success` n'est vrai que si tout passe : 2 modèles (stg_r64, flux_r64)
-    # + data_tests (not_null pdl/date_releve/releve_id/nature_index + unique releve_id).
+    # + data_tests (not_null pdl/date_releve/releve_id/nature_index + unique releve_id
+    # + singular assert_flux_r64_index_jamais_wh, garde-fou unité ADR-0034).
     assert resultat.success, f"dbt build a échoué : {resultat.exception}"
-    assert len(resultat.result) == 7
+    assert len(resultat.result) == 8
 
     # Connexion en écriture (même config que dbt dans le process) pour éviter
     # le conflit read_only ; dbt matérialise dans le schéma `flux_enedis`.
