@@ -9,6 +9,36 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.0.0rc11] - 2026-06-16
+
+Approfondissement du modèle de relevés canonique : l'assemblage multi-sources passe d'une
+union bouchée à des adapters conformés. Comportement préservé, deux corrections de fidélité
+incluses — RC à éprouver sur données réelles.
+
+### ♻️ Refactor (ingestion dbt)
+
+- **`releves` assemblé par adapters conformés + macro conformer** ([#304](https://github.com/Energie-De-Nantes/electricore/issues/304)) :
+  l'union à quatre branches bouchées (`cast(null)` répété par source) devient des adapters
+  étroits (CTE R151/R64 + modèle intermédiaire `int_releves__c15` pour le dépivot C15) plus un
+  macro `conformer_au_contrat_releve()` qui porte le contrat de colonnes en un seul endroit et
+  remplit explicitement les manques par source. Comportement préservé (diff `EXCEPT` origin/main
+  vs branche = 0 ligne sur les 16 colonnes partagées), prouvé par le golden `releves`. Nouvelle
+  couche dbt `intermediate` (vues) ; tests de contrat ajoutés (`accepted_values` source, `not_null` pdl).
+
+### 🐛 Corrections de fidélité (incluses dans #304)
+
+- **R64 porte son calendrier distributeur** : `flux_r64` filtrait sur `id_calendrier` (DI00000X)
+  puis le jetait ; `releves` codait `id_calendrier_distributeur = NULL` pour R64. Désormais conservé
+  — le cœur en dérive précision et cadrans ([`RelevéIndex`](electricore/core/models/releve_index.py)).
+- **`id_releve` natif retiré du contrat canonique** : toujours NULL pour les trois sources vivantes,
+  aucun consommateur ne le lit. La traçabilité repose sur `releve_id` (clé métier) + `occurrence_id`
+  (provenance). `flux_r15`/`flux_r15_acc` le conservent. Suivi :
+  [#305](https://github.com/Energie-De-Nantes/electricore/issues/305) (réconciliation R15).
+
+### 🔧 Dépendances
+
+- Bump aiohttp 3.14.0 → 3.14.1 (Dependabot).
+
 ## [3.0.0rc10] - 2026-06-16
 
 Robustesse des affaires SGE et lisibilité des échecs d'ingestion — deux correctifs
