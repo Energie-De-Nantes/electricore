@@ -103,5 +103,20 @@
     "affaire_date_effet": "2024-11-23",
     "affaire_etat": "INPL",
     "affaire_etat_libelle": "Intervention planifiée"
+  },
+  {
+    "affaire_id": "AFF0000004",
+    "origine": "initiee",
+    "prestation": "CFN",
+    "prestation_libelle": "Changement de fournisseur",
+    "statut": "COURS",
+    "pdl": "99000000000055",
+    "segment": "C5",
+    "jalon_num": 1,
+    "affaire_jalon_id": "AFF0000004#1",
+    "jalon_date_heure": "2024-11-24T09:00:00+01:00",
+    "affaire_date_effet": "2024-11-24",
+    "affaire_etat": "DMTR",
+    "affaire_etat_libelle": "Demande transmise"
   }
 ]

@@ -31,20 +31,35 @@ def xml_vers_dict(xml_bytes: bytes) -> dict:
 
 def _element_vers_dict(element: Any) -> Any:
     enfants = list(element)
+    texte = element.text.strip() if element.text and element.text.strip() else None
     if not enfants:
-        # Feuille : sa valeur texte (None si vide, pour rester sérialisable). Les
-        # attributs d'une feuille sont ignorés — aucun flux n'en porte de signifiants,
-        # et renvoyer un dict casserait le type scalaire attendu par l'aval element-only.
-        return element.text.strip() if element.text and element.text.strip() else None
+        # Feuille SANS attribut : sa valeur texte (None si vide), scalaire — zéro
+        # régression pour les flux element-only.
+        if not element.attrib:
+            return texte
+        # Feuille PORTEUSE d'attribut (ex X12 : <statut code="COURS"/> sans libelle) :
+        # l'attribut est de la donnée → nœud `{"@attr": …}` (+ `#text` si texte présent),
+        # jamais un scalaire qui perdrait l'attribut.
+        noeud = {f"@{cle}": val for cle, val in element.attrib.items()}
+        if texte is not None:
+            noeud["#text"] = texte
+        return noeud
     # Conteneur : ses attributs sous une clé préfixée `@` (X12/X13 portent l'id
     # d'affaire et les codes statut/objet/état en attributs). Le préfixe évite toute
     # collision avec un tag enfant et reste sélectionnable en JSON path (`."@code"`).
     resultat: dict[str, Any] = {f"@{cle}": val for cle, val in element.attrib.items()}
     for enfant in enfants:
+        # Commentaires / instructions de traitement : lxml en fait des nœuds dont `.tag`
+        # est une fonction (etree.Comment/PI), pas une chaîne — on les ignore (sinon clé
+        # de dict non-sérialisable au landing JSON).
+        if not isinstance(enfant.tag, str):
+            continue
         valeur = _element_vers_dict(enfant)
-        if len(enfant) > 0:
-            # Conteneur = forme répétable → toujours une liste (cast dbt uniforme),
-            # même unique.
+        if len(enfant) > 0 or enfant.attrib:
+            # Forme répétable — enfants OU attributs → toujours une liste (cast/unnest
+            # dbt uniforme). Un <statut code=…/> (feuille à attribut) est ainsi listé
+            # comme un <statut code=…><libelle/></statut> : `statut[0]."@code"` marche
+            # dans les deux cas.
             resultat.setdefault(enfant.tag, []).append(valeur)
         elif enfant.tag in resultat:
             # Feuille répétée → liste.
