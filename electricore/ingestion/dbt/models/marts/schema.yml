@@ -13,7 +13,13 @@ models:
           dans le modèle canonique — le dedup même-source collapse les re-livraisons.
         data_tests: [not_null, unique]
       - name: source
-        description: Source du relevé (flux_R151, flux_R64, …).
+        description: Source du relevé — énumération fermée (assemblage par adapters, #304).
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ["flux_C15", "flux_R64", "flux_R151"]
+      - name: pdl
+        description: Point de livraison ; non-null pour toute source (contrat, #304).
         data_tests: [not_null]
       - name: date_releve
         description: Date du relevé harmonisée (début de journée, Europe/Paris).

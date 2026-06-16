@@ -147,6 +147,40 @@ def test_releves_inclut_c15_avant_apres(base_periodiques):
     assert all(r["nature_index"] in {"réel", "estimé", "corrigé"} for r in c15)
 
 
+def test_releves_sans_colonne_id_releve_natif(base_periodiques):
+    """L'id natif Enedis est retiré du contrat canonique (#304) : toujours NULL pour les
+    trois sources vivantes (R151/R64 n'en ont pas, C15 le nullait), aucun consommateur ne
+    le lit (ni ChronologieReleves ni RelevéIndex). La traçabilité repose sur releve_id
+    (clé métier) + occurrence_id (provenance fichier). flux_r15/flux_r15_acc le gardent."""
+    resultat = _build_releves(base_periodiques.parent)
+    assert resultat.success, f"dbt build releves a échoué : {resultat.exception}"
+
+    con = duckdb.connect(str(base_periodiques))
+    cols = [r[0] for r in con.execute("describe flux_enedis.releves").fetchall()]
+    con.close()
+
+    assert "id_releve" not in cols, f"id_releve doit être retiré du contrat canonique, vu : {cols}"
+
+
+def test_r64_porte_son_calendrier_distributeur(base_periodiques):
+    """Fidélité R64 (#304) : un relevé R64 porte son calendrier distributeur (DI00000X)
+    au lieu d'un NULL codé en dur — `flux_r64` filtre déjà sur ce calendrier puis le
+    jette. Le cœur en dérive précision et cadrans (RelevéIndex). Fixture R64 = DI000003."""
+    resultat = _build_releves(base_periodiques.parent)
+    assert resultat.success, f"dbt build releves a échoué : {resultat.exception}"
+
+    con = duckdb.connect(str(base_periodiques))
+    cals = [
+        r[0]
+        for r in con.execute(
+            "select distinct id_calendrier_distributeur from flux_enedis.releves where source = 'flux_R64'"
+        ).fetchall()
+    ]
+    con.close()
+
+    assert cals == ["DI000003"], f"R64 doit porter son calendrier distributeur, vu : {cals}"
+
+
 def test_forward_fill_rsc_pilote_par_c15():
     """Enrichissement contractuel (#243) : une ligne périodique hérite la RSC/FTA du
     dernier relevé C15 amont (par PDL). Vérifie la fenêtre de forward-fill du modèle
