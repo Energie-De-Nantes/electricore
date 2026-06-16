@@ -127,8 +127,10 @@ models:
         description: initiee (X12, on initie) / recue (X13, autre acteur).
         data_tests: [not_null]
       - name: statut
-        description: Cycle de vie grossier COURS / TERMN / ANNUL.
-        data_tests: [not_null]
+        description: >
+          Cycle de vie grossier COURS / TERMN / ANNUL. NULLABLE (#296) : Enedis envoie
+          un <statut> vide pour une affaire fraîchement initiée qu'il n'a pas encore
+          rangée (jalon 0, demande transmise) → null, ingéré fidèlement (ADR-0029).
       - name: jalon_num
         description: Numéro d'ordre du jalon dans l'affaire.
         data_tests: [not_null]

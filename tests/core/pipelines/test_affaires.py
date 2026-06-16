@@ -66,6 +66,24 @@ def test_anciennete_comptee_depuis_le_premier_jalon():
     assert vue["anciennete_jours"].to_list() == [15]  # 25 - 10 nov
 
 
+def test_statut_null_traite_comme_en_attente_enedis():
+    # Enedis envoie un <statut> vide → null pour une affaire fraîchement initiée (jalon 0
+    # DMTR, demande transmise mais pas encore rangée). C'est une affaire OUVERTE « en
+    # attente Enedis » : elle doit apparaître au cockpit avec son dernier état, au même
+    # titre que COURS. Seules TERMN/ANNUL sont soldées.
+    jalons = pl.DataFrame(
+        [
+            _jalon("PEND1", 0, "DMTR", datetime(2024, 11, 20, 9, tzinfo=PARIS), statut=None),
+            _jalon("DONE1", 1, "CPRE", datetime(2024, 11, 23, 9, tzinfo=PARIS), statut="TERMN"),
+        ]
+    )
+
+    vue = affaires_ouvertes(jalons, maintenant=datetime(2024, 11, 25, 9, tzinfo=PARIS))
+
+    assert vue["affaire_id"].to_list() == ["PEND1"]
+    assert vue["dernier_etat"].to_list() == ["DMTR"]
+
+
 def test_ame_exclu_mais_prestation_nulle_gardee():
     # AME (45 % du volume) = souscription de flux de données, pas une intervention de
     # périmètre → écarté du cockpit. Une affaire à prestation nulle (réclamation) est
