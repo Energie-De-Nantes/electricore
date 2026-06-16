@@ -53,6 +53,7 @@ ingestion = [
     "pycryptodome>=3.23.0,<4.0.0",
     "paramiko>=4.0.0,<5.0.0",
     "lxml>=6.1.0,<7.0.0",  # XXE fix (CVE-2026-41066)
+    "psutil>=5.9.0,<8.0.0",  # stats mémoire dlt sur VPS contraint (sinon UserWarning au run)
 ]
 viz = [
     "altair>=5.5.0,<6.0.0",
