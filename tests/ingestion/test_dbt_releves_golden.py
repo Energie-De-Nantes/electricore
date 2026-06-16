@@ -92,6 +92,24 @@ def _build_releves(target_parent):
     )
 
 
+def test_runner_construit_releves_via_sa_propre_selection(base_periodiques):
+    """Régression rc11 : le runner de prod (`construire_dbt`) sélectionne par `+flux_*`
+    (ancêtres des raw landés) + `releves`. `int_releves__c15` est un ancêtre de `releves`
+    qui n'est PAS un `flux_*` → la sélection du runner doit l'inclure (sinon
+    `Catalog Error: int_releves__c15 does not exist`). Le golden ci-dessous utilise
+    `+releves` (qui tire les ancêtres) et ne couvrait donc PAS le chemin de prod ;
+    ce test exerce la VRAIE sélection du runner."""
+    from electricore.ingestion.runner import construire_dbt
+
+    assert construire_dbt(base_periodiques), (
+        "le runner doit construire releves ET tous ses ancêtres (dont int_releves__c15)"
+    )
+    con = duckdb.connect(str(base_periodiques))
+    n = con.execute("select count(*) from flux_enedis.releves").fetchone()[0]
+    con.close()
+    assert n > 0, "releves doit être matérialisé et non vide"
+
+
 def test_releves_union_grain_et_harmonisation(base_periodiques):
     # `dbt build` matérialise releves ET exécute `unique releve_id` : un build vert
     # prouve l'invariant de grain / dedup même-source.
