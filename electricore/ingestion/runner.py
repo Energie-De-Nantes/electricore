@@ -145,11 +145,15 @@ def construire_dbt(db_path: Path) -> bool:
     con.close()
     selection = [f"+{modele}" for raw, modeles in MODELES_PAR_RAW.items() if raw in presentes for modele in modeles]
     # Le modèle de relevés canonique `releves` (mart, ADR-0029) est un DESCENDANT des
-    # flux : les `+flux_*` (ancêtres) ne l'atteignent pas. On l'ajoute explicitement dès
-    # que ses trois sources sont matérialisables (C15 + périodiques R151/R64) — sinon un
-    # arm d'union pointerait un flux non construit. Ses ancêtres sont déjà dans `selection`.
+    # flux : les `+flux_*` (ancêtres) ne l'atteignent pas. On l'ajoute dès que ses trois
+    # sources sont matérialisables (C15 + périodiques R151/R64) — sinon un arm d'union
+    # pointerait un flux non construit. On sélectionne `+releves` (et non `releves` nu) :
+    # le graph operator tire TOUS ses ancêtres, dont l'adapter intermédiaire
+    # `int_releves__c15` qui n'est pas un `flux_*` (sinon : Catalog Error « int_releves__c15
+    # does not exist », cf. régression test_runner_construit_releves). Les flux ancêtres,
+    # déjà dans `selection` via `+flux_*`, sont dédoublonnés par dbt.
     if {"raw_c15", "raw_r151", "raw_r64"} <= presentes:
-        selection.append("releves")
+        selection.append("+releves")
     if not selection:
         _out("  aucune table brute landée — rien à construire")
         return False

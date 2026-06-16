@@ -9,6 +9,22 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.0.0rc12] - 2026-06-16
+
+Hotfix rc11 : l'ingestion de prod échouait au `dbt build` — l'adapter intermédiaire
+`int_releves__c15` introduit en rc11 n'était pas construit par le runner.
+
+### 🐛 Correctif (ingestion)
+
+- **Le runner construit `int_releves__c15`** ([#304](https://github.com/Energie-De-Nantes/electricore/issues/304)) :
+  `construire_dbt` sélectionnait `releves` nu (sans ancêtres), s'appuyant sur le fait que
+  les ancêtres de `releves` étaient déjà couverts par les `+flux_*`. rc11 a introduit
+  l'adapter intermédiaire `int_releves__c15` — un ancêtre de `releves` qui **n'est pas** un
+  `flux_*` → non construit → `Catalog Error: Table int_releves__c15 does not exist` au
+  `dbt build` de prod. Le runner sélectionne désormais `+releves` (graph operator tirant
+  tous les ancêtres). Régression couverte par un test qui exerce la **vraie** sélection du
+  runner — le golden utilisait `+releves` codé en dur et ne traversait pas ce chemin.
+
 ## [3.0.0rc11] - 2026-06-16
 
 Approfondissement du modèle de relevés canonique : l'assemblage multi-sources passe d'une
