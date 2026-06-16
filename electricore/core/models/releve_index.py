@@ -28,9 +28,11 @@ class RelevéIndex(pa.DataFrameModel):
     # Source des données
     source: pl.Utf8 = pa.Field(nullable=False, isin=["flux_R151", "flux_R15", "flux_C15", "flux_R64", "FACTURATION"])
 
-    # 📏 Unité de mesure
-    unite: pl.Utf8 = pa.Field(nullable=False, isin=["kWh", "Wh", "MWh"])
-    precision: pl.Utf8 = pa.Field(nullable=False, isin=["kWh", "Wh", "MWh"])
+    # 📏 Unité : aucune. Tout est en kWh entiers — le grain facturable atomique, normalisé
+    # Wh→kWh par floor au boundary dbt (ADR-0034). Les ex-champs `unite`/`precision`
+    # (vestiges de l'ère Wh) sont retirés du contrat : le modèle de relevés canonique
+    # `releves` ne les porte pas, et plus rien ne les lit. Un loader /flux peut encore
+    # exposer un `unite` (colonne supplémentaire tolérée, Config.strict=False).
 
     # ⚡ Index de compteurs (valeurs cumulées en kWh)
     index_hp_kwh: pl.Float64 | None = pa.Field(nullable=True)
