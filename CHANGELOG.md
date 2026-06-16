@@ -9,6 +9,53 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.0.0rc7] - 2026-06-16
+
+Suivi opérationnel des **affaires SGE** (flux X12/X13) de bout en bout, parité de
+formats de l'endpoint `/releves`, et durcissement du déploiement VPS.
+
+### ✨ Nouveautés (ingestion — affaires SGE)
+
+- **Flux X12/X13 → `flux_affaires`** ([#275](https://github.com/Energie-De-Nantes/electricore/issues/275)) :
+  linéarisation des affaires SGE (cycle de vie des demandes de prestation). X12 (initiées)
+  et X13 (reçues) partagent une source `raw_affaires` unique ; `origine` dérivée du nom de
+  fichier. Grain = un *jalon*, dédupliqué sur la clé logique `(affaire_id, jalon_num)` — les
+  flux quotidiens sont des snapshots cumulatifs ([ADR-0028](docs/adr/0028-identite-releve-cle-metier-priorite-sources.md)).
+  Golden X12 + X13 + test de dédup + data tests `not_null`/`unique`.
+- **`xml_vers_dict` capture désormais les attributs XML** (clés `@`) : X12/X13 est le premier
+  flux à porter des données en attributs (id d'affaire, codes statut/objet/état) ; sans
+  régression sur les flux element-only existants.
+
+### ✨ Nouveautés (cockpit affaires — core/api/bot)
+
+- **Cockpit des affaires non soldées** ([#276](https://github.com/Energie-De-Nantes/electricore/issues/276)) :
+  loader `affaires()` + rollup **read-time** `affaires_ouvertes` (un statut COURS par affaire,
+  dernier état, ancienneté = maintenant − 1ᵉʳ jalon, jamais matérialisée). `AME` (souscription
+  de flux ≈ 45 % du volume) écartée par défaut. Endpoint `GET /perimetre/affaires`
+  (JSON, `?origine`, `?inclure_ame`) + vue bot `/perimetre affaires`. **Lecture seule.**
+
+### ✨ Nouveautés (api — relevés canoniques)
+
+- **Parité de formats `/releves`** ([#263](https://github.com/Energie-De-Nantes/electricore/issues/263)–[#265](https://github.com/Energie-De-Nantes/electricore/issues/265),
+  [ADR-0032](docs/adr/0032-modeles-marts-hors-flux-namespace.md)) : `GET /releves.arrow`
+  + `client.releves()`, JSON enveloppé paginé + XLSX + `/releves/info`, et contrat de filtres
+  (prm + source + fenêtre de dates). Mart servi hors du namespace `/flux/*`.
+
+### 🏗️ Déploiement (durcissement VPS — [ADR-0031](docs/adr/0031-durcissement-ssh-vps-utilisateur-ops.md))
+
+- Utilisateur ops + échafaudage `harden_vps` ([#258](https://github.com/Energie-De-Nantes/electricore/issues/258)),
+  sshd root-off + garde-fou anti-verrouillage ([#259](https://github.com/Energie-De-Nantes/electricore/issues/259)),
+  fail2ban ([#260](https://github.com/Energie-De-Nantes/electricore/issues/260)),
+  unattended-upgrades + auto-reboot ([#261](https://github.com/Energie-De-Nantes/electricore/issues/261)),
+  script autonome `harden.sh` + toggles ([#262](https://github.com/Energie-De-Nantes/electricore/issues/262)),
+  et chemin de réversion `unharden.sh`.
+
+### 🧹 Nettoyage (loaders)
+
+- Factory `flux(name)` derrière l'interface du loader ([#272](https://github.com/Energie-De-Nantes/electricore/issues/272),
+  [#273](https://github.com/Energie-De-Nantes/electricore/issues/273)) ; équivalence de requête
+  testée plutôt qu'identité de config.
+
 ## [3.0.0rc6] - 2026-06-15
 
 Calculateur TURPE variable (Odoo fournit l'assiette) et fin de la bascule relevés
