@@ -7,6 +7,12 @@ les constructeurs de noms de colonnes au format `grandeur_cadran_unité`
 
 Importable par pipelines, builds et loaders (ADR-0019). Les expressions
 Polars qui consomment ces noms restent dans `core/pipelines/`.
+
+SOURCE UNIQUE du fan-out cadran (ADR-0035 §1) : `CADRANS` est importé par les
+schémas Pandera des relevés (`RelevéIndex`/`ChronologieReleves` en dérivent leurs
+colonnes `index_*_kwh`) et **injecté** côté dbt via la var `cadrans_releve`
+(dbt_project.yml → macro `pivot_cadrans`). La cohérence des deux côtés est prouvée
+par `tests/ingestion/test_cadrans_source_unique.py` — la liste cesse d'être recopiée.
 """
 
 # Les 7 cadrans canoniques : Base (tarif unique), HP/HC (heures pleines /

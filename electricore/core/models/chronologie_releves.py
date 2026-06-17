@@ -23,6 +23,8 @@ import pandera.polars as pa
 import polars as pl
 from pandera.engines.polars_engine import DateTime
 
+from electricore.core.models.cadrans import CADRANS, col_index
+
 # Énumération fermée des sources d'un relevé dans la chronologie.
 SOURCES_CHRONOLOGIE: tuple[str, ...] = ("flux_C15", "flux_R64", "flux_R151", "flux_R15")
 
@@ -59,15 +61,10 @@ class ChronologieReleves(pa.DataFrameModel):
     # 🏢 Référence calendrier distributeur (utile au contrôle des cadrans attendus)
     id_calendrier_distributeur: pl.Utf8 | None = pa.Field(nullable=True)
 
-    # ⚡ Index de compteurs (valeurs cumulées en kWh entiers, ADR-0034 ; Int64 hérité de
-    # RelevéIndex — le loader ne re-caste plus, ADR-0035).
-    index_hp_kwh: pl.Int64 | None = pa.Field(nullable=True)
-    index_hc_kwh: pl.Int64 | None = pa.Field(nullable=True)
-    index_hch_kwh: pl.Int64 | None = pa.Field(nullable=True)
-    index_hph_kwh: pl.Int64 | None = pa.Field(nullable=True)
-    index_hpb_kwh: pl.Int64 | None = pa.Field(nullable=True)
-    index_hcb_kwh: pl.Int64 | None = pa.Field(nullable=True)
-    index_base_kwh: pl.Int64 | None = pa.Field(nullable=True)
+    # ⚡ Index de compteurs (kWh entiers, ADR-0034 ; Int64 hérité de RelevéIndex). Colonnes
+    # `index_*_kwh` DÉRIVÉES de `cadrans.py` (source unique, ADR-0035 §1), comme RelevéIndex.
+    vars().update({col_index(cadran): pa.Field(nullable=True) for cadran in CADRANS})
+    __annotations__.update({col_index(cadran): pl.Int64 | None for cadran in CADRANS})
 
     # 🚩 Flag de complétude : relevé attendu mais absent à cette date (relevés interrogés).
     releve_manquant: pl.Boolean | None = pa.Field(nullable=True)

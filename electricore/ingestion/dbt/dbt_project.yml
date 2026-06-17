@@ -24,3 +24,10 @@ models:
     marts:
       # Tables : modèles transverses (cross-flux) consommés par core/ (ADR-0029).
       +materialized: table
+
+# Vocabulaire des cadrans temporels (ADR-0035 §1) : SOURCE UNIQUE = core/models/cadrans.py.
+# Injecté ici pour la macro `pivot_cadrans` (fan-out `index_*_kwh`). La cohérence avec
+# `CADRANS` (Python) est prouvée par tests/ingestion/test_cadrans_source_unique.py — la
+# liste cesse d'être recopiée à la main dans chaque modèle de linéarisation.
+vars:
+  cadrans_releve: [base, hp, hc, hph, hch, hpb, hcb]

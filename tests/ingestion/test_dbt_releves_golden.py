@@ -19,6 +19,7 @@ pytest.importorskip("dbt.adapters.duckdb", reason="dbt-duckdb absent — uv sync
 
 from dbt.cli.main import dbtRunner  # noqa: E402
 
+from electricore.core.models.cadrans import CADRANS, col_index  # noqa: E402
 from electricore.core.models.parite_typage import ecarts_de_typage  # noqa: E402
 from electricore.core.models.releve_index import RelevéIndex  # noqa: E402
 from electricore.ingestion.parsing.xml import xml_vers_dict  # noqa: E402
@@ -129,6 +130,22 @@ def test_releves_dbt_respecte_le_contrat_pandera(base_periodiques):
 
     ecarts = ecarts_de_typage(schema_sql, RelevéIndex)
     assert not ecarts, f"divergences de typage dbt↔RelevéIndex (dbt, pandera) : {ecarts}"
+
+
+def test_releves_emet_exactement_les_index_de_cadrans_py(base_periodiques):
+    """Source unique du fan-out cadran (ADR-0035 §1, #292) : le mart émet EXACTEMENT les
+    colonnes d'index dérivées de `cadrans.py` (la macro `pivot_cadrans` est alimentée par
+    la var `cadrans_releve` = `CADRANS`). Garde-fou complémentaire à la parité de types
+    (#291, qui compare l'intersection et ne verrait pas une colonne d'index manquante)."""
+    resultat = _build_releves(base_periodiques.parent)
+    assert resultat.success, f"dbt build releves a échoué : {resultat.exception}"
+
+    con = duckdb.connect(str(base_periodiques))
+    cols = {nom for nom, *_ in con.execute("describe flux_enedis.releves").fetchall()}
+    con.close()
+
+    index_mart = {c for c in cols if c.startswith("index_") and c.endswith("_kwh")}
+    assert index_mart == {col_index(c) for c in CADRANS}
 
 
 def test_releves_union_grain_et_harmonisation(base_periodiques):

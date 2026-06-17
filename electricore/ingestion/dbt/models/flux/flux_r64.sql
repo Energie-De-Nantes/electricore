@@ -134,7 +134,7 @@ points_valides as (
 -- Agrégation conditionnelle sur le DOMAINE FERMÉ des 7 cadrans (comme flux_r151).
 -- Contrat de colonnes stable quel que soit le corpus, là où un PIVOT ne crée que les
 -- cadrans rencontrés → binder error en aval sur les absents (ex. modèle `releves`).
-pivot_cadrans as (
+cadrans as (
     select
         mesure_id,
         date_releve,
@@ -142,13 +142,7 @@ pivot_cadrans as (
         -- distributeur ci-dessus) : conservé au lieu d'être jeté (#304). Un (mesure, date)
         -- n'a qu'un calendrier distributeur actif → max() est déterministe.
         max(id_calendrier)                            as id_calendrier_distributeur,
-        max(case when cadran = 'base' then valeur end) as index_base_kwh,
-        max(case when cadran = 'hp'   then valeur end) as index_hp_kwh,
-        max(case when cadran = 'hc'   then valeur end) as index_hc_kwh,
-        max(case when cadran = 'hph'  then valeur end) as index_hph_kwh,
-        max(case when cadran = 'hpb'  then valeur end) as index_hpb_kwh,
-        max(case when cadran = 'hch'  then valeur end) as index_hch_kwh,
-        max(case when cadran = 'hcb'  then valeur end) as index_hcb_kwh
+        {{ pivot_cadrans() }}
     from points_valides
     group by mesure_id, date_releve
 ),
@@ -165,7 +159,7 @@ en_tete as (
 -- fichier, provenance forensique). La clé métier ne dépend pas de la livraison
 -- gagnante du qualify : stable malgré les fenêtres chevauchantes.
 select
-    {{ mint_releve_id("'flux_R64'", "meta.pdl", "pivot_cadrans.date_releve", "meta.type_releve") }} as releve_id,
+    {{ mint_releve_id("'flux_R64'", "meta.pdl", "cadrans.date_releve", "meta.type_releve") }} as releve_id,
     cast(null as varchar)   as id_releve,
     {{ nature_depuis_etape_metier("meta.etape_metier") }} as nature_index,
     meta.pdl,
@@ -184,7 +178,7 @@ select
     -- Wh → kWh entier (floor par index, ADR-0034). meta.unite est l'unité déclarée
     -- (1er couple CONS/EA) ; // = division entière DuckDB, NULL-safe, exacte sur des
     -- cumuls non négatifs. L'erreur de troncature télescope (< 1 kWh / vie du registre).
-    pivot_cadrans.* exclude (mesure_id) replace (
+    cadrans.* exclude (mesure_id) replace (
         case when meta.unite = 'Wh' then index_base_kwh // 1000 else index_base_kwh end as index_base_kwh,
         case when meta.unite = 'Wh' then index_hp_kwh   // 1000 else index_hp_kwh   end as index_hp_kwh,
         case when meta.unite = 'Wh' then index_hc_kwh   // 1000 else index_hc_kwh   end as index_hc_kwh,
@@ -193,13 +187,13 @@ select
         case when meta.unite = 'Wh' then index_hch_kwh  // 1000 else index_hch_kwh  end as index_hch_kwh,
         case when meta.unite = 'Wh' then index_hcb_kwh  // 1000 else index_hcb_kwh  end as index_hcb_kwh
     )
-from pivot_cadrans
+from cadrans
 join meta using (mesure_id)
 join en_tete using (mesure_id)
 -- Les fenêtres R64 se chevauchent : le même relevé (pdl, type, date) arrive dans
 -- plusieurs fichiers. Même contrat que le merge legacy (primary_key pdl/type_releve/
 -- date_releve) : on garde la livraison la plus récente.
 qualify row_number() over (
-    partition by meta.pdl, meta.type_releve, pivot_cadrans.date_releve
+    partition by meta.pdl, meta.type_releve, cadrans.date_releve
     order by en_tete.modification_date desc, mesure_id desc
 ) = 1

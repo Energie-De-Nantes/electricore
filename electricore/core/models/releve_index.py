@@ -2,6 +2,8 @@ import pandera.polars as pa
 import polars as pl
 from pandera.engines.polars_engine import DateTime
 
+from electricore.core.models.cadrans import CADRANS, col_index
+
 
 class RelevéIndex(pa.DataFrameModel):
     """
@@ -34,17 +36,15 @@ class RelevéIndex(pa.DataFrameModel):
     # `releves` ne les porte pas, et plus rien ne les lit. Un loader /flux peut encore
     # exposer un `unite` (colonne supplémentaire tolérée, Config.strict=False).
 
-    # ⚡ Index de compteurs (valeurs cumulées en kWh **entiers**, ADR-0034). Le type est
-    # Int64 — celui que dbt émet nativement (`contrat_releve()` : bigint) après le floor
-    # Wh→kWh au boundary de linéarisation. Le loader ne re-caste plus (ADR-0035) : la
-    # parité dbt↔Pandera est prouvée par `test_releves_dbt_respecte_le_contrat_pandera`.
-    index_hp_kwh: pl.Int64 | None = pa.Field(nullable=True)
-    index_hc_kwh: pl.Int64 | None = pa.Field(nullable=True)
-    index_hch_kwh: pl.Int64 | None = pa.Field(nullable=True)
-    index_hph_kwh: pl.Int64 | None = pa.Field(nullable=True)
-    index_hpb_kwh: pl.Int64 | None = pa.Field(nullable=True)
-    index_hcb_kwh: pl.Int64 | None = pa.Field(nullable=True)
-    index_base_kwh: pl.Int64 | None = pa.Field(nullable=True)
+    # ⚡ Index de compteurs (valeurs cumulées en kWh **entiers**, ADR-0034). Les 7 colonnes
+    # `index_*_kwh` sont DÉRIVÉES de `cadrans.py` (source unique, ADR-0035 §1) au lieu d'être
+    # hand-listées : injection des annotations + `Field` depuis `CADRANS`. Type Int64 — celui
+    # que dbt émet nativement (`contrat_releve()` : bigint) après le floor Wh→kWh au boundary
+    # de linéarisation. Le loader ne re-caste plus (ADR-0035) ; la parité dbt↔Pandera est
+    # prouvée par `test_releves_dbt_respecte_le_contrat_pandera`, la dérivation par
+    # `test_releve_index_derive_ses_index_de_cadrans_py`.
+    vars().update({col_index(cadran): pa.Field(nullable=True) for cadran in CADRANS})
+    __annotations__.update({col_index(cadran): pl.Int64 | None for cadran in CADRANS})
 
     # 🔌 Métadonnées spécifiques R64 (optionnelles)
     type_releve: pl.Utf8 | None = pa.Field(nullable=True, isin=["AQ", "AM", "AC"])
