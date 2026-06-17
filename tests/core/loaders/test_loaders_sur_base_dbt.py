@@ -15,7 +15,7 @@ import json
 import os
 import subprocess
 import sys
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -96,6 +96,22 @@ def test_c15_charge_des_instants_corrects(base_prod_dbt):
     (date_evenement,) = df["date_evenement"].to_list()
     # Fixture : <Date_Evenement>2024-10-04T00:01:00+02:00</Date_Evenement>
     assert date_evenement == datetime(2024, 10, 4, 0, 1, tzinfo=PARIS)
+
+
+def test_c15_charge_le_niveau_ouverture_services(base_prod_dbt):
+    """Statut de communication (épique #313) : le loader c15() expose le niveau
+    d'ouverture aux services (Utf8, xsd:string {0,1,2}) et sa date de bascule (Date),
+    de bout en bout (flux_c15 → loader)."""
+    from electricore.core.loaders import c15
+
+    df = c15(database_path=base_prod_dbt).collect()
+    assert df.schema["niveau_ouverture_services"] == pl.Utf8
+    assert df.schema["date_changement_niveau_ouverture_services"] == pl.Date
+    # Fixture c15_avec_releves.xml : <Niveau_Ouverture_Services>2</…>, bascule 2018-04-13.
+    (niveau,) = df["niveau_ouverture_services"].to_list()
+    assert niveau == "2"
+    (date_changement,) = df["date_changement_niveau_ouverture_services"].to_list()
+    assert date_changement == date(2018, 4, 13)
 
 
 def test_r15_charge_des_instants_corrects(base_prod_dbt):

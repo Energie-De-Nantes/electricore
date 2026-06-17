@@ -27,6 +27,7 @@ from electricore.core.pipelines.energie import (
     _assembler_chronologie,
     chronologie_releves,
 )
+from electricore.core.pipelines.historique import detecter_points_de_rupture
 
 PARIS = ZoneInfo("Europe/Paris")
 
@@ -441,3 +442,69 @@ def test_calculer_periodes_energie_golden_avec_ordre_index_booleen():
     # hp = hph + hpb (180 + 270 → mais aussi le hp brut 500). Synthèse : hp_brut + hph + hpb.
     assert periodes["energie_hp_kwh"].to_list() == [500.0 + 100.0 + 150.0] * 2
     assert periodes["energie_hc_kwh"].to_list() == [200.0 + 80.0 + 120.0] * 2
+
+
+# ---------------------------------------------------------------------------
+# Bascule du statut de communication (épique #313, AC #314) : le relevé porté par
+# l'activation du calendrier Distributeur entre déjà dans la chronologie via
+# `impacte_energie` — preuve par test, sans code dédié.
+# ---------------------------------------------------------------------------
+
+
+def test_bascule_cmat_releve_entre_dans_chronologie():
+    """À la bascule communicante, le relevé de l'activation du calendrier Distributeur
+    (`CMAT`) entre dans la chronologie parce que `impacte_energie` se déclenche sur le
+    *changement de calendrier distributeur*, jamais sur le type d'événement. Le `MDPRM`
+    qui acte le niveau d'ouverture n'impacte pas l'énergie (le statut route au grain
+    méta, pas au grain relevé) : son relevé éventuel est filtré. Aucun code ajouté —
+    on prouve le comportement existant (cf. CONTEXT « Voie communicante »)."""
+    cmat = datetime(2024, 3, 1)
+    mdprm = datetime(2024, 3, 15)
+    cadrans_index = ("base", *_AUTRES_CADRANS)
+
+    historique = (
+        pl.DataFrame(
+            {
+                "pdl": ["PDL777", "PDL777"],
+                "ref_situation_contractuelle": ["REF777", "REF777"],
+                "date_evenement": [cmat, mdprm],
+                "evenement_declencheur": ["CMAT", "MDPRM"],
+                "puissance_souscrite_kva": [6.0, 6.0],
+                "formule_tarifaire_acheminement": ["BTINFCU4", "BTINFCU4"],
+                # CMAT : le calendrier distributeur change (DI000001 → DI000003), index base
+                # inchangé → le *seul* déclencheur est le changement de calendrier.
+                # MDPRM : ni calendrier ni index ne changent → n'impacte pas l'énergie.
+                "avant_id_calendrier_distributeur": ["DI000001", "DI000003"],
+                "apres_id_calendrier_distributeur": ["DI000003", "DI000003"],
+                "avant_index_base_kwh": [5000, 5000],
+                "apres_index_base_kwh": [5000, 5000],
+                **{f"{pos}_index_{c}_kwh": [None, None] for pos in ("avant", "apres") for c in _AUTRES_CADRANS},
+            }
+        )
+        .with_columns(
+            pl.col("date_evenement").dt.replace_time_zone("Europe/Paris"),
+            *[pl.col(f"{pos}_index_{c}_kwh").cast(pl.Int64) for pos in ("avant", "apres") for c in cadrans_index],
+        )
+        .lazy()
+    )
+
+    enrichi = detecter_points_de_rupture(historique)
+    impacts = dict(enrichi.select("evenement_declencheur", "impacte_energie").collect().iter_rows())
+    # (A) CMAT impacte l'énergie (changement de calendrier) ; MDPRM (niveau seul) non.
+    assert impacts["CMAT"] is True
+    assert impacts["MDPRM"] is False
+
+    # (B) Le relevé C15 à la date du CMAT entre dans la chronologie (semi-join sur les
+    #     événements `impacte_energie`, comme dans `pipeline_energie`) ; celui du MDPRM,
+    #     filtré faute d'impact énergie.
+    releves = _releves(
+        [
+            _releve("PDL777", cmat, "flux_C15", 5000.0, ref="REF777"),
+            _releve("PDL777", mdprm, "flux_C15", 5000.0, ref="REF777"),
+        ]
+    )
+    chronologie = enrichi.filter(pl.col("impacte_energie")).pipe(_assembler_chronologie, releves).collect()
+
+    dates = chronologie["date_releve"].to_list()
+    assert datetime(2024, 3, 1, tzinfo=PARIS) in dates
+    assert datetime(2024, 3, 15, tzinfo=PARIS) not in dates

@@ -6,7 +6,7 @@ boundary plutôt que de crasher au fond d'une stack-trace ou de pratiquer du sel
 silencieux. Voir l'entrée *Contrat de pipeline* de `electricore/core/CONTEXT.md`.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 import pandera.errors
@@ -428,3 +428,28 @@ def test_pipeline_energie_sortie_conforme_periode_energie():
 
     # Validation deep (DataFrame) : checks nullability/range s'exécutent
     PeriodeEnergie.validate(result, lazy=True)
+
+
+# =============================================================================
+# Statut de communication — le modèle Historique porte le niveau d'ouverture, typé
+# =============================================================================
+
+
+def test_historique_porte_niveau_ouverture_services_type():
+    """Le modèle `Historique` porte le *statut de communication* (épique #313, AC #314)
+    avec son type au seam (ADR-0035) : `niveau_ouverture_services` est l'`xsd:string`
+    ∈ {0,1,2} → `Utf8`, `date_changement_niveau_ouverture_services` une `Date`. Un niveau
+    mal typé (entier au lieu de la chaîne de la source) est refusé à la frontière."""
+    from electricore.core.models.historique import Historique
+
+    base = _historique_avec_index_lazyframe(impacte_energie=True)
+
+    conforme = base.with_columns(
+        pl.lit("1").alias("niveau_ouverture_services"),
+        pl.lit(date(2024, 1, 1)).alias("date_changement_niveau_ouverture_services"),
+    )
+    Historique.validate(conforme)  # ne lève pas
+
+    mal_type = base.with_columns(pl.lit(1, dtype=pl.Int64).alias("niveau_ouverture_services"))
+    with pytest.raises(PANDERA_ERRORS):
+        Historique.validate(mal_type)

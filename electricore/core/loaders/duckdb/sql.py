@@ -178,6 +178,11 @@ SCHEMA_C15 = FluxSchema(
         col_simple("num_compteur"),
         col_simple("ref_demandeur"),
         col_simple("id_affaire"),
+        # Statut de communication (épique #313) : niveau d'ouverture aux services et sa
+        # date de bascule, portés tels quels par dbt (Utf8 / Date) — le loader ne re-type
+        # pas (ADR-0035).
+        col_simple("niveau_ouverture_services"),
+        col_simple("date_changement_niveau_ouverture_services"),
         # Relevés "Avant" (index de compteurs)
         col_simple("avant_date_releve"),
         col_simple("avant_nature_index"),

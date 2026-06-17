@@ -32,6 +32,12 @@ models:
       - name: date_evenement
         description: Horodatage de l'événement déclencheur (instant, TIMESTAMPTZ).
         data_tests: [not_null]
+      - name: niveau_ouverture_services
+        description: >
+          Statut de communication (épique #313) : niveau d'ouverture aux services
+          Enedis (xsd:string ∈ {0,1,2}), porté au niveau PRM. Communicant ⇔ niveau ≥ 1.
+      - name: date_changement_niveau_ouverture_services
+        description: Date de bascule du niveau d'ouverture aux services (xsd:date).
 
   - name: flux_r15
     description: >
