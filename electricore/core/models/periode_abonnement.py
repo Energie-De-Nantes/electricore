@@ -52,10 +52,8 @@ class PeriodeAbonnement(pa.DataFrameModel):
     turpe_fixe_journalier_eur: pl.Float64 | None = pa.Field(nullable=True)
     turpe_fixe_eur: pl.Float64 | None = pa.Field(nullable=True)
 
-    # Métadonnées de qualité et complétude
-    data_complete: pl.Boolean | None = pa.Field(nullable=True)
+    # Métadonnées d'agrégation
     nb_sous_periodes: pl.Int32 | None = pa.Field(nullable=True, ge=1)
-    coverage_abo: pl.Float64 | None = pa.Field(nullable=True, ge=0.0, le=1.0)
     has_changement: pl.Boolean | None = pa.Field(nullable=True)
 
     class Config:

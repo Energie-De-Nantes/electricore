@@ -32,7 +32,9 @@ class LignesFactureRapprochees(pa.DataFrameModel):
     pdl: pl.Utf8 | None = pa.Field(nullable=True)
     debut: DateTime | None = pa.Field(nullable=True, dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"})
     fin: DateTime | None = pa.Field(nullable=True, dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"})
-    data_complete: pl.Boolean | None = pa.Field(nullable=True)
+    # Verdicts méta jumeaux (axes orthogonaux), remplaçant data_complete (ADR-0033/0036)
+    qualite: pl.Utf8 | None = pa.Field(nullable=True, isin=["réelle", "estimée", "incalculable"])
+    statut_communication: pl.Utf8 | None = pa.Field(nullable=True, isin=["communicante", "non_communicante"])
     turpe_fixe_eur: pl.Float64 | None = pa.Field(nullable=True)
     turpe_variable_eur: pl.Float64 | None = pa.Field(nullable=True)
 

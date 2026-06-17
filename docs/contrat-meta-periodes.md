@@ -30,7 +30,7 @@ GET /facturation/meta-periodes?mois=YYYY-MM-DD&rsc=RSC-A&rsc=RSC-B&limit=500&off
 ```json
 {
   "mois": "2025-03-01",
-  "contract_version": 1,
+  "contract_version": 2,
   "filters": { "rsc": ["RSC-A"] },
   "pagination": { "limit": 500, "offset": 0, "returned": 2, "total": 2 },
   "data": [
@@ -50,10 +50,9 @@ GET /facturation/meta-periodes?mois=YYYY-MM-DD&rsc=RSC-A&rsc=RSC-B&limit=500&off
       "turpe_variable_eur": 18.40,
       "cta_eur": 19.18,
       "taux_accise_eur_mwh": 33.7,
-      "data_complete": true,
-      "coverage_abo": 1.0,
-      "coverage_energie": 1.0,
       "has_changement": false,
+      "qualite": "réelle",
+      "statut_communication": "communicante",
       "source_hash": "9f2b1c7d4e5a6b08"
     }
   ]
@@ -65,12 +64,12 @@ GET /facturation/meta-periodes?mois=YYYY-MM-DD&rsc=RSC-A&rsc=RSC-B&limit=500&off
 | Champ | Type | Rôle |
 |---|---|---|
 | `mois` | `str` `YYYY-MM-DD` | Mois effectivement résolu (utile quand la requête omet `mois`). |
-| `contract_version` | `int` | Version du contrat. `1` aujourd'hui. À asserter côté consommateur. |
+| `contract_version` | `int` | Version du contrat. `2` aujourd'hui (`data_complete`/`coverage_*` retirés, ADR-0033). À asserter côté consommateur. |
 | `filters` | `obj \| null` | Écho des filtres appliqués (`rsc`). |
 | `pagination` | `obj` | `limit`, `offset`, `returned` (lignes de cette page), `total` (lignes du mois). |
 | `data` | `array` | Les méta-périodes. |
 
-### Ligne `data` (schéma figé v1)
+### Ligne `data` (schéma figé v2)
 
 Grain : **une ligne par `(ref_situation_contractuelle, debut, fin)`** — c'est la clé
 d'upsert recommandée côté Odoo. Pas par PDL : un PDL qui change de RSC en cours de mois
@@ -93,10 +92,9 @@ porte deux lignes.
 | `turpe_variable_eur` | `float` | € | non | **Montant final** (réseau). |
 | `cta_eur` | `float` | € | non | **Montant final** (assiette = `turpe_fixe_eur`, possédée par electricore). |
 | `taux_accise_eur_mwh` | `float` | €/MWh | non | **Taux** standard en vigueur. *Pas de montant* : Odoo calcule l'accise facturée. |
-| `data_complete` | `bool` | — | non | `false` ⇒ période partielle/estimée. |
-| `coverage_abo` | `float` | [0,1] | non | Couverture temporelle abonnement. |
-| `coverage_energie` | `float` | [0,1] | non | Couverture temporelle énergie. |
 | `has_changement` | `bool` | — | non | Changement (puissance/énergie) en cours de mois. |
+| `qualite` | `str` | — | **oui** | Qualité de l'énergie du mois (ADR-0033), rollup *pire-gagne* : `réelle` / `estimée` / `incalculable`. |
+| `statut_communication` | `str` | — | **oui** | Voie de communication du mois (ADR-0036) : `communicante` / `non_communicante`. |
 | `source_hash` | `str` (hex) | — | non | Empreinte de contenu de la ligne (cf. *Upsert non destructif*). |
 
 #### Pourquoi un taux pour l'accise mais des montants pour le reste
@@ -128,14 +126,17 @@ ses grilles datées.
 
 ## Signalement partiel / estimé
 
-Une `(RSC, mois)` incomplète arrive avec `data_complete = false` et `coverage_* < 1.0`.
-Odoo construit alors la `souscription.periode` comme **brouillon à compléter** par un·e
-facturiste (cf. ADR-0002 souscriptions_odoo : la Période est un brouillon éditable).
+Le verdict de qualité porte ce signal (ADR-0033) : une `(RSC, mois)` dont l'énergie n'a
+pu être calculée arrive avec `qualite = "incalculable"` ; une énergie reposant sur des
+relevés estimés arrive avec `qualite = "estimée"`. Odoo construit alors la
+`souscription.periode` comme **brouillon à compléter** par un·e facturiste (cf. ADR-0002
+souscriptions_odoo : la Période est un brouillon éditable). Le diagnostic « quel relevé
+manque » se fait par drill-down au grain période (hors contrat /meta-periodes).
 
 ## Upsert non destructif (mécanisme `source_hash`)
 
 `source_hash` est une empreinte de contenu de la ligne (sha256 tronqué sur **toutes** les
-colonnes de quantités/montants/complétude). Il outille un upsert qui préserve le travail
+colonnes de quantités/montants/verdicts). Il outille un upsert qui préserve le travail
 humain :
 
 1. Odoo stocke le `source_hash` reçu sur chaque `souscription.periode`.

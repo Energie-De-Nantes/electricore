@@ -10,8 +10,9 @@ entrée *Méta-période mensuelle*). `Config.unique` garantit ce grain à la
 matérialisation et détecte au passage tout fan-out du join `pdl_mapping`.
 
 `turpe_fixe_eur`, `taux_cta_pct` et `cta_eur` restent nullables : les
-méta-périodes incomplètes (`data_complete=False`) peuvent ne pas porter de
-TURPE fixe, et le montant CTA est alors null — comportement préservé.
+méta-périodes sans TURPE fixe (mois sans abonnement renseigné, énergie
+`incalculable`) peuvent ne pas en porter, et le montant CTA est alors null —
+comportement préservé.
 """
 
 import pandera.polars as pa

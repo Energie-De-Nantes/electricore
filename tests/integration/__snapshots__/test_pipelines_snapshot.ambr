@@ -809,7 +809,6 @@
 # name: test_pipeline_energie_snapshot
   list([
     dict({
-      'data_complete': True,
       'debut': datetime.datetime(2024, 2, 1, 0, 0, tzinfo=zoneinfo.ZoneInfo(key='Europe/Paris')),
       'debut_lisible': '01 février 2024',
       'energie_base_kwh': 150.0,
@@ -833,7 +832,6 @@
       'turpe_variable_eur': 6.56,
     }),
     dict({
-      'data_complete': True,
       'debut': datetime.datetime(2024, 3, 1, 0, 0, tzinfo=zoneinfo.ZoneInfo(key='Europe/Paris')),
       'debut_lisible': '01 mars 2024',
       'energie_base_kwh': 150.0,
@@ -857,7 +855,6 @@
       'turpe_variable_eur': 6.56,
     }),
     dict({
-      'data_complete': True,
       'debut': datetime.datetime(2024, 4, 1, 0, 0, tzinfo=zoneinfo.ZoneInfo(key='Europe/Paris')),
       'debut_lisible': '01 avril 2024',
       'energie_base_kwh': 150.0,
@@ -881,7 +878,6 @@
       'turpe_variable_eur': 6.56,
     }),
     dict({
-      'data_complete': True,
       'debut': datetime.datetime(2024, 5, 1, 0, 0, tzinfo=zoneinfo.ZoneInfo(key='Europe/Paris')),
       'debut_lisible': '01 mai 2024',
       'energie_base_kwh': 150.0,
@@ -905,7 +901,6 @@
       'turpe_variable_eur': 6.56,
     }),
     dict({
-      'data_complete': True,
       'debut': datetime.datetime(2024, 6, 1, 0, 0, tzinfo=zoneinfo.ZoneInfo(key='Europe/Paris')),
       'debut_lisible': '01 juin 2024',
       'energie_base_kwh': 150.0,
@@ -929,7 +924,6 @@
       'turpe_variable_eur': 6.56,
     }),
     dict({
-      'data_complete': True,
       'debut': datetime.datetime(2024, 7, 1, 0, 0, tzinfo=zoneinfo.ZoneInfo(key='Europe/Paris')),
       'debut_lisible': '01 juillet 2024',
       'energie_base_kwh': 150.0,
@@ -953,7 +947,6 @@
       'turpe_variable_eur': 6.56,
     }),
     dict({
-      'data_complete': True,
       'debut': datetime.datetime(2024, 8, 1, 0, 0, tzinfo=zoneinfo.ZoneInfo(key='Europe/Paris')),
       'debut_lisible': '01 août 2024',
       'energie_base_kwh': 150.0,
@@ -977,7 +970,6 @@
       'turpe_variable_eur': 6.56,
     }),
     dict({
-      'data_complete': True,
       'debut': datetime.datetime(2024, 9, 1, 0, 0, tzinfo=zoneinfo.ZoneInfo(key='Europe/Paris')),
       'debut_lisible': '01 septembre 2024',
       'energie_base_kwh': 150.0,
@@ -1001,7 +993,6 @@
       'turpe_variable_eur': 6.56,
     }),
     dict({
-      'data_complete': True,
       'debut': datetime.datetime(2024, 10, 1, 0, 0, tzinfo=zoneinfo.ZoneInfo(key='Europe/Paris')),
       'debut_lisible': '01 octobre 2024',
       'energie_base_kwh': 150.0,
@@ -1025,7 +1016,6 @@
       'turpe_variable_eur': 6.56,
     }),
     dict({
-      'data_complete': True,
       'debut': datetime.datetime(2024, 3, 1, 0, 0, tzinfo=zoneinfo.ZoneInfo(key='Europe/Paris')),
       'debut_lisible': '01 mars 2024',
       'energie_base_kwh': 200.0,
@@ -1049,7 +1039,6 @@
       'turpe_variable_eur': 7.89,
     }),
     dict({
-      'data_complete': True,
       'debut': datetime.datetime(2024, 4, 1, 0, 0, tzinfo=zoneinfo.ZoneInfo(key='Europe/Paris')),
       'debut_lisible': '01 avril 2024',
       'energie_base_kwh': 200.0,
@@ -1073,7 +1062,6 @@
       'turpe_variable_eur': 7.89,
     }),
     dict({
-      'data_complete': True,
       'debut': datetime.datetime(2024, 5, 1, 0, 0, tzinfo=zoneinfo.ZoneInfo(key='Europe/Paris')),
       'debut_lisible': '01 mai 2024',
       'energie_base_kwh': 200.0,
@@ -1097,7 +1085,6 @@
       'turpe_variable_eur': 7.89,
     }),
     dict({
-      'data_complete': True,
       'debut': datetime.datetime(2024, 6, 1, 0, 0, tzinfo=zoneinfo.ZoneInfo(key='Europe/Paris')),
       'debut_lisible': '01 juin 2024',
       'energie_base_kwh': 200.0,
@@ -1121,7 +1108,6 @@
       'turpe_variable_eur': 7.89,
     }),
     dict({
-      'data_complete': True,
       'debut': datetime.datetime(2024, 7, 1, 0, 0, tzinfo=zoneinfo.ZoneInfo(key='Europe/Paris')),
       'debut_lisible': '01 juillet 2024',
       'energie_base_kwh': 200.0,
@@ -1145,7 +1131,6 @@
       'turpe_variable_eur': 7.89,
     }),
     dict({
-      'data_complete': True,
       'debut': datetime.datetime(2024, 8, 1, 0, 0, tzinfo=zoneinfo.ZoneInfo(key='Europe/Paris')),
       'debut_lisible': '01 août 2024',
       'energie_base_kwh': 200.0,
@@ -1169,7 +1154,6 @@
       'turpe_variable_eur': 7.89,
     }),
     dict({
-      'data_complete': True,
       'debut': datetime.datetime(2024, 9, 1, 0, 0, tzinfo=zoneinfo.ZoneInfo(key='Europe/Paris')),
       'debut_lisible': '01 septembre 2024',
       'energie_base_kwh': 200.0,
@@ -1193,7 +1177,6 @@
       'turpe_variable_eur': 7.89,
     }),
     dict({
-      'data_complete': True,
       'debut': datetime.datetime(2024, 10, 1, 0, 0, tzinfo=zoneinfo.ZoneInfo(key='Europe/Paris')),
       'debut_lisible': '01 octobre 2024',
       'energie_base_kwh': 200.0,
@@ -1217,7 +1200,6 @@
       'turpe_variable_eur': 7.89,
     }),
     dict({
-      'data_complete': True,
       'debut': datetime.datetime(2024, 11, 1, 0, 0, tzinfo=zoneinfo.ZoneInfo(key='Europe/Paris')),
       'debut_lisible': '01 novembre 2024',
       'energie_base_kwh': 150.0,
@@ -1241,7 +1223,6 @@
       'turpe_variable_eur': 6.87,
     }),
     dict({
-      'data_complete': False,
       'debut': datetime.datetime(2024, 12, 1, 0, 0, tzinfo=zoneinfo.ZoneInfo(key='Europe/Paris')),
       'debut_lisible': '01 décembre 2024',
       'energie_base_kwh': 0.0,
@@ -1265,7 +1246,6 @@
       'turpe_variable_eur': 0.0,
     }),
     dict({
-      'data_complete': True,
       'debut': datetime.datetime(2024, 11, 1, 0, 0, tzinfo=zoneinfo.ZoneInfo(key='Europe/Paris')),
       'debut_lisible': '01 novembre 2024',
       'energie_base_kwh': 200.0,

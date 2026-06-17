@@ -22,9 +22,11 @@ from electricore.core.pipelines.taux import ajouter_taux_en_vigueur
 
 # Version du contrat exposée dans l'enveloppe (#229). Bump sur rupture (cf. ADR-0027,
 # évolution additive — un ajout de colonne optionnelle ne change pas la version).
-CONTRAT_VERSION = 1
+# v2 (#317/#327, ADR-0033) : retrait cassant de `data_complete` / `coverage_abo` /
+# `coverage_energie`, remplacés par les verdicts jumeaux `qualite` + `statut_communication`.
+CONTRAT_VERSION = 2
 
-# Colonnes du contrat v1 — sous-ensemble de `PeriodeMeta` + bloc réglementaire (#228).
+# Colonnes du contrat v2 — sous-ensemble de `PeriodeMeta` + bloc réglementaire (#228).
 COLONNES_CONTRAT: tuple[str, ...] = (
     "ref_situation_contractuelle",
     "pdl",
@@ -41,12 +43,10 @@ COLONNES_CONTRAT: tuple[str, ...] = (
     "turpe_variable_eur",
     "cta_eur",
     "taux_accise_eur_mwh",
-    "data_complete",
-    "coverage_abo",
-    "coverage_energie",
     "has_changement",
-    # Verdicts méta jumeaux (#326) — qualité (ADR-0033) + communication (ADR-0036).
-    # Évolution additive du contrat (colonnes optionnelles) → pas de bump de version.
+    # Verdicts méta jumeaux — qualité (ADR-0033) + communication (ADR-0036). Remplacent
+    # `data_complete` / `coverage_*` (retirés en v2, ADR-0033) : `qualite` distingue
+    # réel/estimé/incalculable, `statut_communication` route l'énergie.
     "qualite",
     "statut_communication",
 )

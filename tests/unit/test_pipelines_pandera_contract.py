@@ -424,7 +424,8 @@ def test_pipeline_energie_sortie_conforme_periode_energie():
     assert "pdl" in result.columns
     assert "debut" in result.columns
     assert "fin" in result.columns
-    assert "data_complete" in result.columns
+    assert "qualite" in result.columns
+    assert "statut_communication" in result.columns
 
     # Validation deep (DataFrame) : checks nullability/range s'exécutent
     PeriodeEnergie.validate(result, lazy=True)

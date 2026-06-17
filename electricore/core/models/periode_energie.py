@@ -30,12 +30,9 @@ class PeriodeEnergie(pa.DataFrameModel):
     source_avant: pl.Utf8 = pa.Field(nullable=False)
     source_apres: pl.Utf8 = pa.Field(nullable=False)
 
-    # Flags de qualité des données
-    data_complete: pl.Boolean = pa.Field(nullable=False)
-
-    # Verdicts de période jumeaux (axes orthogonaux, ADR-0036).
+    # Verdicts de période jumeaux (axes orthogonaux, ADR-0036). Remplacent l'ancien
+    # flag `data_complete` (retiré, ADR-0033 — un booléen ne distinguait pas réel/estimé).
     # Qualité (ADR-0033) : rollup pire-gagne de la nature d'index des deux bornes.
-    # Remplacera data_complete (retrait dans la slice de bascule).
     qualite: pl.Utf8 | None = pa.Field(nullable=True, isin=["réelle", "estimée", "incalculable"])
     # Communication (ADR-0036) : communicante ssi les deux bornes sont à niveau ≥ 1.
     statut_communication: pl.Utf8 | None = pa.Field(nullable=True, isin=["communicante", "non_communicante"])
@@ -63,9 +60,8 @@ class PeriodeEnergie(pa.DataFrameModel):
     releve_manquant_debut: pl.Boolean | None = pa.Field(nullable=True)
     releve_manquant_fin: pl.Boolean | None = pa.Field(nullable=True)
 
-    # Métadonnées de qualité et complétude
+    # Métadonnées d'agrégation
     nb_sous_periodes: pl.Int32 | None = pa.Field(nullable=True, ge=1)
-    coverage_energie: pl.Float64 | None = pa.Field(nullable=True, ge=0.0, le=1.0)
     has_changement: pl.Boolean | None = pa.Field(nullable=True)
 
     @pa.dataframe_check

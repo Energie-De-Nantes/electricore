@@ -21,7 +21,7 @@ PARIS = ZoneInfo("Europe/Paris")
 
 @pytest.fixture
 def meta_periodes_synthetiques() -> pl.DataFrame:
-    """Mime la sortie projetée de `meta_periodes` (champs `PeriodeMeta` du contrat v1)."""
+    """Mime la sortie projetée de `meta_periodes` (champs `PeriodeMeta` du contrat v2)."""
     return pl.DataFrame(
         {
             "ref_situation_contractuelle": ["RSC-1", "RSC-2"],
@@ -37,10 +37,9 @@ def meta_periodes_synthetiques() -> pl.DataFrame:
             "energie_hc_kwh": [145.2, None],
             "turpe_fixe_eur": [9.13, 12.0],
             "turpe_variable_eur": [18.4, 22.0],
-            "data_complete": [True, False],
-            "coverage_abo": [1.0, 1.0],
-            "coverage_energie": [1.0, 0.5],
             "has_changement": [False, False],
+            "qualite": ["réelle", "incalculable"],
+            "statut_communication": ["communicante", "non_communicante"],
         }
     )
 
@@ -72,7 +71,8 @@ def test_meta_periodes_retourne_enveloppe_json(monkeypatch, meta_periodes_synthe
     assert row["ref_situation_contractuelle"] == "RSC-1"
     assert row["energie_hp_kwh"] == 312.4
     assert row["turpe_fixe_eur"] == 9.13
-    assert row["data_complete"] is True
+    assert row["qualite"] == "réelle"
+    assert row["statut_communication"] == "communicante"
 
 
 def test_meta_periodes_refuse_sans_api_key():
@@ -93,7 +93,7 @@ def test_meta_periodes_enveloppe_porte_contract_version(monkeypatch, meta_period
     finally:
         app.dependency_overrides.clear()
 
-    assert response.json()["contract_version"] == 1
+    assert response.json()["contract_version"] == 2
 
 
 def test_meta_periodes_propage_mois_et_rsc(monkeypatch, meta_periodes_synthetiques):
