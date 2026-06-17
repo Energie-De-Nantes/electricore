@@ -37,6 +37,8 @@ def _contexte_synthetique() -> ContexteMensuel:
             "coverage_abo": [1.0, 1.0],
             "coverage_energie": [1.0, 0.5],
             "has_changement": [False, False],
+            "qualite": ["réelle", "incalculable"],
+            "statut_communication": ["communicante", "non_communicante"],
         }
     )
     vide = pl.LazyFrame()
@@ -48,6 +50,21 @@ def _contexte_synthetique() -> ContexteMensuel:
         releves_utilises=vide,
         facturation_mensuelle=facturation,
     )
+
+
+def test_meta_periodes_expose_axes_statut(monkeypatch):
+    """#326 : l'endpoint expose les verdicts méta jumeaux — qualité (ADR-0033) +
+    statut de communication (ADR-0036) — à côté du réglementaire, pour consommation
+    ERP / rapport de facturation."""
+    monkeypatch.setattr(meta_periodes_service, "contexte_du_mois", lambda mois=None: _contexte_synthetique())
+
+    _, df = meta_periodes_service.meta_periodes("2025-03-01")
+
+    assert "qualite" in df.columns
+    assert "statut_communication" in df.columns
+    lignes = df.sort("ref_situation_contractuelle")
+    assert lignes["qualite"].to_list() == ["réelle", "incalculable"]
+    assert lignes["statut_communication"].to_list() == ["communicante", "non_communicante"]
 
 
 def test_meta_periodes_ajoute_cta_eur_et_taux_accise(monkeypatch):

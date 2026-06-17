@@ -57,6 +57,12 @@ class PeriodeMeta(pa.DataFrameModel):
     coverage_energie: pl.Float64 = pa.Field(nullable=False, ge=0.0, le=1.0)  # 0.0 à 1.0
     data_complete: pl.Boolean = pa.Field(nullable=False)  # True si coverage_abo=1.0 ET coverage_energie=1.0
 
+    # Verdicts méta jumeaux (axes orthogonaux). Qualité (ADR-0033) : rollup pire-gagne des
+    # sous-périodes (un mois communicant peut être estimé). Communication (ADR-0036) :
+    # plein-ou-rien sur le segment actif (voie communicante / non-communicante).
+    qualite: pl.Utf8 | None = pa.Field(nullable=True, isin=["réelle", "estimée", "incalculable"])
+    statut_communication: pl.Utf8 | None = pa.Field(nullable=True, isin=["communicante", "non_communicante"])
+
     # Métadonnées optionnelles pour lisibilité
     debut_lisible: pl.Utf8 | None = pa.Field(nullable=True)
     fin_lisible: pl.Utf8 | None = pa.Field(nullable=True)

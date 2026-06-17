@@ -220,6 +220,69 @@ def expr_data_complete() -> pl.Expr:
     )
 
 
+# =============================================================================
+# AXES DE STATUT DE PÉRIODE (jumeaux) : qualité (ADR-0033) & communication (ADR-0036)
+# =============================================================================
+# Plomberie commune : un attribut porté par les relevés (nature d'index / niveau
+# d'ouverture) est shifté sur les deux bornes de la période, puis rollupé PIRE-GAGNE.
+
+
+def expr_bornes_statut(over: str = "ref_situation_contractuelle") -> list[pl.Expr]:
+    """Bornes des axes de statut : nature d'index (qualité) et niveau d'ouverture
+    (communication) des relevés debut/fin. Plomberie *jumelle* de `expr_bornes_depuis_shift`
+    pour les attributs de statut portés par les relevés (ADR-0033/0036)."""
+    return [
+        pl.col("nature_index").shift(1).over(over).alias("nature_index_debut"),
+        pl.col("nature_index").alias("nature_index_fin"),
+        pl.col("niveau_ouverture_services").shift(1).over(over).alias("niveau_debut"),
+        pl.col("niveau_ouverture_services").alias("niveau_fin"),
+    ]
+
+
+def _expr_rang_qualite(col: str) -> pl.Expr:
+    """Rang pire-gagne de la nature d'index d'une borne (ADR-0033) :
+    réel/corrigé → 0 (réelle), estimé → 1 (estimée), null/manquant → 2 (incalculable)."""
+    return (
+        pl.when(pl.col(col).is_in(["réel", "corrigé"]))
+        .then(pl.lit(0))
+        .when(pl.col(col) == "estimé")
+        .then(pl.lit(1))
+        .otherwise(pl.lit(2))
+    )
+
+
+def expr_qualite_periode() -> pl.Expr:
+    """Qualité d'une période d'énergie (ADR-0033) : rollup PIRE-GAGNE de la nature d'index
+    de ses deux bornes — réel/corrigé → réelle ; estimé → estimée ; relevé manquant
+    (nature null) → incalculable (incalculable > estimée > réelle)."""
+    pire = pl.max_horizontal(_expr_rang_qualite("nature_index_debut"), _expr_rang_qualite("nature_index_fin"))
+    return (
+        pl.when(pire == 0)
+        .then(pl.lit("réelle"))
+        .when(pire == 1)
+        .then(pl.lit("estimée"))
+        .otherwise(pl.lit("incalculable"))
+    )
+
+
+def _expr_niveau_communicant(col: str) -> pl.Expr:
+    """Borne communicante ssi son niveau d'ouverture ≥ 1 (ADR-0036). `niveau` est un
+    `xsd:string ∈ {0,1,2}` → cast Int8 ; null (relevé manquant / avant tout C15) → non
+    communicant."""
+    return pl.col(col).cast(pl.Int8, strict=False) >= 1
+
+
+def expr_statut_communication_periode() -> pl.Expr:
+    """Statut d'ouverture (communication) d'une période (ADR-0036) : COMMUNICANTE ssi ses
+    deux bornes sont à niveau ≥ 1 ; sinon non-communicante (une seule borne niveau-0
+    suffit à écarter). Verdict jumeau de la qualité, calculé sur l'axe orthogonal niveau."""
+    return (
+        pl.when(_expr_niveau_communicant("niveau_debut") & _expr_niveau_communicant("niveau_fin"))
+        .then(pl.lit("communicante"))
+        .otherwise(pl.lit("non_communicante"))
+    )
+
+
 def expr_selectionner_colonnes_finales():
     """
     Sélection pour garder uniquement les colonnes finales pertinentes.
@@ -245,6 +308,9 @@ def expr_selectionner_colonnes_finales():
         pl.col("source_avant"),
         pl.col("source_apres"),
         pl.col("data_complete"),
+        # Verdicts de période jumeaux (ADR-0033 qualité / ADR-0036 communication).
+        pl.col("qualite"),
+        pl.col("statut_communication"),
     ]
 
     # Ajouter les colonnes contractuelles si présentes
@@ -443,18 +509,39 @@ def calculer_periodes_energie(lf: pl.LazyFrame) -> LazyFrame[PeriodeEnergie]:
     # Colonnes d'index des cadrans canoniques (index_{cadran}_kwh)
     colonnes_index = [col_index(c) for c in CADRANS]
 
+    # Les attributs de statut portés par les relevés (nature d'index → qualité ; niveau
+    # d'ouverture → communication) peuvent manquer sur une chronologie synthétique : les
+    # compléter en null typé pour que les bornes/verdicts restent calculables (→ période
+    # incalculable / non communicante, sémantiquement correct quand la donnée manque).
+    schema = lf.collect_schema().names()
+    manquantes = [c for c in ("nature_index", "niveau_ouverture_services") if c not in schema]
+    if manquantes:
+        lf = lf.with_columns([pl.lit(None, dtype=pl.Utf8).alias(c) for c in manquantes])
+
     return (
         lf
         # Tri par contrat et chronologique pour optimiser les .over("ref_situation_contractuelle")
         .sort(["ref_situation_contractuelle", "date_releve", "ordre_index"])
         .set_sorted("ref_situation_contractuelle")  # Indiquer explicitement que ref_situation_contractuelle est trié
-        # Étape 1 : Bornes temporelles. Les index arrivent déjà en kWh entiers depuis
-        # le boundary dbt (ADR-0034) — plus d'arrondi à faire ici.
-        .with_columns([*expr_bornes_depuis_shift(over="ref_situation_contractuelle")])
+        # Étape 1 : Bornes temporelles + bornes de statut (nature/niveau des 2 bornes). Les
+        # index arrivent déjà en kWh entiers depuis le boundary dbt (ADR-0034).
+        .with_columns(
+            [
+                *expr_bornes_depuis_shift(over="ref_situation_contractuelle"),
+                *expr_bornes_statut(over="ref_situation_contractuelle"),
+            ]
+        )
         # Étape 2 : Calcul énergies + méta-colonnes de période (bundle partagé, cf. periodes.py)
         .with_columns([*expr_calculer_energies_tous_cadrans(colonnes_index), *exprs_meta_periode()])
-        # Étape 3 : Flag de complétude des données
-        .with_columns([expr_data_complete().alias("data_complete")])
+        # Étape 3 : Flags/verdicts de période — complétude (legacy) + axes jumeaux
+        # qualité (ADR-0033) & communication (ADR-0036).
+        .with_columns(
+            [
+                expr_data_complete().alias("data_complete"),
+                expr_qualite_periode().alias("qualite"),
+                expr_statut_communication_periode().alias("statut_communication"),
+            ]
+        )
         # Filtrage des périodes valides
         .filter(expr_filtrer_periodes_valides())
         # post traitement
