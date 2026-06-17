@@ -57,13 +57,15 @@ class Historique(pa.DataFrameModel):
     avant_nature_index: pl.Utf8 | None = pa.Field(nullable=True)
     avant_id_calendrier_fournisseur: pl.Utf8 | None = pa.Field(nullable=True)
     avant_id_calendrier_distributeur: pl.Utf8 | None = pa.Field(nullable=True)
-    avant_index_hp_kwh: pl.Float64 | None = pa.Field(nullable=True)
-    avant_index_hc_kwh: pl.Float64 | None = pa.Field(nullable=True)
-    avant_index_hch_kwh: pl.Float64 | None = pa.Field(nullable=True)
-    avant_index_hph_kwh: pl.Float64 | None = pa.Field(nullable=True)
-    avant_index_hpb_kwh: pl.Float64 | None = pa.Field(nullable=True)
-    avant_index_hcb_kwh: pl.Float64 | None = pa.Field(nullable=True)
-    avant_index_base_kwh: pl.Float64 | None = pa.Field(nullable=True)
+    # Index avant/après en kWh entiers (Int64) : flux_c15 émet du bigint, le loader ne
+    # re-caste plus (ADR-0035) — il trust dbt.
+    avant_index_hp_kwh: pl.Int64 | None = pa.Field(nullable=True)
+    avant_index_hc_kwh: pl.Int64 | None = pa.Field(nullable=True)
+    avant_index_hch_kwh: pl.Int64 | None = pa.Field(nullable=True)
+    avant_index_hph_kwh: pl.Int64 | None = pa.Field(nullable=True)
+    avant_index_hpb_kwh: pl.Int64 | None = pa.Field(nullable=True)
+    avant_index_hcb_kwh: pl.Int64 | None = pa.Field(nullable=True)
+    avant_index_base_kwh: pl.Int64 | None = pa.Field(nullable=True)
 
     # Colonnes de relevés "Après"
     apres_date_releve: DateTime | None = pa.Field(
@@ -72,13 +74,13 @@ class Historique(pa.DataFrameModel):
     apres_nature_index: pl.Utf8 | None = pa.Field(nullable=True)
     apres_id_calendrier_fournisseur: pl.Utf8 | None = pa.Field(nullable=True)
     apres_id_calendrier_distributeur: pl.Utf8 | None = pa.Field(nullable=True)
-    apres_index_hp_kwh: pl.Float64 | None = pa.Field(nullable=True)
-    apres_index_hc_kwh: pl.Float64 | None = pa.Field(nullable=True)
-    apres_index_hch_kwh: pl.Float64 | None = pa.Field(nullable=True)
-    apres_index_hph_kwh: pl.Float64 | None = pa.Field(nullable=True)
-    apres_index_hpb_kwh: pl.Float64 | None = pa.Field(nullable=True)
-    apres_index_hcb_kwh: pl.Float64 | None = pa.Field(nullable=True)
-    apres_index_base_kwh: pl.Float64 | None = pa.Field(nullable=True)
+    apres_index_hp_kwh: pl.Int64 | None = pa.Field(nullable=True)
+    apres_index_hc_kwh: pl.Int64 | None = pa.Field(nullable=True)
+    apres_index_hch_kwh: pl.Int64 | None = pa.Field(nullable=True)
+    apres_index_hph_kwh: pl.Int64 | None = pa.Field(nullable=True)
+    apres_index_hpb_kwh: pl.Int64 | None = pa.Field(nullable=True)
+    apres_index_hcb_kwh: pl.Int64 | None = pa.Field(nullable=True)
+    apres_index_base_kwh: pl.Int64 | None = pa.Field(nullable=True)
 
     # Colonnes ajoutées par l'enrichissement (detecter_points_de_rupture)
     avant_puissance_souscrite: pl.Float64 | None = pa.Field(nullable=True)

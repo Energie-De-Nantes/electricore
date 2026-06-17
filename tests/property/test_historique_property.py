@@ -98,7 +98,7 @@ def _historique_brut(jours: list[dt.date], puissances: list[float]) -> pl.LazyFr
     for prefixe in ("avant", "apres"):
         overrides[f"{prefixe}_id_calendrier_distributeur"] = pl.Utf8
         for cadran in _INDEX_CADRANS:
-            overrides[f"{prefixe}_index_{cadran}_kwh"] = pl.Float64
+            overrides[f"{prefixe}_index_{cadran}_kwh"] = pl.Int64
 
     return pl.DataFrame(data, schema_overrides=overrides).lazy()
 

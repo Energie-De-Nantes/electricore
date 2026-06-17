@@ -49,7 +49,7 @@ def historique_brut(evenements: list[dict]) -> pl.LazyFrame:
         "avant_id_calendrier_distributeur": [None] * n,
         "apres_id_calendrier_distributeur": [None] * n,
     }
-    # Index avant/après par cadran (nullable Float64, cas sans rupture d'index).
+    # Index avant/après par cadran (nullable Int64 — kWh entiers, ADR-0034/0035).
     schema_overrides: dict[str, pl.DataType] = {
         "avant_id_calendrier_distributeur": pl.Utf8,
         "apres_id_calendrier_distributeur": pl.Utf8,
@@ -57,8 +57,8 @@ def historique_brut(evenements: list[dict]) -> pl.LazyFrame:
     for cadran in CADRANS:
         data[f"avant_{col_index(cadran)}"] = [None] * n
         data[f"apres_{col_index(cadran)}"] = [None] * n
-        schema_overrides[f"avant_{col_index(cadran)}"] = pl.Float64
-        schema_overrides[f"apres_{col_index(cadran)}"] = pl.Float64
+        schema_overrides[f"avant_{col_index(cadran)}"] = pl.Int64
+        schema_overrides[f"apres_{col_index(cadran)}"] = pl.Int64
 
     return pl.LazyFrame(data, schema_overrides=schema_overrides).with_columns(
         pl.col("date_evenement").dt.replace_time_zone("Europe/Paris")
