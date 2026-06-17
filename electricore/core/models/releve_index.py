@@ -34,14 +34,17 @@ class RelevéIndex(pa.DataFrameModel):
     # `releves` ne les porte pas, et plus rien ne les lit. Un loader /flux peut encore
     # exposer un `unite` (colonne supplémentaire tolérée, Config.strict=False).
 
-    # ⚡ Index de compteurs (valeurs cumulées en kWh)
-    index_hp_kwh: pl.Float64 | None = pa.Field(nullable=True)
-    index_hc_kwh: pl.Float64 | None = pa.Field(nullable=True)
-    index_hch_kwh: pl.Float64 | None = pa.Field(nullable=True)
-    index_hph_kwh: pl.Float64 | None = pa.Field(nullable=True)
-    index_hpb_kwh: pl.Float64 | None = pa.Field(nullable=True)
-    index_hcb_kwh: pl.Float64 | None = pa.Field(nullable=True)
-    index_base_kwh: pl.Float64 | None = pa.Field(nullable=True)
+    # ⚡ Index de compteurs (valeurs cumulées en kWh **entiers**, ADR-0034). Le type est
+    # Int64 — celui que dbt émet nativement (`contrat_releve()` : bigint) après le floor
+    # Wh→kWh au boundary de linéarisation. Le loader ne re-caste plus (ADR-0035) : la
+    # parité dbt↔Pandera est prouvée par `test_releves_dbt_respecte_le_contrat_pandera`.
+    index_hp_kwh: pl.Int64 | None = pa.Field(nullable=True)
+    index_hc_kwh: pl.Int64 | None = pa.Field(nullable=True)
+    index_hch_kwh: pl.Int64 | None = pa.Field(nullable=True)
+    index_hph_kwh: pl.Int64 | None = pa.Field(nullable=True)
+    index_hpb_kwh: pl.Int64 | None = pa.Field(nullable=True)
+    index_hcb_kwh: pl.Int64 | None = pa.Field(nullable=True)
+    index_base_kwh: pl.Int64 | None = pa.Field(nullable=True)
 
     # 🔌 Métadonnées spécifiques R64 (optionnelles)
     type_releve: pl.Utf8 | None = pa.Field(nullable=True, isin=["AQ", "AM", "AC"])

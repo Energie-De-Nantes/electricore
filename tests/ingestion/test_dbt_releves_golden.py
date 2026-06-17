@@ -19,6 +19,8 @@ pytest.importorskip("dbt.adapters.duckdb", reason="dbt-duckdb absent — uv sync
 
 from dbt.cli.main import dbtRunner  # noqa: E402
 
+from electricore.core.models.parite_typage import ecarts_de_typage  # noqa: E402
+from electricore.core.models.releve_index import RelevéIndex  # noqa: E402
 from electricore.ingestion.parsing.xml import xml_vers_dict  # noqa: E402
 
 RACINE = Path(__file__).parents[2]
@@ -108,6 +110,25 @@ def test_runner_construit_releves_via_sa_propre_selection(base_periodiques):
     n = con.execute("select count(*) from flux_enedis.releves").fetchone()[0]
     con.close()
     assert n > 0, "releves doit être matérialisé et non vide"
+
+
+def test_releves_dbt_respecte_le_contrat_pandera(base_periodiques):
+    """Parité de typage dbt↔cœur (ADR-0035, #291). Le schéma réellement émis par le
+    mart `releves` doit être type-compatible avec le contrat Pandera `RelevéIndex`, via
+    la table de correspondance SQL↔Polars. C'est le garde-fou de frontière qui manquait
+    quand le bug ADR-0034 (index ~1000× trop grands) a glissé silencieusement. On lit le
+    type **réellement émis par dbt** (`DESCRIBE`), pas la sortie post-cast du loader :
+    sinon un re-typage côté loader blanchirait une dérive du modèle dbt. Nullabilité hors
+    périmètre (axe par couche)."""
+    resultat = _build_releves(base_periodiques.parent)
+    assert resultat.success, f"dbt build releves a échoué : {resultat.exception}"
+
+    con = duckdb.connect(str(base_periodiques))
+    schema_sql = {nom: type_sql for nom, type_sql, *_ in con.execute("describe flux_enedis.releves").fetchall()}
+    con.close()
+
+    ecarts = ecarts_de_typage(schema_sql, RelevéIndex)
+    assert not ecarts, f"divergences de typage dbt↔RelevéIndex (dbt, pandera) : {ecarts}"
 
 
 def test_releves_union_grain_et_harmonisation(base_periodiques):
