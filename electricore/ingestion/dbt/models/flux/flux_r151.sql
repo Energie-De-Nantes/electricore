@@ -43,13 +43,7 @@ classes as (
 cadrans as (
     select
         occurrence_id,
-        max(case when cadran = 'base' then valeur end) as index_base_kwh,
-        max(case when cadran = 'hp' then valeur end) as index_hp_kwh,
-        max(case when cadran = 'hc' then valeur end) as index_hc_kwh,
-        max(case when cadran = 'hph' then valeur end) as index_hph_kwh,
-        max(case when cadran = 'hpb' then valeur end) as index_hpb_kwh,
-        max(case when cadran = 'hch' then valeur end) as index_hch_kwh,
-        max(case when cadran = 'hcb' then valeur end) as index_hcb_kwh
+        {{ pivot_cadrans() }}
     from classes
     group by occurrence_id
 )

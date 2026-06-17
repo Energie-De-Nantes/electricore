@@ -11,7 +11,7 @@
 -- (provenance fichier). Réintroduit dans le journal des relevés utilisés, pas ici, le jour
 -- où la régularisation aura besoin de l'id officiel (cf. #305).
 {% macro contrat_releve() %}
-  {{ return([
+  {%- set colonnes = [
     ('releve_id', 'varchar'),
     ('pdl', 'varchar'),
     ('date_releve', 'timestamptz'),
@@ -20,15 +20,14 @@
     ('occurrence_id', 'varchar'),
     ('ref_situation_contractuelle', 'varchar'),
     ('formule_tarifaire_acheminement', 'varchar'),
-    ('id_calendrier_distributeur', 'varchar'),
-    ('index_base_kwh', 'bigint'),
-    ('index_hp_kwh', 'bigint'),
-    ('index_hc_kwh', 'bigint'),
-    ('index_hph_kwh', 'bigint'),
-    ('index_hpb_kwh', 'bigint'),
-    ('index_hch_kwh', 'bigint'),
-    ('index_hcb_kwh', 'bigint')
-  ]) }}
+    ('id_calendrier_distributeur', 'varchar')
+  ] -%}
+  {#- Colonnes d'index DÉRIVÉES de cadrans.py (var `cadrans_releve`, ADR-0035 §1) : le nom
+      vient du cadran (source unique), le type bigint est porté par dbt (kWh entiers, ADR-0034). -#}
+  {%- for nom in cadrans_index_noms() -%}
+    {%- do colonnes.append((nom, 'bigint')) -%}
+  {%- endfor -%}
+  {{ return(colonnes) }}
 {% endmacro %}
 
 

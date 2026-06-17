@@ -18,14 +18,9 @@ with avant as (
         ref_situation_contractuelle,
         formule_tarifaire_acheminement,
         avant_id_calendrier_distributeur                        as id_calendrier_distributeur,
-        avant_index_base_kwh as index_base_kwh, avant_index_hp_kwh as index_hp_kwh, avant_index_hc_kwh as index_hc_kwh,
-        avant_index_hph_kwh as index_hph_kwh, avant_index_hpb_kwh as index_hpb_kwh,
-        avant_index_hch_kwh as index_hch_kwh, avant_index_hcb_kwh as index_hcb_kwh
+        {{ cadrans_index_rename('avant_') }}
     from {{ ref('flux_c15') }}
-    where coalesce(
-        avant_index_base_kwh, avant_index_hp_kwh, avant_index_hc_kwh, avant_index_hph_kwh,
-        avant_index_hpb_kwh, avant_index_hch_kwh, avant_index_hcb_kwh
-    ) is not null
+    where coalesce({{ cadrans_index_cols('avant_') }}) is not null
 ),
 
 apres as (
@@ -38,14 +33,9 @@ apres as (
         ref_situation_contractuelle,
         formule_tarifaire_acheminement,
         apres_id_calendrier_distributeur                        as id_calendrier_distributeur,
-        apres_index_base_kwh as index_base_kwh, apres_index_hp_kwh as index_hp_kwh, apres_index_hc_kwh as index_hc_kwh,
-        apres_index_hph_kwh as index_hph_kwh, apres_index_hpb_kwh as index_hpb_kwh,
-        apres_index_hch_kwh as index_hch_kwh, apres_index_hcb_kwh as index_hcb_kwh
+        {{ cadrans_index_rename('apres_') }}
     from {{ ref('flux_c15') }}
-    where coalesce(
-        apres_index_base_kwh, apres_index_hp_kwh, apres_index_hc_kwh, apres_index_hph_kwh,
-        apres_index_hpb_kwh, apres_index_hch_kwh, apres_index_hcb_kwh
-    ) is not null
+    where coalesce({{ cadrans_index_cols('apres_') }}) is not null
 )
 
 select * from avant

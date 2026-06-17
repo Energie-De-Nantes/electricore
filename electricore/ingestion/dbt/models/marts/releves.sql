@@ -30,8 +30,7 @@ r151_raw as (
         nature_index,
         occurrence_id,
         id_calendrier_distributeur,
-        index_base_kwh, index_hp_kwh, index_hc_kwh,
-        index_hph_kwh, index_hpb_kwh, index_hch_kwh, index_hcb_kwh
+        {{ cadrans_index_cols() }}
     from {{ ref('flux_r151') }}
 ),
 
@@ -47,8 +46,7 @@ r64_raw as (
         nature_index,
         occurrence_id,
         id_calendrier_distributeur,
-        index_base_kwh, index_hp_kwh, index_hc_kwh,
-        index_hph_kwh, index_hpb_kwh, index_hch_kwh, index_hcb_kwh
+        {{ cadrans_index_cols() }}
     from {{ ref('flux_r64') }}
 ),
 
@@ -56,27 +54,21 @@ unifies as (
     {{ conformer_au_contrat_releve('r151_raw', 'flux_R151', fournit=[
         'releve_id', 'pdl', 'date_releve', 'ordre_index', 'nature_index', 'occurrence_id',
         'id_calendrier_distributeur',
-        'index_base_kwh', 'index_hp_kwh', 'index_hc_kwh',
-        'index_hph_kwh', 'index_hpb_kwh', 'index_hch_kwh', 'index_hcb_kwh'
-    ]) }}
+    ] + cadrans_index_noms()) }}
 
     union all
 
     {{ conformer_au_contrat_releve('r64_raw', 'flux_R64', fournit=[
         'releve_id', 'pdl', 'date_releve', 'ordre_index', 'nature_index', 'occurrence_id',
         'id_calendrier_distributeur',
-        'index_base_kwh', 'index_hp_kwh', 'index_hc_kwh',
-        'index_hph_kwh', 'index_hpb_kwh', 'index_hch_kwh', 'index_hcb_kwh'
-    ]) }}
+    ] + cadrans_index_noms()) }}
 
     union all
 
     {{ conformer_au_contrat_releve(ref('int_releves__c15'), 'flux_C15', fournit=[
         'releve_id', 'pdl', 'date_releve', 'ordre_index', 'nature_index',
         'ref_situation_contractuelle', 'formule_tarifaire_acheminement', 'id_calendrier_distributeur',
-        'index_base_kwh', 'index_hp_kwh', 'index_hc_kwh',
-        'index_hph_kwh', 'index_hpb_kwh', 'index_hch_kwh', 'index_hcb_kwh'
-    ]) }}
+    ] + cadrans_index_noms()) }}
 ),
 
 -- Dedup même-source (re-livraison) : 1 ligne par relevé logique = 1 par releve_id
