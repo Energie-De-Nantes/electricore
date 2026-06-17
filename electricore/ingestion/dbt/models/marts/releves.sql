@@ -67,7 +67,8 @@ unifies as (
 
     {{ conformer_au_contrat_releve(ref('int_releves__c15'), 'flux_C15', fournit=[
         'releve_id', 'pdl', 'date_releve', 'ordre_index', 'nature_index',
-        'ref_situation_contractuelle', 'formule_tarifaire_acheminement', 'id_calendrier_distributeur',
+        'ref_situation_contractuelle', 'formule_tarifaire_acheminement', 'niveau_ouverture_services',
+        'id_calendrier_distributeur',
     ] + cadrans_index_noms()) }}
 ),
 
@@ -94,7 +95,14 @@ select * replace (
     coalesce(
         formule_tarifaire_acheminement,
         last_value(formule_tarifaire_acheminement ignore nulls) over w
-    ) as formule_tarifaire_acheminement
+    ) as formule_tarifaire_acheminement,
+    -- niveau_ouverture_services : porté nativement par les relevés C15 (niveau PRM),
+    -- propagé aux périodiques par le MÊME forward-fill par PDL que RSC/FTA (#324,
+    -- ADR-0036) — la *jumelle* de nature_index pour l'axe « voie communicante ».
+    coalesce(
+        niveau_ouverture_services,
+        last_value(niveau_ouverture_services ignore nulls) over w
+    ) as niveau_ouverture_services
 )
 from dedup
 window w as (

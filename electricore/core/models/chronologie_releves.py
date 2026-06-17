@@ -41,6 +41,11 @@ class ChronologieReleves(pa.DataFrameModel):
     # Attribution contractuelle garantie (forward-fill par PDL) — invariant fort.
     ref_situation_contractuelle: pl.Utf8 = pa.Field(nullable=False)
     formule_tarifaire_acheminement: pl.Utf8 | None = pa.Field(nullable=True)
+    # Niveau d'ouverture aux services (statut de communication, ADR-0036). Forward-fillé
+    # par PDL depuis le C15 au mart `releves` (#324) ; jumelle de nature_index. Nullable
+    # (un relevé interrogé absent ou antérieur à tout C15 n'en porte pas). Le verdict
+    # d'ouverture de période (#325) le rollupera sur les deux bornes.
+    niveau_ouverture_services: pl.Utf8 | None = pa.Field(nullable=True)
 
     # 📆 Date du relevé (tz-aware Europe/Paris, comme RelevéIndex)
     date_releve: DateTime = pa.Field(nullable=False, dtype_kwargs={"time_unit": "us", "time_zone": "Europe/Paris"})

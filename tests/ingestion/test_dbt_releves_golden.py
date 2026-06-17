@@ -203,6 +203,35 @@ def test_releves_inclut_c15_avant_apres(base_periodiques):
     assert all(r["nature_index"] in {"réel", "estimé", "corrigé"} for r in c15)
 
 
+def test_releves_porte_niveau_ouverture_depuis_c15(base_periodiques):
+    """#324 (voie communicante, ADR-0036) : le mart `releves` porte
+    `niveau_ouverture_services` — la *jumelle* de `nature_index`. La valeur est portée
+    NATIVEMENT par les relevés C15 (niveau PRM lu dans flux_c15), comme RSC/FTA. La
+    fixture C15 a `Niveau_Ouverture_Services=2` au niveau PRM → tous ses relevés C15 le
+    portent. Le forward-fill par PDL vers les périodiques est prouvé séparément sur une
+    entrée synthétique (fixtures à PDL disjoints inter-flux, cf.
+    `test_forward_fill_niveau_pilote_par_c15`)."""
+    resultat = _build_releves(base_periodiques.parent)
+    assert resultat.success, f"dbt build releves a échoué : {resultat.exception}"
+
+    con = duckdb.connect(str(base_periodiques))
+    cols = {nom for nom, *_ in con.execute("describe flux_enedis.releves").fetchall()}
+    niveaux_c15 = (
+        [
+            r[0]
+            for r in con.execute(
+                "select distinct niveau_ouverture_services from flux_enedis.releves where source = 'flux_C15'"
+            ).fetchall()
+        ]
+        if "niveau_ouverture_services" in cols
+        else None
+    )
+    con.close()
+
+    assert "niveau_ouverture_services" in cols, f"colonne niveau_ouverture_services manquante, vu : {sorted(cols)}"
+    assert niveaux_c15 == ["2"], f"les relevés C15 doivent porter le niveau PRM, vu : {niveaux_c15}"
+
+
 def test_releves_sans_colonne_id_releve_natif(base_periodiques):
     """L'id natif Enedis est retiré du contrat canonique (#304) : toujours NULL pour les
     trois sources vivantes (R151/R64 n'en ont pas, C15 le nullait), aucun consommateur ne
@@ -287,3 +316,54 @@ def test_forward_fill_rsc_pilote_par_c15():
     assert by[("A", "2026-02-01")] == ("RSC1", "FTA1")
     # PDL B : périodique avant tout C15 → pas de RSC propagée.
     assert by[("B", "2026-01-03")] == (None, None)
+
+
+def test_forward_fill_niveau_pilote_par_c15():
+    """#324 (ADR-0036) : `niveau_ouverture_services` est porté par les relevés C15 (niveau
+    PRM) et propagé aux périodiques par le MÊME forward-fill par PDL que RSC/FTA — la
+    *jumelle* de plomberie de l'axe « voie communicante ». Une ligne périodique hérite le
+    niveau du dernier relevé C15 amont (par PDL) ; un périodique avant tout C15 reste null.
+    Prouvé sur une entrée synthétique (fixtures à PDL disjoints inter-flux)."""
+    con = duckdb.connect()
+    con.execute(
+        """
+        create table synth (
+            pdl varchar, date_releve timestamptz, source varchar, ordre_index boolean,
+            niveau_ouverture_services varchar
+        )
+        """
+    )
+    con.execute(
+        """
+        insert into synth values
+          -- PDL A : événement C15 niveau 2, puis deux télérelevés périodiques (niveau null)
+          ('A', timestamptz '2026-01-01 00:00:00+01', 'flux_C15',  true,  '2'),
+          ('A', timestamptz '2026-01-05 00:00:00+01', 'flux_R151', false, null),
+          ('A', timestamptz '2026-02-01 00:00:00+01', 'flux_R64',  false, null),
+          -- PDL B : un télérelevé AVANT tout C15 → reste sans niveau
+          ('B', timestamptz '2026-01-03 00:00:00+01', 'flux_R151', false, null)
+        """
+    )
+    rows = con.execute(
+        """
+        select pdl, strftime(date_releve at time zone 'Europe/Paris', '%Y-%m-%d') as jour,
+            coalesce(niveau_ouverture_services,
+                     last_value(niveau_ouverture_services ignore nulls) over w) as niveau
+        from synth
+        window w as (
+            partition by pdl
+            order by date_releve,
+                     case source when 'flux_C15' then 0 when 'flux_R64' then 1 else 2 end,
+                     ordre_index
+            rows between unbounded preceding and current row
+        )
+        """
+    ).fetchall()
+    con.close()
+
+    by = {(r[0], r[1]): r[2] for r in rows}
+    # PDL A : les périodiques héritent le niveau 2 du C15 amont.
+    assert by[("A", "2026-01-05")] == "2"
+    assert by[("A", "2026-02-01")] == "2"
+    # PDL B : périodique avant tout C15 → pas de niveau propagé.
+    assert by[("B", "2026-01-03")] is None

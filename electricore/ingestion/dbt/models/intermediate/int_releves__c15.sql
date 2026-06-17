@@ -17,6 +17,7 @@ with avant as (
         {{ nature_depuis_nature_index("avant_nature_index") }}  as nature_index,
         ref_situation_contractuelle,
         formule_tarifaire_acheminement,
+        niveau_ouverture_services,
         avant_id_calendrier_distributeur                        as id_calendrier_distributeur,
         {{ cadrans_index_rename('avant_') }}
     from {{ ref('flux_c15') }}
@@ -32,6 +33,7 @@ apres as (
         {{ nature_depuis_nature_index("apres_nature_index") }}  as nature_index,
         ref_situation_contractuelle,
         formule_tarifaire_acheminement,
+        niveau_ouverture_services,
         apres_id_calendrier_distributeur                        as id_calendrier_distributeur,
         {{ cadrans_index_rename('apres_') }}
     from {{ ref('flux_c15') }}

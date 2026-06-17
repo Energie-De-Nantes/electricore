@@ -21,6 +21,11 @@ class RelevéIndex(pa.DataFrameModel):
     pdl: pl.Utf8 = pa.Field(nullable=False)
     ref_situation_contractuelle: pl.Utf8 | None = pa.Field(nullable=True)
     formule_tarifaire_acheminement: pl.Utf8 | None = pa.Field(nullable=True)
+    # Statut de communication (épique #313, ADR-0036) : niveau d'ouverture aux services
+    # Enedis (xsd:string ∈ {0,1,2}, niveau PRM). Porté nativement par les relevés C15,
+    # forward-fillé par PDL sur les périodiques au mart `releves` (#324). La *jumelle* de
+    # nature_index : dbt porte l'attribution, le cœur en dérive le verdict (#325).
+    niveau_ouverture_services: pl.Utf8 | None = pa.Field(nullable=True)
 
     # 🏢 Références Fournisseur & Distributeur
     id_calendrier_fournisseur: pl.Utf8 | None = pa.Field(nullable=True)
