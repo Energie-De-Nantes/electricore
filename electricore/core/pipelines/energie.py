@@ -118,7 +118,14 @@ def expr_calculer_energie_cadran(index_col: str, over: str = "ref_situation_cont
     current = pl.col(index_col)
     previous = current.shift(1).over(over)
 
-    return pl.when(current.is_not_null() & previous.is_not_null()).then(current - previous).otherwise(pl.lit(None))
+    # Les index sont des kWh entiers (Int64, ADR-0034) ; l'énergie (leur différence) est
+    # cast en Float64 : elle alimente la tarification (TURPE variable = énergie × prix),
+    # PeriodeEnergie la porte en Float64. Le passage Int64 s'arrête au seam des relevés.
+    return (
+        pl.when(current.is_not_null() & previous.is_not_null())
+        .then((current - previous).cast(pl.Float64))
+        .otherwise(pl.lit(None))
+    )
 
 
 def expr_calculer_energies_tous_cadrans(index_cols: list[str]) -> list[pl.Expr]:

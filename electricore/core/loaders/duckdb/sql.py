@@ -230,14 +230,15 @@ SCHEMA_R151 = FluxSchema(
         col_simple("id_calendrier_fournisseur"),
         col_simple("id_calendrier_distributeur"),
         col_simple("id_affaire"),
-        # Cadrans (index de compteurs)
-        col_cast_double("index_hp_kwh"),
-        col_cast_double("index_hc_kwh"),
-        col_cast_double("index_hch_kwh"),
-        col_cast_double("index_hph_kwh"),
-        col_cast_double("index_hpb_kwh"),
-        col_cast_double("index_hcb_kwh"),
-        col_cast_double("index_base_kwh"),
+        # Cadrans (index de compteurs). kWh entiers (ADR-0034) : flux_r151 émet du bigint
+        # floor ; le loader ne re-caste plus (Int64 natif, ADR-0035), il trust dbt.
+        col_simple("index_hp_kwh"),
+        col_simple("index_hc_kwh"),
+        col_simple("index_hch_kwh"),
+        col_simple("index_hph_kwh"),
+        col_simple("index_hpb_kwh"),
+        col_simple("index_hcb_kwh"),
+        col_simple("index_base_kwh"),
         # Métadonnées
         col_literal("flux_R151", "source"),
         col_literal_bool(False, "ordre_index"),
@@ -265,14 +266,15 @@ SCHEMA_R15 = FluxSchema(
         col_cast_null_varchar("id_calendrier_fournisseur"),
         Column(name="id_calendrier_distributeur", sql_expr="id_calendrier", alias="id_calendrier_distributeur"),
         col_simple("id_affaire"),
-        # Cadrans (index de compteurs)
-        col_cast_double("index_hp_kwh"),
-        col_cast_double("index_hc_kwh"),
-        col_cast_double("index_hch_kwh"),
-        col_cast_double("index_hph_kwh"),
-        col_cast_double("index_hpb_kwh"),
-        col_cast_double("index_hcb_kwh"),
-        col_cast_double("index_base_kwh"),
+        # Cadrans (index de compteurs). kWh entiers (ADR-0034) : flux_r15 émet du bigint ;
+        # le loader ne re-caste plus (Int64 natif, ADR-0035), il trust dbt.
+        col_simple("index_hp_kwh"),
+        col_simple("index_hc_kwh"),
+        col_simple("index_hch_kwh"),
+        col_simple("index_hph_kwh"),
+        col_simple("index_hpb_kwh"),
+        col_simple("index_hcb_kwh"),
+        col_simple("index_base_kwh"),
         # Métadonnées
         col_literal("flux_R15", "source"),
         col_literal_bool(False, "ordre_index"),

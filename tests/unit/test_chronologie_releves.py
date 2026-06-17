@@ -70,7 +70,12 @@ def _historique_brut(lignes: list[dict]) -> pl.LazyFrame:
 
 def _releves(lignes: list[dict]) -> pl.LazyFrame:
     df = pl.DataFrame(lignes)
-    return df.with_columns(pl.col("date_releve").dt.replace_time_zone("Europe/Paris")).lazy()
+    # Index en kWh entiers (ADR-0034) : RelevéIndex/ChronologieReleves attendent Int64.
+    index_cols = [c for c in df.columns if c.startswith("index_") and c.endswith("_kwh")]
+    return df.with_columns(
+        pl.col("date_releve").dt.replace_time_zone("Europe/Paris"),
+        *[pl.col(c).cast(pl.Int64) for c in index_cols],
+    ).lazy()
 
 
 def _releve(
@@ -359,12 +364,13 @@ def _releve_index_conforme() -> pl.LazyFrame:
             "source": ["flux_R151"],
             "unite": ["kWh"],
             "precision": ["kWh"],
-            "index_base_kwh": [2000.0],
+            "index_base_kwh": [2000],
             "id_calendrier_distributeur": ["DI000001"],
         }
     )
     return df.with_columns(
         pl.col("date_releve").dt.replace_time_zone("Europe/Paris"),
+        pl.col("index_base_kwh").cast(pl.Int64),  # kWh entiers (ADR-0034)
     ).lazy()
 
 

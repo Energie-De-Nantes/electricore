@@ -81,7 +81,8 @@ def releves_periodiques(
     """Relevés R151 au modèle canonique (ADR-0029), conformes à `RelevéIndex`.
 
     `index` porte les cadrans renseignés (ex. `base=[...]` ou `hp=[...], hc=[...]`) ;
-    les autres cadrans sont `None` (Float64). `unite`/`precision` à `kWh`.
+    les autres cadrans sont `None`. Index en kWh entiers (Int64, ADR-0034).
+    `unite`/`precision` à `kWh`.
     """
     n = len(dates)
     data: dict[str, list] = {
@@ -98,8 +99,10 @@ def releves_periodiques(
     for cadran in CADRANS:
         data[col_index(cadran)] = index.get(cadran, [None] * n)
 
+    # Index relevés en kWh entiers (ADR-0034) : Int64, type émis nativement par dbt.
     return pl.LazyFrame(data, schema_overrides=schema_overrides).with_columns(
-        pl.col("date_releve").dt.replace_time_zone("Europe/Paris")
+        pl.col("date_releve").dt.replace_time_zone("Europe/Paris"),
+        *[pl.col(col_index(cadran)).cast(pl.Int64) for cadran in CADRANS],
     )
 
 

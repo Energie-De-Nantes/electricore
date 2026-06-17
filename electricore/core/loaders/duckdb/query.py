@@ -37,7 +37,9 @@ class QueryConfig:
     """
 
     schema: FluxSchema
-    transform: Callable[[pl.LazyFrame], pl.LazyFrame]
+    # None = aucune mise en forme (loader `SELECT *` : il trust les types émis par dbt,
+    # ADR-0035). Sinon Fn(LazyFrame) -> LazyFrame appliquée après l'IO.
+    transform: Callable[[pl.LazyFrame], pl.LazyFrame] | None
     validator: type[pa.DataFrameModel] | None = None
 
 
@@ -277,8 +279,9 @@ class DuckDBQuery:
         with duckdb_readonly_conn(config.database_path) as conn:
             lazy_frame = conn.execute(final_query, params).pl().lazy()
 
-        # Application des transformations (pure)
-        lazy_frame = self.config.transform(lazy_frame)
+        # Application des transformations (pure). transform=None ⟹ identité (`SELECT *`).
+        if self.config.transform is not None:
+            lazy_frame = self.config.transform(lazy_frame)
 
         # Validation si demandée (impure - side effect)
         if self.valider and self.config.validator is not None:

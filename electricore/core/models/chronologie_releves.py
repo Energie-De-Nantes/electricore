@@ -59,14 +59,15 @@ class ChronologieReleves(pa.DataFrameModel):
     # 🏢 Référence calendrier distributeur (utile au contrôle des cadrans attendus)
     id_calendrier_distributeur: pl.Utf8 | None = pa.Field(nullable=True)
 
-    # ⚡ Index de compteurs (valeurs cumulées en kWh)
-    index_hp_kwh: pl.Float64 | None = pa.Field(nullable=True)
-    index_hc_kwh: pl.Float64 | None = pa.Field(nullable=True)
-    index_hch_kwh: pl.Float64 | None = pa.Field(nullable=True)
-    index_hph_kwh: pl.Float64 | None = pa.Field(nullable=True)
-    index_hpb_kwh: pl.Float64 | None = pa.Field(nullable=True)
-    index_hcb_kwh: pl.Float64 | None = pa.Field(nullable=True)
-    index_base_kwh: pl.Float64 | None = pa.Field(nullable=True)
+    # ⚡ Index de compteurs (valeurs cumulées en kWh entiers, ADR-0034 ; Int64 hérité de
+    # RelevéIndex — le loader ne re-caste plus, ADR-0035).
+    index_hp_kwh: pl.Int64 | None = pa.Field(nullable=True)
+    index_hc_kwh: pl.Int64 | None = pa.Field(nullable=True)
+    index_hch_kwh: pl.Int64 | None = pa.Field(nullable=True)
+    index_hph_kwh: pl.Int64 | None = pa.Field(nullable=True)
+    index_hpb_kwh: pl.Int64 | None = pa.Field(nullable=True)
+    index_hcb_kwh: pl.Int64 | None = pa.Field(nullable=True)
+    index_base_kwh: pl.Int64 | None = pa.Field(nullable=True)
 
     # 🚩 Flag de complétude : relevé attendu mais absent à cette date (relevés interrogés).
     releve_manquant: pl.Boolean | None = pa.Field(nullable=True)

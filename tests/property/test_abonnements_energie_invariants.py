@@ -154,11 +154,12 @@ def _scenario_energie(draw):
     jours = sorted(
         draw(st.lists(st.dates(dt.date(2024, 1, 2), dt.date(2026, 12, 1)), min_size=2, max_size=7, unique=True))
     )
-    hp0 = draw(st.floats(0.0, 1e5, allow_nan=False))
-    hc0 = draw(st.floats(0.0, 1e5, allow_nan=False))
+    # Index en kWh entiers (ADR-0034) : valeurs entières → cumuls Int64 exacts.
+    hp0 = draw(st.integers(0, 100_000))
+    hc0 = draw(st.integers(0, 100_000))
     increments = draw(
         st.lists(
-            st.tuples(st.floats(0.0, 500.0, allow_nan=False), st.floats(0.0, 500.0, allow_nan=False)),
+            st.tuples(st.integers(0, 500), st.integers(0, 500)),
             min_size=len(jours) - 1,
             max_size=len(jours) - 1,
         )
@@ -231,7 +232,8 @@ def _releves_r151(jours: list[dt.date], hp: list[float], hc: list[float]) -> pl.
         data,
         schema_overrides={
             "date_releve": pl.Datetime("us", "Europe/Paris"),
-            **{f"index_{c}_kwh": pl.Float64 for c in _INDEX_CADRANS},
+            # Index relevés en kWh entiers (ADR-0034) : Int64, type émis nativement par dbt.
+            **{f"index_{c}_kwh": pl.Int64 for c in _INDEX_CADRANS},
             # dtypes explicites : un scénario MES → RES sans relevé intermédiaire
             # produit un frame vide, dont les colonnes seraient sinon typées Null
             **{
