@@ -123,11 +123,6 @@ def col_simple(name: str) -> Column:
     return Column(name=name, sql_expr=name)
 
 
-def col_cast_double(name: str) -> Column:
-    """Colonne castée en DOUBLE."""
-    return Column(name=name, sql_expr=f"CAST({name} AS DOUBLE)")
-
-
 def col_cast_timestamp(name: str) -> Column:
     """Colonne castée en TIMESTAMP."""
     return Column(name=name, sql_expr=f"CAST({name} AS TIMESTAMP)")
@@ -177,7 +172,7 @@ SCHEMA_C15 = FluxSchema(
         col_simple("evenement_declencheur"),
         col_simple("type_evenement"),
         col_simple("categorie"),
-        col_cast_double("puissance_souscrite_kva"),
+        col_simple("puissance_souscrite_kva"),
         col_simple("formule_tarifaire_acheminement"),
         col_simple("type_compteur"),
         col_simple("num_compteur"),
@@ -188,25 +183,25 @@ SCHEMA_C15 = FluxSchema(
         col_simple("avant_nature_index"),
         col_simple("avant_id_calendrier_fournisseur"),
         col_simple("avant_id_calendrier_distributeur"),
-        col_cast_double("avant_index_hp_kwh"),
-        col_cast_double("avant_index_hc_kwh"),
-        col_cast_double("avant_index_hch_kwh"),
-        col_cast_double("avant_index_hph_kwh"),
-        col_cast_double("avant_index_hpb_kwh"),
-        col_cast_double("avant_index_hcb_kwh"),
-        col_cast_double("avant_index_base_kwh"),
+        col_simple("avant_index_hp_kwh"),
+        col_simple("avant_index_hc_kwh"),
+        col_simple("avant_index_hch_kwh"),
+        col_simple("avant_index_hph_kwh"),
+        col_simple("avant_index_hpb_kwh"),
+        col_simple("avant_index_hcb_kwh"),
+        col_simple("avant_index_base_kwh"),
         # Relevés "Après" (index de compteurs)
         col_simple("apres_date_releve"),
         col_simple("apres_nature_index"),
         col_simple("apres_id_calendrier_fournisseur"),
         col_simple("apres_id_calendrier_distributeur"),
-        col_cast_double("apres_index_hp_kwh"),
-        col_cast_double("apres_index_hc_kwh"),
-        col_cast_double("apres_index_hch_kwh"),
-        col_cast_double("apres_index_hph_kwh"),
-        col_cast_double("apres_index_hpb_kwh"),
-        col_cast_double("apres_index_hcb_kwh"),
-        col_cast_double("apres_index_base_kwh"),
+        col_simple("apres_index_hp_kwh"),
+        col_simple("apres_index_hc_kwh"),
+        col_simple("apres_index_hch_kwh"),
+        col_simple("apres_index_hph_kwh"),
+        col_simple("apres_index_hpb_kwh"),
+        col_simple("apres_index_hcb_kwh"),
+        col_simple("apres_index_base_kwh"),
         # Métadonnées
         col_literal("flux_C15", "source"),
     ),
@@ -301,9 +296,9 @@ SCHEMA_F15 = FluxSchema(
         col_simple("formule_tarifaire_acheminement"),
         col_simple("taux_tva_applicable"),
         col_simple("unite"),
-        col_cast_double("prix_unitaire"),
-        col_cast_double("quantite"),
-        col_cast_double("montant_ht"),
+        col_simple("prix_unitaire"),
+        col_simple("quantite"),
+        col_simple("montant_ht"),
         col_paris("date_debut"),
         col_paris("date_fin"),
         col_simple("libelle_ev"),
@@ -331,13 +326,13 @@ SCHEMA_R64 = FluxSchema(
         col_simple("code_flux"),
         col_simple("format"),
         # Cadrans (format WIDE - index de compteurs)
-        col_cast_double("index_hpb_kwh"),
-        col_cast_double("index_hph_kwh"),
-        col_cast_double("index_hch_kwh"),
-        col_cast_double("index_hcb_kwh"),
-        col_cast_double("index_hp_kwh"),
-        col_cast_double("index_hc_kwh"),
-        col_cast_double("index_base_kwh"),
+        col_simple("index_hpb_kwh"),
+        col_simple("index_hph_kwh"),
+        col_simple("index_hch_kwh"),
+        col_simple("index_hcb_kwh"),
+        col_simple("index_hp_kwh"),
+        col_simple("index_hc_kwh"),
+        col_simple("index_base_kwh"),
         # Métadonnées système
         col_simple("modification_date"),
         col_simple("_source_zip"),

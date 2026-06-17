@@ -79,8 +79,8 @@ def _schema_overrides() -> dict:
         "apres_id_calendrier_fournisseur": pl.Utf8,
     }
     for cadran in _INDEX_CADRANS:
-        overrides[f"avant_index_{cadran}_kwh"] = pl.Float64
-        overrides[f"apres_index_{cadran}_kwh"] = pl.Float64
+        overrides[f"avant_index_{cadran}_kwh"] = pl.Int64
+        overrides[f"apres_index_{cadran}_kwh"] = pl.Int64
     return overrides
 
 

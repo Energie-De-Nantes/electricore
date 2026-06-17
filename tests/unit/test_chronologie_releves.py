@@ -339,15 +339,16 @@ def _historique_conforme() -> pl.LazyFrame:
             "apres_id_calendrier_distributeur": None,
         },
     ]
+    # Index avant/après en kWh entiers (Int64, ADR-0034/0035), comme le contrat Historique.
     autres = {
-        f"{pos}_index_{cad}_kwh": pl.Series([None, None], dtype=pl.Float64)
+        f"{pos}_index_{cad}_kwh": pl.Series([None, None], dtype=pl.Int64)
         for pos in ("avant", "apres")
         for cad in _AUTRES_CADRANS
     }
     df = pl.DataFrame(lignes).with_columns(
         **autres,
-        avant_index_base_kwh=pl.col("avant_index_base_kwh").cast(pl.Float64),
-        apres_index_base_kwh=pl.col("apres_index_base_kwh").cast(pl.Float64),
+        avant_index_base_kwh=pl.col("avant_index_base_kwh").cast(pl.Int64),
+        apres_index_base_kwh=pl.col("apres_index_base_kwh").cast(pl.Int64),
     )
     return df.with_columns(pl.col("date_evenement").dt.replace_time_zone("Europe/Paris")).lazy()
 
