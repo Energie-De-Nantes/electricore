@@ -11,7 +11,8 @@ incidemment dans l'implémentation :
 - **1 ligne par `(ref_situation_contractuelle, date_releve, ordre_index)`** — la clé
   métier de dédoublonnage (cf. ADR-0028, *Identité de relevé*).
 - **`ref_situation_contractuelle` non-null** — l'attribution contractuelle est garantie
-  (forward-fill par PDL des relevés périodiques qui n'en portent pas).
+  en amont (mart `releves` forward-fillé + requête FACTURATION qui porte la RSC du
+  contrat, ADR-0029) ; la chronologie ne la recalcule pas, elle la présume mart-shaped.
 - **`source` dans une énumération fermée** — la source gagnante d'un relevé est l'une des
   sources connues, choisie par la table de priorité explicite `flux_C15 > flux_R64 >
   flux_R151` (ADR-0028), jamais par hasard.
@@ -38,7 +39,8 @@ class ChronologieReleves(pa.DataFrameModel):
 
     # 🔹 Identifiants
     pdl: pl.Utf8 = pa.Field(nullable=False)
-    # Attribution contractuelle garantie (forward-fill par PDL) — invariant fort.
+    # Attribution contractuelle garantie en amont (mart + requête FACTURATION, ADR-0029) —
+    # invariant fort, présumé mart-shaped en entrée (plus de forward-fill local).
     ref_situation_contractuelle: pl.Utf8 = pa.Field(nullable=False)
     formule_tarifaire_acheminement: pl.Utf8 | None = pa.Field(nullable=True)
     # Niveau d'ouverture aux services (statut de communication, ADR-0036). Forward-fillé

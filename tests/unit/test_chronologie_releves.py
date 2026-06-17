@@ -6,7 +6,8 @@ dates de facturation, dédoublonnés par source prioritaire et ordonnés.
 
 Les invariants encodés jusqu'ici incidemment sont ici testés explicitement :
 grain unique, RSC non-null, source dans l'énumération, priorité C15 > R64 > R151,
-forward-fill RSC, dédoublonnage, tolérance ±4 h (constante nommée), et `ordre_index`
+attribution RSC des relevés périodiques (via la requête FACTURATION, plus de forward-fill
+local — ADR-0029), dédoublonnage, tolérance ±4 h (constante nommée), et `ordre_index`
 booléen.
 
 Le contrat de bout en bout (`chronologie_releves`, décoré `@pa.check_types`) est exercé
@@ -184,12 +185,16 @@ def test_table_priorite_ordre():
 
 
 # ---------------------------------------------------------------------------
-# Invariant 2 : attribution RSC par forward-fill sur le PDL
+# Invariant 2 : attribution RSC des relevés périodiques (via la requête FACTURATION).
+# Plus de forward-fill local dans la chronologie (ADR-0029 : l'attribution remonte au
+# mart `releves` ; ici elle vient de l'événement FACTURATION qui porte la RSC).
 # ---------------------------------------------------------------------------
 
 
-def test_forward_fill_rsc():
-    """Un relevé périodique sans RSC hérite de la RSC de l'événement précédent (par PDL)."""
+def test_attribution_rsc_releve_periodique():
+    """Un relevé périodique arrivant sans RSC propre est attribué à la RSC du contrat —
+    portée par l'événement FACTURATION qui pilote l'interrogation (`interroger_releves`),
+    pas par un forward-fill local (retiré, ADR-0029)."""
     historique = _historique_brut(
         [
             _evenement("PDL001", "REF001", datetime(2024, 1, 15), "MES", 1000.0, 1500.0),

@@ -353,16 +353,20 @@ def interroger_releves(requete: pl.LazyFrame, releves: pl.LazyFrame) -> pl.LazyF
 def _assembler_chronologie(evenements: pl.LazyFrame, releves: pl.LazyFrame) -> pl.LazyFrame:
     """Assemble la chronologie des relevés (implémentation, sans validation Pandera).
 
-    Combine les relevés aux dates pertinentes en concentrant les cinq invariants
+    Combine les relevés aux dates pertinentes en concentrant les invariants
     derrière une seule fonction (issue #180, ADR-0028) :
     - relevés aux événements contractuels C15 (avant/après) ;
     - relevés périodiques (R151/R64) interrogés aux dates de facturation, avec la
       tolérance d'appariement `TOLERANCE_APPARIEMENT_RELEVES` ;
-    - **attribution contractuelle** par forward-fill de la RSC sur le PDL (les relevés
-      périodiques n'en portent pas) ;
     - **priorité des sources explicite** `flux_C15 > flux_R64 > flux_R151`
       (`PRIORITE_SOURCES`) — plus de tri alphabétique ;
     - **dédoublonnage** sur le triplet métier `(RSC, date_releve, ordre_index)`.
+
+    L'**attribution contractuelle** (RSC/FTA) est garantie EN AMONT (ADR-0029), plus par
+    cette fonction : le mart `releves` forward-fill RSC/FTA par PDL, et les relevés
+    périodiques entrent via `interroger_releves`, dont la requête FACTURATION porte déjà la
+    RSC/FTA du contrat. L'entrée est donc mart-shaped (RSC renseignée) ; le contrat de
+    sortie `ChronologieReleves` (RSC non-null) reste vérifié par Pandera.
 
     Args:
         evenements: LazyFrame des événements contractuels + événements FACTURATION
@@ -407,14 +411,10 @@ def _assembler_chronologie(evenements: pl.LazyFrame, releves: pl.LazyFrame) -> p
         # Tri chronologique par PDL pour les opérations .over("pdl") (évite warning sortedness)
         .sort(["pdl", "date_releve", "ordre_index"])
         .set_sorted("pdl")  # Indiquer explicitement que PDL est trié
-        # Attribution contractuelle : forward-fill de la RSC/FTA par PDL (les relevés
-        # périodiques n'en portent pas → héritent de l'événement précédent).
-        .with_columns(
-            [
-                pl.col("ref_situation_contractuelle").fill_null(strategy="forward").over("pdl"),
-                pl.col("formule_tarifaire_acheminement").fill_null(strategy="forward").over("pdl"),
-            ]
-        )
+        # Attribution contractuelle (RSC/FTA) : assurée EN AMONT (ADR-0029) — le mart `releves`
+        # forward-fill RSC/FTA par PDL (releves.sql), et les relevés périodiques entrent ici par
+        # `interroger_releves`, dont la requête FACTURATION porte déjà la RSC/FTA du contrat. La
+        # chronologie n'a donc plus à ré-attribuer : son entrée est mart-shaped (RSC renseignée).
         # Priorité des sources : tri sur le rang explicite (C15 > R64 > R151, ADR-0028),
         # plus l'alphabétique accidentel. La source de plus petit rang gagne le dédoublonnage.
         .with_columns(expr_priorite_source().alias("_priorite_source"))
@@ -436,10 +436,12 @@ def chronologie_releves(
     """Chronologie des relevés d'un contrat : ligne de temps énergie dédoublonnée.
 
     Interface publique du module *Chronologie des relevés* (issue #180, ADR-0023,
-    ADR-0028). Concentre derrière un contrat Pandera (`ChronologieReleves`) les cinq
+    ADR-0028). Concentre derrière un contrat Pandera (`ChronologieReleves`) les
     invariants jusqu'ici encodés incidemment dans l'implémentation : priorité de
-    sources explicite, attribution RSC par forward-fill, dédoublonnage sur le triplet
-    métier, tolérance d'appariement nommée, et discriminant `ordre_index` booléen.
+    sources explicite, dédoublonnage sur le triplet métier, tolérance d'appariement
+    nommée, et discriminant `ordre_index` booléen. L'attribution contractuelle (RSC/FTA)
+    est présumée portée en amont (mart `releves` + requête FACTURATION, ADR-0029) ; le
+    contrat de sortie garantit (et Pandera vérifie) que la RSC reste non-null.
 
     Le dépivotage C15 avant/après, la résolution asof et le dédoublonnage deviennent de
     l'*implémentation* (`_assembler_chronologie`) derrière cette interface.
