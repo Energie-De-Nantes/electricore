@@ -17,19 +17,23 @@ from electricore.core.pipelines.energie import (
 PARIS = ZoneInfo("Europe/Paris")
 
 
-def _chronologie_un_contrat(natures: list, niveaux: list) -> pl.LazyFrame:
+def _chronologie_un_contrat(natures: list, niveaux: list, dates: list | None = None) -> pl.LazyFrame:
     """Chronologie synthétique 1 contrat, index croissants, avec nature/niveau par relevé.
 
     `natures`/`niveaux` ont la même longueur (N relevés → N-1 périodes). Les bornes d'une
-    période sont les relevés consécutifs ; chaque axe rollupe les deux bornes.
+    période sont les relevés consécutifs ; chaque axe rollupe les deux bornes. `dates`
+    optionnel (défaut : un relevé par mois) permet de placer plusieurs relevés dans un
+    même mois (cas « bascule mid-mois »).
     """
     n = len(natures)
     cadrans = ("base", "hp", "hc", "hph", "hpb", "hch", "hcb")
+    if dates is None:
+        dates = [datetime(2024, 1 + i, 1, tzinfo=PARIS) for i in range(n)]
     return pl.LazyFrame(
         {
             "pdl": ["PDL001"] * n,
             "ref_situation_contractuelle": ["REF001"] * n,
-            "date_releve": [datetime(2024, 1 + i, 1, tzinfo=PARIS) for i in range(n)],
+            "date_releve": dates,
             "source": ["flux_C15"] + ["flux_R151"] * (n - 1),
             "nature_index": natures,
             "niveau_ouverture_services": niveaux,
@@ -75,6 +79,28 @@ def test_calculer_periodes_statut_communication():
         "non_communicante",
         "non_communicante",
     ]
+
+
+def test_pas_de_demi_mois_bascule_niveau_mid_mois():
+    """ADR-0036 « pas de demi-mois » : une bascule de niveau EN COURS DE MOIS (une borne à
+    niveau 0) rend le mois ENTIER non-communicant via le rollup plein-ou-rien — bout-en-bout
+    calculer_periodes_energie → agreger_energies_mensuel. Un mois plein niveau ≥1 reste
+    communicant (les bornes mensuelles tronquées n'introduisent pas de borne niveau-0)."""
+    from electricore.core.pipelines.facturation import agreger_energies_mensuel
+
+    # 3 relevés en mars → 2 sous-périodes dans le même mois.
+    dates = [datetime(2024, 3, d, tzinfo=PARIS) for d in (1, 10, 20)]
+    bascule = _chronologie_un_contrat(["réel"] * 3, ["2", "0", "0"], dates=dates)
+    plein = _chronologie_un_contrat(["réel"] * 3, ["2", "2", "2"], dates=dates)
+
+    def _meta(chrono):
+        # turpe_variable_eur est ajouté par pipeline_energie en aval ; ici on shim à 0
+        # (hors-sujet pour l'axe communication) pour conformer l'entrée de l'agrégat.
+        periodes = calculer_periodes_energie(chrono).with_columns(pl.lit(0.0).alias("turpe_variable_eur"))
+        return agreger_energies_mensuel(periodes).collect()
+
+    assert _meta(bascule)["statut_communication"][0] == "non_communicante"
+    assert _meta(plein)["statut_communication"][0] == "communicante"
 
 
 def test_expr_bornes_depuis_shift():
