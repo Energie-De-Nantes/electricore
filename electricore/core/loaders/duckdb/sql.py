@@ -208,15 +208,19 @@ SCHEMA_C15 = FluxSchema(
 )
 
 
-# Flux R151 - Relevés périodiques avec harmonisation date
+# Flux R151 - Relevés périodiques, date BRUTE (fidèle source, ADR-0003 amendé / #294)
 SCHEMA_R151 = FluxSchema(
     flux_name="R151",
     table="flux_enedis.flux_r151",
     columns=(
-        # Date avec harmonisation (convention fin de journée → début de journée)
+        # Date BRUTE, fidèle à la source (convention Enedis « fin de journée ») : ancrée
+        # heure-mur Paris, SANS le +1 jour. L'harmonisation J → J+1 (ADR-0003) vit désormais
+        # en UN seul endroit, le mart `releves` (#294) ; l'endpoint /flux/r151 sert la date
+        # nue et est candidat à dépréciation (l'usage direct des flux bruts incombe à
+        # l'appelant, qui doit connaître la convention fin-de-journée de R151).
         Column(
             name="date_releve",
-            sql_expr="timezone('Europe/Paris', CAST(date_releve AS TIMESTAMP) + INTERVAL '1 day')",
+            sql_expr="timezone('Europe/Paris', CAST(date_releve AS TIMESTAMP))",
             alias="date_releve",
         ),
         col_simple("pdl"),
@@ -241,11 +245,11 @@ SCHEMA_R151 = FluxSchema(
         Column(name="precision", sql_expr="unite", alias="precision"),
     ),
     where_clause="date_releve IS NOT NULL AND id_calendrier_distributeur IN ('DI000001', 'DI000002', 'DI000003')",
-    comments="""-- HARMONISATION DES CONVENTIONS DE DATE
--- Problème : R151 utilise convention "fin de journée" (date J = index fin jour J)
---           alors que R64, R15, C15 utilisent "début de journée" (date J = index début jour J)
--- Solution : R151 date J → J+1 pour aligner sur convention majoritaire "début de journée"
--- Résultat : après ajustement, R151 et R64 correspondent parfaitement (244 matches exacts testés)""",
+    comments="""-- DATE BRUTE (fidèle source, ADR-0003 amendé / #294)
+-- R151 utilise la convention "fin de journée" (date J = index fin du jour J). L'endpoint
+-- /flux/r151 sert cette date NUE, sans le +1 jour d'harmonisation. L'harmonisation J → J+1
+-- (qui aligne R151 sur la convention "début de journée" de R64/R15/C15) vit en UN endroit :
+-- le mart `releves` consommé par la chaîne énergie. Cet endpoint brut est dépréciable.""",
 )
 
 

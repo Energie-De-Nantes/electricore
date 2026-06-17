@@ -116,5 +116,6 @@ pour les colonnes non testées, étoffer `schema.yml` au fil de l'eau.
   legacy/dbt prouvée 3× (golden, 4 400 XML du cache local, corpus SFTP complet ~700 k lignes),
   5 défauts du legacy corrigés en route (grain PDL, index/conso R15 ~75 % faux, chimères
   multi-relevés, double-comptage des re-livraisons F15, gagnant R64 arbitraire).
-- Conventions de dates : [conventions-dates-enedis.md](conventions-dates-enedis.md) (ADR-0003 :
-  R151 J → J+1, portée par le modèle de chargement des loaders).
+- Conventions de dates : [conventions-dates-enedis.md](conventions-dates-enedis.md) (ADR-0003
+  amendé #294 : R151 J → J+1 portée par le **mart `releves`** uniquement ; l'endpoint brut
+  `/flux/r151` sert la date nue, fidèle source, dépréciable).

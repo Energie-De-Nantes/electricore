@@ -25,10 +25,15 @@ Sans harmonisation, on observe des écarts systématiques :
 
 ## Solution d'Harmonisation
 
+> **Où vit l'harmonisation (#294)** : le `+1 jour` R151 est porté en **un seul endroit**,
+> le mart dbt `releves` (la ligne de temps consommée par la chaîne énergie). Il a été
+> **retiré du loader** : l'endpoint brut `/flux/r151` sert la date **nue** (fin de journée),
+> fidèle à la source, et est dépréciable (cf. [ADR-0003](adr/0003-r151-date-harmonisation.md)).
+
 ### Stratégie
 1. **Convention cible** : "Début de journée" (majoritaire)
-2. **Ajustement R151** : `date J → J+1`
-3. **Traçabilité** : Colonne `date_ajustee` pour identifier les ajustements
+2. **Ajustement R151** : `date J → J+1` (dans le mart `releves`)
+3. **Traçabilité** : la convention se lit via `source = 'flux_R151'`
 
 ### Transformation R151
 ```sql

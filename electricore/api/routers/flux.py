@@ -138,8 +138,15 @@ async def get_flux(
 
     **Authentification requise** - Utilisez votre clé API.
 
+    ⚠️ **Dépréciable** : ces endpoints `/flux/*` servent les flux **bruts, fidèles à la
+    source** — candidats à dépréciation (ADR-0003 amendé, #294). En particulier
+    `/flux/r151` sert la `date_releve` **nue** (convention Enedis « fin de journée »,
+    **sans** le +1 jour d'harmonisation) : l'appelant doit connaître cette convention.
+    Pour des relevés harmonisés et arbitrés (chaîne énergie), passer par le modèle
+    canonique `releves` (ADR-0029), pas par ces endpoints bruts.
+
     Exemples:
-    - /flux/r151 : Relevés quotidiens
+    - /flux/r151 : Relevés quotidiens (date brute, fin de journée)
     - /flux/c15 : Changements contractuels
     - /flux/r64 : Relevés demandés sur SGE
     - /flux/f15 : Facturation Enedis détaillée

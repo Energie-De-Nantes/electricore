@@ -109,13 +109,14 @@ def test_r15_charge_des_instants_corrects(base_prod_dbt):
     assert date_releve == datetime(2024, 7, 30, 0, 1, tzinfo=PARIS)
 
 
-def test_r151_garde_la_convention_plus_un_jour_et_les_index_entiers(base_prod_dbt):
-    """ADR-0003 (date J → J+1) intacte, index en Int64 (kWh entiers, ADR-0034) : le
-    loader trust le type émis par dbt et ne re-caste plus (ADR-0035)."""
+def test_r151_sert_la_date_brute_et_les_index_entiers(base_prod_dbt):
+    """ADR-0003 amendé (#294) : /flux/r151 sert la date BRUTE (fidèle source, convention
+    fin de journée), SANS le +1 jour — l'harmonisation J → J+1 ne vit plus que dans le mart
+    `releves`. Index en Int64 (kWh entiers, ADR-0034)."""
     from electricore.core.loaders import r151
 
     df = r151(database_path=base_prod_dbt).collect()
     (date_releve,) = df["date_releve"].to_list()
-    # Fixture : Date_Releve 2024-04-04 (date nue) → +1 jour, à minuit Paris.
-    assert date_releve == datetime(2024, 4, 5, 0, 0, tzinfo=PARIS)
+    # Fixture : Date_Releve 2024-04-04 (date nue, fin de journée), ancrée minuit Paris — sans +1j.
+    assert date_releve == datetime(2024, 4, 4, 0, 0, tzinfo=PARIS)
     assert df.schema["index_hph_kwh"] == pl.Int64
