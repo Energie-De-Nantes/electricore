@@ -745,7 +745,7 @@ def analyser_periodes_manquantes(df_f15_variable, df_periodes_energie):
             pl.col("debut").min().alias("premiere_periode_calculee"),
             pl.col("fin").max().alias("derniere_periode_calculee"),
             pl.len().alias("nb_periodes_calculees"),
-            pl.col("nb_jours").filter(pl.col("data_complete")).sum().alias("total_jours"),
+            pl.col("nb_jours").filter(pl.col("qualite") != "incalculable").sum().alias("total_jours"),
             pl.col("turpe_variable_eur").sum().alias("turpe_variable_total"),
         ]
     )

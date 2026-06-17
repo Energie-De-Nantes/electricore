@@ -370,7 +370,9 @@ def comparaison_periodes(periodes_pandas, periodes_lf):
     print(f"\n🏷️  COMPARAISON FLAGS QUALITÉ :")
     print("-" * 50)
 
-    flags_qualite = ["data_complete", "periode_irreguliere"]
+    # `data_complete` retiré (ADR-0033) → remplacé par l'état `qualite` (string, non comparable
+    # en flag booléen sommable) ; on ne compare plus ici que les flags booléens restants.
+    flags_qualite = ["periode_irreguliere"]
 
     for flag in flags_qualite:
         if flag in periodes_pandas.columns and flag in periodes.columns:

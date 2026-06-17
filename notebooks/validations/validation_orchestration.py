@@ -245,7 +245,7 @@ def _(fact):
             fact.with_columns([
                 pl.col('debut').dt.strftime('%Y-%m').alias('periode'),
             ])
-            .filter(pl.col('data_complete') == True)
+            .filter(pl.col('qualite') != 'incalculable')  # ADR-0033 : ex-data_complete=True
             .select([
                 'pdl', 'periode',
                 'ref_situation_contractuelle',  # Référence contrat pour groupby
