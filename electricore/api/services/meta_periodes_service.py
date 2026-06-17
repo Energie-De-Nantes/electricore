@@ -45,6 +45,10 @@ COLONNES_CONTRAT: tuple[str, ...] = (
     "coverage_abo",
     "coverage_energie",
     "has_changement",
+    # Verdicts méta jumeaux (#326) — qualité (ADR-0033) + communication (ADR-0036).
+    # Évolution additive du contrat (colonnes optionnelles) → pas de bump de version.
+    "qualite",
+    "statut_communication",
 )
 
 

@@ -82,6 +82,11 @@ class EnergieMensuel(pa.DataFrameModel):
     # Qualité des données
     data_complete: pl.Boolean = pa.Field(nullable=False)
 
+    # Verdicts méta jumeaux (axes orthogonaux). Qualité (ADR-0033) : rollup pire-gagne des
+    # sous-périodes. Communication (ADR-0036) : plein-ou-rien sur le segment actif.
+    qualite: pl.Utf8 | None = pa.Field(nullable=True, isin=["réelle", "estimée", "incalculable"])
+    statut_communication: pl.Utf8 | None = pa.Field(nullable=True, isin=["communicante", "non_communicante"])
+
     class Config:
         strict = False
         coerce = True

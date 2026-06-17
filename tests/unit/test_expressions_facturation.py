@@ -22,6 +22,32 @@ from electricore.core.pipelines.facturation import (
 )
 
 
+def _energie_sous_periodes_statut(qualites: list[str], statuts: list[str], mois: str = "2025-03") -> pl.LazyFrame:
+    """Sous-périodes d'énergie (PeriodeEnergie-shaped) portant les axes jumeaux qualité +
+    communication par sous-période, pour tester les rollups méta (pire-gagne / plein-ou-rien)."""
+    n = len(qualites)
+    return pl.LazyFrame(
+        {
+            "ref_situation_contractuelle": ["REF1"] * n,
+            "pdl": ["PDL1"] * n,
+            "mois_annee": [mois] * n,
+            "energie_base_kwh": [1000.0] * n,
+            "energie_hp_kwh": [0.0] * n,
+            "energie_hc_kwh": [0.0] * n,
+            "turpe_variable_eur": [0.0] * n,
+            "data_complete": [True] * n,
+            "qualite": qualites,
+            "statut_communication": statuts,
+            "debut": [datetime(2025, 3, 1 + i) for i in range(n)],
+            "fin": [datetime(2025, 3, 2 + i) for i in range(n)],
+            "source_avant": ["C15"] * n,
+            "source_apres": ["R151"] * n,
+        }
+    ).with_columns(
+        [pl.col("debut").dt.convert_time_zone("Europe/Paris"), pl.col("fin").dt.convert_time_zone("Europe/Paris")]
+    )
+
+
 class TestExpressionsAtomiques:
     """Tests des expressions atomiques."""
 
@@ -240,6 +266,21 @@ class TestAgregatioEnergies:
         # Coverage = 14j (période complète) / 30j (total mars) ≈ 0.467
         assert collected["coverage_energie"][0] == pytest.approx(14 / 30, abs=0.01)
 
+    def test_agregation_qualite_pire_gagne(self):
+        """ADR-0033 : la qualité d'une méta-période est le rollup PIRE-GAGNE de la qualité
+        de ses sous-périodes d'énergie (incalculable > estimée > réelle)."""
+        data = _energie_sous_periodes_statut(["réelle", "estimée"], ["communicante", "communicante"])
+        assert agreger_energies_mensuel(data).collect()["qualite"][0] == "estimée"
+
+    def test_agregation_communication_plein_ou_rien(self):
+        """ADR-0036 : la méta-période est communicante ssi TOUTES ses sous-périodes le sont
+        (plein-ou-rien). Couvre les cas #325 : mois plein communicant → communicante ;
+        bascule mid-mois (une sous-période non-communicante) → non-communicante."""
+        plein = _energie_sous_periodes_statut(["réelle", "réelle"], ["communicante", "communicante"])
+        bascule = _energie_sous_periodes_statut(["réelle", "réelle"], ["communicante", "non_communicante"])
+        assert agreger_energies_mensuel(plein).collect()["statut_communication"][0] == "communicante"
+        assert agreger_energies_mensuel(bascule).collect()["statut_communication"][0] == "non_communicante"
+
 
 class TestJointureMetaPeriodes:
     """Tests de la jointure et réconciliation."""
@@ -294,6 +335,59 @@ class TestJointureMetaPeriodes:
         assert collected["has_changement"][0] is False
         assert collected["coverage_abo"][0] == 1.0  # Placeholder
         assert collected["coverage_energie"][0] == 1.0  # Placeholder
+
+    def test_jointure_porte_axes_statut(self):
+        """Les verdicts méta jumeaux (qualité ADR-0033 / communication ADR-0036) de
+        l'agrégat énergie sont portés sur la méta-période ; un mois sans énergie
+        (abonnement seul) tombe à incalculable / non-communicante (pas de donnée énergie
+        à router)."""
+        abo_data = pl.LazyFrame(
+            {
+                "ref_situation_contractuelle": ["REF1", "REF2"],
+                "pdl": ["PDL1", "PDL2"],
+                "mois_annee": ["2025-03", "2025-04"],
+                "puissance_moyenne_kva": [6.0, 6.0],
+                "nb_jours": [31, 30],
+                "turpe_fixe_eur": [50.0, 50.0],
+                "formule_tarifaire_acheminement": ["BTINF", "BTINF"],
+                "debut": [datetime(2025, 3, 1), datetime(2025, 4, 1)],
+                "fin": [datetime(2025, 3, 31), datetime(2025, 4, 30)],
+                "nb_sous_periodes_abo": [1, 1],
+                "has_changement_abo": [False, False],
+                "memo_puissance": ["", ""],
+                "coverage_abo": [1.0, 1.0],
+            }
+        )
+        energie_data = pl.LazyFrame(
+            {
+                "ref_situation_contractuelle": ["REF1"],
+                "pdl": ["PDL1"],
+                "mois_annee": ["2025-03"],
+                "energie_base_kwh": [1000.0],
+                "energie_hp_kwh": [500.0],
+                "energie_hc_kwh": [300.0],
+                "turpe_variable_eur": [25.0],
+                "data_complete": [True],
+                "qualite": ["estimée"],
+                "statut_communication": ["communicante"],
+                "debut": [datetime(2025, 3, 1)],
+                "fin": [datetime(2025, 3, 31)],
+                "nb_sous_periodes_energie": [1],
+                "has_changement_energie": [False],
+                "coverage_energie": [1.0],
+            }
+        )
+
+        collected = joindre_meta_periodes(abo_data, energie_data).collect()
+        ref1 = collected.filter(pl.col("ref_situation_contractuelle") == "REF1")
+        ref2 = collected.filter(pl.col("ref_situation_contractuelle") == "REF2")
+
+        # REF1 (avec énergie) : passe-plat des verdicts.
+        assert ref1["qualite"][0] == "estimée"
+        assert ref1["statut_communication"][0] == "communicante"
+        # REF2 (abonnement seul, pas d'énergie) : incalculable / non-communicante.
+        assert ref2["qualite"][0] == "incalculable"
+        assert ref2["statut_communication"][0] == "non_communicante"
 
     def test_jointure_donnees_decalees_temporellement(self):
         """Test avec données abonnement et énergie présentes mais décalées."""

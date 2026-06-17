@@ -227,6 +227,13 @@ def agreger_energies_mensuel(periodes: LazyFrame[PeriodeEnergie]) -> LazyFrame[E
             ]
         )
 
+    # Axes de statut jumeaux portés par les sous-périodes (ADR-0033 qualité / ADR-0036
+    # communication) : complétés en null typé s'ils manquent (chronologie synthétique) →
+    # la sous-période compte comme incalculable / non-communicante au rollup.
+    for col in ("qualite", "statut_communication"):
+        if col not in schema_cols:
+            periodes = periodes.with_columns(pl.lit(None, dtype=pl.Utf8).alias(col))
+
     return (
         periodes.group_by(["ref_situation_contractuelle", "pdl", "mois_annee"])
         .agg(
@@ -242,6 +249,22 @@ def agreger_energies_mensuel(periodes: LazyFrame[PeriodeEnergie]) -> LazyFrame[E
                 pl.col("turpe_variable_eur").sum(),
                 # Qualité des données (True seulement si TOUTES les périodes sont complètes)
                 pl.col("data_complete").all(),
+                # Qualité méta (ADR-0033) : rollup PIRE-GAGNE des sous-périodes
+                # (incalculable > estimée > réelle ; null/inconnu compte incalculable).
+                pl.when((pl.col("qualite").is_null() | (pl.col("qualite") == "incalculable")).any())
+                .then(pl.lit("incalculable"))
+                .when((pl.col("qualite") == "estimée").any())
+                .then(pl.lit("estimée"))
+                .otherwise(pl.lit("réelle"))
+                .alias("qualite"),
+                # Communication méta (ADR-0036) : PLEIN-OU-RIEN — communicante ssi TOUTES les
+                # sous-périodes du segment actif le sont (une bascule mid-mois écarte le mois ;
+                # la troncature entrée/sortie reste éligible car elle n'introduit pas de
+                # borne niveau-0). null/inconnu compte non-communicant.
+                pl.when((pl.col("statut_communication") == "communicante").fill_null(False).all())
+                .then(pl.lit("communicante"))
+                .otherwise(pl.lit("non_communicante"))
+                .alias("statut_communication"),
                 # Comptage des sous-périodes COMPLÈTES uniquement
                 pl.col("data_complete").filter(pl.col("data_complete")).len().alias("nb_sous_periodes_energie"),
                 # Calcul du coverage : somme des jours des périodes complètes
@@ -296,6 +319,15 @@ def joindre_meta_periodes(
     # Jointure externe pour conserver toutes les périodes
     meta_periodes_lf = abo_mensuel.join(energie_mensuel, on=cles_jointure, how="full", suffix="_energie")
 
+    # Verdicts jumeaux (ADR-0033 qualité / ADR-0036 communication) : portés par l'agrégat
+    # énergie ; complétés en null s'ils manquent (frames synthétiques). Le fill_null
+    # ci-dessous ramène un mois sans énergie au verdict « pas de donnée » (incalculable /
+    # non-communicante).
+    joined_cols = meta_periodes_lf.collect_schema().names()
+    for col in ("qualite", "statut_communication"):
+        if col not in joined_cols:
+            meta_periodes_lf = meta_periodes_lf.with_columns(pl.lit(None, dtype=pl.Utf8).alias(col))
+
     return (
         meta_periodes_lf.with_columns(
             [
@@ -325,6 +357,9 @@ def joindre_meta_periodes(
                 pl.col("energie_hc_kwh").fill_null(0.0),
                 # Gestion de data_complete (False si pas d'énergie)
                 pl.col("data_complete").fill_null(False),
+                # Verdicts jumeaux : un mois sans énergie tombe au verdict « pas de donnée ».
+                pl.col("qualite").fill_null("incalculable"),
+                pl.col("statut_communication").fill_null("non_communicante"),
                 # Mémo puissance
                 pl.col("memo_puissance").fill_null(""),
             ]

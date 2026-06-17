@@ -1,6 +1,7 @@
 """Tests unitaires pour le pipeline énergie Polars (nouveau)."""
 
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import polars as pl
 import pytest
@@ -12,6 +13,68 @@ from electricore.core.pipelines.energie import (
     expr_bornes_depuis_shift,
     interroger_releves,
 )
+
+PARIS = ZoneInfo("Europe/Paris")
+
+
+def _chronologie_un_contrat(natures: list, niveaux: list) -> pl.LazyFrame:
+    """Chronologie synthétique 1 contrat, index croissants, avec nature/niveau par relevé.
+
+    `natures`/`niveaux` ont la même longueur (N relevés → N-1 périodes). Les bornes d'une
+    période sont les relevés consécutifs ; chaque axe rollupe les deux bornes.
+    """
+    n = len(natures)
+    cadrans = ("base", "hp", "hc", "hph", "hpb", "hch", "hcb")
+    return pl.LazyFrame(
+        {
+            "pdl": ["PDL001"] * n,
+            "ref_situation_contractuelle": ["REF001"] * n,
+            "date_releve": [datetime(2024, 1 + i, 1, tzinfo=PARIS) for i in range(n)],
+            "source": ["flux_C15"] + ["flux_R151"] * (n - 1),
+            "nature_index": natures,
+            "niveau_ouverture_services": niveaux,
+            "releve_manquant": [None] + [False] * (n - 1),
+            "ordre_index": [False] * n,
+            **{f"index_{c}_kwh": [1000.0 * (i + 1) for i in range(n)] for c in cadrans},
+        },
+        schema_overrides={"date_releve": pl.Datetime(time_unit="us", time_zone="Europe/Paris")},
+    )
+
+
+def test_calculer_periodes_qualite_pire_gagne():
+    """ADR-0033 : la qualité d'une période d'énergie est le rollup PIRE-GAGNE de la nature
+    d'index de ses deux bornes — réel/corrigé → réelle ; estimé → estimée ; relevé
+    manquant (nature null) → incalculable (incalculable > estimée > réelle)."""
+    # 4 relevés (natures) → 3 périodes. niveaux indifférents ici (axe orthogonal).
+    chrono = _chronologie_un_contrat(
+        natures=["réel", "estimé", "corrigé", None],
+        niveaux=["2", "2", "2", "2"],
+    )
+
+    result = calculer_periodes_energie(chrono).collect().sort("debut")
+
+    # P1 (réel, estimé) → estimée ; P2 (estimé, corrigé) → estimée ; P3 (corrigé, null) → incalculable
+    assert result["qualite"].to_list() == ["estimée", "estimée", "incalculable"]
+
+
+def test_calculer_periodes_statut_communication():
+    """ADR-0036 : une période d'énergie est COMMUNICANTE ssi ses DEUX bornes sont à niveau
+    d'ouverture ≥ 1 ; une borne à niveau 0 (ou absente) la rend non-communicante. Axe
+    orthogonal à la qualité (natures indifférentes ici)."""
+    # 4 relevés (niveaux) → 3 périodes.
+    chrono = _chronologie_un_contrat(
+        natures=["réel", "réel", "réel", "réel"],
+        niveaux=["2", "1", "0", "2"],
+    )
+
+    result = calculer_periodes_energie(chrono).collect().sort("debut")
+
+    # P1 (2,1) → communicante ; P2 (1,0) → non ; P3 (0,2) → non
+    assert result["statut_communication"].to_list() == [
+        "communicante",
+        "non_communicante",
+        "non_communicante",
+    ]
 
 
 def test_expr_bornes_depuis_shift():

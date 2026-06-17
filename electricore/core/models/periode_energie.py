@@ -33,6 +33,13 @@ class PeriodeEnergie(pa.DataFrameModel):
     # Flags de qualité des données
     data_complete: pl.Boolean = pa.Field(nullable=False)
 
+    # Verdicts de période jumeaux (axes orthogonaux, ADR-0036).
+    # Qualité (ADR-0033) : rollup pire-gagne de la nature d'index des deux bornes.
+    # Remplacera data_complete (retrait dans la slice de bascule).
+    qualite: pl.Utf8 | None = pa.Field(nullable=True, isin=["réelle", "estimée", "incalculable"])
+    # Communication (ADR-0036) : communicante ssi les deux bornes sont à niveau ≥ 1.
+    statut_communication: pl.Utf8 | None = pa.Field(nullable=True, isin=["communicante", "non_communicante"])
+
     # Énergies consommées par cadran en kWh (optionnelles selon le type de compteur)
     energie_base_kwh: pl.Float64 | None = pa.Field(nullable=True)
     energie_hp_kwh: pl.Float64 | None = pa.Field(nullable=True)
