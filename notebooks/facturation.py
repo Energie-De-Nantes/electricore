@@ -316,8 +316,9 @@ def _(fact_mois, lignes_a_facturer_df, taux_verification):
 
     # Côté Odoo : sale_order_id + x_lisse, unique par RSC
     _odoo_df = lignes_a_facturer_df.select(["sale_order_id", "x_lisse", "x_ref_situation_contractuelle"]).unique()
-    # Côté Enedis : data_complete par RSC (déduplication car fact_mois a 1 ligne / invoice_line)
-    _enedis_df = fact_mois.select(["data_complete", "ref_situation_contractuelle"]).unique()
+    # Côté Enedis : qualité par RSC (déduplication car fact_mois a 1 ligne / invoice_line).
+    # « à jour » ≡ énergie calculable (ADR-0033 : ancien data_complete=True ⇒ qualite ≠ incalculable).
+    _enedis_df = fact_mois.select(["qualite", "ref_situation_contractuelle"]).unique()
 
     _df = (
         _odoo_df.join(
@@ -326,7 +327,7 @@ def _(fact_mois, lignes_a_facturer_df, taux_verification):
             right_on="ref_situation_contractuelle",
             how="left",
         )
-        .with_columns((pl.col("data_complete") | pl.col("x_lisse")).alias("a_jour"))
+        .with_columns(((pl.col("qualite") != "incalculable") | pl.col("x_lisse")).alias("a_jour"))
         .with_columns(pl.Series("rand", np.random.rand(len(_odoo_df))))
     )
 
