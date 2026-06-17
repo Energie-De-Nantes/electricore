@@ -20,7 +20,8 @@ from zoneinfo import ZoneInfo
 
 import polars as pl
 
-from electricore.core.models.chronologie_releves import SOURCES_CHRONOLOGIE
+from electricore.core.models.chronologie_releves import SOURCES_CHRONOLOGIE, ChronologieReleves
+from electricore.core.models.releve_index import RelevéIndex
 from electricore.core.pipelines.energie import (
     PRIORITE_SOURCES,
     TOLERANCE_APPARIEMENT_RELEVES,
@@ -386,6 +387,24 @@ def test_chronologie_contrat_bout_en_bout():
     assert result["ref_situation_contractuelle"].null_count() == 0
     assert set(result["source"].unique().to_list()) <= set(SOURCES_CHRONOLOGIE)
     assert result.schema["ordre_index"] == pl.Boolean
+
+
+def test_releve_index_porte_niveau_ouverture_services():
+    """#324 (ADR-0036) : RelevéIndex (contrat du mart `releves`) déclare
+    `niveau_ouverture_services` (Utf8, nullable) — la *jumelle* de `nature_index` pour
+    l'axe « voie communicante ». Nullable : un relevé périodique avant tout C15 n'en
+    porte pas (forward-fill amont absent)."""
+    cols = RelevéIndex.to_schema().columns
+    assert "niveau_ouverture_services" in cols, f"colonne absente du contrat, vu : {sorted(cols)}"
+    assert cols["niveau_ouverture_services"].nullable
+
+
+def test_chronologie_porte_niveau_ouverture_services():
+    """#324 : la chronologie des relevés (entrée du calcul d'énergie) porte le niveau au
+    contrat, typé et nullable — le verdict d'ouverture de période (#325) le rollupera."""
+    cols = ChronologieReleves.to_schema().columns
+    assert "niveau_ouverture_services" in cols, f"colonne absente du contrat, vu : {sorted(cols)}"
+    assert cols["niveau_ouverture_services"].nullable
 
 
 # ---------------------------------------------------------------------------
