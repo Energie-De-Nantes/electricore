@@ -586,8 +586,17 @@ def expr_colonnes_a_propager(columns: list[str] | None = None) -> list[pl.Expr]:
         "num_compteur",
     ]
 
-    # Colonnes optionnelles qui peuvent être propagées si présentes
-    colonnes_optionnelles = ["categorie", "ref_demandeur", "id_affaire"]
+    # Colonnes optionnelles qui peuvent être propagées si présentes. Le statut de
+    # communication (niveau d'ouverture + date de bascule, épique #313) se reporte par
+    # RSC comme les autres données contractuelles : déclaratif C15, stable entre deux
+    # événements, donc forward-fill sur les FACTURATION artificielles.
+    colonnes_optionnelles = [
+        "categorie",
+        "ref_demandeur",
+        "id_affaire",
+        "niveau_ouverture_services",
+        "date_changement_niveau_ouverture_services",
+    ]
 
     # Filtrer selon les colonnes disponibles si fourni
     if columns is not None:

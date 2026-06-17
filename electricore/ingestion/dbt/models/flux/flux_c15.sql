@@ -30,6 +30,12 @@ with flat as (
         prm ->> '$.Dispositif_De_Comptage[0].Compteur[0].Type'              as type_compteur,
         prm ->> '$.Dispositif_De_Comptage[0].Compteur[0].Num_Serie'         as num_compteur,
         cast(prm ->> '$.Date_Derniere_Modification_FTA' as date)            as date_derniere_modification_fta,
+        -- Statut de communication (épique #313) : niveau d'ouverture aux services
+        -- (∈ {0,1,2}, xsd:string), porté au niveau PRM (pas Situation_Contractuelle) et
+        -- sa date de bascule. Communicant ⇔ niveau ≥ 1 (cf. CONTEXT « Statut de
+        -- communication »). Le bloc d'index est absent à niveau 0.
+        prm ->> '$.Niveau_Ouverture_Services'                              as niveau_ouverture_services,
+        cast(prm ->> '$.Date_Changement_Niveau_Ouverture_Services' as date) as date_changement_niveau_ouverture_services,
         prm ->> '$.Evenement_Declencheur[0].Nature_Evenement'              as evenement_declencheur,
         prm ->> '$.Evenement_Declencheur[0].Type_Evenement'                as type_evenement,
         cast(prm ->> '$.Evenement_Declencheur[0].Date_Evenement' as timestamptz) as date_evenement,

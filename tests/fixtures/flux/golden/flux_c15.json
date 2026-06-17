@@ -11,6 +11,8 @@
     "type_compteur": "CCB",
     "num_compteur": "13451014311879",
     "date_derniere_modification_fta": "2024-10-04",
+    "niveau_ouverture_services": "2",
+    "date_changement_niveau_ouverture_services": "2018-04-13",
     "evenement_declencheur": "MCT",
     "type_evenement": "CONTRAT",
     "date_evenement": "2024-10-04T00:01:00+02:00",

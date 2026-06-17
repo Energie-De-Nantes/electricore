@@ -80,6 +80,7 @@ SPECS = [
         type_contract={
             "puissance_souscrite_kva": DOUBLE,
             "date_derniere_modification_fta": DATE,
+            "date_changement_niveau_ouverture_services": DATE,
             "date_evenement": TZ,
             "avant_date_releve": TZ,
             "apres_date_releve": TZ,

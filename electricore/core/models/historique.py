@@ -38,6 +38,13 @@ class Historique(pa.DataFrameModel):
     type_compteur: pl.Utf8 = pa.Field(nullable=False)
     num_compteur: pl.Utf8 = pa.Field(nullable=False)
 
+    # Statut de communication (épique #313) : niveau d'ouverture aux services Enedis
+    # (xsd:string ∈ {0,1,2}, donc Utf8 — communicant ⇔ niveau ≥ 1) et sa date de bascule.
+    # Déclaratif C15, reporté par RSC en forward-fill (cf. `expr_colonnes_a_propager`) ;
+    # nullable car absent des flux antérieurs et des PDL hors C15.
+    niveau_ouverture_services: pl.Utf8 | None = pa.Field(nullable=True)
+    date_changement_niveau_ouverture_services: pl.Date | None = pa.Field(nullable=True)
+
     # Informations Demande (optionnelles)
     ref_demandeur: pl.Utf8 | None = pa.Field(nullable=True)
     id_affaire: pl.Utf8 | None = pa.Field(nullable=True)

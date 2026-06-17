@@ -1040,7 +1040,9 @@ def test_expr_colonnes_a_propager_forward_fill():
         .sort(["ref_situation_contractuelle", "date_evenement"])
     )
 
-    resultat = df.with_columns(expr_colonnes_a_propager()).collect()
+    # `columns=` filtré sur les colonnes présentes : c'est le contrat réel (cf.
+    # `inserer_evenements_facturation`) — robuste à l'ajout de colonnes propageables.
+    resultat = df.with_columns(expr_colonnes_a_propager(columns=df.collect_schema().names())).collect()
 
     # Vérifier que les valeurs sont propagées pour les colonnes obligatoires
     assert resultat["puissance_souscrite_kva"].to_list() == [6.0, 6.0, 6.0]
@@ -1054,6 +1056,38 @@ def test_expr_colonnes_a_propager_forward_fill():
     assert resultat["categorie"].to_list() == ["C5", "C5", "C5"]
     assert resultat["ref_demandeur"].to_list() == ["REF001", "REF001", "REF001"]
     assert resultat["id_affaire"].to_list() == ["AFF001", "AFF001", "AFF001"]
+
+
+def test_expr_colonnes_a_propager_statut_communication():
+    """Le statut de communication (niveau d'ouverture + date de bascule) est reporté
+    par RSC en forward-fill — il doit suivre les FACTURATION artificielles comme les
+    autres colonnes contractuelles (épique #313, AC #314 « reportable par RSC »)."""
+    df = (
+        pl.LazyFrame(
+            {
+                "ref_situation_contractuelle": ["PDL1", "PDL1", "PDL1"],
+                "date_evenement": ["2024-01-01", "2024-02-01", "2024-03-01"],
+                "niveau_ouverture_services": ["1", None, None],
+                "date_changement_niveau_ouverture_services": ["2024-01-01", None, None],
+            }
+        )
+        .with_columns(
+            [
+                pl.col("date_evenement").str.strptime(pl.Datetime, "%Y-%m-%d").dt.replace_time_zone("Europe/Paris"),
+                pl.col("date_changement_niveau_ouverture_services").str.strptime(pl.Date, "%Y-%m-%d"),
+            ]
+        )
+        .sort(["ref_situation_contractuelle", "date_evenement"])
+    )
+
+    resultat = df.with_columns(expr_colonnes_a_propager(columns=df.collect_schema().names())).collect()
+
+    assert resultat["niveau_ouverture_services"].to_list() == ["1", "1", "1"]
+    assert resultat["date_changement_niveau_ouverture_services"].dt.strftime("%Y-%m-%d").to_list() == [
+        "2024-01-01",
+        "2024-01-01",
+        "2024-01-01",
+    ]
 
 
 def test_inserer_evenements_facturation_integration():
