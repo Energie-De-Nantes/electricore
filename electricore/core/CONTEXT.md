@@ -153,7 +153,7 @@ Changement de FTA, de puissance souscrite ou de calendrier sur un PDL actif.
 
 ## Affaires SGE (suivi opérationnel)
 
-Le cycle de vie des demandes de prestation déposées au portail SGE, rendu requêtable et alertable. Source : flux X12/X13 (décrits dans `electricore/ingestion/CONTEXT.md`). ElectriCore *observe* l'avancement (read-only) ; il n'agit jamais sur le SGE.
+Le cycle de vie des demandes de prestation déposées au portail SGE, rendu requêtable (cockpit read-only). Source : flux X12/X13 (décrits dans `electricore/ingestion/CONTEXT.md`). ElectriCore *observe* l'avancement (read-only) ; il n'agit jamais sur le SGE.
 
 **Affaire** :
 Dossier de suivi d'une demande de prestation auprès d'Enedis, identifié par un code à 8 caractères (ex : `G08TJ7VC`). Porte un cycle de vie (*jalons*) du dépôt à la clôture. Son `id` est **le même identifiant** que l'`Id_Affaire` porté par les *événements contractuels* C15 : une affaire est le **précurseur opérationnel** d'un événement C15 (MES, CFN…), traçable **avant** que le C15 ne matérialise son issue contractuelle.
