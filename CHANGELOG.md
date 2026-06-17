@@ -9,6 +9,36 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.0.0rc14] - 2026-06-18
+
+Finalisation de la **refonte des flags de qualité** : retrait cassant des anciens signaux
+de complétude au profit des verdicts jumeaux *qualité* + *communication*.
+
+### ⚠️ Cassant — contrat `/facturation/meta-periodes` v2
+
+- **Retrait de `data_complete` / `coverage_abo` / `coverage_energie`**
+  ([#317](https://github.com/Energie-De-Nantes/electricore/issues/317),
+  [#327](https://github.com/Energie-De-Nantes/electricore/issues/327),
+  [#278](https://github.com/Energie-De-Nantes/electricore/issues/278),
+  [ADR-0033](docs/adr/0033-qualite-periode-remplace-data-complete-coverage.md)) — remplacés
+  par `qualite` (`réelle` / `estimée` / `incalculable`, rollup *pire-gagne*) et
+  `statut_communication` (`communicante` / `non_communicante`), déjà livrés en additif
+  (rc précédentes). `CONTRAT_VERSION` **1 → 2**. Raffinement strict : l'ancien
+  `data_complete=True` se scinde en `{réelle, estimée}`, le `False` devient `incalculable`.
+  Retrait de bout en bout — modèles (`PeriodeEnergie`, `PeriodeMeta`, `EnergieMensuel`,
+  `LignesFactureRapprochees`…), pipeline facturation, contexte mensuel, contrat API et
+  notebooks rebranchés sur `qualite`.
+
+### 🧹 Nettoyage (core)
+
+- **Retrait du forward-fill RSC/FTA no-op de la chronologie des relevés**
+  ([#330](https://github.com/Energie-De-Nantes/electricore/pull/330),
+  [ADR-0029](docs/adr/0029-modele-releves-canonique-dbt-assemble-coeur-arbitre.md)) :
+  `_assembler_chronologie` ré-attribuait RSC/FTA par PDL, mais l'attribution est déjà
+  garantie en amont (mart `releves` forward-fillé + requête FACTURATION qui porte la RSC).
+  No-op prouvé par deletion-test (suite verte) ; l'attribution contractuelle vit désormais
+  en un seul endroit.
+
 ## [3.0.0rc13] - 2026-06-16
 
 Hotfix rc12 : `/facturation/meta-periodes` renvoyait une 500 — `RelevéIndex` exigeait
