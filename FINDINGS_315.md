@@ -105,6 +105,36 @@ méta.
    *null → valeur* du calendrier distributeur (ou router sur le niveau). Coût : du code +
    re-tests #314.
 
+## 6. Validation expérimentale (demande R64 M023 + diff)
+
+Demande M023 « Index quotidiens » sur les PRM communicants manquants à deux bornes,
+en **deux demandes single-day** (une par borne, pour ne stocker aucun intermédiaire) :
+
+| borne | manquants AVANT | recevables+publiés (compte-rendu) | **manquants APRÈS** |
+|-------|-----------------|-----------------------------------|---------------------|
+| 01/02 (février) | 361 | 351 | **10** |
+| 01/03 (mars) | 323 | 316 | **7** |
+
+Les fichiers publiés ne contiennent **que** l'index du 1ᵉʳ (`dates couvertes = ['2026-02-01']`
+/ `['2026-03-01']`). **~97-98 % des bornes manquantes se remplissent** dès qu'on tire le
+R64 → le « 25 % d'anomalies » était bien un **trou de pull**, pas une défaillance de
+communication. Les restants (10 + 7) sont **exactement** les non-recevables/non-publiés du
+compte-rendu, dont le détail C15 montre qu'ils sont surtout des **résiliés / MES tardive**
+(borne juste avant un RES ou après un MES) + **3 vrais éligibles-sans-donnée**. Le noyau dur
+d'anomalies réelles est donc minuscule.
+
+**Raffinement méthodo** : la fenêtre active du spike comptait comme « communicant à la
+borne » des points qui résilient/entrent à quelques jours près → légère **surestimation**
+de l'anomalie. À resserrer (borner sur EN SERVICE à la date exacte).
+
+**Contournement AES-256** : le téléchargement **portail M023 est un ZIP clair** (`PK\x03\x04`),
+pas chiffré — contrairement à la livraison SFTP. L'assainissement par le portail **n'est donc
+pas bloqué** par la bascule AES-128→256 (#221). Côté code, `crypto.py` est d'ailleurs déjà
+prêt pour l'AES-256 (sélection du chiffre par longueur de clé, cascade par essai, aucune
+assertion 16 octets) : « pas prêt » = la **clé 256 n'est pas configurée**, pas un manque de
+code. Les R64 février+mars ont été **landés dans la DB de test + `releves` reconstruit** pour
+matérialiser l'assainissement.
+
 ## Synthèse pour l'ADR-0036
 
 - Détection du statut **directe et fiable** via `Niveau_Ouverture_Services` (C15).
