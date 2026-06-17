@@ -58,7 +58,8 @@ def _fact_mensuelle(
     nb_jours: int = 31,
     turpe_fixe_eur: float = 0.0,
     turpe_variable_eur: float = 0.0,
-    data_complete: bool = True,
+    qualite: str = "réelle",
+    statut_communication: str = "communicante",
     memo_puissance: str = "",
 ) -> pl.DataFrame:
     return pl.DataFrame(
@@ -73,7 +74,8 @@ def _fact_mensuelle(
             "nb_jours": [nb_jours],
             "turpe_fixe_eur": [turpe_fixe_eur],
             "turpe_variable_eur": [turpe_variable_eur],
-            "data_complete": [data_complete],
+            "qualite": [qualite],
+            "statut_communication": [statut_communication],
             "memo_puissance": [memo_puissance],
         }
     ).with_columns(
@@ -148,7 +150,8 @@ class TestPassePlat:
             "pdl",
             "debut",
             "fin",
-            "data_complete",
+            "qualite",
+            "statut_communication",
             "turpe_fixe_eur",
             "turpe_variable_eur",
             "num_compteur",
@@ -243,7 +246,8 @@ class TestColonnesSortie:
             "pdl",
             "debut",
             "fin",
-            "data_complete",
+            "qualite",
+            "statut_communication",
             "turpe_fixe_eur",
             "turpe_variable_eur",
             # Identifiants compteur
@@ -341,7 +345,8 @@ class TestSchemaLignesFactureRapprochees:
                 # Méta-période Enedis
                 "ref_situation_contractuelle": ["RSC001"],
                 "pdl": ["12345678901234"],
-                "data_complete": [True],
+                "qualite": ["réelle"],
+                "statut_communication": ["communicante"],
                 "debut": [datetime(2025, 1, 1, tzinfo=ZoneInfo("Europe/Paris"))],
                 "fin": [datetime(2025, 1, 31, tzinfo=ZoneInfo("Europe/Paris"))],
                 "turpe_fixe_eur": [12.34],

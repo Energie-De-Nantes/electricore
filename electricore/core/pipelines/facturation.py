@@ -60,22 +60,6 @@ def expr_memo_puissance_simple() -> pl.Expr:
     )
 
 
-def expr_coverage_temporelle(duree_totale_col: str = "nb_jours_total") -> pl.Expr:
-    """
-    Calcule le taux de couverture temporelle d'une période.
-
-    Args:
-        duree_totale_col: Nom de la colonne contenant la durée totale du mois
-
-    Returns:
-        Expression Polars retournant le taux de couverture (0.0 à 1.0)
-
-    Example:
-        >>> lf.with_columns(expr_coverage_temporelle().alias("coverage"))
-    """
-    return (pl.col("nb_jours").cast(pl.Float64) / pl.col(duree_totale_col).cast(pl.Float64)).clip(0.0, 1.0)
-
-
 def expr_calculer_trimestre() -> pl.Expr:
     """
     Expression pour calculer le trimestre à partir de la colonne debut.
@@ -113,25 +97,6 @@ def expr_has_changement() -> pl.Expr:
         >>> lf.with_columns(expr_has_changement().alias("has_changement"))
     """
     return pl.col("nb_sous_periodes") > 1
-
-
-def expr_data_complete_meta_periode() -> pl.Expr:
-    """
-    Détermine si les données d'une méta-période mensuelle sont complètes.
-
-    Les données sont complètes si :
-    - coverage_abo=1.0 ET coverage_energie=1.0
-    - ET il existe au moins une sous-période d'énergie (nb_sous_periodes_energie > 0)
-
-    Returns:
-        Expression Polars retournant True si données complètes
-
-    Example:
-        >>> lf.with_columns(expr_data_complete_meta_periode().alias("data_complete"))
-    """
-    return (
-        (pl.col("coverage_abo") == 1.0) & (pl.col("coverage_energie") == 1.0) & (pl.col("nb_sous_periodes_energie") > 0)
-    )
 
 
 # =============================================================================
@@ -189,8 +154,6 @@ def agreger_abonnements_mensuel(periodes: LazyFrame[PeriodeAbonnement]) -> LazyF
                     pl.col("memo_puissance_concat")
                 )
                 .alias("memo_puissance"),
-                # TODO: Calculer coverage_abo réel
-                pl.lit(1.0).alias("coverage_abo"),  # Placeholder
             ]
         )
         .drop("memo_puissance_concat")
@@ -247,10 +210,10 @@ def agreger_energies_mensuel(periodes: LazyFrame[PeriodeEnergie]) -> LazyFrame[E
                 pl.col("fin").max(),
                 # Montants TURPE
                 pl.col("turpe_variable_eur").sum(),
-                # Qualité des données (True seulement si TOUTES les périodes sont complètes)
-                pl.col("data_complete").all(),
                 # Qualité méta (ADR-0033) : rollup PIRE-GAGNE des sous-périodes
                 # (incalculable > estimée > réelle ; null/inconnu compte incalculable).
+                # Subsume l'ancien data_complete : un relevé bornant manquant → période
+                # incalculable → mois incalculable (retrait data_complete/coverage, ADR-0033).
                 pl.when((pl.col("qualite").is_null() | (pl.col("qualite") == "incalculable")).any())
                 .then(pl.lit("incalculable"))
                 .when((pl.col("qualite") == "estimée").any())
@@ -265,29 +228,14 @@ def agreger_energies_mensuel(periodes: LazyFrame[PeriodeEnergie]) -> LazyFrame[E
                 .then(pl.lit("communicante"))
                 .otherwise(pl.lit("non_communicante"))
                 .alias("statut_communication"),
-                # Comptage des sous-périodes COMPLÈTES uniquement
-                pl.col("data_complete").filter(pl.col("data_complete")).len().alias("nb_sous_periodes_energie"),
-                # Calcul du coverage : somme des jours des périodes complètes
-                pl.when(pl.col("data_complete")).then(pl.col("nb_jours")).otherwise(0).sum().alias("nb_jours_complets"),
+                # Nombre TOTAL de sous-périodes d'énergie du mois (>1 ⇒ changement).
+                pl.len().alias("nb_sous_periodes_energie"),
             ]
         )
         .with_columns(
-            [
-                # Calculer le nombre de jours total du mois
-                expr_nb_jours().alias("nb_jours_total_mois"),
-            ]
+            # Flag de changement si plusieurs sous-périodes
+            (pl.col("nb_sous_periodes_energie") > 1).alias("has_changement_energie"),
         )
-        .with_columns(
-            [
-                # Flag de changement si plusieurs sous-périodes
-                (pl.col("nb_sous_periodes_energie") > 1).alias("has_changement_energie"),
-                # Coverage réel : ratio jours complets / jours total du mois
-                (pl.col("nb_jours_complets").cast(pl.Float64) / pl.col("nb_jours_total_mois").cast(pl.Float64))
-                .clip(0.0, 1.0)
-                .alias("coverage_energie"),
-            ]
-        )
-        .drop("nb_jours_complets", "nb_jours_total_mois")
     )
 
 
@@ -355,8 +303,6 @@ def joindre_meta_periodes(
                 pl.col("energie_base_kwh").fill_null(0.0),
                 pl.col("energie_hp_kwh").fill_null(0.0),
                 pl.col("energie_hc_kwh").fill_null(0.0),
-                # Gestion de data_complete (False si pas d'énergie)
-                pl.col("data_complete").fill_null(False),
                 # Verdicts jumeaux : un mois sans énergie tombe au verdict « pas de donnée ».
                 pl.col("qualite").fill_null("incalculable"),
                 pl.col("statut_communication").fill_null("non_communicante"),
@@ -373,20 +319,6 @@ def joindre_meta_periodes(
                 .alias("nb_jours"),
                 # Flag de changement global
                 (pl.col("has_changement_abo") | pl.col("has_changement_energie")).alias("has_changement"),
-                # Coverage : utiliser les valeurs calculées ou mettre 0.0 si manquantes
-                # Si nb_sous_periodes_energie = 0, coverage_energie doit être 0.0
-                pl.when(pl.col("nb_sous_periodes_energie") == 0)
-                .then(pl.lit(0.0))
-                .otherwise(pl.col("coverage_energie").fill_null(0.0))
-                .alias("coverage_energie"),
-                # TODO: Calculer coverage_abo réel
-                pl.lit(1.0).alias("coverage_abo"),  # Placeholder pour l'instant
-            ]
-        )
-        .with_columns(
-            [
-                # data_complete final basé sur les coverages
-                expr_data_complete_meta_periode().alias("data_complete")
             ]
         )
         .drop(
@@ -470,8 +402,6 @@ __all__ = [
     "joindre_meta_periodes",
     "expr_puissance_moyenne",
     "expr_memo_puissance_simple",
-    "expr_coverage_temporelle",
     "expr_calculer_trimestre",
     "expr_has_changement",
-    "expr_data_complete_meta_periode",
 ]

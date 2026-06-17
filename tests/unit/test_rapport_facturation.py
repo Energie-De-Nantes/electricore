@@ -48,7 +48,8 @@ def _fact_mensuelle(*, rscs: list[str], memos: list[str] | None = None) -> pl.Da
             "nb_jours": [31] * n,
             "turpe_fixe_eur": [10.0] * n,
             "turpe_variable_eur": [5.0] * n,
-            "data_complete": [True] * n,
+            "qualite": ["réelle"] * n,
+            "statut_communication": ["communicante"] * n,
             "memo_puissance": memos,
         }
     ).with_columns(

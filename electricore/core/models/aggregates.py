@@ -39,7 +39,6 @@ class AbonnementMensuel(pa.DataFrameModel):
     # Métadonnées d'agrégation
     nb_sous_periodes_abo: pl.Int32 = pa.Field(nullable=False, ge=1)
     has_changement_abo: pl.Boolean = pa.Field(nullable=False)
-    coverage_abo: pl.Float64 = pa.Field(nullable=False, ge=0.0, le=1.0)
 
     # Mémo optionnel pour lisibilité
     memo_puissance: pl.Utf8 | None = pa.Field(nullable=True)
@@ -77,13 +76,10 @@ class EnergieMensuel(pa.DataFrameModel):
     # Métadonnées d'agrégation
     nb_sous_periodes_energie: pl.Int32 = pa.Field(nullable=False, ge=0)
     has_changement_energie: pl.Boolean = pa.Field(nullable=False)
-    coverage_energie: pl.Float64 = pa.Field(nullable=False, ge=0.0, le=1.0)
 
-    # Qualité des données
-    data_complete: pl.Boolean = pa.Field(nullable=False)
-
-    # Verdicts méta jumeaux (axes orthogonaux). Qualité (ADR-0033) : rollup pire-gagne des
-    # sous-périodes. Communication (ADR-0036) : plein-ou-rien sur le segment actif.
+    # Verdicts méta jumeaux (axes orthogonaux), remplaçant data_complete/coverage (ADR-0033).
+    # Qualité (ADR-0033) : rollup pire-gagne des sous-périodes. Communication (ADR-0036) :
+    # plein-ou-rien sur le segment actif.
     qualite: pl.Utf8 | None = pa.Field(nullable=True, isin=["réelle", "estimée", "incalculable"])
     statut_communication: pl.Utf8 | None = pa.Field(nullable=True, isin=["communicante", "non_communicante"])
 

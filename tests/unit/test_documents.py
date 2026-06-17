@@ -32,7 +32,8 @@ def _ctx(mois: str = "2025-01-01") -> ContexteMensuel:
             "nb_jours": [31],
             "turpe_fixe_eur": [12.34],
             "turpe_variable_eur": [56.78],
-            "data_complete": [True],
+            "qualite": ["réelle"],
+            "statut_communication": ["communicante"],
             "memo_puissance": [""],
         }
     ).with_columns(

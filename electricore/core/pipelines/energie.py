@@ -201,25 +201,6 @@ def expr_filtrer_periodes_valides() -> pl.Expr:
     return pl.col("debut").is_not_null() & (pl.col("nb_jours") > 0)
 
 
-def expr_data_complete() -> pl.Expr:
-    """
-    Expression pour déterminer si une période a des données complètes.
-
-    Une période est considérée comme ayant des données complètes si :
-    - Le relevé de début n'est pas manquant (ou null si pas de flag)
-    - Le relevé de fin n'est pas manquant (ou null si pas de flag)
-
-    Returns:
-        Expression booléenne indiquant si la période a des données complètes
-
-    Example:
-        >>> lf = lf.with_columns(expr_data_complete().alias("data_complete"))
-    """
-    return (pl.col("releve_manquant_debut").is_null() | ~pl.col("releve_manquant_debut")) & (
-        pl.col("releve_manquant_fin").is_null() | ~pl.col("releve_manquant_fin")
-    )
-
-
 # =============================================================================
 # AXES DE STATUT DE PÉRIODE (jumeaux) : qualité (ADR-0033) & communication (ADR-0036)
 # =============================================================================
@@ -307,7 +288,6 @@ def expr_selectionner_colonnes_finales():
         pl.col("mois_annee"),
         pl.col("source_avant"),
         pl.col("source_apres"),
-        pl.col("data_complete"),
         # Verdicts de période jumeaux (ADR-0033 qualité / ADR-0036 communication).
         pl.col("qualite"),
         pl.col("statut_communication"),
@@ -533,11 +513,10 @@ def calculer_periodes_energie(lf: pl.LazyFrame) -> LazyFrame[PeriodeEnergie]:
         )
         # Étape 2 : Calcul énergies + méta-colonnes de période (bundle partagé, cf. periodes.py)
         .with_columns([*expr_calculer_energies_tous_cadrans(colonnes_index), *exprs_meta_periode()])
-        # Étape 3 : Flags/verdicts de période — complétude (legacy) + axes jumeaux
-        # qualité (ADR-0033) & communication (ADR-0036).
+        # Étape 3 : Verdicts de période jumeaux — qualité (ADR-0033) & communication
+        # (ADR-0036). Remplacent l'ancien flag `data_complete` (retiré, ADR-0033).
         .with_columns(
             [
-                expr_data_complete().alias("data_complete"),
                 expr_qualite_periode().alias("qualite"),
                 expr_statut_communication_periode().alias("statut_communication"),
             ]

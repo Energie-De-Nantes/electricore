@@ -26,7 +26,8 @@ def test_documents_facturation_du_mois_returns_fr_sheet_names(monkeypatch):
             "nb_jours": [31],
             "turpe_fixe_eur": [12.34],
             "turpe_variable_eur": [56.78],
-            "data_complete": [True],
+            "qualite": ["réelle"],
+            "statut_communication": ["communicante"],
             "memo_puissance": [""],
         }
     ).with_columns(

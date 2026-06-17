@@ -52,12 +52,8 @@ class PeriodeMeta(pa.DataFrameModel):
     nb_sous_periodes_energie: pl.Int32 = pa.Field(nullable=False, ge=0)
     has_changement: pl.Boolean = pa.Field(nullable=False)
 
-    # 🆕 Métadonnées de couverture temporelle pour tracer l'incomplétude
-    coverage_abo: pl.Float64 = pa.Field(nullable=False, ge=0.0, le=1.0)  # 0.0 à 1.0
-    coverage_energie: pl.Float64 = pa.Field(nullable=False, ge=0.0, le=1.0)  # 0.0 à 1.0
-    data_complete: pl.Boolean = pa.Field(nullable=False)  # True si coverage_abo=1.0 ET coverage_energie=1.0
-
-    # Verdicts méta jumeaux (axes orthogonaux). Qualité (ADR-0033) : rollup pire-gagne des
+    # Verdicts méta jumeaux (axes orthogonaux), remplaçant data_complete + coverage_abo/
+    # coverage_energie (retirés, ADR-0033). Qualité (ADR-0033) : rollup pire-gagne des
     # sous-périodes (un mois communicant peut être estimé). Communication (ADR-0036) :
     # plein-ou-rien sur le segment actif (voie communicante / non-communicante).
     qualite: pl.Utf8 | None = pa.Field(nullable=True, isin=["réelle", "estimée", "incalculable"])
@@ -92,17 +88,6 @@ class PeriodeMeta(pa.DataFrameModel):
 
         condition = pl.col("nb_jours") == nb_jours_calcule
         return df_lazy.select(condition.alias("nb_jours_coherent"))
-
-    @pa.dataframe_check
-    def verifier_data_complete_coherent(cls, data) -> pl.LazyFrame:
-        """
-        Vérifie que data_complete est cohérent avec les coverage.
-        data_complete doit être True ssi coverage_abo=1.0 ET coverage_energie=1.0
-        """
-        df_lazy = data.lazyframe
-
-        condition = pl.col("data_complete") == ((pl.col("coverage_abo") == 1.0) & (pl.col("coverage_energie") == 1.0))
-        return df_lazy.select(condition.alias("data_complete_coherent"))
 
     @pa.dataframe_check
     def verifier_has_changement_coherent(cls, data) -> pl.LazyFrame:

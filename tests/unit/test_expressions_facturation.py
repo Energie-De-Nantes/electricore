@@ -14,8 +14,6 @@ import pytest
 from electricore.core.pipelines.facturation import (
     agreger_abonnements_mensuel,
     agreger_energies_mensuel,
-    expr_coverage_temporelle,
-    expr_data_complete_meta_periode,
     expr_memo_puissance_simple,
     expr_puissance_moyenne,
     joindre_meta_periodes,
@@ -35,7 +33,6 @@ def _energie_sous_periodes_statut(qualites: list[str], statuts: list[str], mois:
             "energie_hp_kwh": [0.0] * n,
             "energie_hc_kwh": [0.0] * n,
             "turpe_variable_eur": [0.0] * n,
-            "data_complete": [True] * n,
             "qualite": qualites,
             "statut_communication": statuts,
             "debut": [datetime(2025, 3, 1 + i) for i in range(n)],
@@ -90,37 +87,6 @@ class TestExpressionsAtomiques:
         expected_memos = ["14j à 6kVA", "17j à 9kVA"]
         assert result["memo"].to_list() == expected_memos
 
-    def test_expr_coverage_temporelle(self):
-        """Test du calcul de couverture temporelle."""
-        data = pl.DataFrame(
-            {
-                "nb_jours": [25, 31, 35],  # Dernier > 31 pour test du clip
-                "nb_jours_total": [31, 31, 31],
-            }
-        )
-
-        result = data.with_columns(expr_coverage_temporelle().alias("coverage"))
-
-        # Vérification des taux de couverture avec clip à 1.0
-        expected_coverages = [25 / 31, 1.0, 1.0]  # Le dernier clippé à 1.0
-        assert result["coverage"].to_list() == pytest.approx(expected_coverages)
-
-    def test_expr_data_complete(self):
-        """Test de la détection de données complètes."""
-        data = pl.DataFrame(
-            {
-                "coverage_abo": [1.0, 1.0, 0.8, 1.0],
-                "coverage_energie": [1.0, 0.9, 1.0, 1.0],
-                "nb_sous_periodes_energie": [1, 1, 1, 0],
-            }
-        )
-
-        result = data.with_columns(expr_data_complete_meta_periode().alias("data_complete"))
-
-        # True si coverage_abo=1.0 ET coverage_energie=1.0 ET nb_sous_periodes_energie > 0
-        expected = [True, False, False, False]
-        assert result["data_complete"].to_list() == expected
-
 
 class TestAgregatioAbonnements:
     """Tests de l'agrégation des abonnements."""
@@ -140,7 +106,6 @@ class TestAgregatioAbonnements:
                 "fin": [datetime(2025, 3, 31)],
                 "debut_lisible": ["1 mars 2025"],
                 "fin_lisible": ["31 mars 2025"],
-                "coverage_abo": [1.0],
             }
         )
 
@@ -205,7 +170,8 @@ class TestAgregatioEnergies:
                 "energie_hp_kwh": [500.0],
                 "energie_hc_kwh": [300.0],
                 "turpe_variable_eur": [25.0],
-                "data_complete": [True],
+                "qualite": ["réelle"],
+                "statut_communication": ["communicante"],
                 "debut": [datetime(2025, 3, 1)],
                 "fin": [datetime(2025, 3, 31)],
                 "source_avant": ["C15"],
@@ -225,7 +191,8 @@ class TestAgregatioEnergies:
         assert collected["energie_hp_kwh"][0] == 500.0
         assert collected["energie_hc_kwh"][0] == 300.0
         assert collected["turpe_variable_eur"][0] == 25.0
-        assert collected["data_complete"][0] is True
+        assert collected["qualite"][0] == "réelle"
+        assert collected["statut_communication"][0] == "communicante"
         assert collected["nb_sous_periodes_energie"][0] == 1
         assert collected["has_changement_energie"][0] is False
 
@@ -240,7 +207,8 @@ class TestAgregatioEnergies:
                 "energie_hp_kwh": [200.0, 300.0],
                 "energie_hc_kwh": [100.0, 200.0],
                 "turpe_variable_eur": [12.0, 18.0],
-                "data_complete": [True, False],  # Une incomplète
+                "qualite": ["réelle", "incalculable"],  # Une sous-période non calculable
+                "statut_communication": ["communicante", "communicante"],
                 "debut": [datetime(2025, 3, 1), datetime(2025, 3, 15)],
                 "fin": [datetime(2025, 3, 15), datetime(2025, 3, 31)],
                 "source_avant": ["C15", "C15"],
@@ -260,11 +228,11 @@ class TestAgregatioEnergies:
         assert collected["energie_hp_kwh"][0] == 500.0  # Somme
         assert collected["energie_hc_kwh"][0] == 300.0  # Somme
         assert collected["turpe_variable_eur"][0] == 30.0  # Somme
-        assert collected["data_complete"][0] is False  # AND logique (une période incomplète)
-        assert collected["nb_sous_periodes_energie"][0] == 1  # SEULEMENT les périodes complètes
-        assert collected["has_changement_energie"][0] is False  # 1 seule période complète
-        # Coverage = 14j (période complète) / 30j (total mars) ≈ 0.467
-        assert collected["coverage_energie"][0] == pytest.approx(14 / 30, abs=0.01)
+        # Rollup pire-gagne (ADR-0033) : une sous-période incalculable → mois incalculable.
+        assert collected["qualite"][0] == "incalculable"
+        # nb_sous_periodes_energie compte TOUTES les sous-périodes (pas seulement les calculables).
+        assert collected["nb_sous_periodes_energie"][0] == 2
+        assert collected["has_changement_energie"][0] is True  # 2 sous-périodes
 
     def test_agregation_qualite_pire_gagne(self):
         """ADR-0033 : la qualité d'une méta-période est le rollup PIRE-GAGNE de la qualité
@@ -303,7 +271,6 @@ class TestJointureMetaPeriodes:
                 "memo_puissance": [""],
                 "debut_lisible": ["1 mars 2025"],
                 "fin_lisible": ["31 mars 2025"],
-                "coverage_abo": [1.0],
             }
         )
 
@@ -316,12 +283,12 @@ class TestJointureMetaPeriodes:
                 "energie_hp_kwh": [500.0],
                 "energie_hc_kwh": [300.0],
                 "turpe_variable_eur": [25.0],
-                "data_complete": [True],
+                "qualite": ["réelle"],
+                "statut_communication": ["communicante"],
                 "debut": [datetime(2025, 3, 1)],
                 "fin": [datetime(2025, 3, 31)],
                 "nb_sous_periodes_energie": [1],
                 "has_changement_energie": [False],
-                "coverage_energie": [1.0],
             }
         )
 
@@ -333,8 +300,9 @@ class TestJointureMetaPeriodes:
         assert collected["puissance_moyenne_kva"][0] == 6.0
         assert collected["energie_base_kwh"][0] == 1000.0
         assert collected["has_changement"][0] is False
-        assert collected["coverage_abo"][0] == 1.0  # Placeholder
-        assert collected["coverage_energie"][0] == 1.0  # Placeholder
+        # Verdicts jumeaux portés par l'agrégat énergie (passe-plat).
+        assert collected["qualite"][0] == "réelle"
+        assert collected["statut_communication"][0] == "communicante"
 
     def test_jointure_porte_axes_statut(self):
         """Les verdicts méta jumeaux (qualité ADR-0033 / communication ADR-0036) de
@@ -355,7 +323,6 @@ class TestJointureMetaPeriodes:
                 "nb_sous_periodes_abo": [1, 1],
                 "has_changement_abo": [False, False],
                 "memo_puissance": ["", ""],
-                "coverage_abo": [1.0, 1.0],
             }
         )
         energie_data = pl.LazyFrame(
@@ -367,14 +334,12 @@ class TestJointureMetaPeriodes:
                 "energie_hp_kwh": [500.0],
                 "energie_hc_kwh": [300.0],
                 "turpe_variable_eur": [25.0],
-                "data_complete": [True],
                 "qualite": ["estimée"],
                 "statut_communication": ["communicante"],
                 "debut": [datetime(2025, 3, 1)],
                 "fin": [datetime(2025, 3, 31)],
                 "nb_sous_periodes_energie": [1],
                 "has_changement_energie": [False],
-                "coverage_energie": [1.0],
             }
         )
 
@@ -408,7 +373,6 @@ class TestJointureMetaPeriodes:
                 "memo_puissance": [""],
                 "debut_lisible": ["1 mars 2025"],
                 "fin_lisible": ["31 mars 2025"],
-                "coverage_abo": [1.0],
             }
         )
 
@@ -421,12 +385,12 @@ class TestJointureMetaPeriodes:
                 "energie_hp_kwh": [500.0],
                 "energie_hc_kwh": [300.0],
                 "turpe_variable_eur": [25.0],
-                "data_complete": [True],
+                "qualite": ["réelle"],
+                "statut_communication": ["communicante"],
                 "debut": [datetime(2025, 4, 1)],
                 "fin": [datetime(2025, 4, 30)],
                 "nb_sous_periodes_energie": [1],
                 "has_changement_energie": [False],
-                "coverage_energie": [1.0],
             }
         )
 
@@ -466,7 +430,6 @@ class TestJointureMetaPeriodes:
                 "memo_puissance": ["", ""],
                 "debut_lisible": ["1 mars 2025", "1 mars 2025"],
                 "fin_lisible": ["31 mars 2025", "31 mars 2025"],
-                "coverage_abo": [1.0, 1.0],
             }
         )
 
@@ -480,12 +443,12 @@ class TestJointureMetaPeriodes:
                 "energie_hp_kwh": [500.0],
                 "energie_hc_kwh": [300.0],
                 "turpe_variable_eur": [25.0],
-                "data_complete": [True],
+                "qualite": ["réelle"],
+                "statut_communication": ["communicante"],
                 "debut": [datetime(2025, 3, 1)],
                 "fin": [datetime(2025, 3, 31)],
                 "nb_sous_periodes_energie": [1],
                 "has_changement_energie": [False],
-                "coverage_energie": [1.0],
             }
         )
 
@@ -548,7 +511,8 @@ class TestDatesLisiblesFrancaises:
                 "fin": [datetime(2025, 3, 31, tzinfo=paris)],
                 "source_avant": ["flux_C15"],
                 "source_apres": ["flux_R151"],
-                "data_complete": [True],
+                "qualite": ["réelle"],
+                "statut_communication": ["communicante"],
                 "energie_base_kwh": [1000.0],
                 "energie_hp_kwh": [500.0],
                 "energie_hc_kwh": [300.0],
