@@ -20,14 +20,13 @@ bot ; le runner valide `sftp`+`aes`+`duckdb`).
 | variable | rôle | défaut |
 |---|---|---|
 | `SFTP__URL` | URL SFTP Enedis (`sftp://user:pass@host/chemin` ou `file:///...` pour des zips locaux) | — (requis) |
-| `AES__CURRENT__KEY` / `AES__CURRENT__IV` | clé AES active (hex) — déchiffrement des zips ; 16 octets (AES-128) ou 32 (AES-256, bascule du 8-9 juin 2026) | — (requis) |
-| `AES__PREVIOUS__KEY` / `AES__PREVIOUS__IV` | clé précédente, gardée ~4 semaines après rotation Enedis | optionnel |
-| `AES__KEY` / `AES__IV` | format plat v1, compatibilité ascendante | optionnel |
+| `AES__TROUSSEAU__<label>__KEY` / `__IV` | une clé AES (hex) du trousseau ; 16 octets (AES-128) ou 32 (AES-256) ; `<label>` parlant choisi par l'opérateur (`aes256_2026`, `aes128_2024`…) | — (≥ 1 requis) |
 
-Le délimiteur `__` est l'`env_nested_delimiter` natif de pydantic-settings (`AES__CURRENT__KEY`
-→ modèle imbriqué `current.key`). Le support `.dlt/secrets.toml` a été retiré (#141) — les
-clés vivent en variables d'environnement uniquement. Rotation et trousseau N-clés : CLAUDE.md
-et [issue #221](https://github.com/Energie-De-Nantes/electricore/issues/221).
+Le délimiteur `__` est l'`env_nested_delimiter` natif de pydantic-settings : `AES__TROUSSEAU__aes256_2026__KEY`
+→ entrée `trousseau["aes256_2026"].key`. Le trousseau accepte un nombre arbitraire de clés ; la bonne
+est **sélectionnée par essai** au déchiffrement (oracle PKCS7 + magic bytes ZIP), sans date ni protocole
+(ADR-0037). Garder les anciennes clés préserve l'accès aux archives passées. Le support `.dlt/secrets.toml`
+a été retiré (#141) — les clés vivent en variables d'environnement uniquement.
 
 ### Bases de données
 

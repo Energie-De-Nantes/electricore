@@ -220,31 +220,36 @@ uv run python -m electricore.ingestion all
 
 Result: DuckDB database at `electricore/ingestion/flux_enedis_pipeline.duckdb`
 
-#### Rotation des clés AES Enedis
+#### Trousseau de clés AES Enedis (ADR-0037)
 
-Enedis effectue des rotations de clés AES périodiquement. Le registre runtime
-(`electricore/config/runtime.py`, domaine `aes`, #141/ADR-0025) supporte deux clés
-simultanément pour couvrir la transition — **en variables d'environnement uniquement**
+Enedis rote ses clés AES périodiquement et en change la longueur (bascule
+AES-128 → AES-256 du 8-9 juin 2026). Le registre runtime
+(`electricore/config/runtime.py`, domaine `aes`, #141/ADR-0025/ADR-0037) expose un
+**trousseau de taille arbitraire** — **en variables d'environnement uniquement**
 (`.env` ou env système ; le support `.dlt/secrets.toml` a été retiré) :
 
 ```bash
-AES__CURRENT__KEY=nouvelle_cle_hex
-AES__CURRENT__IV=nouvel_iv_hex
-AES__PREVIOUS__KEY=ancienne_cle_hex   # optionnel, garder ~4 semaines après rotation
-AES__PREVIOUS__IV=ancien_iv_hex
+AES__TROUSSEAU__aes256_2026__KEY=cle_hex_64   # AES-256 (32 octets)
+AES__TROUSSEAU__aes256_2026__IV=iv_hex_32
+AES__TROUSSEAU__aes128_2024__KEY=cle_hex_32   # AES-128 historique (16 octets)
+AES__TROUSSEAU__aes128_2024__IV=iv_hex_32
 ```
+
+Le `<label>` est un nom parlant choisi par l'opérateur ; il remonte dans les logs de
+déchiffrement. La bonne clé est **sélectionnée par essai** (oracle PKCS7 + magic bytes
+ZIP), sans aucune date ni notion de protocole — AES-128 et AES-256 sont le même schéma,
+la longueur de clé est auto-sélectionnée.
 
 Procédure de rotation :
 1. Obtenir la nouvelle clé Enedis
-2. Déplacer la clé active vers `previous`, mettre la nouvelle clé en `current`
-3. Relancer le pipeline — les anciens fichiers déchiffrent avec `previous`, les nouveaux avec `current`
-4. Après ~4 semaines : supprimer `previous`
+2. L'ajouter au trousseau sous un nouveau label (`AES__TROUSSEAU__<nouveau>__{KEY,IV}`)
+3. Relancer le pipeline — chaque fichier déchiffre avec la clé qui marche, par essai
+4. Retirer une vieille clé seulement quand plus aucune archive chiffrée avec elle n'est (re)téléchargeable
 
-Le format plat v1 (`AES__KEY` / `AES__IV`) reste supporté pour la compatibilité ascendante.
-La bascule **AES-128 → AES-256** (nuit du 8-9 juin 2026) est absorbée par la longueur
-de clé (16 vs 32 octets). Le cascade à deux clés ne couvre qu'une rotation ; le trousseau
-N-clés est tracé en [issue #221](https://github.com/Energie-De-Nantes/electricore/issues/221)
-(supersède [ADR-0008](docs/adr/0008-rotation-cles-aes.md)).
+L'échec de déchiffrement n'est plus silencieux : un flux qui a des fichiers mais **0**
+déchiffrement réussi fait passer le job à `failed` → la surveillance bot alerte
+(escalade per-flux, ADR-0037). Supersède [ADR-0008](docs/adr/0008-rotation-cles-aes.md) ;
+porté par [issue #221](https://github.com/Energie-De-Nantes/electricore/issues/221).
 
 ### 2. Core Pipelines
 
