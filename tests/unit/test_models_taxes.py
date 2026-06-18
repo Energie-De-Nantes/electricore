@@ -52,6 +52,30 @@ class TestAcciseMensuel:
         with pytest.raises(pandera.errors.SchemaError):
             AcciseMensuel.validate(_accise_mensuel_frame(["janvier 2025"]))
 
+    def test_accepts_negative_energie_at_monthly_grain(self):
+        """#341 : un mois (pdl, mois_annee) net-négatif est valide.
+
+        Un avoir / une régularisation peut tomber sur un mois sans nominal en face →
+        `energie_kwh`/`energie_mwh`/`accise_eur` négatifs. La déclaration accise est
+        trimestrielle et nette positif ; le grain mensuel peut légitimement être < 0.
+        """
+        from electricore.core.models.accise_mensuel import AcciseMensuel
+
+        df = _accise_mensuel_frame(["2025-01"]).with_columns(
+            energie_kwh=pl.lit(-49.0),
+            energie_mwh=pl.lit(-0.049),
+            accise_eur=pl.lit(-1.1),
+        )
+        AcciseMensuel.validate(df)
+
+    def test_rejects_negative_taux(self):
+        """Le `ge=0` sur `taux_accise_eur_mwh` est conservé (#341) : un taux reste positif."""
+        from electricore.core.models.accise_mensuel import AcciseMensuel
+
+        df = _accise_mensuel_frame(["2025-01"]).with_columns(taux_accise_eur_mwh=pl.lit(-1.0))
+        with pytest.raises(pandera.errors.SchemaError):
+            AcciseMensuel.validate(df)
+
 
 # ---------------------------------------------------------------------------
 # CtaMensuel — contrat de pipeline_cta, grain (situation contractuelle, mois)

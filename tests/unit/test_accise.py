@@ -289,3 +289,47 @@ class TestRapportAcciseAvecPdlNull:
         assert isinstance(rapport, RapportTaxe)
         assert rapport.detail["pdl"].null_count() == 0
         assert rapport.detail["pdl"].to_list() == ["A"]
+
+
+class TestRapportAcciseAvecMoisNetNegatif:
+    """Régression #341 de bout en bout : un mois (PDL × mois) net-négatif — un avoir qui
+    dépasse le nominal facturé du même mois — ne doit PAS faire échouer le build
+    `rapport_accise` (qui valide `AcciseMensuel` en profondeur sur DataFrame collecté, le
+    point exact du 503). La déclaration accise est trimestrielle et nette positif ; le grain
+    mensuel peut légitimement être négatif. C'est un band-aid : le netting brut est assumé
+    imparfait (il sous-compte les avoirs « conso réelle retournée » et ne distingue pas
+    régul/nominal) — la correctness relève du modèle de facturé maîtrisé (cf #225 / #282)."""
+
+    def test_rapport_accise_survit_a_un_mois_net_negatif(self):
+        from electricore.core.builds.rapport_taxe import RapportTaxe, rapport_accise
+
+        lignes = pl.LazyFrame(
+            [
+                # Nominal facturé du mois (conso 2025-01, facturée en 2025-02).
+                {
+                    "x_pdl": "A",
+                    "name": "SO-A",
+                    "invoice_date": "2025-02-15",
+                    "name_product_category": "Base",
+                    "quantity": 90.0,
+                },
+                # Avoir (out_refund) du même mois, plus gros que le nominal → net -49 kWh.
+                # Avant #341, `AcciseMensuel.energie_kwh ge=0` faisait lever ici (503).
+                {
+                    "x_pdl": "A",
+                    "name": "SO-A",
+                    "invoice_date": "2025-02-15",
+                    "name_product_category": "Base",
+                    "quantity": -139.0,
+                },
+            ]
+        )
+
+        rapport = rapport_accise(lignes)
+
+        assert isinstance(rapport, RapportTaxe)
+        row = rapport.detail.filter(pl.col("pdl") == "A").row(0, named=True)
+        # Le mois net-négatif est conservé, ni filtré ni écrasé.
+        assert row["energie_kwh"] == -49.0
+        # Accise négative = l'avoir vient en déduction d'assiette.
+        assert row["accise_eur"] < 0
