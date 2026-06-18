@@ -32,6 +32,7 @@ import yaml
 
 from electricore.config import runtime
 from electricore.ingestion.sources.sftp_enedis_brut import flux_enedis_brut
+from electricore.ingestion.transformers.crypto import StatsDechiffrement
 
 # DLT écrit sur stderr — on laisse faire, on ne lit que stdout
 logging.disable(logging.CRITICAL)
@@ -100,22 +101,38 @@ def interpreter_flux(flux: list[str], max_files: int | None) -> PlanRun:
     return PlanRun(selection=[f.upper() for f in flux], max_files=max_files, refresh=None)
 
 
-def lander_brut(db_path: Path, plan: PlanRun) -> None:
-    """Étape 1 : SFTP → tables raw_<flux> (colonne JSON) dans flux_raw."""
+def lander_brut(db_path: Path, plan: PlanRun) -> dict[str, StatsDechiffrement]:
+    """Étape 1 : SFTP → tables raw_<flux> (colonne JSON) dans flux_raw.
+
+    Retourne les stats de déchiffrement agrégées par flux (escalade per-flux, ADR-0037) :
+    le caller décide ensuite si un flux aveugle doit faire échouer le job.
+    """
     config = yaml.safe_load((ICI / "config" / "flux.yaml").read_text())
     if plan.selection:
         config = {k: v for k, v in config.items() if k in plan.selection}
 
+    stats: dict[str, StatsDechiffrement] = {}
     pipeline = dlt.pipeline(
         pipeline_name=f"flux_brut_{db_path.stem}",
         destination=dlt.destinations.duckdb(str(db_path)),
         dataset_name="flux_raw",
         progress="log",
     )
-    info = pipeline.run(flux_enedis_brut(config, max_files=plan.max_files), refresh=plan.refresh)
+    info = pipeline.run(flux_enedis_brut(config, max_files=plan.max_files, stats=stats), refresh=plan.refresh)
     for paquet in info.load_packages:
         for job in paquet.jobs.get("completed_jobs", []):
             _out(f"  landé : {job.job_file_info.table_name}")
+    return stats
+
+
+def flux_sans_dechiffrement(stats: dict[str, StatsDechiffrement]) -> list[str]:
+    """Flux aveugles : des fichiers, mais 0 déchiffrement réussi (≥ 1 échec) → clé manquante.
+
+    Cœur de l'escalade per-flux (ADR-0037) : Enedis fait évoluer le chiffrement par flux
+    indépendamment, donc on capte exactement le flux qui bascule seul, sans noyer dans un
+    seuil global. Un échec isolé (autres fichiers OK) n'y figure pas — il est toléré.
+    """
+    return [flux for flux, s in stats.items() if s.flux_aveugle()]
 
 
 # Modèles dbt servis par chaque table brute (raw_r15 sert deux linéarisations).
@@ -237,21 +254,35 @@ def main() -> None:
 
     args.db = args.db or chemin_db_defaut()
 
+    aveugles: list[str] = []
     if plan.rebuild:
         _out(f"↻ Rebuild : re-matérialisation depuis le brut de {args.db} (zéro réseau)")
     else:
         debut = time.time()
         _out(f"🚀 Landing brut → {args.db}")
-        lander_brut(args.db, plan)
+        stats = lander_brut(args.db, plan)
+        aveugles = flux_sans_dechiffrement(stats)
         _out(f"⏱️  Landing : {time.time() - debut:.1f}s")
 
     debut = time.time()
     _out("🔨 dbt build")
     if not construire_dbt(args.db):
-        _out("❌ dbt build a échoué")
+        # Si rien n'a été construit alors que des flux sont aveugles, la vraie cause est
+        # la clé AES manquante, pas dbt — surfacer le bon diagnostic.
+        if aveugles:
+            _out(f"❌ Aucun déchiffrement réussi pour : {', '.join(aveugles)} (clé AES manquante ?)")
+        else:
+            _out("❌ dbt build a échoué")
         sys.exit(1)
     _out(f"⏱️  dbt : {time.time() - debut:.1f}s")
 
     _out("📊 Bilan")
     bilan(args.db)
+
+    # Escalade per-flux (ADR-0037) : un flux qui a des fichiers mais 0 déchiffrement réussi
+    # fait échouer le job — la surveillance bot alerte alors sur un job `failed`. Placé après
+    # le dbt build pour que les flux sains continuent de couler malgré le flux aveugle.
+    if aveugles:
+        _out(f"❌ Flux sans aucun déchiffrement réussi (clé AES manquante ?) : {', '.join(aveugles)}")
+        sys.exit(1)
     _out("✅ Terminé")
