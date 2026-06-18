@@ -218,3 +218,74 @@ class TestPipelineAccise:
         assert len(result) == 1
         row = result.row(0, named=True)
         assert row["energie_kwh"] == 500.0  # 999 exclu
+
+    def test_lignes_sans_pdl_sont_exclues(self, regles_accise_synthetiques):
+        """Régression #334 : une ligne d'énergie sans PDL (commande Odoo dont `x_pdl`
+        n'est pas renseigné) doit être exclue de l'assiette accise.
+
+        Sinon le group_by produit un bucket `pdl = null` qui viole `AcciseMensuel`
+        (pdl non-nullable) → les 3 exports accise (rapport/detail xlsx+arrow) tombent en
+        503. L'accise est une taxe PAR point de livraison : une consommation non
+        rattachable à un PDL n'a pas d'assiette.
+        """
+        lignes = pl.LazyFrame(
+            [
+                {
+                    "x_pdl": "B",
+                    "name": "SO-B",
+                    "invoice_date": "2024-07-15",
+                    "name_product_category": "Base",
+                    "quantity": 500.0,
+                },
+                # Ligne d'énergie sans PDL : doit être ignorée
+                {
+                    "x_pdl": None,
+                    "name": "SO-X",
+                    "invoice_date": "2024-07-15",
+                    "name_product_category": "HP",
+                    "quantity": 999.0,
+                },
+            ]
+        )
+
+        result = pipeline_accise(lignes, regles_accise_synthetiques).collect()
+
+        assert result["pdl"].null_count() == 0
+        assert result["pdl"].to_list() == ["B"]
+        assert result.row(0, named=True)["energie_kwh"] == 500.0  # 999 exclu
+
+
+class TestRapportAcciseAvecPdlNull:
+    """Régression #334 de bout en bout : le build `rapport_accise` (qui valide `AcciseMensuel`
+    en profondeur sur DataFrame collecté — le point exact du 503) reste vert face à une ligne
+    Odoo sans PDL. C'est le chemin réel de l'endpoint, pas un `pipeline_accise` mocké."""
+
+    def test_rapport_accise_survit_a_une_ligne_sans_pdl(self):
+        from electricore.core.builds.rapport_taxe import RapportTaxe, rapport_accise
+
+        lignes = pl.LazyFrame(
+            [
+                {
+                    "x_pdl": "A",
+                    "name": "SO-A",
+                    "invoice_date": "2024-07-15",
+                    "name_product_category": "HP",
+                    "quantity": 600.0,
+                },
+                # Souscription Odoo sans PDL : reproduisait `non-nullable column 'pdl'
+                # contains null values` à la validation AcciseMensuel du build.
+                {
+                    "x_pdl": None,
+                    "name": "SO-X",
+                    "invoice_date": "2024-07-15",
+                    "name_product_category": "Base",
+                    "quantity": 123.0,
+                },
+            ]
+        )
+
+        rapport = rapport_accise(lignes)  # règles réelles ; lève si pdl null subsiste
+
+        assert isinstance(rapport, RapportTaxe)
+        assert rapport.detail["pdl"].null_count() == 0
+        assert rapport.detail["pdl"].to_list() == ["A"]

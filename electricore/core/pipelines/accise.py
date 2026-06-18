@@ -112,6 +112,13 @@ def agreger_consommations_mensuelles(lignes_factures: pl.LazyFrame) -> pl.LazyFr
         # Exclure les lignes de factures non validées (draft sans invoice_date) :
         # elles ne sont pas encore facturées et donc pas dans l'assiette accise.
         .filter(pl.col("invoice_date").is_not_null())
+        # Exclure les lignes sans PDL (#334) : l'accise est une taxe sur la consommation
+        # PAR point de livraison ; une ligne d'énergie rattachée à une commande Odoo sans
+        # `x_pdl` ne peut être affectée à aucun PDL. Sinon le group_by produit un bucket
+        # `pdl = null` qui viole AcciseMensuel (pdl non-nullable) → 503 sur les 3 exports
+        # accise. Contrairement à la CTA, dont le `pdl` vient de la chaîne facturation
+        # interne (jointure sur pdl_mapping, jamais null), l'accise lit `x_pdl` brut d'Odoo.
+        .filter(pl.col("x_pdl").is_not_null())
         # Calculer mois et trimestre de consommation
         .with_columns(
             [
