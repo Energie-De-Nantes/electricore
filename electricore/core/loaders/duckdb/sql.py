@@ -342,11 +342,12 @@ SCHEMA_R64 = FluxSchema(
         col_simple("index_hp_kwh"),
         col_simple("index_hc_kwh"),
         col_simple("index_base_kwh"),
-        # Métadonnées système
-        col_simple("modification_date"),
-        col_simple("_source_zip"),
-        col_simple("_flux_type"),
-        col_simple("_json_name"),
+        # Métadonnées système (#333) : modification_date / _source_zip / _flux_type /
+        # _json_name ne sont PAS projetées par le mart `flux_r64` (modification_date n'y
+        # sert qu'en interne, clé de tri du qualify de dédup ; les `_*` sont des colonnes de
+        # landing dlt). Les déclarer ici déclenchait un Binder Error sur tout /flux/r64
+        # depuis la refonte `releves` (#241/#304/#285). Le test de garde loader↔mart
+        # (test_loaders_sur_base_dbt) verrouille l'alignement.
         col_literal("flux_R64", "source"),
     ),
     where_clause="date_releve IS NOT NULL",
