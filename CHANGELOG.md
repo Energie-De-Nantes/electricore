@@ -9,6 +9,27 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.0.0rc15] - 2026-06-18
+
+Correctifs des **régressions de validation/schéma** détectées sur les endpoints prod en
+`rc14` (épic [#332](https://github.com/Energie-De-Nantes/electricore/issues/332)) — même
+classe « schéma/loader plus étroit que la donnée prod ». Chaque correctif embarque un test
+de garde anti-dérive sur donnée prod-réaliste.
+
+### 🐛 Corrigé
+
+- **`/flux/r64` (500/503)** — `SCHEMA_R64` déclarait des colonnes (`modification_date`,
+  `_source_zip`, `_flux_type`, `_json_name`) qu'aucun mart `flux_r64` ne projette ; alignement
+  du schéma loader sur les colonnes réelles du mart
+  ([#333](https://github.com/Energie-De-Nantes/electricore/issues/333)).
+- **Exports Accise (503 `pdl null`)** — `pipeline_accise` agrégeait les lignes Odoo sans
+  `x_pdl`, créant un bucket `pdl=null` qui violait `AcciseMensuel` ; exclusion des lignes sans
+  PDL de l'assiette ([#334](https://github.com/Energie-De-Nantes/electricore/issues/334)).
+- **Facturation rapport/detail/documents (503)** — les catégories produit hors scope
+  facturation legacy (`Prestation-Enedis`, racine Odoo `All`) faisaient échouer la validation ;
+  écartées avant rapprochement
+  ([#335](https://github.com/Energie-De-Nantes/electricore/issues/335)).
+
 ## [3.0.0rc14] - 2026-06-18
 
 Finalisation de la **refonte des flags de qualité** : retrait cassant des anciens signaux
