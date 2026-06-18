@@ -20,7 +20,11 @@ class LignesFacture(pa.DataFrameModel):
     # Clé de jointure avec la facturation Enedis mensuelle
     ref_situation_contractuelle: pl.Utf8 = pa.Field(nullable=False)
 
-    # Détermine la colonne Enedis à projeter pour `quantite_enedis`
+    # Détermine la colonne Enedis à projeter pour `quantite_enedis`.
+    # L'enum est le sous-ensemble *facturable* (cf. CONTEXT.md, *Ligne de facture*),
+    # pas le catalogue ERP : l'adaptateur/consommateur écarte les catégories hors
+    # scope (`Prestation-Enedis`, racine Odoo « All »…) en amont (#335). Doit rester
+    # aligné sur `_MAPPING_CATEGORIE_COLONNE` (contexte_mensuel.py).
     categorie_produit: pl.Utf8 = pa.Field(nullable=False, isin=["Base", "HP", "HC", "Abonnements"])
 
     # Utilisée pour la dérivation ADR-0014 (`> 0` vs `== 0`)
