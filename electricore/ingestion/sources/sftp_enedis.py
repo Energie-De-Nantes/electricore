@@ -13,6 +13,18 @@ from dlt.sources.filesystem import filesystem
 
 logger = logging.getLogger(__name__)
 
+# Namespace d'état incrémental stable (issue #346).
+#
+# Le curseur incrémental vit sur la resource `filesystem` interne, qui n'est PAS
+# liée à notre `@dlt.source`. Sa clé d'état (`source_state_key`) se résout sinon
+# différemment selon le nombre de flux du run : mono-flux → nom de la source,
+# multi-flux → nom dérivé du pipeline. Deux namespaces → un `ingestion <flux>` seul
+# repart d'un curseur vide et RE-TÉLÉCHARGE tout le flux. On épingle donc le
+# `source_name` de la resource filesystem sur cette constante : l'état atterrit
+# toujours au même endroit. C'est aussi le nom de la source (`flux_enedis_brut`),
+# pour que mono- et multi-flux partagent un seul namespace.
+ESPACE_ETAT_INCREMENTAL = "flux_enedis_brut"
+
 
 def mask_password_in_url(url: str) -> str:
     """
@@ -60,6 +72,12 @@ def create_sftp_resource(flux_type: str, table_name: str, file_pattern: str, sft
         files = filesystem(bucket_url=sftp_url, file_glob=file_pattern).with_name(
             f"filesystem_{table_name}"
         )  # Nom unique pour état incrémental indépendant
+
+        # Épingle le namespace d'état : sans ça, dlt résout la clé d'état de cette
+        # resource selon le nombre de flux du run (mono vs multi) → curseurs orphelins
+        # et re-téléchargement complet (#346). `source_name` est le 1er terme de la
+        # résolution de `source_state_key` (dlt resource.py).
+        files.source_name = ESPACE_ETAT_INCREMENTAL
 
         # Appliquer l'incrémental sur la date de modification.
         # modification_date est un pendulum.DateTime dans le filesystem source DLT,
