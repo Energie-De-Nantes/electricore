@@ -9,6 +9,25 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.0.0rc16] - 2026-06-18
+
+Suite de l'épic [#332](https://github.com/Energie-De-Nantes/electricore/issues/332) :
+déverrouille les exports Accise restés en **503** après `rc15` — frère du
+[#334](https://github.com/Energie-De-Nantes/electricore/issues/334), même classe
+« schéma plus étroit que la donnée prod ».
+
+### 🐛 Corrigé
+
+- **Exports Accise (503 `energie_kwh ≥ 0`)** — `pipeline_accise` somme les lignes de
+  factures Odoo par (PDL, mois) ; un avoir ou une régularisation peut rendre un mois
+  net-négatif, ce qui violait `AcciseMensuel`. Le `ge=0` est retiré sur
+  `energie_kwh`/`energie_mwh`/`accise_eur` (le grain mensuel peut être < 0 ; la déclaration
+  accise est trimestrielle et nette positif) ; `taux_accise_eur_mwh` le conserve. Band-aid
+  assumé imparfait — la correctness exacte de l'assiette relève du modèle de facturé maîtrisé
+  (discovery [#225](https://github.com/Energie-De-Nantes/electricore/issues/225), refonte
+  [#282](https://github.com/Energie-De-Nantes/electricore/issues/282))
+  ([#341](https://github.com/Energie-De-Nantes/electricore/issues/341)).
+
 ## [3.0.0rc15] - 2026-06-18
 
 Correctifs des **régressions de validation/schéma** détectées sur les endpoints prod en
