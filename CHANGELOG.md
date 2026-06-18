@@ -9,6 +9,63 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-06-18
+
+Premier stable de la ligne **3.0** : aboutissement du cycle rc1→rc17. Stabilise sur données
+réelles la réécriture ELT (dbt, ligne 2.0) et **pose un modèle de relevés canonique**, ouvre
+electricore comme **source de vérité dont l'ERP _tire_** (méta-périodes, TURPE variable), et
+durcit le déploiement. Détail rc-par-rc plus bas.
+
+### ✨ Temps forts
+
+- **Modèle de relevés canonique en dbt** (`releves` — ADR-0028/0029/0032) : ligne de temps
+  unique des relevés, union arbitrée **C15 > R64 > R151** assemblée à la source, clé métier
+  déterministe `releve_id`, dépivot des index contractuels C15, adapters conformés + macro de
+  contrat. Fonde la traçabilité des index jusqu'à la facture (`releves_utilises`). Index
+  normalisés **Wh→kWh** (floor entier) au boundary dbt (ADR-0034).
+- **electricore source de vérité, l'ERP tire** : `GET /facturation/meta-periodes` (ADR-0027 —
+  Odoo construit ses périodes depuis ce flux, `source_hash` pour upsert non destructif) et
+  `POST /facturation/turpe-variable` (ADR-0030 — calculateur sans état). Routers
+  ERP-agnostiques, JSON enveloppé versionné, `X-API-Key`.
+- **Mart `releves` exposé hors `/flux`** : `GET /releves` (JSON paginé + `.xlsx` + `.arrow` +
+  `/info`), filtres prm/source/fenêtre, `client.releves()` (ADR-0032).
+- **Affaires SGE (X12/X13)** : linéarisation `flux_affaires` (grain = jalon, dédup des snapshots
+  cumulatifs) + cockpit read-only `GET /perimetre/affaires` et vue bot (#275/#276).
+- **Verdicts jumeaux qualité + communication** (ADR-0033/0036) : `qualite`
+  (réelle/estimée/incalculable, rollup pire-gagne) et `statut_communication` (communicante/non)
+  remplacent les anciens flags de complétude.
+- **Configuration runtime centralisée** (#141, ADR-0024/0025) : lecteur unique
+  pydantic-settings par domaine, précédence env > `.env`, validation fail-fast par point d'entrée.
+- **Durcissement VPS** (ADR-0031) : utilisateur ops, sshd root-off, fail2ban,
+  unattended-upgrades, `harden.sh` / `unharden.sh`.
+- **Socle property-based testing** (#194–#197) : stratégies Hypothesis dérivées des schémas
+  Pandera + invariants de conservation (TURPE, taxes, facturation, énergie).
+
+### ⚠️ Ruptures (cumul du cycle — détail par rc)
+
+- **`etl` → `ingestion`** : package, CLI (`python -m electricore.ingestion`), extra
+  (`--extra ingestion`), routes API (`/ingestion/*`, anciens `/etl/*` en 404), bot, compose (rc1).
+- **Clés AES en variables d'environnement uniquement** (retrait `.dlt/secrets.toml`),
+  `API_BASE_URL` retiré, `env.py` supprimé (rc1).
+- **Contrat `/facturation/meta-periodes` v2** : retrait de `data_complete` / `coverage_*` au
+  profit de `qualite` + `statut_communication` ; `CONTRAT_VERSION` 1 → 2 (rc14).
+- **API loaders legacy retirée** (`load_historique` / `load_releves`) au profit des query
+  builders + `charger_*` (rc1).
+
+### 🐛 Stabilisation prod (rc4→rc17)
+
+Éprouvé sur le corpus réel : OOM dbt sur `flux_r64` / `flux_r151` (threads + spill disque),
+index R151/R64 corrigés (Wh→kWh ÷1000, rc9), parsing des attributs XML (affaires `statut`),
+l'épic **#332** de régressions de validation/schéma sur endpoints prod (`/flux/r64`, exports
+Accise, facturation, puis le frère accise `ge=0` #341) — même classe « schéma plus étroit que la
+donnée prod », chacune avec un test de garde sur donnée prod-réaliste — et la **stabilité du
+namespace d'état incrémental** (#346, les runs mono-flux ne re-téléchargent plus tout) avec le
+nettoyage des outils d'ingestion périmés post-bascule legacy→dbt (#345, rc17).
+
+> **⚠️ Migration** : le chemin énergie requiert le mart dbt `releves`. Sur une base existante,
+> **relancer `dbt build`** (pipeline d'ingestion) pour matérialiser `flux_enedis.releves` avant
+> de calculer la facturation.
+
 ## [3.0.0rc17] - 2026-06-18
 
 Stabilise l'**état incrémental de l'ingestion** (raw JSON) et aligne les outils de
