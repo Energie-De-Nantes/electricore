@@ -1,6 +1,6 @@
 [project]
 name = "electricore"
-version = "3.0.0rc16"
+version = "3.0.0rc17"
 description = "Moteur de traitement données énergétiques françaises - Architecture Polars/DuckDB pour flux Enedis"
 authors = [
     {name = "Virgile"}
@@ -186,7 +186,5 @@ no_implicit_optional = true         # forbid `x: str = None`
 "electricore/ingestion/runner.py" = ["E402"]  # chargement .env avant imports (secrets DLT)
 "electricore/ingestion/sources/sftp_enedis.py" = ["E402"]  # imports after section banner
 "electricore/ingestion/transformers/archive.py" = ["E402"]  # cross-module import after constants block
-"electricore/ingestion/tools/debug_single_flux.py" = ["E722"]  # debug-only script, bare except OK
-"electricore/ingestion/tools/check_incremental_state.py" = ["E722"]  # debug-only script, bare except OK
 "tests/integration/test_odoo_writer.py" = ["B017"]  # XML-RPC raises raw Exception, no specific type
 
