@@ -9,6 +9,38 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.0.0rc17] - 2026-06-18
+
+Stabilise l'**état incrémental de l'ingestion** (raw JSON) et aligne les outils de
+diagnostic hérités de la bascule legacy→dbt (ADR-0020).
+
+### 🐛 Corrigé
+
+- **Incrémental : re-téléchargement complet sur un run mono-flux** — le curseur dlt vit
+  sur la resource `filesystem` interne, non liée à la `@dlt.source` ; sa clé d'état se
+  résolvait sous un namespace variable selon le nombre de flux du run (`ingestion <flux>`
+  seul → nom de la source, `ingestion all` → nom dérivé du pipeline). Deux namespaces : un
+  run mono-flux repartait d'un curseur vide et **re-téléchargeait tout le flux** (dédupliqué
+  par le merge sur `file_name`, donc sans duplication de lignes, mais re-fetch +
+  re-déchiffrement + re-parse intégral). Le `source_name` de la resource filesystem est
+  désormais épinglé → mono et multi partagent un namespace unique ; test paramétré de garde
+  ([#346](https://github.com/Energie-De-Nantes/electricore/issues/346)).
+
+  > _Déploiement : aucune action requise. Le premier `ingestion all` ré-aligne les curseurs
+  > en re-listant le SFTP pour les flux concernés et **merge** dans les `raw_*` existants —
+  > sans perte ni duplication, un run un peu plus lourd (≈ fenêtre de rétention SFTP), puis
+  > incrémental normal. Ne pas utiliser `resync` (il droppe les `raw_*` → perte de
+  > l'historique aged-off du SFTP)._
+
+### 🧹 Nettoyage (outils d'ingestion)
+
+- **Outils alignés post-bascule (ADR-0020)** — `check_incremental_state` résout le vrai
+  pipeline (`flux_brut_<stem>`) et expose tous les namespaces d'état (au lieu de pointer le
+  pipeline legacy `flux_enedis` supprimé) ; suppression des outils morts `debug_single_flux`
+  (import cassé) et `comparaison_bases` (échafaudage de bascule) ; `diagnostic_flux` réduit à
+  une découverte SFTP read-only et `reset_incremental_state` repointé sur le dataset `flux_raw`
+  ([#345](https://github.com/Energie-De-Nantes/electricore/issues/345)).
+
 ## [3.0.0rc16] - 2026-06-18
 
 Suite de l'épic [#332](https://github.com/Energie-De-Nantes/electricore/issues/332) :
