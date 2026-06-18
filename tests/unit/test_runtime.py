@@ -56,50 +56,38 @@ class TestDomaineSftp:
 HEX_A = "aa" * 16
 HEX_B = "bb" * 16
 HEX_C = "cc" * 16
-HEX_D = "dd" * 16
 
 
 class TestDomaineAes:
-    """Cascade de rotation d'ADR-0008, format env AES__CURRENT__* / AES__PREVIOUS__*."""
+    """Trousseau N-clés d'ADR-0037, format env AES__TROUSSEAU__<label>__KEY/IV."""
 
-    def test_current_seule(self, monkeypatch):
-        monkeypatch.setenv("AES__CURRENT__KEY", HEX_A)
-        monkeypatch.setenv("AES__CURRENT__IV", HEX_B)
-        for var in ("AES__PREVIOUS__KEY", "AES__PREVIOUS__IV", "AES__KEY", "AES__IV"):
-            monkeypatch.delenv(var, raising=False)
-        assert runtime.aes().chaine() == [("current", bytes.fromhex(HEX_A), bytes.fromhex(HEX_B))]
+    def test_trousseau_n_cles(self, monkeypatch):
+        """AES__TROUSSEAU__<label>__KEY/IV peuple un trousseau ; chaine() rend les N entrées labellisées."""
+        monkeypatch.setenv("AES__TROUSSEAU__aes256_2026__KEY", "ee" * 32)
+        monkeypatch.setenv("AES__TROUSSEAU__aes256_2026__IV", HEX_B)
+        monkeypatch.setenv("AES__TROUSSEAU__aes128_2024__KEY", HEX_A)
+        monkeypatch.setenv("AES__TROUSSEAU__aes128_2024__IV", HEX_C)
+        assert set(runtime.aes().chaine()) == {
+            ("aes256_2026", bytes.fromhex("ee" * 32), bytes.fromhex(HEX_B)),
+            ("aes128_2024", bytes.fromhex(HEX_A), bytes.fromhex(HEX_C)),
+        }
 
-    def test_rotation_current_puis_previous(self, monkeypatch):
-        monkeypatch.setenv("AES__CURRENT__KEY", HEX_A)
-        monkeypatch.setenv("AES__CURRENT__IV", HEX_B)
-        monkeypatch.setenv("AES__PREVIOUS__KEY", HEX_C)
-        monkeypatch.setenv("AES__PREVIOUS__IV", HEX_D)
-        assert [nom for nom, _, _ in runtime.aes().chaine()] == ["current", "previous"]
+    def test_cle_unique(self, monkeypatch):
+        """Un trousseau d'une seule clé : chaine() rend cette unique entrée labellisée."""
+        monkeypatch.setenv("AES__TROUSSEAU__aes128_2024__KEY", HEX_A)
+        monkeypatch.setenv("AES__TROUSSEAU__aes128_2024__IV", HEX_B)
+        assert runtime.aes().chaine() == [("aes128_2024", bytes.fromhex(HEX_A), bytes.fromhex(HEX_B))]
 
-    def test_format_legacy_v1(self, monkeypatch):
-        for var in ("AES__CURRENT__KEY", "AES__CURRENT__IV", "AES__PREVIOUS__KEY", "AES__PREVIOUS__IV"):
-            monkeypatch.delenv(var, raising=False)
-        monkeypatch.setenv("AES__KEY", HEX_A)
-        monkeypatch.setenv("AES__IV", HEX_B)
-        assert runtime.aes().chaine() == [("legacy", bytes.fromhex(HEX_A), bytes.fromhex(HEX_B))]
-
-    def test_aucune_cle_leve_configuration_manquante(self, monkeypatch):
-        for var in (
-            "AES__CURRENT__KEY",
-            "AES__CURRENT__IV",
-            "AES__PREVIOUS__KEY",
-            "AES__PREVIOUS__IV",
-            "AES__KEY",
-            "AES__IV",
-        ):
-            monkeypatch.delenv(var, raising=False)
+    def test_trousseau_vide_leve_configuration_manquante(self):
+        """Aucune clé AES__TROUSSEAU__* (.env neutralisé) → ConfigurationManquante nommant le format attendu."""
         with pytest.raises(runtime.ConfigurationManquante) as exc:
             runtime.aes()
-        assert "AES__CURRENT__KEY" in str(exc.value)
+        assert "AES__TROUSSEAU__<label>__KEY" in str(exc.value)
 
     def test_hex_invalide_signale(self):
-        aes = runtime.Aes(current=runtime.PaireCles(key="pas-du-hex", iv=HEX_B))
-        with pytest.raises(ValueError, match="AES__CURRENT"):
+        """Une clé non-hexadécimale est signalée avec son label dans le message."""
+        aes = runtime.Aes(trousseau={"aes256_2026": runtime.PaireCles(key="pas-du-hex", iv=HEX_B)})
+        with pytest.raises(ValueError, match="AES256_2026"):
             aes.chaine()
 
 

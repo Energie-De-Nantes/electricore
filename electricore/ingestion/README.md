@@ -38,25 +38,20 @@ uv run --extra ingestion --extra dbt python -m electricore.ingestion rebuild # d
 uv run --extra ingestion --extra dbt python -m electricore.ingestion resync  # re-télécharge tout (brut perdu)
 ```
 
-## Configuration (`secrets.toml`)
+## Configuration (variables d'environnement)
 
-```toml
-[sftp]
-url = "sftp://user:pass@host/path/"
+Les secrets vivent en variables d'environnement (`.env` à la racine ou env système ;
+le support `.dlt/secrets.toml` a été retiré, #141).
 
-# Format recommandé — supporte la rotation de clés
-[aes.current]
-key = "hex_encoded_key"
-iv  = "hex_encoded_iv"
+```bash
+SFTP__URL=sftp://user:pass@host/path/
 
-[aes.previous]           # optionnel, garder ~4 semaines après rotation
-key = "ancienne_clé_hex"
-iv  = "ancien_iv_hex"
-
-# Format hérité (toujours supporté)
-# [aes]
-# key = "..."
-# iv  = "..."
+# Trousseau de clés AES (ADR-0037) : un <label> parlant par clé, sélection par essai.
+# Garder les anciennes clés préserve l'accès aux archives passées.
+AES__TROUSSEAU__aes256_2026__KEY=cle_hex_64   # AES-256 (32 octets)
+AES__TROUSSEAU__aes256_2026__IV=iv_hex_32
+AES__TROUSSEAU__aes128_2024__KEY=cle_hex_32   # AES-128 historique (16 octets)
+AES__TROUSSEAU__aes128_2024__IV=iv_hex_32
 ```
 
 ## Flux supportés
@@ -70,14 +65,17 @@ iv  = "ancien_iv_hex"
 | **R151** | Relevés périodiques Linky | `flux_r151` |
 | **R64** | Timeseries JSON | `flux_r64` |
 
-## Rotation des clés AES
+## Rotation des clés AES (trousseau N-clés, ADR-0037)
 
-Enedis effectue des rotations de clés périodiquement. Procédure :
+Enedis rote ses clés périodiquement (et en change la longueur). Procédure :
 
 1. Obtenir la nouvelle clé Enedis
-2. Dans `secrets.toml` : déplacer `[aes]` → `[aes.previous]`, créer `[aes.current]`
-3. Relancer le pipeline — les fichiers anciens déchiffrent avec `previous`, les nouveaux avec `current`
-4. Après ~4 semaines : supprimer `[aes.previous]`
+2. L'ajouter au trousseau sous un nouveau label : `AES__TROUSSEAU__<nouveau>__{KEY,IV}`
+3. Relancer le pipeline — chaque fichier déchiffre par essai avec la clé qui marche
+4. Retirer une vieille clé seulement quand plus aucune archive chiffrée avec elle n'est (re)téléchargeable
+
+L'échec n'est plus silencieux : un flux sans aucun déchiffrement réussi fait passer le
+job à `failed` (escalade per-flux) → la surveillance bot alerte.
 
 ## Reset de l'état incrémental
 

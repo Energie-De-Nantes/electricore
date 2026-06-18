@@ -50,8 +50,8 @@ def _namespace_du_curseur(pipelines_dir, resource: str) -> str | None:
 @pytest.mark.parametrize("flux", [["R64"], ["C15", "R64"]], ids=["mono", "multi"])
 def test_namespace_etat_stable_quel_que_soit_le_nombre_de_flux(flux, tmp_path, bucket_local, monkeypatch):
     monkeypatch.setenv("SFTP__URL", f"file://{bucket_local}/")
-    monkeypatch.setenv("AES__KEY", "00112233445566778899aabbccddeeff")
-    monkeypatch.setenv("AES__IV", "ffeeddccbbaa99887766554433221100")
+    monkeypatch.setenv("AES__TROUSSEAU__test__KEY", "00112233445566778899aabbccddeeff")
+    monkeypatch.setenv("AES__TROUSSEAU__test__IV", "ffeeddccbbaa99887766554433221100")
     runtime.vider_cache()
 
     pipelines_dir = tmp_path / "pipelines"

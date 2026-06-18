@@ -113,9 +113,9 @@ marquées `# TODO:`. Voici la table de référence (cf. aussi
 
 | Variable | Notes |
 |---|---|
-| `AES__CURRENT__KEY` | Hex 32 ou 64 chars. |
-| `AES__CURRENT__IV`  | Hex 32 ou 64 chars. |
-| `AES__PREVIOUS__*`  | Optionnel pendant ~4 semaines après rotation. |
+| `AES__TROUSSEAU__<label>__KEY` | Hex 32 (AES-128) ou 64 (AES-256) chars. `<label>` parlant (`aes256_2026`…). |
+| `AES__TROUSSEAU__<label>__IV`  | Hex 32 chars. |
+| (autres labels) | Conserver les anciennes clés dans le trousseau tant que des archives chiffrées avec elles peuvent être (re)téléchargées. |
 
 **Bot Telegram** (optionnel)
 
@@ -520,32 +520,35 @@ sudo -u <slug> docker compose -f /srv/<slug>/deploy/docker/docker-compose.yml \
     --env-file /srv/<slug>/.env up -d api
 ```
 
-## Rotation des clés AES
+## Rotation des clés AES (trousseau N-clés, ADR-0037)
 
-Enedis effectue périodiquement une rotation. Le format à deux clés
-(`current` + `previous`) permet de couvrir la période de transition.
+Enedis rote périodiquement ses clés (et en change la longueur : AES-128 → AES-256).
+Le **trousseau** porte un nombre arbitraire de clés labellisées ; la bonne est
+sélectionnée par essai (aucune date, aucun protocole).
 
 ### Procédure (via le mode reconfigure)
 
 1. Recevoir la nouvelle clé Enedis.
 2. Relancer le script : `sudo bash /srv/<slug>/deploy/install.sh --slug <slug> --domain <slug>.electricore.fr`.
-3. L'éditeur s'ouvre sur `.env`. Déplacer les valeurs actuelles vers
-   `AES__PREVIOUS__*` et mettre la nouvelle clé dans `AES__CURRENT__*` :
+3. L'éditeur s'ouvre sur `.env`. **Ajouter** la nouvelle clé au trousseau sous un
+   nouveau label, sans retirer les anciennes :
 
    ```
-   AES__CURRENT__KEY=nouvelle_cle_hex
-   AES__CURRENT__IV=nouvel_iv_hex
-   AES__PREVIOUS__KEY=ancienne_cle_hex
-   AES__PREVIOUS__IV=ancien_iv_hex
+   AES__TROUSSEAU__aes256_2026__KEY=nouvelle_cle_hex
+   AES__TROUSSEAU__aes256_2026__IV=nouvel_iv_hex
+   AES__TROUSSEAU__aes128_2024__KEY=ancienne_cle_hex
+   AES__TROUSSEAU__aes128_2024__IV=ancien_iv_hex
    ```
 
 4. Sauvegarder, fermer l'éditeur. Le script valide, restart la stack, lance
-   une ingestion test pour confirmer que les deux jeux de clés fonctionnent.
+   une ingestion test pour confirmer que le trousseau déchiffre tout.
 
-Pendant ~4 semaines, les deux clés coexistent. Les logs `[current]` / `[previous]`
-indiquent quelle clé a déchiffré quel fichier.
+Les logs `[<label>]` indiquent quelle clé a déchiffré quel fichier. Si un flux a des
+fichiers mais **0** déchiffrement réussi, le job passe à `failed` et le bot alerte
+(escalade per-flux) : signe qu'une clé manque encore au trousseau.
 
-Après transition, relancer le script et supprimer `AES__PREVIOUS__*` du `.env`.
+Retirer une vieille clé seulement quand plus aucune archive chiffrée avec elle
+n'est (re)téléchargeable depuis le SFTP.
 
 ## Sauvegarde et restauration
 
@@ -864,10 +867,11 @@ sudo -u <slug> docker compose -f /srv/<slug>/deploy/docker/docker-compose.yml lo
 
 ### L'ingestion échoue avec `Échec déchiffrement avec X clé(s)`
 
-Mauvaise clé AES ou fichier corrompu. Comparer `AES__*` dans `.env` avec ce
-qu'Enedis a fourni. En période de rotation, s'assurer que `AES__PREVIOUS__*`
-est toujours configurée. Relancer le script en mode reconfigure pour ré-éditer
-`.env` proprement.
+Aucune clé du trousseau n'a déchiffré ce flux (clé manquante ou fichier corrompu).
+Comparer les `AES__TROUSSEAU__<label>__*` dans `.env` avec ce qu'Enedis a fourni ;
+en période de rotation, vérifier que **l'ancienne clé** est toujours dans le trousseau
+(elle reste nécessaire pour les archives historiques). Relancer le script en mode
+reconfigure pour ré-éditer `.env` proprement.
 
 ### Le bot Telegram ne répond pas
 

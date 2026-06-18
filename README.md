@@ -349,14 +349,12 @@ API_KEY=votre_cle_api_secrete
 
 # === INGESTION ENEDIS — obligatoire pour l'ingestion ===
 SFTP__URL=sftp://utilisateur:mot_de_passe@hote:22/chemin
-AES__KEY=cle_hex_fournie_par_enedis
-AES__IV=iv_hex_fourni_par_enedis
-
-# Rotation de clés AES (format v2, après changement de clé Enedis) :
-# AES__CURRENT__KEY=nouvelle_cle_hex
-# AES__CURRENT__IV=nouvel_iv_hex
-# AES__PREVIOUS__KEY=ancienne_cle_hex  # garder ~4 semaines après rotation
-# AES__PREVIOUS__IV=ancien_iv_hex
+# Trousseau de clés AES (ADR-0037) : un <label> parlant par clé, sélection par essai.
+# Garder les anciennes clés dans le trousseau préserve l'accès aux archives passées.
+AES__TROUSSEAU__aes256_2026__KEY=cle_hex_fournie_par_enedis
+AES__TROUSSEAU__aes256_2026__IV=iv_hex_fourni_par_enedis
+# AES__TROUSSEAU__aes128_2024__KEY=ancienne_cle_hex
+# AES__TROUSSEAU__aes128_2024__IV=ancien_iv_hex
 
 # === ODOO — pour les calculs CTA/Accise et la réconciliation ===
 ODOO_ENV=test  # ou prod

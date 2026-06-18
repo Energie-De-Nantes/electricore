@@ -24,7 +24,7 @@ Usage :
     uv run python tests/fixtures/flux/anonymiser.py --r64-zip SOURCE.zip DESTINATION.json
 
 Le mode `--r64-zip` fait la chaîne complète sur un R64 chiffré : déchiffrement
-AES (clés lues dans AES__CURRENT__KEY / AES__CURRENT__IV, jamais persistées),
+AES (trousseau lu dans AES__TROUSSEAU__<label>__KEY/IV, jamais persisté),
 extraction ZIP, anonymisation JSON, et rapport d'audit (clés rencontrées +
 alarmes sur valeurs suspectes non mappées) pour la relecture.
 

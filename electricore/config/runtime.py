@@ -83,31 +83,25 @@ class PaireCles(BaseSettings):
 
 
 class Aes(BaseSettings):
-    """Domaine aes : clés de déchiffrement des flux, avec rotation (ADR-0008).
+    """Domaine aes : trousseau de clés de déchiffrement des flux (ADR-0037).
 
-    Cascade : `current` (+ `previous` pendant la transition), sinon le format
-    plat v1 (`AES__KEY`/`AES__IV`) en compatibilité ascendante.
+    Trousseau de taille arbitraire alimenté par `AES__TROUSSEAU__<label>__KEY` /
+    `__IV`. Le `<label>` est un nom parlant choisi par l'opérateur (`aes256_2026`,
+    `aes128_2024`…) qui remonte tel quel dans `chaine()`, donc dans les logs. La
+    sélection de la bonne clé se fait par essai (cf. `decrypt_with_key_chain`),
+    sans date ni protocole. Rupture de format assumée : `current`/`previous`/plat-v1
+    d'ADR-0008 sont retirés (instance unique, ADR-0015).
     """
 
     model_config = SettingsConfigDict(
         env_prefix="AES__", env_nested_delimiter="__", populate_by_name=True, extra="ignore"
     )
 
-    current: PaireCles | None = None
-    previous: PaireCles | None = None
-    key: str | None = None  # format plat v1
-    iv: str | None = None
+    trousseau: dict[str, PaireCles] = Field(default_factory=dict)
 
     def chaine(self) -> list[tuple[str, bytes, bytes]]:
-        """Chaîne de déchiffrement ordonnée : [(étiquette, clé, iv), …]."""
-        if self.current is not None:
-            chaine = [("current", *self.current.octets("current"))]
-            if self.previous is not None:
-                chaine.append(("previous", *self.previous.octets("previous")))
-            return chaine
-        if self.key and self.iv:
-            return [("legacy", *PaireCles(key=self.key, iv=self.iv).octets("key"))]
-        return []
+        """Trousseau aplati en [(label, clé, iv), …] — ordre indifférent (sélection par essai)."""
+        return [(label, *paire.octets(label)) for label, paire in self.trousseau.items()]
 
 
 class Odoo(BaseSettings):
@@ -193,7 +187,7 @@ def sftp() -> Sftp:
 def aes() -> Aes:
     domaine = _instancier("aes", Aes, "AES__")
     if not domaine.chaine():
-        raise ConfigurationManquante({"aes": ["AES__CURRENT__KEY", "AES__CURRENT__IV"]})
+        raise ConfigurationManquante({"aes": ["AES__TROUSSEAU__<label>__KEY", "AES__TROUSSEAU__<label>__IV"]})
     return domaine
 
 
