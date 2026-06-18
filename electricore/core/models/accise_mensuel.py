@@ -21,10 +21,18 @@ class AcciseMensuel(pa.DataFrameModel):
     mois_annee: pl.Utf8 = pa.Field(nullable=False, str_matches=r"^\d{4}-\d{2}$")  # ex: "2025-03"
     trimestre: pl.Utf8 = pa.Field(nullable=False)  # ex: "2025-T1"
     order_name: pl.Utf8 = pa.Field(nullable=False)
-    energie_kwh: pl.Float64 = pa.Field(nullable=False, ge=0.0)
-    energie_mwh: pl.Float64 = pa.Field(nullable=False, ge=0.0)
+    # Pas de `ge=0` sur énergie/montant (#341) : `pipeline_accise` somme les lignes de
+    # factures Odoo par (PDL, mois), et un mois peut être net-négatif quand un avoir /
+    # une régularisation y tombe sans nominal en face. La déclaration accise est
+    # *trimestrielle* et nette positif ; le grain mensuel peut légitimement être < 0.
+    # Band-aid assumé imparfait : le netting brut sous-compte les avoirs « conso réelle
+    # retournée » et ne distingue pas régul/nominal — la correctness relève du modèle de
+    # facturé maîtrisé / périodes typées (cf #225, #282). `taux_accise_eur_mwh` garde
+    # `ge=0` : un taux reste positif.
+    energie_kwh: pl.Float64 = pa.Field(nullable=False)
+    energie_mwh: pl.Float64 = pa.Field(nullable=False)
     taux_accise_eur_mwh: pl.Float64 = pa.Field(nullable=False, ge=0.0)
-    accise_eur: pl.Float64 = pa.Field(nullable=False, ge=0.0)
+    accise_eur: pl.Float64 = pa.Field(nullable=False)
 
     class Config:
         strict = False
