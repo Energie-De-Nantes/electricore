@@ -7,7 +7,19 @@ complet via drop_sources).
 """
 
 from electricore.api.services.ingestion_service import ModeIngestion
-from electricore.ingestion.runner import PlanRun, interpreter_flux
+from electricore.ingestion.runner import PlanRun, flux_sans_dechiffrement, interpreter_flux
+from electricore.ingestion.transformers.crypto import StatsDechiffrement
+
+
+def test_flux_sans_dechiffrement_ne_retient_que_les_flux_aveugles():
+    """Escalade per-flux (ADR-0037) : seuls les flux à 0 succès + ≥ 1 échec remontent."""
+    stats = {
+        "R64": StatsDechiffrement(succes=0, echecs=3),  # aveugle → clé manquante
+        "C15": StatsDechiffrement(succes=10, echecs=1),  # échec isolé toléré
+        "R151": StatsDechiffrement(succes=5, echecs=0),  # tout va bien
+        "F15": StatsDechiffrement(succes=0, echecs=0),  # aucun fichier
+    }
+    assert flux_sans_dechiffrement(stats) == ["R64"]
 
 
 def test_les_modes_de_l_api_sont_interpretables():
@@ -95,3 +107,25 @@ def test_job_en_echec_expose_la_sortie_reelle(monkeypatch):
     assert job.status == StatutIngestion.failed
     assert erreur_dbt in (job.error or ""), "l'erreur doit porter la vraie cause (stdout), pas « exit code 1 »"
     assert erreur_dbt in (job.output or ""), "stdout doit être capturé même en échec"
+
+
+def test_main_echoue_si_un_flux_est_aveugle(monkeypatch):
+    """Escalade per-flux bout-en-bout (ADR-0037, #353) : un flux à 0 déchiffrement réussi
+    fait sortir `main` en code ≠ 0 → l'API marque le job `failed` → la surveillance bot
+    alerte (chaîne existante, aucun nouveau code bot)."""
+    import sys
+
+    import pytest
+
+    from electricore.ingestion import runner
+    from electricore.ingestion.transformers.crypto import StatsDechiffrement
+
+    monkeypatch.setattr(runner.runtime, "valider", lambda *a, **k: None)
+    monkeypatch.setattr(runner, "lander_brut", lambda db, plan: {"R64": StatsDechiffrement(succes=0, echecs=3)})
+    monkeypatch.setattr(runner, "construire_dbt", lambda db: True)  # les flux sains ont buildé
+    monkeypatch.setattr(runner, "bilan", lambda db: None)
+    monkeypatch.setattr(sys, "argv", ["prog", "all", "--db", "/tmp/peu_importe.duckdb"])
+
+    with pytest.raises(SystemExit) as exc:
+        runner.main()
+    assert exc.value.code == 1

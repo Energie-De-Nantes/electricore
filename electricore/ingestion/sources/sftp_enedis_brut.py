@@ -22,7 +22,11 @@ from electricore.config import runtime
 from electricore.ingestion.parsing.xml import xml_vers_dict
 from electricore.ingestion.sources.sftp_enedis import create_sftp_resource, mask_password_in_url
 from electricore.ingestion.transformers.archive import create_unzip_transformer
-from electricore.ingestion.transformers.crypto import create_decrypt_transformer
+from electricore.ingestion.transformers.crypto import (
+    StatsDechiffrement,
+    create_decrypt_transformer,
+    load_aes_key_chain,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -46,18 +50,24 @@ def _create_brut_transformer(flux_type: str, est_json: bool):
 
 
 @dlt.source(name="flux_enedis_brut")
-def flux_enedis_brut(flux_config: dict, max_files: int = None):
+def flux_enedis_brut(flux_config: dict, max_files: int = None, stats: dict[str, StatsDechiffrement] | None = None):
     """Source DLT déposant le brut JSON de chaque flux dans `raw_<flux>`.
 
     Args:
         flux_config: Sections de flux.yaml (C15, R15, …) : file_pattern (glob SFTP),
             format (xml/json) et file_regex (fichiers à extraire des zips).
         max_files: Limitation par flux (smoke tests).
+        stats: Dict mutable {flux: StatsDechiffrement} peuplé par flux (escalade per-flux,
+            ADR-0037). Le caller (runner) le crée et le relit après le run pour décider
+            d'un échec de job. None → dict interne jetable (callers indifférents au comptage).
     """
     sftp_url = runtime.sftp().url
     logger.info("Source URL: %s", mask_password_in_url(sftp_url))
 
-    decrypt_transformer = create_decrypt_transformer()
+    stats = stats if stats is not None else {}
+    # Trousseau résolu une seule fois (pas par flux) — partagé entre les transformers.
+    key_chain = load_aes_key_chain()
+    logger.info("%d clé(s) AES chargée(s) : %s", len(key_chain), [name for name, _, _ in key_chain])
 
     for flux_type, config_flux in flux_config.items():
         file_pattern = config_flux["file_pattern"]
@@ -68,6 +78,8 @@ def flux_enedis_brut(flux_config: dict, max_files: int = None):
         file_regex = config_flux.get("file_regex", f"*{extension}")
 
         sftp_resource = create_sftp_resource(flux_type, table, file_pattern, sftp_url, max_files)
+        stats_flux = stats.setdefault(flux_type, StatsDechiffrement())
+        decrypt_transformer = create_decrypt_transformer(key_chain=key_chain, stats=stats_flux)
         unzip_transformer = create_unzip_transformer(extension, file_regex)
         brut = _create_brut_transformer(flux_type, est_json)
 

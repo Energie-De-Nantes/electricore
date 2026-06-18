@@ -1,0 +1,106 @@
+"""Escalade d'échec de déchiffrement per-flux (ADR-0037, #353).
+
+Bout-en-bout sur un bucket `file://` : la source `flux_enedis_brut` agrège les
+succès/échecs de déchiffrement **par flux**. Deux cas couverts dans un même run :
+
+- **Flux entier KO** (C15) : tous les fichiers indéchiffrables → flux aveugle →
+  `flux_sans_dechiffrement` le remonte → le runner ferait échouer le job → alerte bot.
+- **Fichier isolé KO** (R64) : un fichier corrompu noyé dans des succès → toléré,
+  compté, le bon fichier landé quand même (pas de poison-pill) → flux NON aveugle.
+"""
+
+import io
+import os
+import time
+import zipfile
+from pathlib import Path
+
+import dlt
+import pytest
+
+pytest.importorskip("Crypto", reason="Nécessite l'extra [ingestion] : uv sync --extra ingestion")
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad
+
+from electricore.config import runtime
+from electricore.ingestion.runner import flux_sans_dechiffrement
+from electricore.ingestion.sources.sftp_enedis_brut import flux_enedis_brut
+from electricore.ingestion.transformers.crypto import StatsDechiffrement
+
+_KEY = bytes.fromhex("00112233445566778899aabbccddeeff")  # 16 octets (AES-128)
+_IV = bytes.fromhex("ffeeddccbbaa99887766554433221100")
+
+_CONFIG = {
+    "C15": {"file_pattern": "**/*_C15_*.zip", "format": "xml", "file_regex": "*_C15_*.xml"},
+    "R64": {"file_pattern": "**/R63_R64_R65_R66_R67_C68/*_R64_*.zip", "format": "json", "file_regex": "*.JSON"},
+}
+
+_R64_JSON = (Path(__file__).parents[1] / "fixtures" / "flux" / "r64.json").read_bytes()
+
+
+def _zip_chiffre(nom_interne: str, contenu: bytes) -> bytes:
+    """ZIP contenant `nom_interne`, chiffré AES-128-CBC + PKCS7 avec la clé du trousseau."""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr(nom_interne, contenu)
+    return AES.new(_KEY, AES.MODE_CBC, _IV).encrypt(pad(buf.getvalue(), AES.block_size))
+
+
+def _ecrire(chemin: Path, data: bytes, jour: int) -> None:
+    chemin.parent.mkdir(parents=True, exist_ok=True)
+    chemin.write_bytes(data)
+    ts = time.mktime((2026, 6, jour, 12, 0, 0, 0, 0, -1))
+    os.utime(chemin, (ts, ts))
+
+
+@pytest.fixture(autouse=True)
+def _trousseau(monkeypatch):
+    monkeypatch.setattr(runtime, "FICHIER_ENV", None)
+    monkeypatch.setenv("AES__TROUSSEAU__test__KEY", _KEY.hex())
+    monkeypatch.setenv("AES__TROUSSEAU__test__IV", _IV.hex())
+    runtime.vider_cache()
+    yield
+    runtime.vider_cache()
+
+
+@pytest.fixture
+def bucket(tmp_path, monkeypatch):
+    """Bucket file:// : C15 entièrement indéchiffrable, R64 = 1 bon + 1 corrompu."""
+    b = tmp_path / "bucket"
+    # C15 : deux zips de pur bruit (multiples de 16) → padding/magic KO → flux aveugle.
+    _ecrire(b / "a_C15_1.zip", os.urandom(48), jour=1)
+    _ecrire(b / "a_C15_2.zip", os.urandom(48), jour=2)
+    # R64 : un zip valide (déchiffre + parse + land) + un corrompu (échec isolé toléré).
+    sub = "R63_R64_R65_R66_R67_C68"
+    _ecrire(b / sub / "a_R64_ok.zip", _zip_chiffre("mesure.JSON", _R64_JSON), jour=1)
+    _ecrire(b / sub / "a_R64_ko.zip", os.urandom(48), jour=2)
+    monkeypatch.setenv("SFTP__URL", f"file://{b}/")
+    runtime.vider_cache()
+    return b
+
+
+def test_escalade_per_flux_aveugle_vs_echec_isole(bucket, tmp_path):
+    stats: dict[str, StatsDechiffrement] = {}
+    pipeline = dlt.pipeline(
+        pipeline_name="flux_brut_escalade",
+        destination=dlt.destinations.duckdb(str(tmp_path / "esc.duckdb")),
+        dataset_name="flux_raw",
+        pipelines_dir=str(tmp_path / "pipelines"),
+    )
+    pipeline.run(flux_enedis_brut(_CONFIG, stats=stats))
+
+    # Cas « flux entier KO » : C15 aveugle (0 succès, 2 échecs).
+    assert stats["C15"].succes == 0 and stats["C15"].echecs == 2
+    # Cas « fichier isolé KO » : R64 toléré (1 succès, 1 échec) → NON aveugle.
+    assert stats["R64"].succes == 1 and stats["R64"].echecs == 1
+
+    # Seul C15 remonte comme flux à escalader (→ job failed → alerte bot).
+    assert flux_sans_dechiffrement(stats) == ["C15"]
+
+    # Pas de poison-pill : le bon R64 a bien été landé malgré le fichier corrompu.
+    import duckdb
+
+    con = duckdb.connect(str(tmp_path / "esc.duckdb"))
+    (n_r64,) = con.execute("select count(*) from flux_raw.raw_r64").fetchone()
+    con.close()
+    assert n_r64 == 1
