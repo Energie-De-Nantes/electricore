@@ -4,7 +4,7 @@ Réinitialise les curseurs incrémentaux DLT.
 
 DLT stocke l'état dans DEUX endroits :
   1. Fichier local  : ~/.dlt/pipelines/{pipeline}/state.json  (prioritaire au démarrage)
-  2. DuckDB         : flux_enedis._dlt_pipeline_state         (restauré au lancement)
+  2. DuckDB         : flux_raw._dlt_pipeline_state            (restauré au lancement)
 
 Ce script met à jour les deux de manière cohérente. La base visée est résolue
 par `runtime.duckdb().chemin` (DUCKDB_PATH, .env compris — issue #146) : le script
@@ -31,7 +31,10 @@ import duckdb
 from electricore.config import runtime
 
 DB_PATH = runtime.duckdb().chemin
-DATASET = "flux_enedis"
+# Schéma dlt du landing brut (ADR-0020) : `_dlt_pipeline_state` y vit, plus dans le
+# legacy `flux_enedis` supprimé. Itère tous les namespaces de l'état → compatible
+# avec la fragmentation des curseurs (cf. issue namespace mono/multi-flux).
+DATASET = "flux_raw"
 RESET_DATE_DEFAULT = "2026-03-17T00:00:00+00:00"
 
 # Préfixe interne DLT dans les valeurs incrémentales (Unicode private use area U+F027)
