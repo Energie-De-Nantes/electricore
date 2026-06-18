@@ -19,6 +19,7 @@ from datetime import date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+import duckdb
 import polars as pl
 import pytest
 
@@ -46,6 +47,7 @@ def base_prod_dbt(tmp_path_factory):
         ("c15_avec_releves.xml", "raw_c15"),
         ("r151.xml", "raw_r151"),
         ("r15.xml", "raw_r15"),
+        ("r64.json", "raw_r64"),
     ]
     for fixture, source in cas:
         contenu = (FIXTURES / fixture).read_bytes()
@@ -71,6 +73,7 @@ def base_prod_dbt(tmp_path_factory):
             "+flux_c15",
             "+flux_r151",
             "+flux_r15",
+            "+flux_r64",
             "--project-dir",
             str(PROJET_DBT),
             "--profiles-dir",
@@ -136,3 +139,36 @@ def test_r151_sert_la_date_brute_et_les_index_entiers(base_prod_dbt):
     # Fixture : Date_Releve 2024-04-04 (date nue, fin de journée), ancrée minuit Paris — sans +1j.
     assert date_releve == datetime(2024, 4, 4, 0, 0, tzinfo=PARIS)
     assert df.schema["index_hph_kwh"] == pl.Int64
+
+
+def test_r64_charge_le_flux_brut(base_prod_dbt):
+    """Régression #333 : le chemin loader R64 BRUT (`/flux/r64`) se chargeait en Binder
+    Error parce que `SCHEMA_R64` déclarait `modification_date` (+ `_source_zip`/`_flux_type`/
+    `_json_name`), colonnes que le mart `flux_r64` ne projette pas depuis la refonte
+    `releves` (#241/#304/#285). Le mart `releves` n'était pas affecté — d'où une régression
+    invisible jusqu'en prod. Ce test exerce le loader brut, pas seulement le mart."""
+    from electricore.core.loaders import r64
+
+    df = r64(database_path=base_prod_dbt).collect()
+    assert df.height > 0
+    assert "modification_date" not in df.columns
+    assert {"pdl", "date_releve", "index_base_kwh", "source"} <= set(df.columns)
+
+
+@pytest.mark.parametrize("flux", ["c15", "r151", "r15", "r64"])
+def test_aucune_derive_loader_mart(base_prod_dbt, flux):
+    """Garde anti-dérive loader↔mart (#333) : chaque colonne déclarée par un `FluxSchema`
+    doit exister dans le mart correspondant. On exécute le SELECT du loader avec `LIMIT 0` —
+    DuckDB lie alors toutes les colonnes référencées sans matérialiser de ligne ; une colonne
+    déclarée mais absente du mart lève un Binder Error. Une future dérive (comme #333) échoue
+    donc ICI, en test, plutôt qu'en prod sur l'endpoint."""
+    from electricore.core.loaders.duckdb.sql import FLUX_SCHEMAS, build_base_query
+
+    sql = build_base_query(FLUX_SCHEMAS[flux])
+    con = duckdb.connect(str(base_prod_dbt), read_only=True)
+    try:
+        con.execute(f"SELECT * FROM ({sql}) LIMIT 0")  # Binder Error si dérive
+    except duckdb.BinderException as exc:  # pragma: no cover - chemin d'échec explicite
+        pytest.fail(f"Dérive loader↔mart sur {flux} : {str(exc).splitlines()[0]}")
+    finally:
+        con.close()

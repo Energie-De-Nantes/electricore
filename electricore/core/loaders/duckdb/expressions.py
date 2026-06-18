@@ -23,7 +23,9 @@ INDEX_COLS = tuple(col_index(c) for c in CADRANS)
 DATE_COLS_HISTORIQUE = ("date_evenement", "avant_date_releve", "apres_date_releve")
 DATE_COLS_RELEVES = ("date_releve",)
 DATE_COLS_FACTURES = ("date_facture", "date_debut", "date_fin")
-DATE_COLS_R64 = ("date_releve", "modification_date")
+# `modification_date` n'est pas projetée par le mart `flux_r64` (#333) : la lister ici
+# ferait référencer une colonne absente dans le transform Polars du loader R64.
+DATE_COLS_R64 = ("date_releve",)
 
 
 # =============================================================================
