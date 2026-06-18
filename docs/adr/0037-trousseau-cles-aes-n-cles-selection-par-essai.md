@@ -1,0 +1,91 @@
+# Trousseau de clés AES N-clés : sélection par essai, escalade d'échec per-flux
+
+## Contexte
+
+[ADR-0008](0008-rotation-cles-aes.md) a posé une cascade AES à **deux slots** (`current` → `previous`)
+comme stopgap explicite, et nommait déjà sa limite : *« N'absorbe qu'une rotation à la fois. »* Ce
+« terme » est atteint :
+
+- L'instance EDN porte déjà **deux clés AES-128** (`current` + `previous`, une rotation passée). La
+  bascule Enedis **AES-128 → AES-256 dans la nuit du 8-9 juin 2026** ([memory `project_aes256_bascule`],
+  [issue #221](https://github.com/Energie-De-Nantes/electricore/issues/221)) exige une **3ᵉ** clé. Le
+  cascade 2-slots est plein.
+- L'incident a été **silencieux 10 jours** : [`crypto.py`](../../electricore/ingestion/transformers/crypto.py#L205-L207)
+  avale l'échec de déchiffrement (`except Exception: return`), le job d'ingestion se termine en
+  *succès* à 0 ligne, et la surveillance bot ([`surveillance.py`](../../electricore/bot/surveillance.py#L44))
+  n'alerte que sur un job `failed`. Aucune alerte n'est partie.
+
+[#221](https://github.com/Energie-De-Nantes/electricore/issues/221) avait pré-tranché le design au grill
+du 13/06 (trousseau N-clés, registre runtime, sélection par essai). Le grill du 18/06 l'a resserré :
+abandon de l'utilitaire de bornes et de la compat de format (YAGNI), et ajout de l'escalade d'échec —
+le vrai manque révélé par l'incident.
+
+## Décision
+
+### 1. Trousseau N-clés en registre runtime, format unique
+
+Le domaine `aes` du registre runtime ([ADR-0025](0025-registre-runtime-pydantic-settings.md)) expose un
+**trousseau de taille arbitraire** : `trousseau: dict[str, PaireCles]`, alimenté par
+`AES__TROUSSEAU__<label>__KEY` / `__IV`. Le `<label>` est un nom **parlant** choisi par l'opérateur
+(`aes256_2026`, `aes128_2024`…) qui remonte tel quel dans `chaine()`, donc dans les logs et les
+diagnostics. Le modèle `Aes` ne porte **que** ce champ : `current` / `previous` / plat-v1 sont retirés.
+
+La forme « liste indexée » (`AES__TROUSSEAU__0__…`) est **écartée** : pydantic-settings ne supporte pas
+les tableaux depuis l'environnement (*« Arrays are not supported »*, doc + test) et imposerait des
+indices contigus. Le `dict[str, …]` via délimiteur imbriqué est, lui, documenté et testé.
+
+### 2. Sélection par essai, sans index ni protocole
+
+On tente les clés du trousseau dans un **ordre indifférent** ; le déchiffrement est son propre oracle
+(padding PKCS7 + magic bytes ZIP `PK\x03\x04` — faux positif ≈ 2⁻⁴⁰). La cascade N-clés est **déjà**
+la forme de [`decrypt_with_key_chain`](../../electricore/ingestion/transformers/crypto.py#L115-L139) ;
+le seul changement est `chaine()` qui renvoie les N entrées du trousseau. Aucune **date** ne pilote la
+sélection. Aucun **protocole** n'est modélisé : AES-128 et AES-256 sont le *même* schéma
+(AES-CBC-PKCS7, longueur de clé auto-sélectionnée), pas deux protocoles.
+
+### 3. Rupture de format assumée, compat de **données** préservée
+
+Pas de compatibilité ascendante du **format** de config : l'unique instance de prod (EDN) réécrit son
+`.env` une fois, les futures instances ([ADR-0015](0015-deploiement-multi-instance.md)) démarrent au
+propre. En revanche la compat de **données** est non négociable : les anciennes clés AES-128 deviennent
+des **entrées labellisées du trousseau** → l'archive historique reste déchiffrable (« lire le passé »).
+
+### 4. Escalade d'échec **per-flux** (fin du fail silencieux)
+
+L'échec de déchiffrement cesse d'être avalé. Politique : **par flux**, un flux qui a des fichiers mais
+**0 déchiffrement réussi** (≥ 1 échec) fait passer le job à `failed` → la surveillance bot alerte. Un
+échec **isolé** noyé dans des succès (fichier corrompu) est **toléré**, compté, et tracé en warn-log.
+L'agrégation succès/échec par resource vit au niveau runner (il orchestre déjà une resource par flux).
+
+## Raison
+
+- **Sélection par essai, pas index temporel.** Enedis ne fournit pas de fenêtres de validité fiables ;
+  l'oracle est auto-suffisant et le coût de N essais est négligeable (AES tourne au Go/s, noyé dans les
+  I/O SFTP). Un index temporel ajouterait une surface de dérive sans gain.
+- **Per-flux, pas seuil global.** Enedis fait évoluer le chiffrement **par flux indépendamment** (typiquement
+  à l'ajout d'un nouveau flux). Un seuil global en % noierait un flux qui bascule seul ; le per-flux le
+  capte exactement.
+- **Utilitaire de bornes écarté (YAGNI).** Son seul rôle porteur — détecter une **lacune de couverture**
+  (un segment qu'aucune clé ne déchiffre = clé manquante) — est déjà tenu par l'escalade d'échec. Exposer
+  des fenêtres de validité dérivées était du pur *nice-to-have*. Évaluer les vieilles transitions se réduit
+  à « rassembler les clés qu'on a, les mettre dans le trousseau, laisser l'alerte signaler ce qui résiste ».
+- **Protocole non modélisé (YAGNI).** Un vrai changement de mode (CBC→GCM = nouvel oracle) n'a pas eu lieu
+  et on ne connaît pas sa forme future. Le *seam* est noté : une fonction `decrypt_*` par schéma, le trial
+  balaierait les schémas. On ne pré-construit pas.
+- **Rupture de format.** Préserver les noms d'env legacy protégerait un parc qui n'existe pas (≈ 1 instance
+  en prod aujourd'hui, responsabilité humaine assumée, ADR-0015). Le coût : un edit manuel unique.
+
+## Conséquences
+
+- `Aes` simplifié (un champ `trousseau`) ; `chaine()` → N entrées ; cascade et oracle inchangés.
+- [`crypto.py`](../../electricore/ingestion/transformers/crypto.py) : l'`except … return` silencieux est
+  remplacé par un comptage propagé ; le runner agrège par flux et décide `failed`.
+- **Migration EDN** : réécrire l'unique `.env` (2 clés AES-128 + la nouvelle AES-256, toutes labellisées),
+  puis resync — l'escalade signalera tout segment encore sans clé.
+- [ADR-0008](0008-rotation-cles-aes.md) **superseded**.
+
+## Statut
+
+Accepté (grill 18/06/2026). Supersède [ADR-0008](0008-rotation-cles-aes.md). Porté par
+[#221](https://github.com/Energie-De-Nantes/electricore/issues/221) (réécrite). Glossaire :
+[`electricore/ingestion/CONTEXT.md`](../../electricore/ingestion/CONTEXT.md) (« Trousseau de clés AES »).

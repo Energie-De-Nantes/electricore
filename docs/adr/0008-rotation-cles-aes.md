@@ -1,5 +1,7 @@
 # Format `secrets.toml` à deux clés AES (stopgap rotation)
 
+> **Statut : superseded par [ADR-0037](0037-trousseau-cles-aes-n-cles-selection-par-essai.md)** — trousseau N-clés, sélection par essai, escalade d'échec per-flux (grill 18/06/2026).
+
 Enedis effectue des rotations de clés AES périodiques, et pendant la fenêtre de transition il faut pouvoir lire **à la fois** les anciens fichiers (déjà chiffrés avec l'ancienne clé) et les nouveaux. Le format `secrets.toml` accepte donc `[aes.current]` (obligatoire) + `[aes.previous]` (optionnel) : le déchiffreur essaie `current` puis tombe en cascade sur `previous` ([electricore/ingestion/transformers/crypto.py](../../electricore/ingestion/transformers/crypto.py)).
 
 ## Statut
