@@ -20,6 +20,9 @@ class LignesFactureRapprochees(pa.DataFrameModel):
     # Contrat d'entrée `LignesFacture`, conservé en sortie (est_brouillon compris :
     # consommé pour dériver les flags ADR-0014, gardé visible à côté d'eux)
     ref_situation_contractuelle: pl.Utf8 = pa.Field(nullable=False)
+    # Sous-ensemble *facturable* (cf. LignesFacture) — doit rester aligné sur
+    # `_MAPPING_CATEGORIE_COLONNE` (contexte_mensuel.py). Catégories hors scope
+    # écartées en amont du rapprochement (#335).
     categorie_produit: pl.Utf8 = pa.Field(nullable=False, isin=["Base", "HP", "HC", "Abonnements"])
     quantite: pl.Float64 = pa.Field(nullable=False)
     est_brouillon: pl.Boolean = pa.Field(nullable=False)
