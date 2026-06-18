@@ -74,6 +74,17 @@ jobs:
 
       # ---------------------------------------------------------------
       # Image Docker → ghcr.io (en parallèle de la publication PyPI)
+      #
+      # Gate « build → scan → push » en deux temps (cf. les deux étapes
+      # build-push-action plus bas) :
+      #   1. build local (load: true, push: false) → image dans le démon
+      #      Docker, scannée (TruffleHog) puis fumée (import) AVANT tout push ;
+      #   2. push vers ghcr.io seulement si le gate passe, en réhydratant le
+      #      cache GHA du build n°1 (donc quasi gratuit).
+      # On ne fait pas load + push dans le même step : load = image locale,
+      # push = export direct vers le registre, les deux ne cohabitent pas de
+      # façon fiable sur un seul builder. La séquence garantit l'invariant :
+      # rien n'est poussé tant que l'image n'a pas été scannée et fumée.
       # ---------------------------------------------------------------
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -103,7 +114,10 @@ jobs:
             echo "smoke_tag=ghcr.io/${OWNER}/electricore:${V}"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Build Docker image (load locally for scan)
+      # Build n°1 : le vrai build (0% cache, lent). Charge l'image en local
+      # pour le gate ci-dessous et alimente le cache GHA (cache-to) que le
+      # push réutilisera.
+      - name: Build image (n°1 — local, sans push, pour le gate scan + smoke)
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -129,7 +143,9 @@ jobs:
           docker run --rm "${{ steps.docker_tags.outputs.smoke_tag }}" \
             python -c "import electricore; import electricore.ingestion.runner; import dbt.cli.main; print('image OK')"
 
-      - name: Push Docker image to GHCR
+      # Build n°2 : réhydrate le cache GHA du build n°1 (cache-from) → quasi
+      # rien à reconstruire, l'essentiel du temps est l'export + le push.
+      - name: Push image vers GHCR (n°2 — cache du n°1 réhydraté, quasi gratuit)
         uses: docker/build-push-action@v7
         with:
           context: .
