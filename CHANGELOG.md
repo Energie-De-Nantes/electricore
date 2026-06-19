@@ -9,6 +9,33 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.1.0rc1] - 2026-06-19
+
+Trousseau de clés AES (ADR-0037) : déverrouille l'ingestion bloquée depuis la bascule
+Enedis **AES-128 → AES-256 (8-9 juin 2026)** et met fin à l'échec de déchiffrement silencieux.
+
+### ✨ Temps forts
+
+- **Trousseau de clés AES N-clés** (ADR-0037, #352) : le domaine `aes` du registre runtime
+  porte un `trousseau: dict[str, PaireCles]` de taille arbitraire, alimenté par
+  `AES__TROUSSEAU__<label>__{KEY,IV}`. La bonne clé est **sélectionnée par essai** (oracle
+  PKCS7 + magic bytes ZIP), sans date ni protocole — AES-128 et AES-256 sont le même schéma,
+  la longueur de clé est auto-sélectionnée. Le `<label>` parlant remonte dans les logs.
+  Supersède la cascade à deux clés d'[ADR-0008](docs/adr/0008-rotation-cles-aes.md).
+- **Escalade d'échec de déchiffrement per-flux** (ADR-0037, #353) : fin du *fail silencieux*.
+  `crypto.py` n'avale plus l'échec ; le runner agrège succès/échec **par flux**, et un flux qui
+  a des fichiers mais **0 déchiffrement réussi** fait passer le job à `failed` → la surveillance
+  bot alerte (chaîne existante). Un échec isolé (fichier corrompu) reste toléré, compté, warn-loggé.
+
+### ⚠️ Ruptures
+
+- **Format `.env` des clés AES** : `AES__CURRENT__*`, `AES__PREVIOUS__*` et le plat-v1
+  `AES__KEY` / `AES__IV` sont **retirés** au profit de `AES__TROUSSEAU__<label>__{KEY,IV}`
+  (rupture assumée, instance unique — ADR-0015). La compat de *données* est préservée : les
+  anciennes clés AES-128 deviennent des entrées labellisées du trousseau, l'archive historique
+  reste déchiffrable. Migration opérateur (réécriture du `.env` + resync) : **#354**.
+  Le validateur de déploiement (`deploy/lib/env_validate.sh`) attend désormais le format trousseau.
+
 ## [3.0.0] - 2026-06-18
 
 Premier stable de la ligne **3.0** : aboutissement du cycle rc1→rc17. Stabilise sur données
