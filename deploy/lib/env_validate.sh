@@ -26,9 +26,9 @@ read_env_var() {
 }
 
 # validate_env_file <env_file> <expected_slug>
-# Vérifie INSTANCE_SLUG matche expected, API_KEY, AES__CURRENT__{KEY,IV},
-# SFTP__URL sont présents et valides. Imprime les erreurs sur stdout.
-# Retour : 0 si valide, 1 sinon.
+# Vérifie INSTANCE_SLUG matche expected, API_KEY, SFTP__URL et le trousseau AES
+# (AES__TROUSSEAU__<label>__{KEY,IV}) sont présents et valides. Imprime les erreurs
+# sur stdout. Retour : 0 si valide, 1 sinon.
 validate_env_file() {
     local file="$1"
     local expected_slug="$2"
@@ -36,12 +36,10 @@ validate_env_file() {
 
     [[ -r "$file" ]] || { echo "fichier introuvable : $file"; return 1; }
 
-    local slug api_key sftp aes_key aes_iv
+    local slug api_key sftp
     slug=$(read_env_var "$file" INSTANCE_SLUG)
     api_key=$(read_env_var "$file" API_KEY)
     sftp=$(read_env_var "$file" SFTP__URL)
-    aes_key=$(read_env_var "$file" AES__CURRENT__KEY)
-    aes_iv=$(read_env_var "$file" AES__CURRENT__IV)
 
     [[ "$slug" == "$expected_slug" ]] || \
         errors+=("INSTANCE_SLUG='${slug}' ne matche pas le slug attendu '${expected_slug}'")
@@ -52,15 +50,23 @@ validate_env_file() {
     validate_url "$sftp" || \
         errors+=("SFTP__URL invalide (attendu sftp://… ou file://…) : '${sftp}'")
 
-    # Format v1 (AES__KEY/IV) accepté en fallback pour compatibilité ascendante
-    if [[ -z "$aes_key" ]]; then
-        aes_key=$(read_env_var "$file" AES__KEY)
-        aes_iv=$(read_env_var "$file" AES__IV)
+    # Trousseau AES (ADR-0037) : ≥ 1 paire AES__TROUSSEAU__<label>__{KEY,IV}, chacune en
+    # hex 32 (AES-128) ou 64 (AES-256). Les <label> sont arbitraires → on les découvre dans
+    # le fichier (les lignes commentées `#` sont ignorées par l'ancrage `^[[:space:]]*`).
+    local labels label
+    mapfile -t labels < <(
+        grep -oE '^[[:space:]]*AES__TROUSSEAU__.+__KEY[[:space:]]*=' "$file" 2>/dev/null \
+            | sed -E 's/^[[:space:]]*AES__TROUSSEAU__(.+)__KEY[[:space:]]*=.*/\1/' | sort -u
+    )
+    if [[ ${#labels[@]} -eq 0 ]]; then
+        errors+=("trousseau AES vide : ajoutez au moins une paire AES__TROUSSEAU__<label>__{KEY,IV} (hex 32 ou 64)")
+    else
+        for label in "${labels[@]}"; do
+            validate_aes_key "$(read_env_var "$file" "AES__TROUSSEAU__${label}__KEY")" \
+                && validate_aes_iv "$(read_env_var "$file" "AES__TROUSSEAU__${label}__IV")" \
+                || errors+=("AES__TROUSSEAU__${label}__{KEY,IV} absent ou pas en hex 32/64 chars")
+        done
     fi
-    validate_aes_key "$aes_key" || \
-        errors+=("AES__CURRENT__KEY (ou AES__KEY) absent ou pas en hex 32/64 chars")
-    validate_aes_iv "$aes_iv" || \
-        errors+=("AES__CURRENT__IV (ou AES__IV) absent ou pas en hex 32/64 chars")
 
     if [[ ${#errors[@]} -gt 0 ]]; then
         printf '%s\n' "${errors[@]}"

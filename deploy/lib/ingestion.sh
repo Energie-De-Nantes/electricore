@@ -28,7 +28,7 @@ show_ingestion_failure_hints() {
     local slug="$1"
     local home="/srv/${slug}"
     log_warn "Causes typiques :"
-    log_info "  - AES__CURRENT__KEY / IV faux (déchiffrement fichier raté)"
+    log_info "  - Clé manquante au trousseau AES__TROUSSEAU__<label>__{KEY,IV} (flux non déchiffré → job failed)"
     log_info "  - SFTP__URL inaccessible (credentials ou réseau)"
     log_info "  - file://… pointe vers un dossier vide/inexistant (mode B)"
     log_info ""

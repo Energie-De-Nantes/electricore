@@ -1,8 +1,8 @@
-# .env fixture invalide : slug mismatch, API_KEY trop courte, AES non-hex
+# .env fixture invalide : slug mismatch, API_KEY trop courte, trousseau AES non-hex + IV vide
 INSTANCE_SLUG=wrong-slug
 ELECTRICORE_VERSION=latest
 BACKUPS_PATH=/srv/edn/backups
 API_KEY=tooshort
 SFTP__URL=not-a-url
-AES__CURRENT__KEY=zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz
-AES__CURRENT__IV=
+AES__TROUSSEAU__aes256_2026__KEY=zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz
+AES__TROUSSEAU__aes256_2026__IV=
