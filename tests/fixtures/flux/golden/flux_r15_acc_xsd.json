@@ -1,6 +1,6 @@
 [
   {
-    "releve_id": "flux_R15|99100000000000|2024-06-15 00:01:00|false",
+    "releve_id": "d5f8188ceb3d791e",
     "id_releve": "TEXTE",
     "nature_index": "réel",
     "pdl": "99100000000000",
@@ -16,7 +16,7 @@
     "occurrence_id": "r15_xsd.xml#1#1"
   },
   {
-    "releve_id": "flux_R15|99100000000001|2024-06-15 00:01:00|false",
+    "releve_id": "993e3614a6b2de12",
     "id_releve": "TEXTE",
     "nature_index": "réel",
     "pdl": "99100000000001",
@@ -32,7 +32,7 @@
     "occurrence_id": "r15_xsd.xml#2#1"
   },
   {
-    "releve_id": "flux_R15|99100000000000|2024-06-15 00:01:00|false",
+    "releve_id": "d5f8188ceb3d791e",
     "id_releve": "TEXTE",
     "nature_index": "estimé",
     "pdl": "99100000000000",
@@ -48,7 +48,7 @@
     "occurrence_id": "r15_xsd.xml#1#2"
   },
   {
-    "releve_id": "flux_R15|99100000000001|2024-06-15 00:01:00|false",
+    "releve_id": "993e3614a6b2de12",
     "id_releve": "TEXTE",
     "nature_index": "estimé",
     "pdl": "99100000000001",

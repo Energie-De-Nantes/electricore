@@ -1,6 +1,6 @@
 [
   {
-    "releve_id": "flux_R151|99100000000000|2024-06-15|false",
+    "releve_id": "579beb9bf8fb1f7d",
     "nature_index": "réel",
     "pdl": "99100000000000",
     "date_releve": "2024-06-15",
@@ -13,7 +13,7 @@
     "index_hp_kwh": 5329
   },
   {
-    "releve_id": "flux_R151|99100000000000|2024-06-15|false",
+    "releve_id": "579beb9bf8fb1f7d",
     "nature_index": "réel",
     "pdl": "99100000000000",
     "date_releve": "2024-06-15",
@@ -26,7 +26,7 @@
     "index_hp_kwh": 5773
   },
   {
-    "releve_id": "flux_R151|99100000000001|2024-06-15|false",
+    "releve_id": "91d965543fe0102e",
     "nature_index": "réel",
     "pdl": "99100000000001",
     "date_releve": "2024-06-15",
@@ -39,7 +39,7 @@
     "index_hp_kwh": 6217
   },
   {
-    "releve_id": "flux_R151|99100000000001|2024-06-15|false",
+    "releve_id": "91d965543fe0102e",
     "nature_index": "réel",
     "pdl": "99100000000001",
     "date_releve": "2024-06-15",

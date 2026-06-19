@@ -21,8 +21,12 @@ PARIS = ZoneInfo("Europe/Paris")
 
 @pytest.fixture
 def meta_periodes_synthetiques() -> pl.DataFrame:
-    """Mime la sortie projetée de `meta_periodes` (champs `PeriodeMeta` du contrat v2)."""
-    return pl.DataFrame(
+    """Mime la sortie projetée de `meta_periodes` (champs `PeriodeMeta` du contrat v3).
+
+    Porte le bloc imbriqué `releves_utilises` (ADR-0038, #360) en colonne `pl.Object` :
+    RSC-1 (réelle) a ses relevés bornants, RSC-2 (incalculable) a `[]`.
+    """
+    df = pl.DataFrame(
         {
             "ref_situation_contractuelle": ["RSC-1", "RSC-2"],
             "pdl": ["12345678901234", "12345678905678"],
@@ -42,6 +46,19 @@ def meta_periodes_synthetiques() -> pl.DataFrame:
             "statut_communication": ["communicante", "non_communicante"],
         }
     )
+    releves_utilises = [
+        [
+            {
+                "releve_id": "a1b2c3d4e5f60718",
+                "date_releve": "2026-05-01T00:00:00+02:00",
+                "nature_index": "réel",
+                "index_hp_kwh": 1000,
+                "index_hc_kwh": 500,
+            }
+        ],
+        [],
+    ]
+    return df.with_columns(pl.Series("releves_utilises", releves_utilises, dtype=pl.Object))
 
 
 def test_meta_periodes_retourne_enveloppe_json(monkeypatch, meta_periodes_synthetiques):
@@ -75,6 +92,44 @@ def test_meta_periodes_retourne_enveloppe_json(monkeypatch, meta_periodes_synthe
     assert row["statut_communication"] == "communicante"
 
 
+def test_meta_periodes_imbrique_releves_utilises(monkeypatch, meta_periodes_synthetiques):
+    """ADR-0038 (#360) : chaque méta-période porte un tableau JSON `releves_utilises`
+    imbriqué (objets `{ releve_id, date_releve, nature_index, registres réels }`) ;
+    l'enveloppe et la pagination restent intactes (additif strict)."""
+    app.dependency_overrides[get_current_api_key] = lambda: "test-key"
+    monkeypatch.setattr(
+        "electricore.api.routers.meta_periodes.meta_periodes",
+        lambda mois=None, rsc=None: ("2026-05-01", meta_periodes_synthetiques),
+    )
+    try:
+        response = TestClient(app).get("/facturation/meta-periodes", params={"mois": "2026-05-01"})
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    body = response.json()
+
+    # Enveloppe inchangée (additif strict) + colonnes existantes intactes.
+    assert set(body) == {"mois", "contract_version", "filters", "pagination", "data"}
+    row = body["data"][0]
+    assert row["ref_situation_contractuelle"] == "RSC-1"
+    assert row["energie_hp_kwh"] == 312.4
+
+    # Bloc imbriqué présent et structuré.
+    assert "releves_utilises" in row
+    trace = row["releves_utilises"]
+    assert isinstance(trace, list) and len(trace) == 1
+    assert trace[0] == {
+        "releve_id": "a1b2c3d4e5f60718",
+        "date_releve": "2026-05-01T00:00:00+02:00",
+        "nature_index": "réel",
+        "index_hp_kwh": 1000,
+        "index_hc_kwh": 500,
+    }
+    # Mois incalculable → tableau vide.
+    assert body["data"][1]["releves_utilises"] == []
+
+
 def test_meta_periodes_refuse_sans_api_key():
     """Endpoint sécurisé : 401 sans clé."""
     response = TestClient(app).get("/facturation/meta-periodes")
@@ -93,7 +148,7 @@ def test_meta_periodes_enveloppe_porte_contract_version(monkeypatch, meta_period
     finally:
         app.dependency_overrides.clear()
 
-    assert response.json()["contract_version"] == 2
+    assert response.json()["contract_version"] == 3
 
 
 def test_meta_periodes_propage_mois_et_rsc(monkeypatch, meta_periodes_synthetiques):

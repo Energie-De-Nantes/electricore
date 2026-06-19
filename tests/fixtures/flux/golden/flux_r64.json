@@ -1,6 +1,6 @@
 [
   {
-    "releve_id": "flux_R64|99331145115979|2026-06-01 00:00:00|AQ",
+    "releve_id": "1941e9429e2e703a",
     "nature_index": "réel",
     "pdl": "99331145115979",
     "etape_metier": "BRUT",
@@ -21,7 +21,7 @@
     "index_hcb_kwh": 13514
   },
   {
-    "releve_id": "flux_R64|99103630318530|2026-06-01 00:00:00|AQ",
+    "releve_id": "4ba9ea477250de31",
     "nature_index": "réel",
     "pdl": "99103630318530",
     "etape_metier": "BRUT",

@@ -30,7 +30,7 @@ GET /facturation/meta-periodes?mois=YYYY-MM-DD&rsc=RSC-A&rsc=RSC-B&limit=500&off
 ```json
 {
   "mois": "2025-03-01",
-  "contract_version": 2,
+  "contract_version": 3,
   "filters": { "rsc": ["RSC-A"] },
   "pagination": { "limit": 500, "offset": 0, "returned": 2, "total": 2 },
   "data": [
@@ -53,6 +53,22 @@ GET /facturation/meta-periodes?mois=YYYY-MM-DD&rsc=RSC-A&rsc=RSC-B&limit=500&off
       "has_changement": false,
       "qualite": "réelle",
       "statut_communication": "communicante",
+      "releves_utilises": [
+        {
+          "releve_id": "a1b2c3d4e5f60718",
+          "date_releve": "2025-03-01T00:00:00+01:00",
+          "nature_index": "réel",
+          "index_hp_kwh": 1000,
+          "index_hc_kwh": 500
+        },
+        {
+          "releve_id": "99aabbccddeeff00",
+          "date_releve": "2025-04-01T00:00:00+02:00",
+          "nature_index": "réel",
+          "index_hp_kwh": 1312,
+          "index_hc_kwh": 645
+        }
+      ],
       "source_hash": "9f2b1c7d4e5a6b08"
     }
   ]
@@ -64,12 +80,12 @@ GET /facturation/meta-periodes?mois=YYYY-MM-DD&rsc=RSC-A&rsc=RSC-B&limit=500&off
 | Champ | Type | Rôle |
 |---|---|---|
 | `mois` | `str` `YYYY-MM-DD` | Mois effectivement résolu (utile quand la requête omet `mois`). |
-| `contract_version` | `int` | Version du contrat. `2` aujourd'hui (`data_complete`/`coverage_*` retirés, ADR-0033). À asserter côté consommateur. |
+| `contract_version` | `int` | Version du contrat. `3` aujourd'hui (bloc `releves_utilises` ajouté, ADR-0038). À asserter côté consommateur. |
 | `filters` | `obj \| null` | Écho des filtres appliqués (`rsc`). |
 | `pagination` | `obj` | `limit`, `offset`, `returned` (lignes de cette page), `total` (lignes du mois). |
 | `data` | `array` | Les méta-périodes. |
 
-### Ligne `data` (schéma figé v2)
+### Ligne `data` (schéma figé v3)
 
 Grain : **une ligne par `(ref_situation_contractuelle, debut, fin)`** — c'est la clé
 d'upsert recommandée côté Odoo. Pas par PDL : un PDL qui change de RSC en cours de mois
@@ -95,7 +111,35 @@ porte deux lignes.
 | `has_changement` | `bool` | — | non | Changement (puissance/énergie) en cours de mois. |
 | `qualite` | `str` | — | **oui** | Qualité de l'énergie du mois (ADR-0033), rollup *pire-gagne* : `réelle` / `estimée` / `incalculable`. |
 | `statut_communication` | `str` | — | **oui** | Voie de communication du mois (ADR-0036) : `communicante` / `non_communicante`. |
-| `source_hash` | `str` (hex) | — | non | Empreinte de contenu de la ligne (cf. *Upsert non destructif*). |
+| `releves_utilises` | `array` | — | non | **Trace d'index légale** (ADR-0038) : relevés bornant le mois (cf. *Relevés utilisés*). `[]` si `qualite = incalculable`. |
+| `source_hash` | `str` (hex) | — | non | Empreinte de contenu de la ligne **et de `releves_utilises`** (cf. *Upsert non destructif*). |
+
+#### Bloc imbriqué `releves_utilises` (trace d'index légale, ADR-0038)
+
+La *Traçabilité des index* exigée par la loi : les relevés effectivement consommés par le
+calcul d'énergie qui **bornent** le mois, qu'Odoo tire et stocke (copie de travail sur
+`souscription.periode`, gel légal au posting de `account.move`). Périmètre **C5** ; le
+4-cadran C4 sera additif.
+
+Chaque entrée du tableau :
+
+| Champ | Type | Null ? | Rôle |
+|---|---|---|---|
+| `releve_id` | `str` (hex 16) | non | **Identité de relevé** (clé métier, ADR-0028) = *handle de reprise* d'une régularisation (#191). |
+| `date_releve` | `str` ISO8601 (Europe/Paris) | non | Date du relevé. |
+| `nature_index` | `str` | non | Mention légale : `réel` / `estimé` / `corrigé`. |
+| `index_base_kwh` \| `index_hp_kwh` \| `index_hc_kwh` | `int` | — | **Registres réels** (kWh) du relevé — *uniquement ceux que le compteur porte* (jamais de cadran synthétisé). Une clé absente = registre non applicable. |
+
+**Invariant « vide ssi incalculable ».** `releves_utilises` non vide **⟺**
+`qualite ∈ {réelle, estimée}` ; `qualite = incalculable` **⟹** `[]` (plein-ou-rien, miroir
+d'ADR-0033/0036 : un mois incalculable n'est pas facturé en réel, donc ne porte aucune
+paire d'index à imprimer). Un mois à **MCT** (changement de config mid-mois) porte ses
+relevés intermédiaires — le tableau n'est **pas** borné à 2 entrées.
+
+**`source_hash` couvre le tableau.** Toute dérive d'un index **imprimé**, de sa nature ou de
+son identité flippe `source_hash` — **même à delta kWh du mois constant** (reset compteur,
+correction ±k aux deux bornes). C'est ce qui rend `source_hash` = *déclencheur* +
+`releve_id` = *reprise* fidèle à la promesse de régularisation.
 
 #### Pourquoi un taux pour l'accise mais des montants pour le reste
 
@@ -136,8 +180,8 @@ manque » se fait par drill-down au grain période (hors contrat /meta-periodes)
 ## Upsert non destructif (mécanisme `source_hash`)
 
 `source_hash` est une empreinte de contenu de la ligne (sha256 tronqué sur **toutes** les
-colonnes de quantités/montants/verdicts). Il outille un upsert qui préserve le travail
-humain :
+colonnes de quantités/montants/verdicts **et le tableau `releves_utilises`**, ADR-0038). Il
+outille un upsert qui préserve le travail humain :
 
 1. Odoo stocke le `source_hash` reçu sur chaque `souscription.periode`.
 2. Au re-pull : si le `source_hash` entrant **est identique** → la source n'a pas bougé →

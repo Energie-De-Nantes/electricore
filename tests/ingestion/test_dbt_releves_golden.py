@@ -9,6 +9,7 @@ Skip si dbt absent (`uv sync --extra dbt`).
 """
 
 import json
+import re
 from pathlib import Path
 
 import duckdb
@@ -198,9 +199,53 @@ def test_releves_inclut_c15_avant_apres(base_periodiques):
     assert any(r["ordre_index"] is True for r in c15), "au moins un relevé C15 'après'"
     # RSC portée nativement par l'événement contractuel (pas de forward-fill ici).
     assert all(r["ref_situation_contractuelle"] is not None for r in c15)
-    # releve_id minté + nature canonique mappée.
-    assert all(r["releve_id"] and r["releve_id"].startswith("flux_C15|") for r in c15)
+    # releve_id minté en hash court (ADR-0038, #359) + nature canonique mappée.
+    assert all(r["releve_id"] and re.fullmatch(r"[0-9a-f]{16}", r["releve_id"]) for r in c15)
     assert all(r["nature_index"] in {"réel", "estimé", "corrigé"} for r in c15)
+
+
+def test_releve_id_est_un_hash_court_stable(base_periodiques):
+    """ADR-0038 (#359) : `releve_id` est reformaté en **hash court déterministe**
+    (`substr(md5(<source|pdl|date|discriminant>), 1, 16)`) au seam dbt, AVANT exposition.
+    Seul l'encodage change ; les composantes d'identité (ADR-0028) sont inchangées.
+
+    On vérifie le contrat observable du mart `releves` :
+    - **format** : 16 caractères hex bas-de-casse, plus aucune concaténation verbeuse
+      (`|`, timestamp+tz) — coût de stockage/affichage côté ERP réduit ;
+    - **pas de collision** : le grain `(RSC, date_releve, ordre_index)` reste injecté
+      dans des `releve_id` distincts (1 hash par relevé logique) ;
+    - **discriminant préservé** : l'avant et l'après d'un MÊME événement C15 (même source,
+      pdl, date, discriminant différent) gardent des `releve_id` DISTINCTS — preuve que le
+      discriminant reste une composante du hash (regroupement intact, `CORR ≡ BRUT`)."""
+    resultat = _build_releves(base_periodiques.parent)
+    assert resultat.success, f"dbt build releves a échoué : {resultat.exception}"
+
+    con = duckdb.connect(str(base_periodiques))
+    lignes = [
+        dict(zip([d[0] for d in cur.description], r, strict=True))
+        for cur in [con.execute("select releve_id, source, pdl, date_releve, ordre_index from flux_enedis.releves")]
+        for r in cur.fetchall()
+    ]
+    con.close()
+
+    # Format : 16 hex, jamais la concaténation verbeuse.
+    assert all(re.fullmatch(r"[0-9a-f]{16}", r["releve_id"]) for r in lignes), (
+        f"releve_id doit être un hash court 16-hex, vu : {sorted({r['releve_id'] for r in lignes})[:3]}"
+    )
+
+    # Pas de collision : autant de releve_id distincts que de relevés.
+    ids = [r["releve_id"] for r in lignes]
+    assert len(ids) == len(set(ids)) > 0, "pas de collision : 1 releve_id par relevé logique"
+
+    # Discriminant préservé : avant (False) et après (True) d'un MÊME C15 logique
+    # (même pdl + date) ont des releve_id DISTINCTS — le discriminant reste dans le hash.
+    c15 = [r for r in lignes if r["source"] == "flux_C15"]
+    par_evt: dict[tuple, set] = {}
+    for r in c15:
+        par_evt.setdefault((r["pdl"], r["date_releve"]), set()).add(r["releve_id"])
+    assert any(len(ids_evt) >= 2 for ids_evt in par_evt.values()), (
+        "un événement C15 avec avant ET après doit produire deux releve_id distincts"
+    )
 
 
 def test_releves_porte_niveau_ouverture_depuis_c15(base_periodiques):
