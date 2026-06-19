@@ -11,16 +11,23 @@
 -- `type_releve` (R64). À NE PAS confondre avec l'id d'occurrence fichier (instable,
 -- rejeté comme clé par l'ADR-0028) ni avec l'`Id_Releve` natif (provenance seule).
 --
--- Format lisible et stable : `source|pdl|date_iso|discriminant`. La date est
--- normalisée en ISO afin que la même lecture logique produise toujours la même chaîne.
+-- Format : HASH COURT déterministe `substr(md5(source|pdl|date_iso|discriminant), 1, 16)`
+-- (ADR-0038, #359). On ne change que l'ENCODAGE : les composantes d'identité (source,
+-- pdl, date, discriminant) sont strictement inchangées, donc la stabilité (re-livraison,
+-- `CORR ≡ BRUT`, dédup même-source, reprise #191) est préservée. La chaîne canonique
+-- `source|pdl|date_iso|discriminant` reste l'empreinte logique — elle n'est plus stockée
+-- telle quelle (verbeuse, timestamp+tz pénible à afficher/stocker côté ERP), mais hachée.
 --
 -- ⚠️ DÉTERMINISME / FUSEAU : `cast(timestamptz as varchar)` rend la date dans le fuseau
--- de SESSION (Paris en local, UTC en CI) → clé instable entre environnements. Les
+-- de SESSION (Paris en local, UTC en CI) → empreinte instable entre environnements. Les
 -- appelants dont la date est un `timestamptz` (R15, C15) DOIVENT la normaliser :
 -- `(date at time zone 'Europe/Paris')` (→ timestamp naïf, rendu stable). R151 passe une
--- `date` nue et R64 un `timestamp` naïf : déjà stables, pas de normalisation requise.
+-- `date` nue et R64 un `timestamp` naïf : déjà stables, pas de normalisation requise. Le
+-- hash propage le déterminisme de la chaîne : même lecture logique → même empreinte → même hash.
 {% macro mint_releve_id(source, pdl, date_releve, discriminant) %}
-    {{ source }} || '|' || {{ pdl }} || '|' || cast({{ date_releve }} as varchar) || '|' || coalesce(cast({{ discriminant }} as varchar), '')
+    substr(md5(
+        {{ source }} || '|' || {{ pdl }} || '|' || cast({{ date_releve }} as varchar) || '|' || coalesce(cast({{ discriminant }} as varchar), '')
+    ), 1, 16)
 {% endmacro %}
 
 

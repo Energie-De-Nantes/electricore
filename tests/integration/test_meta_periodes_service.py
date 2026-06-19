@@ -16,8 +16,12 @@ from electricore.core.builds.contexte_mensuel import ContexteMensuel
 PARIS = ZoneInfo("Europe/Paris")
 
 
-def _contexte_synthetique() -> ContexteMensuel:
-    """`ContexteMensuel` minimal : seuls `mois` + `facturation_mensuelle` servent au service."""
+def _contexte_synthetique(releves_utilises: pl.LazyFrame | None = None) -> ContexteMensuel:
+    """`ContexteMensuel` minimal : `mois` + `facturation_mensuelle` (+ `releves_utilises`).
+
+    `releves_utilises` par défaut vide (les tests réglementaires n'en ont pas besoin) ;
+    les tests d'index (#360) passent un frame peuplé via `_releves_utilises_synthetiques`.
+    """
     facturation = pl.DataFrame(
         {
             "ref_situation_contractuelle": ["RSC-1", "RSC-2"],
@@ -44,9 +48,39 @@ def _contexte_synthetique() -> ContexteMensuel:
         historique_enrichi=vide,
         abonnements=vide,
         energie=vide,
-        releves_utilises=vide,
+        releves_utilises=vide if releves_utilises is None else releves_utilises,
         facturation_mensuelle=facturation,
     )
+
+
+def _releves_utilises_synthetiques(decalage_index: int = 0) -> pl.LazyFrame:
+    """Frame `releves_utilises` (forme *Chronologie des relevés*, ADR-0029) pour #360.
+
+    - **RSC-1** (mois `réelle`, HP/HC) : 3 relevés bornants — début, milieu (MCT), fin —
+      pour exercer le cas MCT (> 2 entrées). `decalage_index` décale les index ABSOLUS
+      des deux bornes extrêmes du même `+k` (delta kWh du mois inchangé) → test source_hash.
+    - **RSC-2** (mois `incalculable`) : porte tout de même un relevé dans le frame, pour
+      prouver que le gate `qualite` force `[]` même quand des relevés existent.
+    - Un relevé `releve_manquant` (releve_id null) ne doit jamais ressortir.
+    """
+    k = decalage_index
+    return pl.DataFrame(
+        {
+            "ref_situation_contractuelle": ["RSC-1", "RSC-1", "RSC-1", "RSC-2"],
+            "date_releve": [
+                datetime(2025, 3, 1, tzinfo=PARIS),
+                datetime(2025, 3, 15, tzinfo=PARIS),
+                datetime(2025, 4, 1, tzinfo=PARIS),
+                datetime(2025, 3, 1, tzinfo=PARIS),
+            ],
+            "ordre_index": [False, False, False, False],
+            "releve_id": ["a1b2c3d4e5f60718", "1122334455667788", "99aabbccddeeff00", "deadbeefdeadbeef"],
+            "nature_index": ["réel", "réel", "réel", "réel"],
+            "index_base_kwh": [None, None, None, 420],
+            "index_hp_kwh": [1000 + k, 1150, 1312 + k, None],
+            "index_hc_kwh": [500 + k, 580, 645 + k, None],
+        }
+    ).lazy()
 
 
 def test_meta_periodes_expose_axes_statut(monkeypatch):
@@ -126,3 +160,66 @@ def test_meta_periodes_source_hash_change_si_quantite_change(monkeypatch):
     h_apres = apres.sort("ref_situation_contractuelle")["source_hash"][0]
 
     assert h_avant != h_apres
+
+
+# --- Relevés utilisés imbriqués (trace d'index légale, ADR-0038, #360) -------------
+
+
+def test_releves_utilises_present_si_calculable_vide_si_incalculable(monkeypatch):
+    """Invariant « vide ssi incalculable » (ADR-0038) : chaque méta-période porte un
+    tableau `releves_utilises` ; non vide ⟺ `qualite ∈ {réelle, estimée}`,
+    `incalculable ⟹ []` — plein-ou-rien, même si des relevés existent dans le frame."""
+    ctx = _contexte_synthetique(_releves_utilises_synthetiques())
+    monkeypatch.setattr(meta_periodes_service, "contexte_du_mois", lambda mois=None: ctx)
+
+    _, df = meta_periodes_service.meta_periodes("2025-03-01")
+
+    assert "releves_utilises" in df.columns
+    lignes = df.sort("ref_situation_contractuelle")
+    ru = lignes["releves_utilises"].to_list()
+
+    # RSC-1 (réelle) → tableau non vide avec ses relevés bornants.
+    assert len(ru[0]) >= 1
+    # RSC-2 (incalculable) → [] même si un relevé existe dans le frame.
+    assert ru[1] == []
+
+    # Objet relevé = { releve_id, date_releve, nature_index, registres RÉELS uniquement }.
+    premier = ru[0][0]
+    assert set(premier) == {"releve_id", "date_releve", "nature_index", "index_hp_kwh", "index_hc_kwh"}
+    assert "index_base_kwh" not in premier  # registre nul → jamais exposé
+    assert premier["releve_id"] == "a1b2c3d4e5f60718"
+    assert premier["nature_index"] == "réel"
+    assert "2025-03-01" in str(premier["date_releve"])
+
+
+def test_releves_utilises_inclut_releves_intermediaires_mct(monkeypatch):
+    """Mois à MCT : les relevés intermédiaires utilisés figurent dans le tableau — il
+    n'est PAS limité à 2 entrées (ADR-0038). RSC-1 porte début + milieu + fin."""
+    ctx = _contexte_synthetique(_releves_utilises_synthetiques())
+    monkeypatch.setattr(meta_periodes_service, "contexte_du_mois", lambda mois=None: ctx)
+
+    _, df = meta_periodes_service.meta_periodes("2025-03-01")
+    ru_rsc1 = df.sort("ref_situation_contractuelle")["releves_utilises"].to_list()[0]
+
+    assert len(ru_rsc1) == 3, f"MCT : 3 relevés bornants attendus, vu {len(ru_rsc1)}"
+    dates = [str(o["date_releve"]) for o in ru_rsc1]
+    assert any("2025-03-15" in d for d in dates), "le relevé intermédiaire (MCT) doit figurer"
+
+
+def test_source_hash_couvre_releves_utilises_a_delta_kwh_constant(monkeypatch):
+    """`source_hash` couvre le tableau imbriqué (ADR-0038) : une correction ±k des index
+    absolus AUX DEUX BORNES fait flipper le hash **alors même que le delta kWh du mois est
+    inchangé** (la facturation mensuelle est identique). Sans le repli du tableau dans le
+    hash, les deux états seraient indistinguables."""
+    base = _contexte_synthetique(_releves_utilises_synthetiques(decalage_index=0))
+    monkeypatch.setattr(meta_periodes_service, "contexte_du_mois", lambda mois=None: base)
+    _, avant = meta_periodes_service.meta_periodes("2025-03-01")
+    h_avant = avant.sort("ref_situation_contractuelle")["source_hash"][0]
+
+    # Même facturation mensuelle (delta kWh constant), seuls les index absolus des bornes bougent.
+    decale = _contexte_synthetique(_releves_utilises_synthetiques(decalage_index=100))
+    monkeypatch.setattr(meta_periodes_service, "contexte_du_mois", lambda mois=None: decale)
+    _, apres = meta_periodes_service.meta_periodes("2025-03-01")
+    h_apres = apres.sort("ref_situation_contractuelle")["source_hash"][0]
+
+    assert h_avant != h_apres, "une dérive d'index imprimé à delta constant doit flipper source_hash"
