@@ -9,7 +9,7 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
-## [3.1.0rc1] - 2026-06-19
+## [3.1.0] - 2026-06-19
 
 Trousseau de clés AES (ADR-0037) : déverrouille l'ingestion bloquée depuis la bascule
 Enedis **AES-128 → AES-256 (8-9 juin 2026)** et met fin à l'échec de déchiffrement silencieux.
@@ -35,6 +35,17 @@ Enedis **AES-128 → AES-256 (8-9 juin 2026)** et met fin à l'échec de déchif
   anciennes clés AES-128 deviennent des entrées labellisées du trousseau, l'archive historique
   reste déchiffrable. Migration opérateur (réécriture du `.env` + resync) : **#354**.
   Le validateur de déploiement (`deploy/lib/env_validate.sh`) attend désormais le format trousseau.
+
+### 🐛 Corrections
+
+- **Message de l'ETL test de déploiement honnête** : l'étape `ETL test` (`mode test`)
+  affichait « clés AES OK » alors qu'elle n'échantillonne que 2 fichiers dans l'ordre de
+  listing (non trié par date) — sur un état dlt vierge, des fichiers anciens (AES-128) que
+  n'importe quelle clé legacy déchiffre. Un trou de clé courante (ex. AES-256 manquante)
+  passait donc le test au vert. Le message reflète désormais ce qui est réellement prouvé
+  (chaîne SFTP→déchiffrement→DuckDB OK sur un échantillon) et invite à un **resync** pour
+  valider la couverture du trousseau. Correctif message uniquement (`install.sh`,
+  `lib/ingestion.sh`), pas de changement de comportement.
 
 ## [3.0.0] - 2026-06-18
 
