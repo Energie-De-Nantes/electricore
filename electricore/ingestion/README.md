@@ -21,10 +21,10 @@ electricore/ingestion/
 │   └── settings.py
 ├── runner.py            # Ingestion (landing brut → dbt build)
 ├── __main__.py          # CLI : python -m electricore.ingestion
-├── dbt/                    # Modèles dbt (staging + flux_*)
-└── .dlt/
-    ├── config.toml
-    └── secrets.toml        # Clés AES + URL SFTP (non commité)
+└── dbt/                    # Modèles dbt (staging + flux_*)
+
+# Secrets (trousseau AES, URL SFTP) : variables d'environnement / .env à la racine
+# du dépôt (le support .dlt/secrets.toml a été retiré, #141).
 ```
 
 ## Utilisation
