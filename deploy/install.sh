@@ -268,7 +268,8 @@ main() {
     # ─── Étape 12 : ETL test ────────────────────────────────────────────────
     log_step "ETL test (mode test, ~3s)"
     if run_ingestion_test "$OPT_SLUG"; then
-        log_ok "ETL test réussi — clés AES OK, SFTP accessible, DuckDB écrit."
+        log_ok "ETL test réussi — chaîne SFTP→déchiffrement→DuckDB OK sur un échantillon (2 fichiers)."
+        log_warn "Échantillon non daté → ne garantit PAS la couverture du trousseau AES ; lancer un resync pour valider la clé courante."
     else
         log_err "ETL test échoué — la stack tourne mais la chaîne ETL ne valide pas."
         show_ingestion_failure_hints "$OPT_SLUG"

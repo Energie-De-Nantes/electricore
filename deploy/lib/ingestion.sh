@@ -1,6 +1,8 @@
 # shellcheck shell=bash
-# Lancement d'un ETL test pour valider la chaîne complète :
-# SFTP/file accessible → clés AES correctes → DuckDB écrit.
+# Lancement d'un ETL test (mode test = échantillon de 2 fichiers/flux) pour vérifier
+# que la chaîne SFTP/file → déchiffrement AES → DuckDB répond. ATTENTION : l'échantillon
+# n'est pas trié par date → il ne valide PAS la couverture du trousseau AES (une clé
+# courante manquante peut passer inaperçue). Validation réelle = resync (cf. install.sh).
 
 # run_ingestion_test <slug>
 # Appelle POST /ingestion/run mode=test via le scheduler. Renvoie 0 si succès,
