@@ -273,6 +273,13 @@ assert_fail "validate_env_file (fixture invalide)" validate_env_file "${FIXTURES
 assert_fail "validate_env_file (slug mismatch)"    validate_env_file "${FIXTURES_DIR}/env-valid" "wrong-slug"
 assert_fail "validate_env_file (fichier absent)"   validate_env_file "/nonexistent" "edn"
 
+# IV optionnel (ADR-0040) : une clé AES-256 SANS __IV (schéma IV-préfixé) est déjà acceptée
+# par la fixture env-valid ci-dessus. Inversement, un __IV présent mais non-hex doit échouer.
+tmp_env=$(mktemp); cp "${FIXTURES_DIR}/env-valid" "$tmp_env"
+echo "AES__TROUSSEAU__aes256_2026__IV=zzzz" >> "$tmp_env"
+assert_fail "validate_env_file (__IV présent mais non-hex)" validate_env_file "$tmp_env" "edn"
+rm -f "$tmp_env"
+
 # prepend_errors_to_env doit insérer un bloc en tête sans dupliquer si rappelée
 tmp_env=$(mktemp); cp "${FIXTURES_DIR}/env-template" "$tmp_env"
 prepend_errors_to_env "$tmp_env" $'erreur A\nerreur B'

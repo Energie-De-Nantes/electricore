@@ -351,9 +351,9 @@ API_KEY=votre_cle_api_secrete
 SFTP__URL=sftp://utilisateur:mot_de_passe@hote:22/chemin
 # Trousseau de clés AES (ADR-0037) : un <label> parlant par clé, sélection par essai.
 # Garder les anciennes clés dans le trousseau préserve l'accès aux archives passées.
-AES__TROUSSEAU__aes256_2026__KEY=cle_hex_fournie_par_enedis
-AES__TROUSSEAU__aes256_2026__IV=iv_hex_fourni_par_enedis
-# AES__TROUSSEAU__aes128_2024__KEY=ancienne_cle_hex
+# __IV optionnel (ADR-0040) : absent ⇒ schéma IV-préfixé (AES-256) ; présent ⇒ IV-fixe (AES-128).
+AES__TROUSSEAU__aes256_2026__KEY=cle_hex_fournie_par_enedis   # AES-256 : pas de __IV
+# AES__TROUSSEAU__aes128_2024__KEY=ancienne_cle_hex           # AES-128 : clé + IV
 # AES__TROUSSEAU__aes128_2024__IV=ancien_iv_hex
 
 # === ODOO — pour les calculs CTA/Accise et la réconciliation ===

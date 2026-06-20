@@ -20,7 +20,7 @@ bot ; le runner valide `sftp`+`aes`+`duckdb`).
 | variable | rôle | défaut |
 |---|---|---|
 | `SFTP__URL` | URL SFTP Enedis (`sftp://user:pass@host/chemin` ou `file:///...` pour des zips locaux) | — (requis) |
-| `AES__TROUSSEAU__<label>__KEY` / `__IV` | une clé AES (hex) du trousseau ; 16 octets (AES-128) ou 32 (AES-256) ; `<label>` parlant choisi par l'opérateur (`aes256_2026`, `aes128_2024`…) | — (≥ 1 requis) |
+| `AES__TROUSSEAU__<label>__KEY` (+ `__IV` optionnel) | une clé AES (hex) du trousseau ; 16 octets (AES-128) ou 32 (AES-256) ; `<label>` parlant choisi par l'opérateur (`aes256_2026`, `aes128_2024`…). `__IV` **optionnel** (ADR-0040) : présent ⇒ schéma IV-fixe ; absent ⇒ schéma IV-préfixé (AES-256) | — (≥ 1 `__KEY` requis) |
 
 Le délimiteur `__` est l'`env_nested_delimiter` natif de pydantic-settings : `AES__TROUSSEAU__aes256_2026__KEY`
 → entrée `trousseau["aes256_2026"].key`. Le trousseau accepte un nombre arbitraire de clés ; la bonne

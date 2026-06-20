@@ -50,21 +50,27 @@ validate_env_file() {
     validate_url "$sftp" || \
         errors+=("SFTP__URL invalide (attendu sftp://… ou file://…) : '${sftp}'")
 
-    # Trousseau AES (ADR-0037) : ≥ 1 paire AES__TROUSSEAU__<label>__{KEY,IV}, chacune en
-    # hex 32 (AES-128) ou 64 (AES-256). Les <label> sont arbitraires → on les découvre dans
-    # le fichier (les lignes commentées `#` sont ignorées par l'ancrage `^[[:space:]]*`).
-    local labels label
+    # Trousseau AES (ADR-0037, ADR-0040) : ≥ 1 clé AES__TROUSSEAU__<label>__KEY en hex 32
+    # (AES-128) ou 64 (AES-256). L'IV (__IV) est OPTIONNEL : présent ⇒ schéma IV-fixe ;
+    # absent ⇒ schéma IV-préfixé (AES-256, l'IV est en tête de chaque fichier). Les <label>
+    # sont arbitraires → on les découvre dans le fichier (lignes `#` ignorées par l'ancrage).
+    local labels label key iv
     mapfile -t labels < <(
         grep -oE '^[[:space:]]*AES__TROUSSEAU__.+__KEY[[:space:]]*=' "$file" 2>/dev/null \
             | sed -E 's/^[[:space:]]*AES__TROUSSEAU__(.+)__KEY[[:space:]]*=.*/\1/' | sort -u
     )
     if [[ ${#labels[@]} -eq 0 ]]; then
-        errors+=("trousseau AES vide : ajoutez au moins une paire AES__TROUSSEAU__<label>__{KEY,IV} (hex 32 ou 64)")
+        errors+=("trousseau AES vide : ajoutez au moins une clé AES__TROUSSEAU__<label>__KEY (hex 32 ou 64)")
     else
         for label in "${labels[@]}"; do
-            validate_aes_key "$(read_env_var "$file" "AES__TROUSSEAU__${label}__KEY")" \
-                && validate_aes_iv "$(read_env_var "$file" "AES__TROUSSEAU__${label}__IV")" \
-                || errors+=("AES__TROUSSEAU__${label}__{KEY,IV} absent ou pas en hex 32/64 chars")
+            key=$(read_env_var "$file" "AES__TROUSSEAU__${label}__KEY")
+            iv=$(read_env_var "$file" "AES__TROUSSEAU__${label}__IV")
+            if ! validate_aes_key "$key"; then
+                errors+=("AES__TROUSSEAU__${label}__KEY absent ou pas en hex 32/64 chars")
+            elif [[ -n "$iv" ]] && ! validate_aes_iv "$iv"; then
+                # IV optionnel (ADR-0040) : absent ⇒ schéma IV-préfixé. Présent ⇒ doit être valide.
+                errors+=("AES__TROUSSEAU__${label}__IV présent mais pas en hex 32/64 (retire-le pour le schéma IV-préfixé AES-256)")
+            fi
         done
     fi
 

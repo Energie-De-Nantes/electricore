@@ -48,10 +48,10 @@ SFTP__URL=sftp://user:pass@host/path/
 
 # Trousseau de clés AES (ADR-0037) : un <label> parlant par clé, sélection par essai.
 # Garder les anciennes clés préserve l'accès aux archives passées.
-AES__TROUSSEAU__aes256_2026__KEY=cle_hex_64   # AES-256 (32 octets)
-AES__TROUSSEAU__aes256_2026__IV=iv_hex_32
+# __IV optionnel (ADR-0040) : absent ⇒ schéma IV-préfixé (AES-256) ; présent ⇒ IV-fixe (AES-128).
+AES__TROUSSEAU__aes256_2026__KEY=cle_hex_64   # AES-256 (32 octets), SANS __IV (IV-préfixé)
 AES__TROUSSEAU__aes128_2024__KEY=cle_hex_32   # AES-128 historique (16 octets)
-AES__TROUSSEAU__aes128_2024__IV=iv_hex_32
+AES__TROUSSEAU__aes128_2024__IV=iv_hex_32     # IV-fixe
 ```
 
 ## Flux supportés

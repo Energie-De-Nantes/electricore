@@ -114,7 +114,7 @@ marquées `# TODO:`. Voici la table de référence (cf. aussi
 | Variable | Notes |
 |---|---|
 | `AES__TROUSSEAU__<label>__KEY` | Hex 32 (AES-128) ou 64 (AES-256) chars. `<label>` parlant (`aes256_2026`…). |
-| `AES__TROUSSEAU__<label>__IV`  | Hex 32 chars. |
+| `AES__TROUSSEAU__<label>__IV`  | Hex 32 chars. **Optionnel** : présent ⇒ schéma IV-fixe (AES-128) ; **absent ⇒ schéma IV-préfixé** (AES-256, l'IV est en tête de chaque fichier — ADR-0040). |
 | (autres labels) | Conserver les anciennes clés dans le trousseau tant que des archives chiffrées avec elles peuvent être (re)téléchargées. |
 
 **Bot Telegram** (optionnel)
@@ -534,8 +534,10 @@ sélectionnée par essai (aucune date, aucun protocole).
    nouveau label, sans retirer les anciennes :
 
    ```
+   # AES-256 (depuis juin 2026) : Enedis ne fournit QUE la clé, sans IV → pas de __IV.
+   # Schéma IV-préfixé (ADR-0040) : l'IV est en tête de chaque fichier. NE PAS mettre d'__IV.
    AES__TROUSSEAU__aes256_2026__KEY=nouvelle_cle_hex
-   AES__TROUSSEAU__aes256_2026__IV=nouvel_iv_hex
+   # AES-128 (archives chiffrées avant juin 2026) : clé + IV fournis (schéma IV-fixe).
    AES__TROUSSEAU__aes128_2024__KEY=ancienne_cle_hex
    AES__TROUSSEAU__aes128_2024__IV=ancien_iv_hex
    ```
