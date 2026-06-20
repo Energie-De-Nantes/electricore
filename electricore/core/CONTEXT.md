@@ -309,8 +309,8 @@ Socle transverse : le module canonique du registre runtime ([ADR-0024](../../doc
 ## Concepts pipeline
 
 **Historique** :
-Séquence temporelle ordonnée des événements contractuels d'un PDL (entrées, sorties, modifications), enrichie pour la facturation : annotation des impacts métier (abonnement, énergie), résumé des modifications, et frontières mensuelles de facturation. Source : flux C15. C'est le concept canonique — la version brute (sortie directe de C15) n'a pas de nom métier autonome.
-_Éviter_ : journal, log contractuel, périmètre (le périmètre est l'état à une date, pas la séquence).
+Séquence temporelle ordonnée des faits contractuels d'une situation (RSC), enrichie pour la **branche abonnement** : annotation de l'impact abonnement (`impacte_abonnement`) et résumé des modifications. Depuis [ADR-0041](../../docs/adr/0041-chronologie-contrat-spine-relationnelle-dbt.md) (#378), c'est la **spine** de la *Chronologie du contrat* (événements C15 ∪ grille FACTURATION mensuelle, situation forward-fillée **en dbt**) filtrée à l'horizon — `pipeline_historique` n'y ajoute plus que la détection de ruptures d'abonnement (`detecter_points_de_rupture`). La branche **énergie** a quitté ce concept (plus d'`impacte_energie` ni de colonnes d'index/calendrier) : elle vit dans la *Chronologie des relevés*. Sortie validée par le schéma `Historique`.
+_Éviter_ : journal, log contractuel, périmètre (le périmètre est l'état à une date, pas la séquence) ; croire qu'il porte encore la branche énergie (`impacte_energie`, index — partis en dbt).
 
 **Périmètre** :
 Ensemble des PDLs actifs (et de leur configuration contractuelle) à une date donnée. Snapshot dérivé de l'Historique par filtrage temporel. Répond à la question « qui était dans notre portefeuille à la date X ? ».

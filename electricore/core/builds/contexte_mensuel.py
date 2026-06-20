@@ -28,7 +28,7 @@ import pandera.polars as pa
 import polars as pl
 from pandera.typing.polars import DataFrame
 
-from electricore.core.loaders import c15, chronologie
+from electricore.core.loaders import chronologie, spine
 from electricore.core.models.cadrans import col_energie
 from electricore.core.models.lignes_facture import LignesFacture
 from electricore.core.models.lignes_facture_rapprochees import LignesFactureRapprochees
@@ -95,25 +95,26 @@ class ContexteMensuel:
 
 
 def _composer(
-    historique: pl.LazyFrame, chronologie_mart: pl.LazyFrame, horizon: dt.datetime
+    spine_mart: pl.LazyFrame, chronologie_mart: pl.LazyFrame, horizon: dt.datetime
 ) -> tuple[pl.LazyFrame, pl.LazyFrame, pl.LazyFrame, pl.LazyFrame, pl.LazyFrame]:
     """Compose la séquence canonique des pipelines de facturation.
 
-    `pipeline_historique` (1 fois, borné par `horizon`) → `pipeline_abonnements` (sur
-    l'historique enrichi) + `pipeline_energie` (sur la *Chronologie des relevés* dbt,
-    bornée à l'horizon) → `pipeline_facturation` (agrégation mensuelle, toujours lazy).
-    Retourne les 5 LazyFrames dans l'ordre `(historique_enrichi, abonnements, energie,
-    releves_utilises, facturation_mensuelle)`. La matérialisation de `facturation_mensuelle`
-    est portée par `charger()`, au boundary du build (ADR-0019).
+    `pipeline_historique` (1 fois, sur la **spine** dbt bornée à l'horizon) →
+    `pipeline_abonnements` (sur l'historique enrichi) + `pipeline_energie` (sur la
+    *Chronologie des relevés* dbt, bornée à l'horizon) → `pipeline_facturation` (agrégation
+    mensuelle, toujours lazy). Retourne les 5 LazyFrames dans l'ordre `(historique_enrichi,
+    abonnements, energie, releves_utilises, facturation_mensuelle)`. La matérialisation de
+    `facturation_mensuelle` est portée par `charger()`, au boundary du build (ADR-0019).
 
     L'`horizon` est résolu *une seule fois* par l'appelant (`charger`) au boundary I/O et
-    passé explicitement. La *Chronologie des relevés* (mart dbt, ADR-0041) est
-    horizon-INDÉPENDANTE : on la **filtre ici** (`date_releve <= horizon`) — l'horizon reste
-    un filtre, pas un input de génération (pureté #179). `releves_utilises` est **la même
-    frame** que l'entrée de l'énergie → « relevés tracés = relevés utilisés » par construction
-    (#377, fin de la double-assemblée).
+    passé explicitement. Les deux marts dbt (spine de la *Chronologie du contrat* + *Chronologie
+    des relevés*, ADR-0041) sont horizon-INDÉPENDANTS : on les **filtre ici** — l'horizon reste
+    un filtre, pas un input de génération (pureté #179). `pipeline_historique` applique lui-même
+    le filtre `date_evenement <= horizon` sur la spine. `releves_utilises` est **la même frame**
+    que l'entrée de l'énergie → « relevés tracés = relevés utilisés » par construction (#377,
+    fin de la double-assemblée).
     """
-    historique_enrichi = pipeline_historique(historique, horizon=horizon)
+    historique_enrichi = pipeline_historique(spine_mart, horizon=horizon)
     abonnements = pipeline_abonnements(historique_enrichi)
     # Horizon = filtre au boundary (le mart va jusqu'à une borne généreuse, ADR-0041).
     chronologie_horizon = chronologie_mart.filter(pl.col("date_releve") <= pl.lit(horizon))
@@ -125,7 +126,7 @@ def _composer(
 
 
 def charger(
-    historique: pl.LazyFrame,
+    spine: pl.LazyFrame,
     chronologie: pl.LazyFrame,
     mois: str | None = None,
     horizon: dt.datetime | None = None,
@@ -133,7 +134,9 @@ def charger(
     """Compose les pipelines de facturation et résout le mois cible.
 
     Args:
-        historique: événements C15 (sortie de `c15().lazy()` côté DuckDB).
+        spine: spine de la *Chronologie du contrat* (mart dbt, sortie de `spine().lazy()`),
+            horizon-indépendante — `pipeline_historique` la borne à l'horizon. Alimente la
+            branche abonnement (ADR-0041 #378).
         chronologie: *Chronologie des relevés* (mart dbt, sortie de `chronologie().lazy()`),
             horizon-indépendante — `_composer` la borne à l'horizon. Alimente l'énergie ET
             `releves_utilises` (même source, ADR-0041 #377).
@@ -149,7 +152,7 @@ def charger(
         horizon = horizon_par_defaut()
 
     historique_enrichi, abonnements, energie, releves_utilises, facturation_mensuelle_lf = _composer(
-        historique, chronologie, horizon
+        spine, chronologie, horizon
     )
 
     # Matérialisation au boundary du build (ADR-0019) : pipeline_facturation
@@ -173,8 +176,8 @@ def charger(
 def contexte_du_mois(mois: str | None = None, horizon: dt.datetime | None = None) -> ContexteMensuel:
     """Entrée I/O du contexte mensuel : sources par défaut puis `charger()` (#145).
 
-    Résout les deux sources canoniques (loaders DuckDB `c15` et `chronologie`,
-    cette dernière = mart *Chronologie des relevés* dbt, ADR-0041) et délègue la
+    Résout les deux marts canoniques (loaders DuckDB `spine` et `chronologie` — spine de la
+    *Chronologie du contrat* et *Chronologie des relevés* dbt, ADR-0041) et délègue la
     composition à `charger()`. Qui dispose déjà de frames (tests, notebooks, autre
     source) appelle `charger()` directement.
 
@@ -188,7 +191,7 @@ def contexte_du_mois(mois: str | None = None, horizon: dt.datetime | None = None
         FileNotFoundError: si la base DuckDB est absente (levée par les loaders
             à l'appel — leur `.lazy()` exécute la lecture immédiatement).
     """
-    return charger(c15().lazy(), chronologie().lazy(), mois=mois, horizon=horizon)
+    return charger(spine().lazy(), chronologie().lazy(), mois=mois, horizon=horizon)
 
 
 @pa.check_types(lazy=True)

@@ -4,9 +4,9 @@ Capturent l'état complet de la sortie des pipelines `historique` / `abonnements
 `energie` et alertent si le comportement change. Utilise syrupy.
 
 Le harnais compose les pipelines comme la production (`pipeline_historique` →
-`pipeline_abonnements` / `pipeline_energie`) sur des **fixtures conformes** (historique
-C15 brut complet, relevés au **modèle canonique** ADR-0029 avec C15), avec un **horizon
-de facturation explicite** : à horizon fixé, la sortie ne dépend pas de l'heure
+`pipeline_abonnements` / `pipeline_energie`) sur des **fixtures conformes** (spine de la
+*Chronologie du contrat* ADR-0041, relevés au **modèle canonique** ADR-0029), avec un
+**horizon de facturation explicite** : à horizon fixé, la sortie ne dépend pas de l'heure
 d'exécution (ADR-0019, #179) — condition *sine qua non* d'un snapshot déterministe.
 
 Pour (re)générer les snapshots : `pytest tests/integration/test_pipelines_snapshot.py --snapshot-update`
@@ -26,9 +26,23 @@ from electricore.core.pipelines.historique import pipeline_historique
 
 PARIS = ZoneInfo("Europe/Paris")
 
-# Horizon de facturation figé : rend la génération des FACTURATION (et donc le snapshot)
-# déterministe, indépendante de l'horloge murale (#179).
+# Horizon de facturation figé : rend le filtre des FACTURATION (et donc le snapshot)
+# déterministe, indépendant de l'horloge murale (#179).
 HORIZON = dt.datetime(2025, 1, 1, tzinfo=PARIS)
+
+# Bornes de la grille FACTURATION pré-générée par la spine (au-delà de l'horizon : le
+# filtre du cœur coupe l'excédent). Mirroir simplifié du mart `spine_contrat` (#375).
+_BORNE_GENEREUSE = dt.datetime(2025, 3, 1)
+_ENTREES = {"CFNE", "MES", "PMES"}
+_SORTIES = {"RES", "CFNS"}
+_SITUATION = (
+    "puissance_souscrite_kva",
+    "formule_tarifaire_acheminement",
+    "etat_contractuel",
+    "segment_clientele",
+    "type_compteur",
+    "num_compteur",
+)
 
 
 # =========================================================================
@@ -36,43 +50,82 @@ HORIZON = dt.datetime(2025, 1, 1, tzinfo=PARIS)
 # =========================================================================
 
 
-def historique_brut(evenements: list[dict]) -> pl.LazyFrame:
-    """Historique C15 brut complet (entrée de `pipeline_historique`).
+def _premier_du_mois(d: dt.datetime) -> dt.datetime:
+    return dt.datetime(d.year, d.month, 1)
 
-    Chaque dict porte `ref`, `pdl`, `date` (datetime *naïf* → Europe/Paris),
-    `evenement`, `puissance`, `fta`. Les colonnes `avant_/apres_` (calendrier + index
-    par cadran) exigées par l'enrichissement sont à `None` (cas nominal sans rupture
-    d'index) ; les non-nullables du schéma `Historique` ont des valeurs plausibles.
-    """
-    n = len(evenements)
-    data: dict[str, list] = {
-        "pdl": [e["pdl"] for e in evenements],
-        "ref_situation_contractuelle": [e["ref"] for e in evenements],
-        "date_evenement": [e["date"] for e in evenements],
-        "evenement_declencheur": [e["evenement"] for e in evenements],
-        "type_evenement": [e.get("type_evenement", "reel") for e in evenements],
-        "etat_contractuel": [e.get("etat", "EN SERVICE") for e in evenements],
-        "segment_clientele": [e.get("segment", "C5") for e in evenements],
-        "puissance_souscrite_kva": [e["puissance"] for e in evenements],
-        "formule_tarifaire_acheminement": [e["fta"] for e in evenements],
-        "type_compteur": [e.get("type_compteur", "LINKY") for e in evenements],
-        "num_compteur": [e.get("num_compteur", "C0000001") for e in evenements],
-        "avant_id_calendrier_distributeur": [None] * n,
-        "apres_id_calendrier_distributeur": [None] * n,
-    }
-    schema_overrides: dict[str, pl.DataType] = {
-        "avant_id_calendrier_distributeur": pl.Utf8,
-        "apres_id_calendrier_distributeur": pl.Utf8,
-    }
-    for cadran in CADRANS:
-        data[f"avant_{col_index(cadran)}"] = [None] * n
-        data[f"apres_{col_index(cadran)}"] = [None] * n
-        schema_overrides[f"avant_{col_index(cadran)}"] = pl.Int64
-        schema_overrides[f"apres_{col_index(cadran)}"] = pl.Int64
 
-    return pl.LazyFrame(data, schema_overrides=schema_overrides).with_columns(
-        pl.col("date_evenement").dt.replace_time_zone("Europe/Paris")
-    )
+def _ajoute_mois(d: dt.datetime, n: int) -> dt.datetime:
+    total = d.month - 1 + n
+    return dt.datetime(d.year + total // 12, total % 12 + 1, 1)
+
+
+def spine_brut(evenements: list[dict]) -> pl.LazyFrame:
+    """Spine de la *Chronologie du contrat* (forme du mart `spine_contrat`, ADR-0041).
+
+    Entrée de `pipeline_historique`. Chaque dict porte `ref`, `pdl`, `date` (datetime *naïf*
+    → Europe/Paris), `evenement`, `puissance`, `fta`. La fonction matérialise la **grille
+    FACTURATION** (1ᵉʳ de chaque mois de l'entrée+1mois à la résiliation, sinon une borne
+    généreuse) avec la **situation forward-fillée**, comme le ferait le mart dbt — pas de
+    colonne d'index/calendrier (branche énergie, hors spine)."""
+
+    def _norm(e: dict) -> dict:
+        return {
+            "ref": e["ref"],
+            "pdl": e["pdl"],
+            "date": e["date"],
+            "evenement": e["evenement"],
+            "type_evenement": e.get("type_evenement", "reel"),
+            "puissance_souscrite_kva": e["puissance"],
+            "formule_tarifaire_acheminement": e["fta"],
+            "etat_contractuel": e.get("etat", "EN SERVICE"),
+            "segment_clientele": e.get("segment", "C5"),
+            "type_compteur": e.get("type_compteur", "LINKY"),
+            "num_compteur": e.get("num_compteur", "C0000001"),
+        }
+
+    evts = [_norm(e) for e in evenements]
+    faits: list[dict] = [{**e, "source": "flux_C15", "type_fait": "evenement"} for e in evts]
+
+    # Grille FACTURATION par RSC, situation forward-fillée (dernier événement at-or-before).
+    par_ref: dict[str, list[dict]] = {}
+    for e in evts:
+        par_ref.setdefault(e["ref"], []).append(e)
+    for ref, groupe in par_ref.items():
+        groupe = sorted(groupe, key=lambda x: x["date"])
+        entrees = [g["date"] for g in groupe if g["evenement"] in _ENTREES]
+        if not entrees:
+            continue
+        sorties = [g["date"] for g in groupe if g["evenement"] in _SORTIES]
+        fin = max(sorties) if sorties else _BORNE_GENEREUSE
+        mois = _ajoute_mois(min(entrees), 1)
+        dernier = _premier_du_mois(fin)
+        while mois <= dernier:
+            situ = [g for g in groupe if g["date"] <= mois][-1]
+            faits.append(
+                {
+                    "ref": ref,
+                    "pdl": groupe[0]["pdl"],
+                    "date": mois,
+                    "evenement": "FACTURATION",
+                    "type_evenement": "artificiel",
+                    "source": "synthese_mensuelle",
+                    "type_fait": "facturation",
+                    **{k: situ[k] for k in _SITUATION},
+                }
+            )
+            mois = _ajoute_mois(mois, 1)
+
+    data = {
+        "date_evenement": [f["date"] for f in faits],
+        "pdl": [f["pdl"] for f in faits],
+        "ref_situation_contractuelle": [f["ref"] for f in faits],
+        "source": [f["source"] for f in faits],
+        "type_fait": [f["type_fait"] for f in faits],
+        "evenement_declencheur": [f["evenement"] for f in faits],
+        "type_evenement": [f["type_evenement"] for f in faits],
+        **{k: [f[k] for f in faits] for k in _SITUATION},
+    }
+    return pl.LazyFrame(data).with_columns(pl.col("date_evenement").dt.replace_time_zone("Europe/Paris"))
 
 
 def releves_periodiques(
@@ -109,7 +162,7 @@ def releves_periodiques(
 @pytest.fixture
 def historique_snapshot_test() -> pl.LazyFrame:
     """Scénario : 2 PDL en 2024, un en BASE (ouvert), un en HP/HC (résilié)."""
-    return historique_brut(
+    return spine_brut(
         [
             {
                 "ref": "REF001",
@@ -275,7 +328,7 @@ def test_pipeline_energie_aggrege_snapshot(chronologie_snapshot_test: pl.LazyFra
 @pytest.mark.integration
 def test_pipeline_historique_pdl_unique_snapshot(snapshot: SnapshotAssertion):
     """Snapshot avec un seul PDL et un seul événement (MES)."""
-    historique_minimal = historique_brut(
+    historique_minimal = spine_brut(
         [
             {
                 "ref": "REF999",
@@ -294,7 +347,7 @@ def test_pipeline_historique_pdl_unique_snapshot(snapshot: SnapshotAssertion):
 @pytest.mark.integration
 def test_pipeline_abonnements_annee_complete_snapshot(snapshot: SnapshotAssertion):
     """Snapshot d'une année complète sans changement (MES → RES)."""
-    historique_stable = historique_brut(
+    historique_stable = spine_brut(
         [
             {
                 "ref": "REF888",
