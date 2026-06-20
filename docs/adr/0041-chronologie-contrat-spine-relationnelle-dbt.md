@@ -1,0 +1,49 @@
+# Chronologie du contrat : spine relationnelle assemblée en dbt (situation + grille FACTURATION descendues)
+
+## Statut
+
+accepted — **révise** [ADR-0039](0039-chronologie-substrat-attributs-situation-hors-mart.md) (qui gardait l'attribution de situation *au cœur*) en **prolongeant son intention** : la *Chronologie du contrat* devient un substrat **relationnel assemblé en dbt**. Aligne sur [ADR-0029](0029-modele-releves-canonique-dbt-assemble-coeur-arbitre.md) / [ADR-0020](0020-linearisation-en-dbt.md) (l'assemblage relationnel vit en dbt, le cœur arbitre). Préserve [ADR-0023](0023-periodisations-separees-abonnement-energie.md) (périodisations séparées) et la pureté d'horizon d'[ADR-0019](0019-roles-loaders-pipelines-builds-integrations.md) / #179.
+
+## Contexte
+
+À l'ère « tout-dataframe », la *Chronologie des relevés* (ligne de temps énergie) était **ré-assemblée** à l'intérieur de `pipeline_energie` (`_assembler_chronologie`), puis **une seconde fois** par `_composer` pour produire `releves_utilises` (la trace d'index). Deux sous-graphes LazyFrame indépendants, collectés séparément → **même assemblage exécuté deux fois**, et surtout : « les relevés tracés = les relevés que l'énergie a utilisés » ne tenait que **par convention** (mêmes arguments aux deux sites), pas par construction. Étendre ce schéma à la part fixe et à la timeline consultable aurait généré les **événements FACTURATION en trois endroits** — la même classe de duplication.
+
+Le réflexe « fusionner une bonne fois en une timeline » bute sur la donnée réelle. Largeur effective des sources de faits (schémas Pandera actuels) : événements C15 ≈ **49** colonnes, relevés ≈ **19**, jalons d'affaire ≈ **11**. Une frame large unique (*Single-Table Inheritance*) ≈ **66 colonnes aujourd'hui, ~80 avec d'autres sources**, chaque ligne **70–85 % nulle** (une ligne événement est nulle sur tous les `index_*`, une ligne relevé est nulle sur tous les attributs d'événement). Symptôme textbook de STI quand les sous-types **partagent peu** (ici ~10 colonnes d'épine sur 66).
+
+Or **on est dans un store relationnel** : `flux_c15`, le mart canonique `releves` (ADR-0029), `flux_affaires` sont **déjà des relations** en DuckDB. Le problème n'est pas une *forme de frame*, c'est une *modélisation relationnelle*. Et l'argument d'ADR-0039 pour garder l'attribution de situation au cœur (« un forward-fill en dbt **duplique** l'historique que le cœur dérive déjà ») était **contingent de l'approche dataframe** : il ne tient que si cœur *et* dbt forward-fillent. Si dbt en devient le **propriétaire unique** et que le cœur **cesse** de re-dériver, c'est un *déménagement* vers l'étage d'assemblage (ADR-0029/0020), pas une duplication ; et un forward-fill sur la **timeline d'événements complète** (MDPRM compris) n'est plus le « collage sur des lectures » qu'ADR-0039 corrigeait — c'est le substrat lui-même.
+
+## Décision
+
+**La *Chronologie du contrat* est une *spine* relationnelle assemblée en dbt** — *Class-Table Inheritance* :
+
+1. **Spine** = une épine commune `(pdl, ref_situation_contractuelle, date, source, type_fait)` + les **attributs de situation** (`niveau_ouverture_services`, `formule_tarifaire_acheminement`, puissance, segment…) **forward-fillés en SQL** sur la timeline d'événements **complète** : `last_value(col IGNORE NULLS) OVER (PARTITION BY ref_situation_contractuelle ORDER BY date)`. Une ligne par fait, mince (~10 colonnes), ordonnable et filtrable par RSC ou PDL (les deux grains de filtre d'un même substrat, ADR-0039).
+
+2. **Relations** = les marts par source, inchangés (événements C15, relevés canoniques, jalons), clés sur l'identité de la spine. Pas de frame large, pas de payload imbriqué.
+
+3. **La grille FACTURATION descend dans la spine.** Les bornes calendaires (1ᵉʳ de chaque mois, de l'entrée à `min(résiliation, borne_généreuse)` par RSC) sont **générées en dbt** — opération purement calendaire (`generate_series(... interval '1 month')`), pas horizon-paramétrique. Étant des lignes de la spine, elles **héritent la situation gratuitement** via le même forward-fill SQL (fin du *lookup as-of* séparé).
+
+4. **Le cœur cesse de dériver la situation et de générer les FACTURATION.** Il ne garde que (a) le **filtre horizon** (`date_evenement <= horizon`, défaut #179 résolu au boundary) — l'horizon devient un *filtre* sur une grille pré-générée, **plus un input de génération**, ce qui préserve la pureté ; (b) la **détection de ruptures** par branche (`impacte_abonnement/energie`, `resume_modification`).
+
+5. **Chaque branche = `filtre(spine) ⨝ sa relation` + calcule + bundle ce qu'elle a utilisé.** La duplication de chronologie disparaît *par construction* : énergie et `releves_utilises` sélectionnent la **même** spine → mêmes données garanties, sans recalcul logique convergent à maintenir.
+
+6. **Extensibilité — prévue explicitement.** Une nouvelle source de faits entre comme une **relation** rattachée à la spine, **sans élargir l'existant ni toucher les branches qui l'ignorent** : les **affaires** (`type_fait = jalon`, rattachées par `id_affaire` — déjà l'`Id_Affaire` des événements C15) en sont la prochaine. **R15 n'est pas une nouvelle relation** : c'est une source de *relevés* supplémentaire, qui enrichit la relation `releves` déjà multi-sources (`SOURCES_CHRONOLOGIE` la prévoit).
+
+7. **Grain : jour pour l'appariement, timestamp pour l'ordre.** L'appariement relevé↔borne FACTURATION est un **equi-join `(rsc, date)`** au grain jour — l'`asof` « nearest 4h » (`TOLERANCE_APPARIEMENT_RELEVES`) de `_assembler_chronologie` et son portage SQL délicat **disparaissent**. L'**ordre** du forward-fill de situation reste porté par le timestamp `date_evenement` (`… OVER (PARTITION BY rsc ORDER BY date_evenement)`). Validé par un **spike prod (20/06/2026)** : sur les 14 `(RSC, jour)` multi-événements, **0 timestamp dupliqué** → le timestamp est un ordre total correct ; les 7 collisions de `niveau_ouverture_services` sont *toutes* `CMAT (niveau=0, tôt)` + `MDPRM (niveau=1, plus tard)` (le MDPRM, postérieur, gagne → bon niveau ; cf. ADR-0039), + 1 sur la puissance (`MDPRM 6 → MCT 9`). **Garde-fou** : un **test dbt** asserte 0 collision `(rsc, date_evenement, attribut)` — si un jour deux événements changent le même attribut au même instant, il échoue plutôt que de trancher au hasard.
+
+## Alternatives écartées
+
+- **Frame large unique (STI)** — rejetée : ~66 colonnes 70–85 % nulles aujourd'hui, ballonnement à chaque source ; les branches doivent connaître les colonnes des sources qu'elles ignorent.
+- **Spine + payload imbriqué (struct), en Polars** — rejetée : extensible mais impose un `unnest` à chaque branche, et surtout n'est **pas l'idiome natif** du store relationnel (ADR-0029/0020 disent : assembler en dbt).
+- **Garder la génération FACTURATION au cœur** (carve-out initialement proposé) — rejetée : régénérée pour l'énergie, l'abonnement *et* la timeline consultable = trois sites, la duplication même qu'on supprime. La génération est calendaire (relationnelle), pas horizon-paramétrique.
+- **Garder l'attribution de situation au cœur** (statu quo ADR-0039) — rejetée *maintenant que c'est un déménagement, pas une duplication* : dbt devient propriétaire unique, le cœur consomme.
+
+## Conséquences
+
+- **dbt** : nouveau mart *spine* (union événements ∪ relevés ∪ grille FACTURATION, situation forward-fillée en SQL en une passe) ; les marts relations restent.
+- **`pipeline_historique` rétréci** : perd le forward-fill de situation (`expr_colonnes_a_propager`) et la génération FACTURATION (`inserer_evenements_facturation`) ; garde la détection de ruptures et le filtre horizon. Candidat à se dissoudre en projection de branche.
+- **Contrats** (ADR-0019, *Contrat de pipeline*) : un schéma Pandera pour la spine et un par relation ; chaque pipeline déclare son contrat d'entrée. Un **petit *loader* relationnel** (ADR-0019, « lit une table → `LazyFrame[Schema core]`, aucune logique métier ») fait l'appel `spine ⨝ relation` et sort la LF.
+- **Fork du join — résolu (grain jour).** L'appariement étant un equi-join `(rsc, date)` (plus d'asof, décision §7), la *Chronologie des relevés* s'assemble **entièrement en dbt** (spine + equi-join + dédoublonnage priorité `QUALIFY row_number()`), exposée en **un mart** ; le loader est un read fin ; l'énergie ne garde que son **découpage** (shift/diff/qualité, ADR-0023). Une **seule** projection relevés (partagée énergie + NC), pas un mart par branche. Le timestamp `date_evenement` reste une colonne de la spine (ordre du forward-fill), pas une clé d'appariement.
+- **Garde-fou de prémisse** : test dbt `0 = count((rsc, date_evenement, attribut) en collision)` pour chaque attribut de situation — encode l'invariant « le timestamp ordonne sans ambiguïté » vérifié au spike, et le surveille à chaque ingestion future.
+- **Déterminisme** : la grille dbt est générée jusqu'à une borne ≥ tout horizon interrogeable ; le filtre horizon du cœur donne le résultat exact, identique au rejeu (#179 préservé).
+- **Glossaire** : [`core/CONTEXT.md`](../../electricore/core/CONTEXT.md) — *Chronologie du contrat* (spine relationnelle) et *Horizon de facturation* (filtre, plus génération) affûtés.
+- **Issues à créer** (`/to-issues`) : mart spine dbt + forward-fill SQL + grille FACTURATION ; rétrécissement `pipeline_historique` ; migration branches énergie **et** abonnement sur la spine ; loader relationnel + contrats ; point d'extension *affaires* (`type_fait = jalon`).
