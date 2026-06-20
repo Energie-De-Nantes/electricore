@@ -9,6 +9,24 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.2.0rc4] - 2026-06-20
+
+### 🐛 Corrections
+
+- **Attributs de situation hors du mart `releves` — niveau d'ouverture via la requête
+  FACTURATION** (ADR-0039, #365). Le mart `releves` ne **recopie plus** (forward-fill par
+  PDL) `ref_situation_contractuelle` / `formule_tarifaire_acheminement` /
+  `niveau_ouverture_services` sur les relevés périodiques : la recopie périmait dès qu'un
+  attribut changeait sur un événement C15 **sans index** (`MDPRM` de niveau, `CFNE`/`MES`
+  sans index — jamais des relevés car `int_releves__c15` gate `index is not null`). Bug prod
+  (RSC `834877952`) : la borne du 01/04 héritait niveau 0 du dernier C15 indexé alors qu'un
+  `MDPRM` du 16/03 l'avait relevé à 2 → mois `réelle` faussement `non_communicante`.
+  Désormais un relevé C15 garde sa valeur **native**, un télérelevé périodique reste `null`,
+  et la chronologie source le **niveau** (comme déjà RSC/FTA) depuis la requête FACTURATION
+  du cœur (substrat d'événements `pipeline_historique`, forward-fillé sur le flux C15
+  **complet**). `/releves` sert des **lectures pures**. Régression couverte bout-en-bout
+  (« `MDPRM` sans index avant le mois → `communicante` »).
+
 ## [3.2.0rc3] - 2026-06-20
 
 ### ✨ Temps forts
