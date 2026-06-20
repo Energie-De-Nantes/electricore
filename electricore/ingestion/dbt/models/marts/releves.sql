@@ -68,6 +68,7 @@ unifies as (
     {{ conformer_au_contrat_releve(ref('int_releves__c15'), 'flux_C15', fournit=[
         'releve_id', 'pdl', 'date_releve', 'ordre_index', 'nature_index',
         'ref_situation_contractuelle', 'formule_tarifaire_acheminement', 'niveau_ouverture_services',
+        'evenement_declencheur',
         'id_calendrier_distributeur',
     ] + cadrans_index_noms()) }}
 ),

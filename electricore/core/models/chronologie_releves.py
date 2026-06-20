@@ -64,6 +64,10 @@ class ChronologieReleves(pa.DataFrameModel):
     releve_id: pl.Utf8 | None = pa.Field(nullable=True)
     # Nature canonique (réel/estimé/corrigé) ; nullable pour la même raison.
     nature_index: pl.Utf8 | None = pa.Field(nullable=True, isin=["réel", "estimé", "corrigé"])
+    # Événement contractuel déclencheur (C15 `Nature_Evenement`) porté nativement par les
+    # relevés C15 ; null pour un télérelevé périodique. Source du label d'*origine de relevé*
+    # (périodique vs événementiel) dérivé à l'exposition (releves_utilises, ADR-0038).
+    evenement_declencheur: pl.Utf8 | None = pa.Field(nullable=True)
 
     # 🏢 Référence calendrier distributeur (utile au contrôle des cadrans attendus)
     id_calendrier_distributeur: pl.Utf8 | None = pa.Field(nullable=True)

@@ -18,6 +18,7 @@ with avant as (
         ref_situation_contractuelle,
         formule_tarifaire_acheminement,
         niveau_ouverture_services,
+        evenement_declencheur,
         avant_id_calendrier_distributeur                        as id_calendrier_distributeur,
         {{ cadrans_index_rename('avant_') }}
     from {{ ref('flux_c15') }}
@@ -34,6 +35,7 @@ apres as (
         ref_situation_contractuelle,
         formule_tarifaire_acheminement,
         niveau_ouverture_services,
+        evenement_declencheur,
         apres_id_calendrier_distributeur                        as id_calendrier_distributeur,
         {{ cadrans_index_rename('apres_') }}
     from {{ ref('flux_c15') }}
