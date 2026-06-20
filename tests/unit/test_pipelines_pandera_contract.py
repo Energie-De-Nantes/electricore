@@ -242,107 +242,45 @@ def _historique_avec_index_lazyframe(impacte_energie: bool = False) -> pl.LazyFr
     )
 
 
-def _releves_minimaux_lazyframe() -> pl.LazyFrame:
-    """Relevés conformes à `RelevéIndex` avec les colonnes optionnelles requises par
-    le pipeline énergie en aval (index, id_calendrier_distributeur, etc.).
-    """
-    return pl.LazyFrame(
-        {
-            "date_releve": [datetime(2024, 1, 1, tzinfo=PARIS), datetime(2024, 6, 1, tzinfo=PARIS)],
-            "pdl": ["PDL00001", "PDL00001"],
-            "source": ["flux_R151", "flux_R151"],
-            "unite": ["kWh", "kWh"],
-            "precision": ["kWh", "kWh"],
-            "ordre_index": [False, False],
-            "ref_situation_contractuelle": [None, None],
-            "formule_tarifaire_acheminement": [None, None],
-            "id_calendrier_distributeur": [None, None],
-            "id_calendrier_fournisseur": [None, None],
-            "index_base_kwh": [None, None],
-            "index_hp_kwh": [None, None],
-            "index_hc_kwh": [None, None],
-            "index_hph_kwh": [None, None],
-            "index_hpb_kwh": [None, None],
-            "index_hch_kwh": [None, None],
-            "index_hcb_kwh": [None, None],
-        },
-        schema_overrides={
-            "date_releve": pl.Datetime(time_unit="us", time_zone="Europe/Paris"),
-            "ref_situation_contractuelle": pl.Utf8,
-            "formule_tarifaire_acheminement": pl.Utf8,
-            "id_calendrier_distributeur": pl.Utf8,
-            "id_calendrier_fournisseur": pl.Utf8,
-            # Index en kWh entiers (ADR-0034) : Int64, type émis nativement par dbt.
-            "index_base_kwh": pl.Int64,
-            "index_hp_kwh": pl.Int64,
-            "index_hc_kwh": pl.Int64,
-            "index_hph_kwh": pl.Int64,
-            "index_hpb_kwh": pl.Int64,
-            "index_hch_kwh": pl.Int64,
-            "index_hcb_kwh": pl.Int64,
-        },
-    )
+def _chronologie_minimale_lazyframe(*, sans: str | None = None) -> pl.LazyFrame:
+    """*Chronologie des relevés* minimale conforme à `ChronologieReleves` (2 relevés d'une
+    même RSC → 1 période). `sans` retire une colonne pour exercer le seam de validation."""
+    cadrans = ["base", "hp", "hc", "hph", "hpb", "hch", "hcb"]
+    data = {
+        "pdl": ["PDL00001", "PDL00001"],
+        "ref_situation_contractuelle": ["REF001", "REF001"],
+        "formule_tarifaire_acheminement": ["BTINFCU4", "BTINFCU4"],
+        "niveau_ouverture_services": ["2", "2"],
+        "date_releve": [datetime(2024, 1, 1, tzinfo=PARIS), datetime(2024, 6, 1, tzinfo=PARIS)],
+        "source": ["flux_R151", "flux_R151"],
+        "releve_id": [None, None],
+        "nature_index": ["réel", "réel"],
+        "evenement_declencheur": [None, None],
+        "ordre_index": [False, False],
+        "id_calendrier_distributeur": ["DI000001", "DI000001"],
+        "releve_manquant": [False, False],
+        **{f"index_{c}_kwh": ([100, 250] if c == "base" else [None, None]) for c in cadrans},
+    }
+    overrides = {
+        "date_releve": pl.Datetime(time_unit="us", time_zone="Europe/Paris"),
+        "releve_id": pl.Utf8,
+        "evenement_declencheur": pl.Utf8,
+        "ordre_index": pl.Boolean,
+        "releve_manquant": pl.Boolean,
+        **{f"index_{c}_kwh": pl.Int64 for c in cadrans},
+    }
+    if sans is not None:
+        data.pop(sans)
+        overrides.pop(sans, None)
+    return pl.LazyFrame(data, schema_overrides=overrides)
 
 
-def test_pipeline_energie_rejette_historique_sans_impacte_energie():
-    """Sans `impacte_energie`, le pipeline doit lever une SchemaError au seam.
-    Aujourd'hui, le self-repair des lignes 605-608 d'energie.py compense silencieusement
-    l'absence — ce comportement doit disparaître."""
-    historique_brut = pl.LazyFrame(
-        {
-            "pdl": ["PDL00001"],
-            "ref_situation_contractuelle": ["REF001"],
-            "date_evenement": [datetime(2024, 1, 1, tzinfo=PARIS)],
-            "segment_clientele": ["C5"],
-            "etat_contractuel": ["EN SERVICE"],
-            "evenement_declencheur": ["MES"],
-            "type_evenement": ["contractuel"],
-            "puissance_souscrite_kva": [6.0],
-            "formule_tarifaire_acheminement": ["BTINFCU4"],
-            "type_compteur": ["LINKY"],
-            "num_compteur": ["123456"],
-            # Omis volontairement : impacte_abonnement / impacte_energie / resume_modification
-        },
-        schema_overrides={
-            "date_evenement": pl.Datetime(time_unit="us", time_zone="Europe/Paris"),
-        },
-    )
-
+def test_pipeline_energie_rejette_chronologie_incomplete():
+    """`pipeline_energie` valide son entrée contre `ChronologieReleves` au seam : une
+    chronologie privée d'une colonne requise (ici `ordre_index`) lève une SchemaError
+    plutôt que de crasher au fond du découpage (ADR-0041, #377)."""
     with pytest.raises(PANDERA_ERRORS):
-        pipeline_energie(historique_brut, _releves_minimaux_lazyframe()).collect()
-
-
-# =============================================================================
-# Cycle 5 — pipeline_energie rejette des relevés non conformes à `RelevéIndex`
-# =============================================================================
-
-
-def test_pipeline_energie_rejette_releves_sans_source(historique_enrichi_valide):
-    """Un relevé sans la colonne `source` (non-nullable) doit faire échouer la
-    validation Pandera côté `releves` au seam (présence de colonne) plutôt qu'au fond
-    du pipeline.
-
-    Note : Pandera-Polars sur `LazyFrame[X]` réalise une validation de schéma (colonnes
-    + types), pas une validation deep (isin, ge, nullability au runtime). On teste donc
-    l'absence d'une colonne requise, pas une valeur hors-isin (qui ne déclencherait pas
-    le seam mais un crash plus loin).
-    """
-    releves_invalides = pl.LazyFrame(
-        {
-            "date_releve": [datetime(2024, 1, 1, tzinfo=PARIS)],
-            "pdl": ["PDL00001"],
-            "ordre_index": [False],
-            "unite": ["kWh"],
-            "precision": ["kWh"],
-            # Omis volontairement : source (non-nullable, requis)
-        },
-        schema_overrides={
-            "date_releve": pl.Datetime(time_unit="us", time_zone="Europe/Paris"),
-        },
-    )
-
-    with pytest.raises(PANDERA_ERRORS):
-        pipeline_energie(historique_enrichi_valide, releves_invalides).collect()
+        pipeline_energie(_chronologie_minimale_lazyframe(sans="ordre_index")).collect()
 
 
 def test_releve_index_accepte_la_forme_du_mart_sans_unite_precision():
@@ -410,17 +348,13 @@ def test_releve_index_accepte_la_forme_du_mart_sans_unite_precision():
 
 
 def test_pipeline_energie_sortie_conforme_periode_energie():
-    """Happy path : `pipeline_energie` doit produire une sortie validable par
-    `PeriodeEnergie`. On choisit ici un historique où aucun événement n'impacte
-    l'énergie (le filtre amène à un output vide) — un cas dégénéré mais qui doit
-    quand même produire une `LazyFrame` au schéma conforme."""
+    """Happy path : `pipeline_energie` sur une *Chronologie des relevés* conforme produit
+    une sortie validable par `PeriodeEnergie` (découpage shift/diff + TURPE)."""
     from electricore.core.models.periode_energie import PeriodeEnergie
 
-    historique = _historique_avec_index_lazyframe(impacte_energie=False)
+    result = pipeline_energie(_chronologie_minimale_lazyframe()).collect()
 
-    result = pipeline_energie(historique, _releves_minimaux_lazyframe()).collect()
-
-    # Schéma de sortie respecté même sur output vide (les colonnes doivent exister)
+    # Schéma de sortie respecté (les colonnes critiques doivent exister)
     assert "pdl" in result.columns
     assert "debut" in result.columns
     assert "fin" in result.columns

@@ -54,7 +54,7 @@ def stub_composer(monkeypatch):
     def _install(resultat):
         monkeypatch.setattr(
             "electricore.core.builds.contexte_mensuel._composer",
-            lambda historique, releves, horizon: resultat,
+            lambda historique, chronologie, horizon: resultat,
         )
 
     return _install
@@ -68,7 +68,7 @@ class TestChargerMoisExplicite:
 
         ctx = charger(
             historique=pl.LazyFrame({}),
-            releves=pl.LazyFrame({}),
+            chronologie=pl.LazyFrame({}),
             mois="2024-02-01",
         )
 
@@ -91,7 +91,7 @@ class TestChargerMoisParDefaut:
             )
         )
 
-        ctx = charger(historique=pl.LazyFrame({}), releves=pl.LazyFrame({}), mois=None)
+        ctx = charger(historique=pl.LazyFrame({}), chronologie=pl.LazyFrame({}), mois=None)
 
         # Le dernier debut est mars → mois résolu = 2024-03-01
         assert ctx.mois == "2024-03-01"
@@ -104,7 +104,7 @@ class TestChargerFramesQuiPassent:
         # Sentinelles distinctes pour identifier chaque frame en sortie
         stub_composer(_make_stub_composition(debuts_mois=[datetime(2024, 1, 1)]))
 
-        ctx = charger(historique=pl.LazyFrame({}), releves=pl.LazyFrame({}), mois="2024-01-01")
+        ctx = charger(historique=pl.LazyFrame({}), chronologie=pl.LazyFrame({}), mois="2024-01-01")
 
         # Les LazyFrames doivent porter les sentinelles définies dans le stub
         assert ctx.historique_enrichi.collect()["sentinel"].item() == 1
@@ -126,13 +126,13 @@ class TestChargerHorizon:
 
         captures: dict = {}
 
-        def _composer_capture(historique, releves, horizon):
+        def _composer_capture(historique, chronologie, horizon):
             captures["horizon"] = horizon
             return _make_stub_composition(debuts_mois=[datetime(2024, 1, 1)])
 
         monkeypatch.setattr(cm, "_composer", _composer_capture)
 
-        cm.charger(historique=pl.LazyFrame({}), releves=pl.LazyFrame({}), mois="2024-01-01")
+        cm.charger(historique=pl.LazyFrame({}), chronologie=pl.LazyFrame({}), mois="2024-01-01")
 
         # Un horizon (datetime Paris, 1er du mois) a bien été résolu et propagé.
         assert isinstance(captures["horizon"], datetime)
@@ -146,13 +146,13 @@ class TestChargerHorizon:
         captures: dict = {}
         horizon = datetime(2024, 5, 1, tzinfo=ZoneInfo("Europe/Paris"))
 
-        def _composer_capture(historique, releves, horizon):
+        def _composer_capture(historique, chronologie, horizon):
             captures["horizon"] = horizon
             return _make_stub_composition(debuts_mois=[datetime(2024, 1, 1)])
 
         monkeypatch.setattr(cm, "_composer", _composer_capture)
 
-        cm.charger(historique=pl.LazyFrame({}), releves=pl.LazyFrame({}), mois="2024-01-01", horizon=horizon)
+        cm.charger(historique=pl.LazyFrame({}), chronologie=pl.LazyFrame({}), mois="2024-01-01", horizon=horizon)
 
         assert captures["horizon"] == horizon
 
@@ -161,11 +161,11 @@ class TestContexteDuMois:
     """`contexte_du_mois()` — l'entrée I/O (#145) : loaders DuckDB par défaut, puis `charger()`."""
 
     def test_cable_les_loaders_et_delegue_a_charger(self, monkeypatch):
-        """c15 → historique, releves → relevés (sentinelles : l'inversion échoue)."""
+        """c15 → historique, chronologie → mart (sentinelles : l'inversion échoue)."""
         import electricore.core.builds.contexte_mensuel as cm
 
         hist_sentinel = pl.LazyFrame({"source": ["c15"]})
-        rel_sentinel = pl.LazyFrame({"source": ["releves"]})
+        rel_sentinel = pl.LazyFrame({"source": ["chronologie"]})
 
         class _Query:
             def __init__(self, lf):
@@ -175,14 +175,14 @@ class TestContexteDuMois:
                 return self._lf
 
         monkeypatch.setattr(cm, "c15", lambda: _Query(hist_sentinel))
-        monkeypatch.setattr(cm, "releves", lambda: _Query(rel_sentinel))
+        monkeypatch.setattr(cm, "chronologie", lambda: _Query(rel_sentinel))
 
         captures: dict = {}
         composition = _make_stub_composition(debuts_mois=[datetime(2025, 3, 1)])
 
-        def _composer_capture(historique, releves, horizon):
+        def _composer_capture(historique, chronologie, horizon):
             captures["historique"] = historique
-            captures["releves"] = releves
+            captures["chronologie"] = chronologie
             captures["horizon"] = horizon
             return composition
 
@@ -191,7 +191,7 @@ class TestContexteDuMois:
         ctx = cm.contexte_du_mois(mois="2025-03-01")
 
         assert captures["historique"] is hist_sentinel
-        assert captures["releves"] is rel_sentinel
+        assert captures["chronologie"] is rel_sentinel
         # L'horizon est résolu au boundary (1er du mois courant) et passé à `_composer`.
         assert captures["horizon"] is not None
         assert isinstance(ctx, ContexteMensuel)

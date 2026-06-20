@@ -169,40 +169,11 @@ def _scenario_energie(draw):
     return jours, hp, hc
 
 
-def _historique_energie(jours: list[dt.date], hp: list[float], hc: list[float]) -> pl.LazyFrame:
-    """MES (index après) → FACTURATION (relevés R151) → RES (index avant)."""
-    n = len(jours)
-    evenements = ["MES"] + ["FACTURATION"] * (n - 2) + ["RES"]
-    data = {
-        "date_evenement": [_ts(j) for j in jours],
-        "evenement_declencheur": evenements,
-        "etat_contractuel": ["EN SERVICE"] * (n - 1) + ["RESILIE"],
-        "puissance_souscrite_kva": [6.0] * n,
-        "impacte_abonnement": [False] * n,
-        "impacte_energie": [True] * n,
-        **_colonnes_historique(n),
-    }
-    nuls = [None] * n
-    for prefixe, position, idx in (("apres", 0, 0), ("avant", n - 1, -1)):
-        data[f"{prefixe}_id_calendrier_distributeur"] = ["DI000002" if i == position else None for i in range(n)]
-        # Calendrier HP/HC (DI000002) : pas d'index base brut — l'energie_base de
-        # sortie est synthétisée par le pipeline comme somme des cadrans
-        valeurs = {"hp": hp[idx], "hc": hc[idx]}
-        for cadran in _INDEX_CADRANS:
-            data[f"{prefixe}_index_{cadran}_kwh"] = [valeurs.get(cadran) if i == position else None for i in range(n)]
-    autre = {"avant": "apres", "apres": "avant"}
-    for prefixe in ("avant", "apres"):
-        for cadran in _INDEX_CADRANS:
-            data.setdefault(f"{prefixe}_index_{cadran}_kwh", nuls)
-        data.setdefault(f"{prefixe}_id_calendrier_distributeur", nuls)
-    del autre
-    return pl.DataFrame(data, schema_overrides=_schema_overrides()).lazy()
-
-
-def _releves_r151(jours: list[dt.date], hp: list[float], hc: list[float]) -> pl.LazyFrame:
-    """Relevés canoniques (ADR-0029) : relevés C15 aux bornes de vie (après MES, avant
-    RES) + R151 aux dates intermédiaires (FACTURATION). Les relevés C15 viennent désormais
-    du modèle canonique, plus de l'historique."""
+def _chronologie_energie(jours: list[dt.date], hp: list[float], hc: list[float]) -> pl.LazyFrame:
+    """*Chronologie des relevés* synthétique (ADR-0041) — ce que le mart dbt produit :
+    relevés C15 aux bornes de vie (après MES, avant RES) + R151 aux dates intermédiaires
+    (bornes FACTURATION), situation attribuée, dédoublonnée. Entrée directe de
+    `pipeline_energie` depuis #377 (l'assemblage ne vit plus au cœur)."""
     n = len(jours)
     interieurs = list(range(1, n - 1))
     # MES après (ordre True) à la 1ʳᵉ borne, R151 (ordre False) au milieu, RES avant
@@ -210,23 +181,27 @@ def _releves_r151(jours: list[dt.date], hp: list[float], hc: list[float]) -> pl.
     idxs = [0, *interieurs, n - 1]
     sources = ["flux_C15", *["flux_R151"] * len(interieurs), "flux_C15"]
     ordres = [True, *[False] * len(interieurs), False]
+    nb = len(idxs)
     data = {
-        "pdl": [_PDL] * len(idxs),
-        "ref_situation_contractuelle": [_RSC] * len(idxs),
-        "formule_tarifaire_acheminement": [_FTA] * len(idxs),
+        "pdl": [_PDL] * nb,
+        "ref_situation_contractuelle": [_RSC] * nb,
+        "formule_tarifaire_acheminement": [_FTA] * nb,
+        "niveau_ouverture_services": ["2"] * nb,
         "date_releve": [_ts(jours[i]) for i in idxs],
         "source": sources,
-        "unite": ["kWh"] * len(idxs),
-        "precision": ["kWh"] * len(idxs),
+        "releve_id": [None] * nb,
+        "nature_index": ["réel"] * nb,
+        "evenement_declencheur": [None] * nb,
         "ordre_index": ordres,
-        "id_calendrier_distributeur": ["DI000002"] * len(idxs),
-        "index_base_kwh": [None] * len(idxs),
+        "id_calendrier_distributeur": ["DI000002"] * nb,
+        "releve_manquant": [False] * nb,
+        "index_base_kwh": [None] * nb,
         "index_hp_kwh": [hp[i] for i in idxs],
         "index_hc_kwh": [hc[i] for i in idxs],
-        "index_hch_kwh": [None] * len(idxs),
-        "index_hph_kwh": [None] * len(idxs),
-        "index_hpb_kwh": [None] * len(idxs),
-        "index_hcb_kwh": [None] * len(idxs),
+        "index_hch_kwh": [None] * nb,
+        "index_hph_kwh": [None] * nb,
+        "index_hpb_kwh": [None] * nb,
+        "index_hcb_kwh": [None] * nb,
     }
     return pl.DataFrame(
         data,
@@ -242,13 +217,16 @@ def _releves_r151(jours: list[dt.date], hp: list[float], hc: list[float]) -> pl.
                     "pdl",
                     "ref_situation_contractuelle",
                     "formule_tarifaire_acheminement",
+                    "niveau_ouverture_services",
                     "source",
-                    "unite",
-                    "precision",
+                    "releve_id",
+                    "nature_index",
+                    "evenement_declencheur",
                     "id_calendrier_distributeur",
                 ]
             },
             "ordre_index": pl.Boolean,
+            "releve_manquant": pl.Boolean,
         },
     ).lazy()
 
@@ -259,7 +237,7 @@ def _releves_r151(jours: list[dt.date], hp: list[float], hc: list[float]) -> pl.
 def test_energie_index_monotones_energies_positives(scenario):
     """Index croissants → toutes les énergies calculées sont ≥ 0 (jamais de delta négatif)."""
     jours, hp, hc = scenario
-    result = pipeline_energie(_historique_energie(jours, hp, hc), _releves_r151(jours, hp, hc)).collect()
+    result = pipeline_energie(_chronologie_energie(jours, hp, hc)).collect()
 
     assert result.height >= 1, "au moins une période entre MES et RES"
     for colonne in ["energie_base_kwh", "energie_hp_kwh", "energie_hc_kwh"]:
@@ -273,7 +251,7 @@ def test_energie_index_monotones_energies_positives(scenario):
 def test_energie_conservation_des_cadrans(scenario):
     """Compteur HP/HC : energie_base (synthèse des cadrans) = energie_hp + energie_hc, période par période."""
     jours, hp, hc = scenario
-    result = pipeline_energie(_historique_energie(jours, hp, hc), _releves_r151(jours, hp, hc)).collect()
+    result = pipeline_energie(_chronologie_energie(jours, hp, hc)).collect()
 
     for ligne in result.iter_rows(named=True):
         base, e_hp, e_hc = ligne["energie_base_kwh"], ligne["energie_hp_kwh"], ligne["energie_hc_kwh"]
@@ -287,7 +265,7 @@ def test_energie_conservation_des_cadrans(scenario):
 def test_energie_periodes_dans_les_bornes_du_contrat(scenario):
     """Aucune période d'énergie hors [MES, RES]."""
     jours, hp, hc = scenario
-    result = pipeline_energie(_historique_energie(jours, hp, hc), _releves_r151(jours, hp, hc)).collect()
+    result = pipeline_energie(_chronologie_energie(jours, hp, hc)).collect()
 
     assert (result["debut"] >= _ts(jours[0])).all()
     assert (result["fin"] <= _ts(jours[-1])).all()
