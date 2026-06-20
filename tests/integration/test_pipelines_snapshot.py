@@ -160,6 +160,22 @@ def releves_snapshot_test() -> pl.LazyFrame:
     return pl.concat([base, hphc], how="diagonal_relaxed")
 
 
+@pytest.fixture
+def chronologie_snapshot_test(releves_snapshot_test: pl.LazyFrame) -> pl.LazyFrame:
+    """*Chronologie des relevés* synthétique (ADR-0041, #377) : les relevés périodiques
+    mensuels conformés au contrat `ChronologieReleves`. L'assemblage vit désormais en dbt
+    (parité réelle couverte par test_dbt_chronologie_releves.py) ; ce snapshot exerce le
+    **découpage** énergie de `pipeline_energie` sur une chronologie déjà assemblée."""
+    return releves_snapshot_test.with_columns(
+        pl.lit(None, dtype=pl.Utf8).alias("formule_tarifaire_acheminement"),
+        pl.lit(None, dtype=pl.Utf8).alias("niveau_ouverture_services"),
+        pl.lit("réel", dtype=pl.Utf8).alias("nature_index"),
+        pl.lit(None, dtype=pl.Utf8).alias("releve_id"),
+        pl.lit(None, dtype=pl.Utf8).alias("evenement_declencheur"),
+        pl.lit(False, dtype=pl.Boolean).alias("releve_manquant"),
+    )
+
+
 # =========================================================================
 # TESTS SNAPSHOT - PIPELINE HISTORIQUE
 # =========================================================================
@@ -225,12 +241,9 @@ def test_pipeline_abonnements_colonnes_critiques_snapshot(
 @pytest.mark.integration
 @pytest.mark.smoke
 @pytest.mark.slow
-def test_pipeline_energie_snapshot(
-    historique_snapshot_test: pl.LazyFrame, releves_snapshot_test: pl.LazyFrame, snapshot: SnapshotAssertion
-):
-    """Snapshot complet des périodes d'énergie (historique enrichi → énergie)."""
-    enrichi = pipeline_historique(historique_snapshot_test, horizon=HORIZON)
-    result = pipeline_energie(enrichi, releves_snapshot_test).collect()
+def test_pipeline_energie_snapshot(chronologie_snapshot_test: pl.LazyFrame, snapshot: SnapshotAssertion):
+    """Snapshot complet des périodes d'énergie (découpage de la Chronologie des relevés)."""
+    result = pipeline_energie(chronologie_snapshot_test).collect()
     # Arrondir les flottants pour neutraliser le bruit numérique.
     result_rounded = result.with_columns(
         [pl.col(col).round(2) for col in result.columns if result[col].dtype in (pl.Float64, pl.Float32)]
@@ -239,12 +252,9 @@ def test_pipeline_energie_snapshot(
 
 
 @pytest.mark.integration
-def test_pipeline_energie_aggrege_snapshot(
-    historique_snapshot_test: pl.LazyFrame, releves_snapshot_test: pl.LazyFrame, snapshot: SnapshotAssertion
-):
+def test_pipeline_energie_aggrege_snapshot(chronologie_snapshot_test: pl.LazyFrame, snapshot: SnapshotAssertion):
     """Snapshot des totaux d'énergie par PDL (noms canoniques `energie_*_kwh`)."""
-    enrichi = pipeline_historique(historique_snapshot_test, horizon=HORIZON)
-    result = pipeline_energie(enrichi, releves_snapshot_test).collect()
+    result = pipeline_energie(chronologie_snapshot_test).collect()
     aggrege = (
         result.group_by("pdl")
         .agg(
