@@ -12,7 +12,6 @@ from electricore.core.pipelines.historique import (
     expr_changement,
     expr_evenement_structurant,
     expr_impacte_abonnement,
-    expr_impacte_energie,
     expr_resume_changement,
 )
 
@@ -167,50 +166,6 @@ def test_expr_impacte_abonnement_logique(evenements, changements_puissance, chan
     result = df.with_columns(expr_impacte_abonnement().alias("impacte_abonnement"))
 
     assert result["impacte_abonnement"].to_list() == expected_impacte
-
-
-# =========================================================================
-# TESTS PARAMÉTRÉS - expr_impacte_energie
-# =========================================================================
-
-
-@pytest.mark.unit
-@pytest.mark.parametrize(
-    "evenements,changements_calendrier,expected_impacte",
-    [
-        # Cas événement structurant (MES/RES)
-        (["MES", "MCT", "RES", "MCT"], [False, False, False, False], [True, False, True, False]),
-        # Cas changement calendrier
-        (["MCT", "MCT", "MCT"], [False, True, False], [False, True, False]),
-        # Cas combinés
-        (["MES", "MCT", "RES"], [False, True, False], [True, True, True]),
-        # Cas sans impact
-        (["MCT", "MCT"], [False, False], [False, False]),
-    ],
-)
-@pytest.mark.skip(reason="Needs before/after columns from pipeline")
-def test_expr_impacte_energie_logique(evenements, changements_calendrier, expected_impacte):
-    """Teste la logique de détection d'impact sur énergie."""
-    # Créer des valeurs de calendrier qui changent selon les flags
-    calendriers = ["DI000001"]  # Première valeur (BASE)
-
-    for i in range(1, len(evenements)):
-        if changements_calendrier[i]:
-            calendriers.append("DI000002" if calendriers[-1] == "DI000001" else "DI000001")
-        else:
-            calendriers.append(calendriers[-1])
-
-    df = pl.DataFrame(
-        {
-            "ref_situation_contractuelle": ["A"] * len(evenements),
-            "evenement_declencheur": evenements,
-            "id_calendrier_distributeur": calendriers,
-        }
-    )
-
-    result = df.with_columns(expr_impacte_energie().alias("impacte_energie"))
-
-    assert result["impacte_energie"].to_list() == expected_impacte
 
 
 # =========================================================================
