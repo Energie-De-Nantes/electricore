@@ -29,7 +29,10 @@ from electricore.core.pipelines.energie import (
     _assembler_chronologie,
     chronologie_releves,
 )
-from electricore.core.pipelines.historique import detecter_points_de_rupture
+from electricore.core.pipelines.historique import (
+    detecter_points_de_rupture,
+    inserer_evenements_facturation,
+)
 
 PARIS = ZoneInfo("Europe/Paris")
 
@@ -44,13 +47,21 @@ def _evenement(
     declencheur: str,
     avant_base: float | None = None,
     apres_base: float | None = None,
+    niveau: str | None = None,
 ) -> dict:
-    """Dict de ligne d'événement contractuel (index base seul) pour `_assembler_chronologie`."""
+    """Dict de ligne d'événement contractuel (index base seul) pour `_assembler_chronologie`.
+
+    `niveau` (optionnel) émule le niveau d'ouverture déjà forward-fillé par
+    `pipeline_historique` sur le flux C15 complet : porté ici par l'événement (dont les
+    FACTURATION artificielles), il alimente la requête FACTURATION (ADR-0039)."""
     autres = {f"{pos}_index_{cad}_kwh": None for pos in ("avant", "apres") for cad in _AUTRES_CADRANS}
-    return {
+    ligne = {
         "pdl": pdl,
         "ref_situation_contractuelle": ref,
         "formule_tarifaire_acheminement": "BTINFCUST",
+        # Présente pour les tests qui passent par detecter_points_de_rupture (impact
+        # abonnement = changement de puissance) ; ignorée par `_assembler_chronologie`.
+        "puissance_souscrite_kva": 6.0,
         "evenement_declencheur": declencheur,
         "date_evenement": date,
         "avant_index_base_kwh": avant_base,
@@ -59,6 +70,9 @@ def _evenement(
         "apres_id_calendrier_distributeur": 1 if apres_base is not None else None,
         **autres,
     }
+    if niveau is not None:
+        ligne["niveau_ouverture_services"] = niveau
+    return ligne
 
 
 def _historique_brut(lignes: list[dict]) -> pl.LazyFrame:
@@ -89,6 +103,7 @@ def _releve(
     *,
     ref: str | None = None,
     ordre_index: bool = False,
+    niveau: str | None = None,
 ) -> dict:
     d = {
         "pdl": pdl,
@@ -100,6 +115,8 @@ def _releve(
     }
     if ref is not None:
         d["ref_situation_contractuelle"] = ref
+    if niveau is not None:
+        d["niveau_ouverture_services"] = niveau
     return d
 
 
@@ -214,6 +231,29 @@ def test_attribution_rsc_releve_periodique():
 # ---------------------------------------------------------------------------
 # Invariant 3 : dédoublonnage sur le triplet (RSC, date_releve, ordre_index)
 # ---------------------------------------------------------------------------
+
+
+def test_niveau_periodique_vient_de_la_requete_facturation():
+    """ADR-0039 : le niveau d'ouverture d'un relevé périodique interrogé à une date de
+    FACTURATION vient de la **requête FACTURATION** (substrat d'événements, forward-fillé
+    sur le flux C15 complet), PAS du mart `releves`. On émule le bug : l'événement
+    FACTURATION porte le niveau correct `"2"` (post-MDPRM) tandis que le relevé périodique
+    traîne un niveau périmé `"0"` (ancienne recopie du mart). La chronologie doit retenir
+    `"2"`. Jumelle de `test_attribution_rsc_releve_periodique` pour l'axe communication."""
+    historique = _historique_brut(
+        [
+            _evenement("PDL001", "REF001", datetime(2024, 1, 15), "MES", 1000.0, 1500.0, niveau="0"),
+            _evenement("PDL001", "REF001", datetime(2024, 2, 1), "FACTURATION", niveau="2"),
+        ]
+    )
+    # Relevé R151 portant un niveau périmé (ce que recopiait l'ancien mart).
+    releves = _releves([_releve("PDL001", datetime(2024, 2, 1), "flux_R151", 2000.0, ref="REF001", niveau="0")])
+
+    result = _assembler_chronologie(historique, releves).collect()
+    r151 = result.filter(pl.col("source") == "flux_R151")
+
+    assert len(r151) == 1
+    assert r151["niveau_ouverture_services"].to_list() == ["2"]
 
 
 def test_dedup_sur_triplet():
@@ -397,8 +437,8 @@ def test_chronologie_contrat_bout_en_bout():
 def test_releve_index_porte_niveau_ouverture_services():
     """#324 (ADR-0036) : RelevéIndex (contrat du mart `releves`) déclare
     `niveau_ouverture_services` (Utf8, nullable) — la *jumelle* de `nature_index` pour
-    l'axe « voie communicante ». Nullable : un relevé périodique avant tout C15 n'en
-    porte pas (forward-fill amont absent)."""
+    l'axe « voie communicante ». Nullable : natif sur les relevés C15, `null` sur tout
+    télérelevé périodique (plus de recopie au mart, ADR-0039)."""
     cols = RelevéIndex.to_schema().columns
     assert "niveau_ouverture_services" in cols, f"colonne absente du contrat, vu : {sorted(cols)}"
     assert cols["niveau_ouverture_services"].nullable
@@ -532,3 +572,58 @@ def test_bascule_cmat_releve_entre_dans_chronologie():
     dates = chronologie["date_releve"].to_list()
     assert datetime(2024, 3, 1, tzinfo=PARIS) in dates
     assert datetime(2024, 3, 15, tzinfo=PARIS) not in dates
+
+
+def test_regression_mdprm_sans_index_avant_le_mois_ressort_communicante():
+    """Régression RSC 834877952 (ADR-0039, #324/#365), motif « bascule de niveau via MDPRM
+    sans index avant le mois ».
+
+    Un `MDPRM` SANS index relève le niveau d'ouverture (0 → 2) le 16/03, après un `MES`
+    indexé du 01/03 (niveau 0). Le mart `releves` ne voyait jamais ce MDPRM (sans index →
+    jamais un relevé) et recopiait le niveau 0 PÉRIMÉ du dernier C15 indexé sur les
+    périodiques → le mois d'avril ressortait faussement `non_communicante`.
+
+    Bout-en-bout sur le chemin de prod (`inserer_evenements_facturation` forward-fille le
+    niveau sur le flux C15 COMPLET → événements FACTURATION à niveau 2 → requête FACTURATION
+    → chronologie), le mois entier post-MDPRM ressort `communicante` MÊME quand les relevés
+    périodiques traînent encore le niveau 0 périmé de l'ancien mart."""
+    from electricore.core.pipelines.energie import calculer_periodes_energie
+
+    horizon = datetime(2024, 6, 1, tzinfo=PARIS)
+    brut = _historique_brut(
+        [
+            _evenement("PDL999", "REF999", datetime(2024, 3, 1), "MES", 1000.0, 1500.0, niveau="0"),
+            # MDPRM sans index : relève le niveau, n'impacte pas l'énergie, jamais un relevé.
+            _evenement("PDL999", "REF999", datetime(2024, 3, 16), "MDPRM", niveau="2"),
+        ]
+    )
+    historique = brut.pipe(detecter_points_de_rupture).pipe(inserer_evenements_facturation, horizon)
+
+    # Mart `releves` : relevé C15 du MES (niveau natif 0) + télérelevés périodiques portant
+    # ENCORE le niveau 0 périmé (ancienne recopie) — pour prouver qu'il est écrasé par la
+    # requête FACTURATION. calculer_periodes_energie exige tous les cadrans → on les pose à null.
+    cadrans = ("base", "hp", "hc", "hph", "hpb", "hch", "hcb")
+    releves = pl.LazyFrame(
+        {
+            "pdl": ["PDL999"] * 4,
+            "ref_situation_contractuelle": ["REF999"] * 4,
+            "date_releve": [datetime(2024, m, 1, tzinfo=PARIS) for m in (3, 4, 5, 6)],
+            "source": ["flux_C15", "flux_R151", "flux_R151", "flux_R151"],
+            "ordre_index": [True, False, False, False],
+            "niveau_ouverture_services": ["0", "0", "0", "0"],
+            "id_calendrier_distributeur": ["DI000001"] * 4,
+            "index_base_kwh": [1500, 2000, 3000, 4000],
+            **{f"index_{c}_kwh": [None] * 4 for c in cadrans if c != "base"},
+        },
+        schema_overrides={
+            "date_releve": pl.Datetime(time_unit="us", time_zone="Europe/Paris"),
+            **{f"index_{c}_kwh": pl.Int64 for c in cadrans},
+        },
+    ).lazy()
+
+    chronologie = historique.filter(pl.col("impacte_energie")).pipe(_assembler_chronologie, releves)
+    periodes = calculer_periodes_energie(chronologie).collect().filter(pl.col("debut").is_not_null()).sort("debut")
+
+    # Mois d'avril (01/04 → 01/05), tout entier post-MDPRM : communicant aux deux bornes.
+    avril = periodes.filter(pl.col("debut") == datetime(2024, 4, 1, tzinfo=PARIS))
+    assert avril["statut_communication"].to_list() == ["communicante"]

@@ -19,12 +19,17 @@ class RelevéIndex(pa.DataFrameModel):
 
     # 🔹 Identifiant du Point de Livraison (PDL)
     pdl: pl.Utf8 = pa.Field(nullable=False)
+    # Attributs de SITUATION (RSC, FTA, niveau) : portés NATIVEMENT par les relevés C15
+    # (le fait propre de l'événement), `null` sur les télérelevés périodiques (ADR-0039 —
+    # fin de la recopie/forward-fill au mart `releves`). L'attribution par-contrat appartient
+    # au substrat d'événements (`pipeline_historique`) et remonte par la requête FACTURATION ;
+    # `/releves` sert donc des lectures pures.
     ref_situation_contractuelle: pl.Utf8 | None = pa.Field(nullable=True)
     formule_tarifaire_acheminement: pl.Utf8 | None = pa.Field(nullable=True)
     # Statut de communication (épique #313, ADR-0036) : niveau d'ouverture aux services
-    # Enedis (xsd:string ∈ {0,1,2}, niveau PRM). Porté nativement par les relevés C15,
-    # forward-fillé par PDL sur les périodiques au mart `releves` (#324). La *jumelle* de
-    # nature_index : dbt porte l'attribution, le cœur en dérive le verdict (#325).
+    # Enedis (xsd:string ∈ {0,1,2}, niveau PRM). La *jumelle* de nature_index pour l'axe
+    # « voie communicante » : natif C15, `null` sur les périodiques (ADR-0039) ; le cœur en
+    # dérive le verdict (#325) depuis le niveau remonté par la requête FACTURATION.
     niveau_ouverture_services: pl.Utf8 | None = pa.Field(nullable=True)
     # Événement contractuel déclencheur (C15 `Nature_Evenement`, ex. `MES`/`MCT`/`RES`).
     # Porté NATIVEMENT par les relevés C15 (comme RSC/FTA/niveau) ; NON forward-fillé — un

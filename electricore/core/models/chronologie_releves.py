@@ -11,8 +11,9 @@ incidemment dans l'implémentation :
 - **1 ligne par `(ref_situation_contractuelle, date_releve, ordre_index)`** — la clé
   métier de dédoublonnage (cf. ADR-0028, *Identité de relevé*).
 - **`ref_situation_contractuelle` non-null** — l'attribution contractuelle est garantie
-  en amont (mart `releves` forward-fillé + requête FACTURATION qui porte la RSC du
-  contrat, ADR-0029) ; la chronologie ne la recalcule pas, elle la présume mart-shaped.
+  en amont : relevés C15 à valeur native + relevés périodiques attribués par la requête
+  FACTURATION (qui porte RSC/FTA/niveau du contrat depuis le substrat d'événements,
+  ADR-0029/ADR-0039) ; la chronologie ne la recalcule pas, elle la présume attribuée.
 - **`source` dans une énumération fermée** — la source gagnante d'un relevé est l'une des
   sources connues, choisie par la table de priorité explicite `flux_C15 > flux_R64 >
   flux_R151` (ADR-0028), jamais par hasard.
@@ -43,8 +44,9 @@ class ChronologieReleves(pa.DataFrameModel):
     # invariant fort, présumé mart-shaped en entrée (plus de forward-fill local).
     ref_situation_contractuelle: pl.Utf8 = pa.Field(nullable=False)
     formule_tarifaire_acheminement: pl.Utf8 | None = pa.Field(nullable=True)
-    # Niveau d'ouverture aux services (statut de communication, ADR-0036). Forward-fillé
-    # par PDL depuis le C15 au mart `releves` (#324) ; jumelle de nature_index. Nullable
+    # Niveau d'ouverture aux services (statut de communication, ADR-0036). Natif sur les
+    # relevés C15, attribué aux périodiques par la requête FACTURATION (substrat
+    # d'événements, ADR-0039 — plus de recopie au mart) ; jumelle de nature_index. Nullable
     # (un relevé interrogé absent ou antérieur à tout C15 n'en porte pas). Le verdict
     # d'ouverture de période (#325) le rollupera sur les deux bornes.
     niveau_ouverture_services: pl.Utf8 | None = pa.Field(nullable=True)

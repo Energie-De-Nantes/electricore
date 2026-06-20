@@ -362,11 +362,13 @@ def _assembler_chronologie(evenements: pl.LazyFrame, releves: pl.LazyFrame) -> p
       (`PRIORITE_SOURCES`) — plus de tri alphabétique ;
     - **dédoublonnage** sur le triplet métier `(RSC, date_releve, ordre_index)`.
 
-    L'**attribution contractuelle** (RSC/FTA) est garantie EN AMONT (ADR-0029), plus par
-    cette fonction : le mart `releves` forward-fill RSC/FTA par PDL, et les relevés
-    périodiques entrent via `interroger_releves`, dont la requête FACTURATION porte déjà la
-    RSC/FTA du contrat. L'entrée est donc mart-shaped (RSC renseignée) ; le contrat de
-    sortie `ChronologieReleves` (RSC non-null) reste vérifié par Pandera.
+    L'**attribution des attributs de situation** (RSC/FTA/niveau) est garantie EN AMONT
+    (ADR-0029/ADR-0039), plus par cette fonction : les relevés C15 portent leur valeur
+    NATIVE, et les relevés périodiques entrent via `interroger_releves`, dont la requête
+    FACTURATION porte la RSC/FTA/niveau du contrat (depuis le substrat d'événements, plus
+    depuis le mart `releves` qui ne les recopie plus). L'entrée est donc attribuée (RSC
+    renseignée) ; le contrat de sortie `ChronologieReleves` (RSC non-null) reste vérifié
+    par Pandera.
 
     Args:
         evenements: LazyFrame des événements contractuels + événements FACTURATION
@@ -391,14 +393,25 @@ def _assembler_chronologie(evenements: pl.LazyFrame, releves: pl.LazyFrame) -> p
     # 3. Pour FACTURATION : interroger les relevés PÉRIODIQUES (tout sauf C15) aux dates
     #    de facturation. La priorité inter-sources est arbitrée au dédoublonnage ci-dessous.
     rel_periodiques = releves.filter(pl.col("source") != "flux_C15")
-    requete_facturation = evt_facturation.select(
-        [
-            "pdl",
-            pl.col("date_evenement").alias("date_releve"),
-            "ref_situation_contractuelle",
-            "formule_tarifaire_acheminement",
-        ]
-    )
+    # La requête FACTURATION porte les attributs de SITUATION du contrat — RSC, FTA et
+    # niveau d'ouverture — depuis le substrat d'événements (`pipeline_historique`,
+    # forward-fillé sur le flux C15 COMPLET, MDPRM compris). C'est par elle que les relevés
+    # périodiques sont attribués : le `join_asof` met la requête à gauche, donc sa valeur
+    # gagne et la version du mart `releves` (désormais `null` sur les périodiques, ADR-0039)
+    # ne fait que rider en `_right`. Le niveau rejoint ainsi RSC/FTA (#324, ADR-0039), ce
+    # qui corrige le niveau périmé recopié quand un MDPRM sans index changeait l'ouverture.
+    # `niveau_ouverture_services` est ajouté DÉFENSIVEMENT (présent en prod via SCHEMA_C15 ;
+    # absent de certaines chronologies synthétiques — `calculer_periodes_energie` le
+    # null-fille alors en aval).
+    colonnes_requete = [
+        "pdl",
+        pl.col("date_evenement").alias("date_releve"),
+        "ref_situation_contractuelle",
+        "formule_tarifaire_acheminement",
+    ]
+    if "niveau_ouverture_services" in evt_facturation.collect_schema().names():
+        colonnes_requete.append("niveau_ouverture_services")
+    requete_facturation = evt_facturation.select(colonnes_requete)
 
     rel_facturation = interroger_releves(requete_facturation, rel_periodiques)
 
@@ -411,10 +424,11 @@ def _assembler_chronologie(evenements: pl.LazyFrame, releves: pl.LazyFrame) -> p
         # Tri chronologique par PDL pour les opérations .over("pdl") (évite warning sortedness)
         .sort(["pdl", "date_releve", "ordre_index"])
         .set_sorted("pdl")  # Indiquer explicitement que PDL est trié
-        # Attribution contractuelle (RSC/FTA) : assurée EN AMONT (ADR-0029) — le mart `releves`
-        # forward-fill RSC/FTA par PDL (releves.sql), et les relevés périodiques entrent ici par
-        # `interroger_releves`, dont la requête FACTURATION porte déjà la RSC/FTA du contrat. La
-        # chronologie n'a donc plus à ré-attribuer : son entrée est mart-shaped (RSC renseignée).
+        # Attribution des attributs de situation (RSC/FTA/niveau) : assurée EN AMONT
+        # (ADR-0029/ADR-0039) — relevés C15 à valeur native, relevés périodiques entrés ici
+        # par `interroger_releves`, dont la requête FACTURATION porte la RSC/FTA/niveau du
+        # contrat (substrat d'événements, plus le mart). La chronologie n'a donc plus à
+        # ré-attribuer : son entrée est déjà attribuée (RSC renseignée).
         # Priorité des sources : tri sur le rang explicite (C15 > R64 > R151, ADR-0028),
         # plus l'alphabétique accidentel. La source de plus petit rang gagne le dédoublonnage.
         .with_columns(expr_priorite_source().alias("_priorite_source"))
@@ -439,9 +453,10 @@ def chronologie_releves(
     ADR-0028). Concentre derrière un contrat Pandera (`ChronologieReleves`) les
     invariants jusqu'ici encodés incidemment dans l'implémentation : priorité de
     sources explicite, dédoublonnage sur le triplet métier, tolérance d'appariement
-    nommée, et discriminant `ordre_index` booléen. L'attribution contractuelle (RSC/FTA)
-    est présumée portée en amont (mart `releves` + requête FACTURATION, ADR-0029) ; le
-    contrat de sortie garantit (et Pandera vérifie) que la RSC reste non-null.
+    nommée, et discriminant `ordre_index` booléen. L'attribution des attributs de situation
+    (RSC/FTA/niveau) est présumée portée en amont (valeur native C15 + requête FACTURATION,
+    ADR-0029/ADR-0039) ; le contrat de sortie garantit (et Pandera vérifie) que la RSC reste
+    non-null.
 
     Le dépivotage C15 avant/après, la résolution asof et le dédoublonnage deviennent de
     l'*implémentation* (`_assembler_chronologie`) derrière cette interface.
