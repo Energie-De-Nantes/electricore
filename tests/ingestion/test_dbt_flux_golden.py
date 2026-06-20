@@ -240,6 +240,12 @@ def test_flux_reproduit_le_golden(spec, tmp_path, monkeypatch):
             "build",
             "--select",
             f"+{spec.model}",
+            # Les gardes-fous d'intégrité des données réelles (tag `garde_donnees_reelles`,
+            # ADR-0041 §7) n'ont pas de sens sur les fixtures XSD « instance maximale » qui
+            # cyclent les énumérations (collisions artificielles) ; ils tournent en prod et
+            # dans leur propre harnais (test_dbt_spine_garde_collision.py).
+            "--exclude",
+            "tag:garde_donnees_reelles",
             "--project-dir",
             str(PROJET_DBT),
             "--profiles-dir",
