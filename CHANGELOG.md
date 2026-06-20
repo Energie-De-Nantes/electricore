@@ -9,6 +9,39 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.4.0rc1] - 2026-06-21
+
+Fin de la **descente d'assemblage d'ADR-0041** : le cœur consomme, dbt assemble. La branche
+abonnement bascule sur la spine de la *Chronologie du contrat* et `pipeline_historique` est
+rétréci à son strict minimum.
+
+### ✨ Temps forts
+
+- **Abonnement sur la spine + `pipeline_historique` rétréci** (ADR-0041, #378). `pipeline_historique`
+  ne ré-assemble plus rien : il lit la **spine** (mart `spine_contrat`, loader `spine()`), déjà
+  forward-fillée et augmentée de la grille FACTURATION mensuelle **en dbt** (#375), et ne fait
+  plus que (1) **filtrer l'horizon** (`date_evenement <= horizon`, l'horizon reste un *filtre* —
+  pureté #179) et (2) **détecter les ruptures d'abonnement**. Les bornes FACTURATION sont forcées
+  à `impacte_abonnement=True` dans `detecter_points_de_rupture` (bornes de période) ;
+  `expr_impacte_abonnement` reste une détection pure.
+- **Cœur allégé** : retrait de la génération FACTURATION (`inserer_evenements_facturation` & co.),
+  du forward-fill de situation, et de toute la détection énergie (`expr_impacte_energie`,
+  `expr_changement_index`, `expr_changement_avant_apres`) — désormais portés par dbt (spine +
+  *Chronologie des relevés*). Le modèle `Historique` est **rétréci** : plus d'`impacte_energie`
+  ni de colonnes d'index/calendrier/relevé (`avant_*`/`apres_*`), il garde l'épine + la situation
+  + l'enrichissement abonnement. Le build (`contexte_du_mois`/`charger`/`_composer`) branche le
+  loader `spine()` ; le loader `c15` n'est plus tiré pour la branche abonnement.
+- **Parité** : abonnements + facturation mensuelle **inchangés** (snapshots d'abonnement
+  byte-identiques). Seul écart attendu, le fix `month_start` de bord de mois hérité de la spine
+  (#380) : une borne FACTURATION manquante apparaît dans le cas-limite → la période devient
+  facturable.
+
+### 🧹 Coulisses
+
+- ~2700 lignes retirées (cœur + tests des fonctions d'assemblage supprimées). Parité circulaire
+  spine ↔ `pipeline_historique` retirée de `test_dbt_spine_contrat` (miroir de #377) ; le bug
+  `month_start` reste documenté en test pur-spine. 883 tests verts.
+
 ## [3.3.0] - 2026-06-20
 
 Deux chantiers de fond : la **trace d'index légale** exposée à Odoo (ADR-0038) et la **bascule
