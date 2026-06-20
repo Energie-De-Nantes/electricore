@@ -43,6 +43,11 @@ le seul changement est `chaine()` qui renvoie les N entrées du trousseau. Aucun
 sélection. Aucun **protocole** n'est modélisé : AES-128 et AES-256 sont le *même* schéma
 (AES-CBC-PKCS7, longueur de clé auto-sélectionnée), pas deux protocoles.
 
+> **Prémisse corrigée (20/06/2026, [ADR-0040](0040-schema-dechiffrement-aes-iv-prefixe.md)).** Le premier
+> vrai fichier AES-256 a montré qu'il s'agit bien d'un **second schéma** (IV *préfixé* dans le fichier,
+> non livré par Enedis), pas du même. Le *seam* parqué ici — « une fonction `decrypt_*` par schéma, le
+> trial balaie les schémas » — est réalisé par ADR-0040. Le reste de cet ADR tient inchangé.
+
 ### 3. Rupture de format assumée, compat de **données** préservée
 
 Pas de compatibilité ascendante du **format** de config : l'unique instance de prod (EDN) réécrit son

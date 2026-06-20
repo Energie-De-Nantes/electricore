@@ -70,6 +70,19 @@ def encrypted_zip(zip_bytes, aes_key, aes_iv) -> bytes:
     return cipher.encrypt(pad(zip_bytes, AES.block_size))
 
 
+@pytest.fixture
+def aes_key_256() -> bytes:
+    return bytes.fromhex("ee" * 32)  # 32 octets → AES-256
+
+
+@pytest.fixture
+def encrypted_zip_prefixe(zip_bytes, aes_key_256) -> bytes:
+    """ZIP chiffré AES-256-CBC, IV (16 octets) **préfixé** au ciphertext — schéma
+    IV-préfixé d'Enedis (ADR-0040). L'IV est en clair en tête, frais par fichier."""
+    iv = bytes.fromhex("a1b2c3d4e5f60718293a4b5c6d7e8f90")
+    return iv + AES.new(aes_key_256, AES.MODE_CBC, iv).encrypt(pad(zip_bytes, AES.block_size))
+
+
 # =============================================================================
 # TESTS decrypt_file_aes
 # =============================================================================
@@ -185,6 +198,37 @@ def test_decrypt_with_key_chain_single_key(encrypted_zip, zip_bytes, aes_key, ae
 
 
 @pytest.mark.unit
+def test_decrypt_with_key_chain_iv_prefixe(encrypted_zip_prefixe, zip_bytes, aes_key_256):
+    """Entrée sans IV (`iv=None`) → schéma IV-préfixé (ADR-0040) : l'IV est lu dans les
+    16 premiers octets du fichier, le reste est déchiffré."""
+    chain = [("aes256_2026", aes_key_256, None)]
+    result, key_used = decrypt_with_key_chain(encrypted_zip_prefixe, chain)
+    assert result == zip_bytes
+    assert key_used == "aes256_2026"
+
+
+@pytest.mark.unit
+def test_trousseau_mixe_schemas_iv_fixe_et_prefixe_sans_faux_positif_croise(
+    encrypted_zip, encrypted_zip_prefixe, zip_bytes, aes_key, aes_iv, aes_key_256
+):
+    """Trousseau mêlant schéma IV-fixe (AES-128) et IV-préfixé (AES-256, ADR-0040).
+
+    Pour chaque fichier, le **mauvais** schéma est placé EN TÊTE du trousseau : l'oracle
+    doit le rejeter (pas de faux positif croisé) et le bon schéma déchiffre par essai.
+    """
+    fixe_dabord = [("aes128_2024", aes_key, aes_iv), ("aes256_2026", aes_key_256, None)]
+    prefixe_dabord = [("aes256_2026", aes_key_256, None), ("aes128_2024", aes_key, aes_iv)]
+
+    # Fichier IV-préfixé : le schéma IV-fixe tenté d'abord est rejeté → bascule sur AES-256.
+    contenu_p, label_p = decrypt_with_key_chain(encrypted_zip_prefixe, fixe_dabord)
+    assert contenu_p == zip_bytes and label_p == "aes256_2026"
+
+    # Fichier IV-fixe : le schéma IV-préfixé tenté d'abord est rejeté → bascule sur AES-128.
+    contenu_f, label_f = decrypt_with_key_chain(encrypted_zip, prefixe_dabord)
+    assert contenu_f == zip_bytes and label_f == "aes128_2024"
+
+
+@pytest.mark.unit
 def test_trousseau_mixe_aes128_et_aes256_dechiffre_par_essai(zip_bytes, aes_key, aes_iv):
     """Corpus mêlant AES-128 et AES-256 : chaque fichier déchiffre par essai (ADR-0037, #352).
 
@@ -237,6 +281,35 @@ def test_load_key_chain_trousseau_n_cles(aes_key, aes_iv, monkeypatch):
     chain = load_aes_key_chain()
 
     assert set(chain) == {("aes256_2026", aes_key, aes_iv), ("aes128_2024", old_key, old_iv)}
+
+
+@pytest.mark.unit
+def test_load_key_chain_entree_sans_iv_schema_prefixe(aes_key_256, monkeypatch):
+    """Une entrée avec `__KEY` mais **sans** `__IV` → `(label, clé, None)` : schéma
+    IV-préfixé (ADR-0040). L'IV optionnel se charge depuis l'environnement."""
+    monkeypatch.setenv("AES__TROUSSEAU__aes256_2026__KEY", aes_key_256.hex())
+    runtime.vider_cache()
+
+    chain = load_aes_key_chain()
+
+    assert chain == [("aes256_2026", aes_key_256, None)]
+
+
+@pytest.mark.unit
+def test_load_key_chain_trousseau_mixte_avec_et_sans_iv(aes_key, aes_iv, aes_key_256, monkeypatch):
+    """Forme de migration prod (#354, ADR-0040) : une clé AES-256 **sans** IV (schéma
+    IV-préfixé) cohabite avec une clé AES-128 **avec** IV (schéma IV-fixe)."""
+    monkeypatch.setenv("AES__TROUSSEAU__aes256_2026__KEY", aes_key_256.hex())
+    monkeypatch.setenv("AES__TROUSSEAU__aes128_2024__KEY", aes_key.hex())
+    monkeypatch.setenv("AES__TROUSSEAU__aes128_2024__IV", aes_iv.hex())
+    runtime.vider_cache()
+
+    chain = load_aes_key_chain()
+
+    assert set(chain) == {
+        ("aes256_2026", aes_key_256, None),
+        ("aes128_2024", aes_key, aes_iv),
+    }
 
 
 @pytest.mark.unit

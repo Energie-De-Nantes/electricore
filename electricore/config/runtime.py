@@ -68,16 +68,21 @@ class Sftp(BaseSettings):
 
 
 class PaireCles(BaseSettings):
-    """Une clé AES et son IV, en hexadécimal."""
+    """Une clé AES et son IV **optionnel**, en hexadécimal.
+
+    IV présent → schéma **IV-fixe** (AES-128 legacy). IV absent → schéma **IV-préfixé**
+    (AES-256, ADR-0040) : l'IV est lu dans les 16 premiers octets de chaque fichier.
+    """
 
     model_config = SettingsConfigDict(extra="ignore")
 
     key: str
-    iv: str
+    iv: str | None = None
 
-    def octets(self, etiquette: str) -> tuple[bytes, bytes]:
+    def octets(self, etiquette: str) -> tuple[bytes, bytes | None]:
         try:
-            return bytes.fromhex(self.key), bytes.fromhex(self.iv)
+            iv = bytes.fromhex(self.iv) if self.iv is not None else None
+            return bytes.fromhex(self.key), iv
         except ValueError as e:
             raise ValueError(f"Clé/IV invalides pour AES__{etiquette.upper()} (hexadécimal attendu) : {e}") from e
 
@@ -99,8 +104,12 @@ class Aes(BaseSettings):
 
     trousseau: dict[str, PaireCles] = Field(default_factory=dict)
 
-    def chaine(self) -> list[tuple[str, bytes, bytes]]:
-        """Trousseau aplati en [(label, clé, iv), …] — ordre indifférent (sélection par essai)."""
+    def chaine(self) -> list[tuple[str, bytes, bytes | None]]:
+        """Trousseau aplati en [(label, clé, iv|None), …] — ordre indifférent (sélection par essai).
+
+        `iv=None` dénote le schéma IV-préfixé (ADR-0040) ; le routage par schéma vit dans
+        `decrypt_with_key_chain`.
+        """
         return [(label, *paire.octets(label)) for label, paire in self.trousseau.items()]
 
 
@@ -187,7 +196,9 @@ def sftp() -> Sftp:
 def aes() -> Aes:
     domaine = _instancier("aes", Aes, "AES__")
     if not domaine.chaine():
-        raise ConfigurationManquante({"aes": ["AES__TROUSSEAU__<label>__KEY", "AES__TROUSSEAU__<label>__IV"]})
+        raise ConfigurationManquante(
+            {"aes": ["AES__TROUSSEAU__<label>__KEY (IV optionnel : __IV = schéma IV-fixe, absent = IV-préfixé)"]}
+        )
     return domaine
 
 
