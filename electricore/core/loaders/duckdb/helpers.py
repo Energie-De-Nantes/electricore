@@ -16,6 +16,7 @@ from .config import DuckDBConfig, duckdb_readonly_conn
 from .query import DuckDBQuery, QueryConfig, make_query
 from .registry import FLUX_CONFIGS, FluxInconnu
 from .sql import FluxSchema
+from .transforms import transform_dates
 
 # =============================================================================
 # API FLUIDE - FONCTIONS FACTORY PAR FLUX
@@ -199,6 +200,44 @@ def releves(database_path: str | Path | None = None) -> DuckDBQuery:
     # cast — c'est le garde-fou de frontière qui remplace la 3ᵉ déclaration de type.
     config = QueryConfig(schema=union_schema, transform=None, validator=None)
     return DuckDBQuery(config=config, database_path=database_path, base_sql="SELECT * FROM flux_enedis.releves")
+
+
+def spine(database_path: str | Path | None = None) -> DuckDBQuery:
+    """Crée un DuckDBQuery pour le mart *spine* de la Chronologie du contrat (ADR-0041).
+
+    Spine relationnelle assemblée en dbt (Class-Table Inheritance) : épine commune
+    `(pdl, ref_situation_contractuelle, date_evenement, source, type_fait)` des faits d'une
+    RSC — événements C15 ∪ grille FACTURATION (1ᵉʳ de chaque mois) — avec les attributs de
+    **situation** (FTA, puissance, niveau d'ouverture, segment…) forward-fillés **en SQL**
+    sur la timeline d'événements complète. C'est le **substrat** dont dérivent les branches
+    abonnement (#378) et énergie (via la *Chronologie des relevés*, #376/#377).
+
+    L'**horizon** reste un *filtre* côté cœur (`date_evenement <= horizon`) : la spine est
+    pré-générée jusqu'à une borne généreuse, le cœur filtre (pureté #179 préservée).
+
+    Le loader reste fin (ADR-0019) : `SELECT *`, seul `date_evenement` est harmonisé en
+    Europe/Paris (instant préservé) pour un dtype stable quel que soit le fuseau de session.
+    Le contrat est porté par `SpineContrat` (validation activée par défaut).
+
+    Args:
+        database_path: Chemin vers la base DuckDB (optionnel)
+
+    Returns:
+        DuckDBQuery configuré pour le mart `spine_contrat`
+
+    Example:
+        >>> df = spine().collect()
+        >>> facturation = spine().filter({"type_fait": "facturation"}).collect()
+    """
+    from electricore.core.models.spine_contrat import SpineContrat
+
+    union_schema = FluxSchema(flux_name="SPINE_CONTRAT", table="", columns=())
+    config = QueryConfig(
+        schema=union_schema,
+        transform=transform_dates(("date_evenement",)),
+        validator=SpineContrat,
+    )
+    return DuckDBQuery(config=config, database_path=database_path, base_sql="SELECT * FROM flux_enedis.spine_contrat")
 
 
 # =============================================================================

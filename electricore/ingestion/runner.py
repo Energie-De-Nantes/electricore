@@ -171,6 +171,11 @@ def construire_dbt(db_path: Path) -> bool:
     # déjà dans `selection` via `+flux_*`, sont dédoublonnés par dbt.
     if {"raw_c15", "raw_r151", "raw_r64"} <= presentes:
         selection.append("+releves")
+    # La spine de la Chronologie du contrat (mart, ADR-0041) est un DESCENDANT de flux_c15 :
+    # même raison que `releves`, les `+flux_*` ne l'atteignent pas. Elle ne dépend que de C15
+    # (événements + grille FACTURATION calendaire) → on l'ajoute dès que raw_c15 est landé.
+    if "raw_c15" in presentes:
+        selection.append("+spine_contrat")
     if not selection:
         _out("  aucune table brute landée — rien à construire")
         return False
