@@ -117,14 +117,15 @@ def load_aes_key_chain() -> list[tuple[str, bytes, bytes]]:
     return runtime.aes().chaine()
 
 
-def load_aes_credentials() -> tuple[bytes, bytes]:
+def load_aes_credentials() -> tuple[bytes, bytes | None]:
     """
     Charge la clé AES principale (compatibilité ascendante).
 
     Préférer load_aes_key_chain() pour la gestion de la rotation de clés.
 
     Returns:
-        Tuple (aes_key, aes_iv) de la première clé disponible
+        Tuple (aes_key, aes_iv) de la première clé disponible — `aes_iv` vaut `None`
+        pour une entrée à schéma IV-préfixé (ADR-0040).
 
     Raises:
         ValueError: Si les clés ne peuvent pas être chargées
@@ -136,14 +137,20 @@ def load_aes_credentials() -> tuple[bytes, bytes]:
 
 def decrypt_with_key_chain(
     encrypted_data: bytes,
-    key_chain: list[tuple[str, bytes, bytes]],
+    key_chain: list[tuple[str, bytes, bytes | None]],
 ) -> tuple[bytes, str]:
     """
-    Tente le déchiffrement avec chaque clé dans l'ordre.
+    Tente le déchiffrement avec chaque clé dans l'ordre, en routant par schéma.
+
+    L'IV de l'entrée détermine le **schéma de déchiffrement** (ADR-0040) :
+      - IV présent → schéma **IV-fixe** (AES-128 legacy) : l'IV est en config et tout
+        le fichier est le ciphertext ;
+      - IV `None` → schéma **IV-préfixé** (AES-256) : l'IV est les 16 premiers octets
+        du fichier (en clair, frais par fichier), le reste est le ciphertext.
 
     Args:
         encrypted_data: Données chiffrées
-        key_chain: Liste de (nom, clé, iv) à essayer dans l'ordre
+        key_chain: Liste de (nom, clé, iv|None) à essayer dans l'ordre
 
     Returns:
         Tuple (données_déchiffrées, nom_clé_utilisée)
@@ -154,6 +161,9 @@ def decrypt_with_key_chain(
     errors: list[str] = []
     for name, key, iv in key_chain:
         try:
+            if iv is None:
+                # Schéma IV-préfixé : détache l'IV de la tête du fichier (ADR-0040).
+                return decrypt_file_aes(encrypted_data[16:], key, encrypted_data[:16]), name
             return decrypt_file_aes(encrypted_data, key, iv), name
         except ValueError as e:
             errors.append(f"  [{name}] {e}")
