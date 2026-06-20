@@ -9,6 +9,21 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.3.0rc2] - 2026-06-20
+
+### 🐛 Corrections
+
+- **IV optionnel jusqu'au bout de la chaîne de déploiement** (ADR-0040, suite de #370). Le
+  validateur `.env` d'installation (`deploy/lib/env_validate.sh`) exigeait encore une paire
+  `__{KEY,IV}` par label et **rejetait** une clé AES-256 ajoutée **sans `__IV`** (le cas réel
+  du schéma IV-préfixé) — bloquant la migration prod #354. Désormais le validateur n'exige que
+  `__KEY` (hex 32/64) ; `__IV` est optionnel et, s'il est présent, doit être valide. Le guide de
+  déploiement (rotation), les README, `docs/configuration.md`, `CLAUDE.md` et les docstrings
+  cessent de montrer un `aes256_2026__IV` trompeur : la clé AES-256 s'ajoute **sans IV** (schéma
+  IV-préfixé). Fixture `deploy/tests/env-valid` passée à la forme de prod mixte (AES-256 sans IV
+  + AES-128 avec IV) → couverte par les tests d'installation. _NB : le gabarit `deploy/docker/.env.example`
+  reste à corriger à la main (montre encore `aes256_2026__IV`)._
+
 ## [3.3.0rc1] - 2026-06-20
 
 ### ✨ Temps forts
