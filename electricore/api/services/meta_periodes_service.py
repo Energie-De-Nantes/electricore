@@ -70,6 +70,10 @@ _COLONNES_RELEVE: tuple[str, ...] = (
     "ordre_index",
     "releve_id",
     "nature_index",
+    # Label d'origine : `source` distingue télérelevé (R151/R64) vs relevé d'événement C15 ;
+    # `evenement_declencheur` (porté nativement au mart depuis flux_c15) en précise la cause.
+    "source",
+    "evenement_declencheur",
     *REGISTRES_REELS,
 )
 
@@ -82,17 +86,28 @@ _QUALITES_AVEC_RELEVES: frozenset[str] = frozenset({"réelle", "estimée"})
 def _objet_releve(ligne: dict) -> dict:
     """Projette une ligne de relevé sur l'objet de contrat (ADR-0038).
 
-    `{ releve_id, date_releve (ISO), nature_index, <registres réels non nuls> }`.
-    Un registre nul n'est pas exposé (registres réels uniquement — jamais de cadran
-    synthétisé). `date_releve` est rendue en ISO8601 pour un payload + un `source_hash`
-    déterministes.
+    `{ releve_id, date_releve (ISO), nature_index, origine_releve, [evenement],
+    <registres réels non nuls> }`.
+
+    - `origine_releve` (label, demande Virgile) : `événementiel` si le relevé vient d'un
+      événement contractuel C15 (`source = flux_C15`), `périodique` pour un télérelevé
+      automatique (R151/R64). Pour un relevé **événementiel**, `evenement` précise la cause
+      (code C15 brut `Nature_Evenement`, ex. `MCT` = changement) ; un périodique n'a pas de
+      clé `evenement`.
+    - Un registre nul n'est pas exposé (registres réels uniquement — jamais de cadran
+      synthétisé). `date_releve` est rendue en ISO8601 pour un payload + un `source_hash`
+      déterministes.
     """
     date_releve = ligne["date_releve"]
+    evenementiel = ligne.get("source") == "flux_C15"
     objet = {
         "releve_id": ligne["releve_id"],
         "date_releve": date_releve.isoformat() if hasattr(date_releve, "isoformat") else date_releve,
         "nature_index": ligne["nature_index"],
+        "origine_releve": "événementiel" if evenementiel else "périodique",
     }
+    if evenementiel and ligne.get("evenement_declencheur") is not None:
+        objet["evenement"] = ligne["evenement_declencheur"]
     for registre in REGISTRES_REELS:
         if ligne.get(registre) is not None:
             objet[registre] = ligne[registre]

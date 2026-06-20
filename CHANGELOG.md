@@ -9,6 +9,19 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.2.0rc3] - 2026-06-20
+
+### ✨ Temps forts
+
+- **Label d'origine de relevé dans `releves_utilises`** (ADR-0038) : chaque relevé exposé
+  porte `origine_releve` — `périodique` (télérelevé R151/R64) ou `événementiel` (relevé pris
+  à un événement contractuel C15) — et, pour un événementiel, `evenement` (code C15
+  `Nature_Evenement` brut, ex. `MCT` = changement de compteur). L'`evenement_declencheur` est
+  porté **nativement** par le mart `releves` depuis les relevés C15 (non forward-fillé), au
+  même titre que RSC/FTA/`niveau_ouverture_services` — donc disponible aussi sur `/releves` ;
+  le label (origine + événement) est dérivé à l'exposition. `CONTRAT_VERSION` reste `3`
+  (ajout de clés optionnelles = additif).
+
 ## [3.2.0rc2] - 2026-06-20
 
 ### ✨ Temps forts

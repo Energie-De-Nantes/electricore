@@ -56,9 +56,10 @@ def _contexte_synthetique(releves_utilises: pl.LazyFrame | None = None) -> Conte
 def _releves_utilises_synthetiques(decalage_index: int = 0) -> pl.LazyFrame:
     """Frame `releves_utilises` (forme *Chronologie des relevés*, ADR-0029) pour #360.
 
-    - **RSC-1** (mois `réelle`, HP/HC) : 3 relevés bornants — début, milieu (MCT), fin —
-      pour exercer le cas MCT (> 2 entrées). `decalage_index` décale les index ABSOLUS
-      des deux bornes extrêmes du même `+k` (delta kWh du mois inchangé) → test source_hash.
+    - **RSC-1** (mois `réelle`, HP/HC) : 3 relevés bornants — début (périodique R151),
+      milieu = **événement C15 MCT** (changement mid-mois), fin (périodique) — pour exercer
+      le cas MCT (> 2 entrées) ET le label d'origine. `decalage_index` décale les index
+      ABSOLUS des deux bornes extrêmes du même `+k` (delta kWh inchangé) → test source_hash.
     - **RSC-2** (mois `incalculable`) : porte tout de même un relevé dans le frame, pour
       prouver que le gate `qualite` force `[]` même quand des relevés existent.
     - Un relevé `releve_manquant` (releve_id null) ne doit jamais ressortir.
@@ -73,7 +74,10 @@ def _releves_utilises_synthetiques(decalage_index: int = 0) -> pl.LazyFrame:
                 datetime(2025, 4, 1, tzinfo=PARIS),
                 datetime(2025, 3, 1, tzinfo=PARIS),
             ],
-            "ordre_index": [False, False, False, False],
+            "ordre_index": [False, True, False, False],
+            # Origine du relevé : périodique (R151) sauf la borne MCT, événement C15.
+            "source": ["flux_R151", "flux_C15", "flux_R151", "flux_R151"],
+            "evenement_declencheur": [None, "MCT", None, None],
             "releve_id": ["a1b2c3d4e5f60718", "1122334455667788", "99aabbccddeeff00", "deadbeefdeadbeef"],
             "nature_index": ["réel", "réel", "réel", "réel"],
             # Compteur HP/HC : seuls hp/hc portés (le mart ne synthétise jamais → les
@@ -189,12 +193,21 @@ def test_releves_utilises_present_si_calculable_vide_si_incalculable(monkeypatch
     # RSC-2 (incalculable) → [] même si un relevé existe dans le frame.
     assert ru[1] == []
 
-    # Objet relevé = { releve_id, date_releve, nature_index, registres RÉELS uniquement }.
+    # Objet relevé = { releve_id, date_releve, nature_index, origine_releve, registres réels }.
     premier = ru[0][0]
-    assert set(premier) == {"releve_id", "date_releve", "nature_index", "index_hp_kwh", "index_hc_kwh"}
+    assert set(premier) == {
+        "releve_id",
+        "date_releve",
+        "nature_index",
+        "origine_releve",
+        "index_hp_kwh",
+        "index_hc_kwh",
+    }
     assert "index_base_kwh" not in premier  # registre nul → jamais exposé
     assert premier["releve_id"] == "a1b2c3d4e5f60718"
     assert premier["nature_index"] == "réel"
+    assert premier["origine_releve"] == "périodique"  # borne télérelevé R151
+    assert "evenement" not in premier  # périodique → pas d'événement
     assert "2025-03-01" in str(premier["date_releve"])
 
 
@@ -229,6 +242,8 @@ def test_releves_utilises_expose_tous_les_cadrans_reels(monkeypatch):
             "ref_situation_contractuelle": ["RSC-T", "RSC-T"],
             "date_releve": [datetime(2025, 3, 1, tzinfo=PARIS), datetime(2025, 4, 1, tzinfo=PARIS)],
             "ordre_index": [False, False],
+            "source": ["flux_R151", "flux_R151"],
+            "evenement_declencheur": [None, None],
             "releve_id": ["1111111111111111", "2222222222222222"],
             "nature_index": ["réel", "réel"],
             "index_base_kwh": [None, None],
@@ -258,6 +273,7 @@ def test_releves_utilises_expose_tous_les_cadrans_reels(monkeypatch):
         "releve_id",
         "date_releve",
         "nature_index",
+        "origine_releve",
         "index_hph_kwh",
         "index_hch_kwh",
         "index_hpb_kwh",
@@ -266,6 +282,29 @@ def test_releves_utilises_expose_tous_les_cadrans_reels(monkeypatch):
     assert objet["index_hph_kwh"] == 100 and objet["index_hcb_kwh"] == 400
     # Jamais de cadran agrégé absent du compteur (hp/hc nuls non synthétisés).
     assert "index_hp_kwh" not in objet and "index_hc_kwh" not in objet
+
+
+def test_releves_utilises_porte_origine_et_evenement(monkeypatch):
+    """Label d'origine du relevé : chaque objet porte `origine_releve`
+    (`périodique` pour un télérelevé R151/R64, `événementiel` pour un relevé C15) ; un
+    relevé événementiel précise en plus son `evenement` (code C15 brut, ex. `MCT` pour un
+    changement). Un périodique n'a pas de clé `evenement`."""
+    ctx = _contexte_synthetique(_releves_utilises_synthetiques())
+    monkeypatch.setattr(meta_periodes_service, "contexte_du_mois", lambda mois=None: ctx)
+
+    _, df = meta_periodes_service.meta_periodes("2025-03-01")
+    ru = df.sort("ref_situation_contractuelle")["releves_utilises"].to_list()[0]
+    par_date = {str(o["date_releve"])[:10]: o for o in ru}
+
+    # Bornes télérelevées → périodique, sans événement.
+    assert par_date["2025-03-01"]["origine_releve"] == "périodique"
+    assert "evenement" not in par_date["2025-03-01"]
+    assert par_date["2025-04-01"]["origine_releve"] == "périodique"
+
+    # Borne MCT mid-mois → événementiel, événement précisé (code C15 brut).
+    mct = par_date["2025-03-15"]
+    assert mct["origine_releve"] == "événementiel"
+    assert mct["evenement"] == "MCT"
 
 
 def test_releves_utilises_inclut_releves_intermediaires_mct(monkeypatch):

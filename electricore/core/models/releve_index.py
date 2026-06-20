@@ -26,6 +26,11 @@ class RelevéIndex(pa.DataFrameModel):
     # forward-fillé par PDL sur les périodiques au mart `releves` (#324). La *jumelle* de
     # nature_index : dbt porte l'attribution, le cœur en dérive le verdict (#325).
     niveau_ouverture_services: pl.Utf8 | None = pa.Field(nullable=True)
+    # Événement contractuel déclencheur (C15 `Nature_Evenement`, ex. `MES`/`MCT`/`RES`).
+    # Porté NATIVEMENT par les relevés C15 (comme RSC/FTA/niveau) ; NON forward-fillé — un
+    # télérelevé périodique (R151/R64) n'est déclenché par aucun événement → null. Source du
+    # label d'*origine de relevé* dérivé à l'exposition (périodique vs événementiel).
+    evenement_declencheur: pl.Utf8 | None = pa.Field(nullable=True)
 
     # 🏢 Références Fournisseur & Distributeur
     id_calendrier_fournisseur: pl.Utf8 | None = pa.Field(nullable=True)

@@ -58,6 +58,7 @@ GET /facturation/meta-periodes?mois=YYYY-MM-DD&rsc=RSC-A&rsc=RSC-B&limit=500&off
           "releve_id": "a1b2c3d4e5f60718",
           "date_releve": "2025-03-01T00:00:00+01:00",
           "nature_index": "réel",
+          "origine_releve": "périodique",
           "index_hp_kwh": 1000,
           "index_hc_kwh": 500
         },
@@ -65,6 +66,8 @@ GET /facturation/meta-periodes?mois=YYYY-MM-DD&rsc=RSC-A&rsc=RSC-B&limit=500&off
           "releve_id": "99aabbccddeeff00",
           "date_releve": "2025-04-01T00:00:00+02:00",
           "nature_index": "réel",
+          "origine_releve": "événementiel",
+          "evenement": "MCT",
           "index_hp_kwh": 1312,
           "index_hc_kwh": 645
         }
@@ -127,6 +130,8 @@ Chaque entrée du tableau :
 | `releve_id` | `str` (hex 16) | non | **Identité de relevé** (clé métier, ADR-0028) = *handle de reprise* d'une régularisation (#191). |
 | `date_releve` | `str` ISO8601 (Europe/Paris) | non | Date du relevé. |
 | `nature_index` | `str` | non | Mention légale : `réel` / `estimé` / `corrigé`. |
+| `origine_releve` | `str` | non | Origine du relevé : `périodique` (télérelevé automatique R151/R64) ou `événementiel` (relevé pris à un événement contractuel C15). |
+| `evenement` | `str` | — | **Présent uniquement si `origine_releve = événementiel`** : code C15 `Nature_Evenement` qui a déclenché le relevé (ex. `MCT` = modification contractuelle / changement, `MES` = mise en service, `RES` = résiliation). Clé absente pour un relevé périodique. |
 | `index_<cadran>_kwh` | `int` | — | **Registres réels** (kWh) du relevé, pour les 7 cadrans canoniques : `base`, `hp`, `hc` (C5) **et** `hph`/`hch`/`hpb`/`hcb` (4 quadrants C4/Tempo). **Seuls les registres présents** sur le compteur ressortent (clé non émise sinon) — jamais de cadran agrégé synthétisé (le mart ne pose un index que pour les cadrans réellement portés par le flux). |
 
 **Invariant « vide ssi incalculable ».** `releves_utilises` non vide **⟺**

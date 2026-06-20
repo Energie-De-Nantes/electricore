@@ -48,6 +48,14 @@ le sous-ensemble bornant réellement consommé par le calcul d'énergie, avec `r
   (`pivot_cadrans` ne pose un index que pour les cadrans réellement portés par le flux) —
   exposer tous les registres non nuls reste donc « réels uniquement », sans cas C5 vs C4.
 
+- **Label d'origine de relevé.** Chaque relevé exposé porte `origine_releve` —
+  `périodique` (télérelevé R151/R64) ou `événementiel` (relevé pris à un événement C15) —
+  et, pour un événementiel, `evenement` (code C15 `Nature_Evenement` brut, ex. `MCT`). Dérivé
+  à l'exposition de la `source` + de l'`evenement_declencheur`, ce dernier porté **nativement**
+  par le mart `releves` depuis les relevés C15 (non forward-fillé), au même titre que
+  RSC/FTA/`niveau_ouverture_services` ([#324](https://github.com/Energie-De-Nantes/electricore/issues/324)) :
+  *dbt porte l'attribution, le cœur dérive le label*. Axe orthogonal à `nature_index`.
+
 - **Invariant « vide ssi incalculable ».** `releves_utilises` non vide **⟺**
   `qualite ∈ {réelle, estimée}` ; `qualite = incalculable` **⟹** `[]`. Plein-ou-rien,
   miroir d'[ADR-0033](0033-qualite-periode-remplace-data-complete-coverage.md) /

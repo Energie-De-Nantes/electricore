@@ -21,7 +21,8 @@
     ('ref_situation_contractuelle', 'varchar'),
     ('formule_tarifaire_acheminement', 'varchar'),
     ('niveau_ouverture_services', 'varchar'),
-    ('id_calendrier_distributeur', 'varchar')
+    ('id_calendrier_distributeur', 'varchar'),
+    ('evenement_declencheur', 'varchar')
   ] -%}
   {#- Colonnes d'index DÉRIVÉES de cadrans.py (var `cadrans_releve`, ADR-0035 §1) : le nom
       vient du cadran (source unique), le type bigint est porté par dbt (kWh entiers, ADR-0034). -#}

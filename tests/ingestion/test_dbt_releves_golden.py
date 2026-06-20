@@ -202,6 +202,32 @@ def test_releves_inclut_c15_avant_apres(base_periodiques):
     # releve_id minté en hash court (ADR-0038, #359) + nature canonique mappée.
     assert all(r["releve_id"] and re.fullmatch(r"[0-9a-f]{16}", r["releve_id"]) for r in c15)
     assert all(r["nature_index"] in {"réel", "estimé", "corrigé"} for r in c15)
+    # Événement déclencheur porté nativement par les relevés C15 (label d'origine, ADR-0038).
+    assert all(r["evenement_declencheur"] for r in c15), "un relevé C15 doit porter son événement déclencheur"
+
+
+def test_releves_porte_evenement_declencheur_c15_seulement(base_periodiques):
+    """Label d'origine (ADR-0038, demande Virgile) : `evenement_declencheur` est porté
+    NATIVEMENT par les relevés C15 (substrat du label `événementiel` + sa cause) et reste
+    NULL pour les télérelevés périodiques R151/R64 (label `périodique`) — non forward-fillé,
+    un périodique n'est déclenché par aucun événement."""
+    resultat = _build_releves(base_periodiques.parent)
+    assert resultat.success, f"dbt build releves a échoué : {resultat.exception}"
+
+    con = duckdb.connect(str(base_periodiques))
+    par_source = dict(
+        con.execute(
+            """
+            select source, count(*) filter (where evenement_declencheur is not null)
+            from flux_enedis.releves group by source
+            """
+        ).fetchall()
+    )
+    con.close()
+
+    assert par_source.get("flux_C15", 0) > 0, "les relevés C15 doivent porter un evenement_declencheur"
+    assert par_source.get("flux_R151", 0) == 0, "un télérelevé R151 n'a pas d'événement déclencheur"
+    assert par_source.get("flux_R64", 0) == 0, "un télérelevé R64 n'a pas d'événement déclencheur"
 
 
 def test_releve_id_est_un_hash_court_stable(base_periodiques):

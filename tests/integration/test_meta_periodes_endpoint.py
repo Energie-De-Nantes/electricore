@@ -52,9 +52,19 @@ def meta_periodes_synthetiques() -> pl.DataFrame:
                 "releve_id": "a1b2c3d4e5f60718",
                 "date_releve": "2026-05-01T00:00:00+02:00",
                 "nature_index": "réel",
+                "origine_releve": "périodique",
                 "index_hp_kwh": 1000,
                 "index_hc_kwh": 500,
-            }
+            },
+            {
+                "releve_id": "1122334455667788",
+                "date_releve": "2026-05-12T00:00:00+02:00",
+                "nature_index": "réel",
+                "origine_releve": "événementiel",
+                "evenement": "MCT",
+                "index_hp_kwh": 1080,
+                "index_hc_kwh": 540,
+            },
         ],
         [],
     ]
@@ -118,14 +128,19 @@ def test_meta_periodes_imbrique_releves_utilises(monkeypatch, meta_periodes_synt
     # Bloc imbriqué présent et structuré.
     assert "releves_utilises" in row
     trace = row["releves_utilises"]
-    assert isinstance(trace, list) and len(trace) == 1
+    assert isinstance(trace, list) and len(trace) == 2
+    # Relevé périodique (télérelevé) : origine sans événement.
     assert trace[0] == {
         "releve_id": "a1b2c3d4e5f60718",
         "date_releve": "2026-05-01T00:00:00+02:00",
         "nature_index": "réel",
+        "origine_releve": "périodique",
         "index_hp_kwh": 1000,
         "index_hc_kwh": 500,
     }
+    # Relevé événementiel (MCT mid-mois) : origine + événement précisé.
+    assert trace[1]["origine_releve"] == "événementiel"
+    assert trace[1]["evenement"] == "MCT"
     # Mois incalculable → tableau vide.
     assert body["data"][1]["releves_utilises"] == []
 
