@@ -9,6 +9,22 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.3.0rc1] - 2026-06-20
+
+### ✨ Temps forts
+
+- **Schéma de déchiffrement AES à IV préfixé** (ADR-0040, #370). Le premier vrai fichier
+  AES-256 d'Enedis a révélé que la bascule AES-128 → AES-256 n'est **pas** « le même schéma,
+  clé plus longue » (prémisse d'ADR-0037, corrigée) : c'est un **schéma distinct**. Enedis ne
+  livre que la **clé** (64 hex), **sans IV** — l'IV est les **16 premiers octets de chaque
+  fichier**, en clair, frais par fichier (pattern AES-CBC canonique). Le trousseau distingue
+  les deux schémas par la **présence d'IV** : une entrée **avec** `__IV` ⇒ schéma **IV-fixe**
+  (AES-128 legacy, IV en config) ; **sans** `__IV` ⇒ schéma **IV-préfixé** (AES-256, IV lu en
+  tête de fichier). `decrypt_with_key_chain` route par essai sur la présence d'IV ;
+  `decrypt_file_aes` (primitif + oracle PKCS7/ZIP) est inchangé ; les deux schémas coexistent
+  sans faux positif croisé (lecture des archives AES-128 + des flux courants AES-256).
+  `PaireCles.iv` devient optionnel. Débloque la migration `.env` de prod (#354).
+
 ## [3.2.0rc4] - 2026-06-20
 
 ### 🐛 Corrections
