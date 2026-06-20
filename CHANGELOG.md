@@ -9,6 +9,33 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.2.0rc1] - 2026-06-20
+
+Trace d'index légale (ADR-0038) : les relevés bornant chaque mois sont exposés à Odoo,
+imbriqués dans la méta-période, et `releve_id` passe en hash court avant exposition.
+
+### ✨ Temps forts
+
+- **Relevés utilisés imbriqués** (ADR-0038, #360) : `GET /facturation/meta-periodes` porte
+  désormais un tableau `releves_utilises` par méta-période — les relevés bornant le mois,
+  objet `{ releve_id, date_releve, nature_index, registres réels C5 }` — pour qu'Odoo tire et
+  stocke la *Traçabilité des index* (exigence légale + espace usager). Invariant plein-ou-rien :
+  non vide ⟺ `qualite ∈ {réelle, estimée}`, `incalculable ⟹ []` (miroir ADR-0033/0036) ; les
+  relevés intermédiaires d'un mois à MCT figurent (non borné à 2 entrées). `source_hash` étendu
+  au tableau : une dérive d'index imprimé / nature / identité flippe le hash **même à delta kWh
+  du mois constant**.
+- **`releve_id` en hash court** (ADR-0038, #359) : `mint_releve_id` (seam dbt) passe de la
+  concaténation verbeuse (`source|pdl|timestamp+tz|discriminant`) à
+  `substr(md5(<mêmes composantes>), 1, 16)`. Seul l'**encodage** change — identité (ADR-0028)
+  et stabilité `CORR ≡ BRUT` / dédup / reprise (#191) inchangées. Fait maintenant car
+  `releve_id` n'était encore exposé dans aucun contrat (coût aval nul, hors golden + parité #291).
+
+### ⚠️ Contrat
+
+- **`CONTRAT_VERSION` 2 → 3** sur `/facturation/meta-periodes` : évolution **additive stricte**
+  (enveloppe + pagination intactes, colonnes existantes inchangées) — un consommateur tolérant
+  survit. `docs/contrat-meta-periodes.md` décrit le bloc `releves_utilises` + l'invariant.
+
 ## [3.1.0] - 2026-06-19
 
 Trousseau de clés AES (ADR-0037) : déverrouille l'ingestion bloquée depuis la bascule
