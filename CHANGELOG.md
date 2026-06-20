@@ -9,100 +9,50 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
-## [3.3.0rc2] - 2026-06-20
+## [3.3.0] - 2026-06-20
 
-### 🐛 Corrections
-
-- **IV optionnel jusqu'au bout de la chaîne de déploiement** (ADR-0040, suite de #370). Le
-  validateur `.env` d'installation (`deploy/lib/env_validate.sh`) exigeait encore une paire
-  `__{KEY,IV}` par label et **rejetait** une clé AES-256 ajoutée **sans `__IV`** (le cas réel
-  du schéma IV-préfixé) — bloquant la migration prod #354. Désormais le validateur n'exige que
-  `__KEY` (hex 32/64) ; `__IV` est optionnel et, s'il est présent, doit être valide. Le guide de
-  déploiement (rotation), les README, `docs/configuration.md`, `CLAUDE.md` et les docstrings
-  cessent de montrer un `aes256_2026__IV` trompeur : la clé AES-256 s'ajoute **sans IV** (schéma
-  IV-préfixé). Fixture `deploy/tests/env-valid` passée à la forme de prod mixte (AES-256 sans IV
-  + AES-128 avec IV) → couverte par les tests d'installation. _NB : le gabarit `deploy/docker/.env.example`
-  reste à corriger à la main (montre encore `aes256_2026__IV`)._
-
-## [3.3.0rc1] - 2026-06-20
+Deux chantiers de fond : la **trace d'index légale** exposée à Odoo (ADR-0038) et la **bascule
+de chiffrement AES-256** d'Enedis menée à bout jusqu'en prod (ADR-0040) ; plus la correction
+d'un attribut de situation périmé sur le mart `releves` (ADR-0039).
 
 ### ✨ Temps forts
 
 - **Schéma de déchiffrement AES à IV préfixé** (ADR-0040, #370). Le premier vrai fichier
   AES-256 d'Enedis a révélé que la bascule AES-128 → AES-256 n'est **pas** « le même schéma,
-  clé plus longue » (prémisse d'ADR-0037, corrigée) : c'est un **schéma distinct**. Enedis ne
-  livre que la **clé** (64 hex), **sans IV** — l'IV est les **16 premiers octets de chaque
-  fichier**, en clair, frais par fichier (pattern AES-CBC canonique). Le trousseau distingue
-  les deux schémas par la **présence d'IV** : une entrée **avec** `__IV` ⇒ schéma **IV-fixe**
-  (AES-128 legacy, IV en config) ; **sans** `__IV` ⇒ schéma **IV-préfixé** (AES-256, IV lu en
-  tête de fichier). `decrypt_with_key_chain` route par essai sur la présence d'IV ;
-  `decrypt_file_aes` (primitif + oracle PKCS7/ZIP) est inchangé ; les deux schémas coexistent
-  sans faux positif croisé (lecture des archives AES-128 + des flux courants AES-256).
-  `PaireCles.iv` devient optionnel. Débloque la migration `.env` de prod (#354).
-
-## [3.2.0rc4] - 2026-06-20
+  clé plus longue » (prémisse d'ADR-0037, corrigée) : Enedis ne livre que la **clé** (64 hex),
+  **sans IV** — l'IV est les **16 premiers octets de chaque fichier**, en clair, frais par
+  fichier (pattern AES-CBC canonique). Le trousseau distingue les schémas par la **présence
+  d'IV** : une entrée **avec** `__IV` ⇒ schéma **IV-fixe** (AES-128 legacy, IV en config) ;
+  **sans** `__IV` ⇒ schéma **IV-préfixé** (AES-256, IV lu en tête de fichier).
+  `decrypt_with_key_chain` route par essai sur la présence d'IV ; `decrypt_file_aes` (primitif +
+  oracle PKCS7/ZIP) est inchangé ; les deux schémas coexistent sans faux positif croisé.
+  `PaireCles.iv` devient optionnel, et toute la chaîne de déploiement (validateur `.env`,
+  gabarit, guide de rotation, README, docstrings) cesse d'exiger ou de montrer un `__IV` pour
+  AES-256. **Migration prod #354 menée à bout** : resync OK, R64 (AES-256) déchiffré en prod.
+- **Trace d'index légale exposée à Odoo** (ADR-0038, #359/#360). `GET /facturation/meta-periodes`
+  porte un tableau `releves_utilises` par méta-période — les relevés bornant le mois, objet
+  `{ releve_id, date_releve, nature_index, registres réels }` — pour qu'Odoo tire et stocke la
+  *Traçabilité des index* (exigence légale + espace usager). Les **7 registres canoniques**
+  ressortent (`base`/`hp`/`hc` C5 **et** les 4 quadrants `hph`/`hch`/`hpb`/`hcb` C4/Tempo,
+  source unique `cadrans.py`), limités aux registres réellement présents sur le compteur (le mart
+  ne synthétise jamais). Chaque relevé porte `origine_releve` (`périodique` R151/R64 vs
+  `événementiel` C15) et, pour un événementiel, le code `evenement` (ex. `MCT`). Invariant
+  plein-ou-rien : non vide ⟺ `qualite ∈ {réelle, estimée}`, `incalculable ⟹ []` ; les relevés
+  intermédiaires d'un mois à MCT figurent. `source_hash` étendu au tableau : une dérive d'index
+  imprimé / nature / identité flippe le hash **même à delta kWh constant**. `releve_id` passe en
+  **hash court** (`substr(md5(...), 1, 16)`) — encodage seul, identité (ADR-0028) inchangée.
 
 ### 🐛 Corrections
 
-- **Attributs de situation hors du mart `releves` — niveau d'ouverture via la requête
-  FACTURATION** (ADR-0039, #365). Le mart `releves` ne **recopie plus** (forward-fill par
-  PDL) `ref_situation_contractuelle` / `formule_tarifaire_acheminement` /
-  `niveau_ouverture_services` sur les relevés périodiques : la recopie périmait dès qu'un
-  attribut changeait sur un événement C15 **sans index** (`MDPRM` de niveau, `CFNE`/`MES`
-  sans index — jamais des relevés car `int_releves__c15` gate `index is not null`). Bug prod
-  (RSC `834877952`) : la borne du 01/04 héritait niveau 0 du dernier C15 indexé alors qu'un
-  `MDPRM` du 16/03 l'avait relevé à 2 → mois `réelle` faussement `non_communicante`.
-  Désormais un relevé C15 garde sa valeur **native**, un télérelevé périodique reste `null`,
-  et la chronologie source le **niveau** (comme déjà RSC/FTA) depuis la requête FACTURATION
-  du cœur (substrat d'événements `pipeline_historique`, forward-fillé sur le flux C15
-  **complet**). `/releves` sert des **lectures pures**. Régression couverte bout-en-bout
-  (« `MDPRM` sans index avant le mois → `communicante` »).
-
-## [3.2.0rc3] - 2026-06-20
-
-### ✨ Temps forts
-
-- **Label d'origine de relevé dans `releves_utilises`** (ADR-0038) : chaque relevé exposé
-  porte `origine_releve` — `périodique` (télérelevé R151/R64) ou `événementiel` (relevé pris
-  à un événement contractuel C15) — et, pour un événementiel, `evenement` (code C15
-  `Nature_Evenement` brut, ex. `MCT` = changement de compteur). L'`evenement_declencheur` est
-  porté **nativement** par le mart `releves` depuis les relevés C15 (non forward-fillé), au
-  même titre que RSC/FTA/`niveau_ouverture_services` — donc disponible aussi sur `/releves` ;
-  le label (origine + événement) est dérivé à l'exposition. `CONTRAT_VERSION` reste `3`
-  (ajout de clés optionnelles = additif).
-
-## [3.2.0rc2] - 2026-06-20
-
-### ✨ Temps forts
-
-- **`releves_utilises` porte tous les cadrans réels** (ADR-0038) : le bloc imbriqué expose
-  désormais les **7 registres d'index canoniques** — `base`/`hp`/`hc` (C5) **et** les
-  4 quadrants `hph`/`hch`/`hpb`/`hcb` (C4/Tempo), dérivés de la source unique `cadrans.py` —
-  au lieu des seuls `base`/`hp`/`hc` de rc1. Seuls les registres **présents** sur le compteur
-  ressortent (clé non émise sinon) ; le mart ne synthétisant jamais, un registre exposé est
-  toujours un cadran réellement affiché. Le périmètre C4 est donc inclus dès l'origine.
-  `CONTRAT_VERSION` reste `3` (ajout de clés optionnelles dans l'objet relevé = additif).
-
-## [3.2.0rc1] - 2026-06-20
-
-Trace d'index légale (ADR-0038) : les relevés bornant chaque mois sont exposés à Odoo,
-imbriqués dans la méta-période, et `releve_id` passe en hash court avant exposition.
-
-### ✨ Temps forts
-
-- **Relevés utilisés imbriqués** (ADR-0038, #360) : `GET /facturation/meta-periodes` porte
-  désormais un tableau `releves_utilises` par méta-période — les relevés bornant le mois,
-  objet `{ releve_id, date_releve, nature_index, registres réels C5 }` — pour qu'Odoo tire et
-  stocke la *Traçabilité des index* (exigence légale + espace usager). Invariant plein-ou-rien :
-  non vide ⟺ `qualite ∈ {réelle, estimée}`, `incalculable ⟹ []` (miroir ADR-0033/0036) ; les
-  relevés intermédiaires d'un mois à MCT figurent (non borné à 2 entrées). `source_hash` étendu
-  au tableau : une dérive d'index imprimé / nature / identité flippe le hash **même à delta kWh
-  du mois constant**.
-- **`releve_id` en hash court** (ADR-0038, #359) : `mint_releve_id` (seam dbt) passe de la
-  concaténation verbeuse (`source|pdl|timestamp+tz|discriminant`) à
-  `substr(md5(<mêmes composantes>), 1, 16)`. Seul l'**encodage** change — identité (ADR-0028)
-  et stabilité `CORR ≡ BRUT` / dédup / reprise (#191) inchangées. Fait maintenant car
-  `releve_id` n'était encore exposé dans aucun contrat (coût aval nul, hors golden + parité #291).
+- **Attributs de situation hors du mart `releves`** (ADR-0039, #365). Le mart ne **recopie plus**
+  (forward-fill par PDL) `ref_situation_contractuelle` / `formule_tarifaire_acheminement` /
+  `niveau_ouverture_services` sur les relevés périodiques : la recopie périmait dès qu'un attribut
+  changeait sur un événement C15 **sans index** (`MDPRM` de niveau, jamais un relevé car
+  `int_releves__c15` gate `index is not null`). Bug prod (RSC `834877952`) : la borne du 01/04
+  héritait niveau 0 du dernier C15 indexé alors qu'un `MDPRM` du 16/03 l'avait relevé à 2 → mois
+  `réelle` faussement `non_communicante`. Désormais un relevé C15 garde sa valeur **native**, un
+  télérelevé périodique reste `null`, et la chronologie source le niveau (comme déjà RSC/FTA)
+  depuis la requête FACTURATION du cœur. `/releves` sert des **lectures pures**.
 
 ### ⚠️ Contrat
 
