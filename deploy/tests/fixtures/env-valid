@@ -4,9 +4,9 @@ ELECTRICORE_VERSION=1.7.0
 BACKUPS_PATH=/srv/edn/backups
 API_KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa  # gitleaks:allow
 SFTP__URL=sftp://user:pass@host.fr:22/exports  # gitleaks:allow
-# Trousseau AES (ADR-0037) : labels arbitraires, AES-256 (64 hex) et AES-128 (32 hex) mêlés.
+# Trousseau AES (ADR-0037, ADR-0040) : forme de prod mixte.
+# AES-256 (64 hex) SANS __IV → schéma IV-préfixé ; AES-128 (32 hex) AVEC __IV → schéma IV-fixe.
 AES__TROUSSEAU__aes256_2026__KEY=00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff  # gitleaks:allow
-AES__TROUSSEAU__aes256_2026__IV=ffeeddccbbaa99887766554433221100  # gitleaks:allow
 AES__TROUSSEAU__aes128_2024__KEY=00112233445566778899aabbccddeeff  # gitleaks:allow
 AES__TROUSSEAU__aes128_2024__IV=ffeeddccbbaa99887766554433221100  # gitleaks:allow
 TELEGRAM_BOT_TOKEN=

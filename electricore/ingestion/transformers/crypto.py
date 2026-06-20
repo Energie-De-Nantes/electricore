@@ -8,13 +8,16 @@ Trousseau de clés N-clés (ADR-0037, registre runtime #141) :
   trousseau de taille arbitraire, alimenté par des variables d'environnement
   nommées (`.env` compris) :
 
-      AES__TROUSSEAU__aes256_2026__KEY=…    # 32 octets hex (AES-256)
-      AES__TROUSSEAU__aes256_2026__IV=…
+      AES__TROUSSEAU__aes256_2026__KEY=…    # 32 octets hex (AES-256), SANS __IV
       AES__TROUSSEAU__aes128_2024__KEY=…    # 16 octets hex (AES-128)
       AES__TROUSSEAU__aes128_2024__IV=…
 
-  La sélection se fait **par essai** : chaque clé du trousseau est tentée dans un
-  ordre indifférent ; le déchiffrement est son propre oracle (padding PKCS7 +
+  L'IV (`__IV`) est **optionnel** et détermine le schéma de déchiffrement (ADR-0040) :
+  présent ⇒ schéma **IV-fixe** (l'IV est en config, AES-128 legacy) ; absent ⇒ schéma
+  **IV-préfixé** (l'IV est les 16 premiers octets de chaque fichier, AES-256).
+
+  La sélection de la clé se fait **par essai** : chaque clé du trousseau est tentée dans
+  un ordre indifférent ; le déchiffrement est son propre oracle (padding PKCS7 +
   magic bytes ZIP). Aucune date ni protocole ne pilote la sélection. Le `<label>`
   parlant remonte dans les logs pour faciliter le diagnostic.
 """

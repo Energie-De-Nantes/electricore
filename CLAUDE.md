@@ -229,11 +229,13 @@ AES-128 → AES-256 du 8-9 juin 2026). Le registre runtime
 (`.env` ou env système ; le support `.dlt/secrets.toml` a été retiré) :
 
 ```bash
-AES__TROUSSEAU__aes256_2026__KEY=cle_hex_64   # AES-256 (32 octets)
-AES__TROUSSEAU__aes256_2026__IV=iv_hex_32
+AES__TROUSSEAU__aes256_2026__KEY=cle_hex_64   # AES-256 (32 octets), SANS __IV → schéma IV-préfixé (ADR-0040)
 AES__TROUSSEAU__aes128_2024__KEY=cle_hex_32   # AES-128 historique (16 octets)
-AES__TROUSSEAU__aes128_2024__IV=iv_hex_32
+AES__TROUSSEAU__aes128_2024__IV=iv_hex_32     # IV présent → schéma IV-fixe
 ```
+
+L'`__IV` est **optionnel** (ADR-0040) : présent ⇒ schéma **IV-fixe** (AES-128, IV en
+config) ; absent ⇒ schéma **IV-préfixé** (AES-256, l'IV est en tête de chaque fichier).
 
 Le `<label>` est un nom parlant choisi par l'opérateur ; il remonte dans les logs de
 déchiffrement. La bonne clé est **sélectionnée par essai** (oracle PKCS7 + magic bytes
@@ -242,7 +244,7 @@ la longueur de clé est auto-sélectionnée.
 
 Procédure de rotation :
 1. Obtenir la nouvelle clé Enedis
-2. L'ajouter au trousseau sous un nouveau label (`AES__TROUSSEAU__<nouveau>__{KEY,IV}`)
+2. L'ajouter au trousseau sous un nouveau label (`AES__TROUSSEAU__<nouveau>__KEY`, plus `__IV` seulement si Enedis en fournit un — schéma IV-fixe ; sans IV ⇒ IV-préfixé, ADR-0040)
 3. Relancer le pipeline — chaque fichier déchiffre avec la clé qui marche, par essai
 4. Retirer une vieille clé seulement quand plus aucune archive chiffrée avec elle n'est (re)téléchargeable
 
