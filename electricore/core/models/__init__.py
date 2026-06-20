@@ -8,5 +8,6 @@ progressivement les modèles pandas existants.
 from .chronologie_releves import ChronologieReleves
 from .historique import Historique
 from .releve_index import RelevéIndex
+from .spine_contrat import SpineContrat
 
-__all__ = ["RelevéIndex", "Historique", "ChronologieReleves"]
+__all__ = ["RelevéIndex", "Historique", "ChronologieReleves", "SpineContrat"]

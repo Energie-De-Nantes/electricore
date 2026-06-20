@@ -18,6 +18,7 @@ from .duckdb import (
     r64,
     r151,
     releves,
+    spine,
 )
 from .parquet import charger_historique, charger_releves
 
@@ -32,6 +33,7 @@ __all__ = [
     "f15",
     "r64",
     "releves",
+    "spine",
     "affaires",
     "DuckDBQuery",
     # Utilitaires DuckDB

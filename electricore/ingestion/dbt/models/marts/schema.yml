@@ -27,3 +27,34 @@ models:
       - name: ordre_index
         description: Discriminant avant/après (False = avant / relevé périodique).
         data_tests: [not_null]
+
+  - name: spine_contrat
+    description: >
+      Spine de la *Chronologie du contrat* (ADR-0041) — substrat relationnel (Class-Table
+      Inheritance) : une ligne par fait d'une RSC (événements C15 ∪ grille FACTURATION
+      mensuelle), épine commune + situation forward-fillée en SQL sur la timeline
+      d'événements complète. L'horizon reste un FILTRE côté cœur (grille pré-générée
+      jusqu'à `borne_facturation_genereuse`). Parité vs `pipeline_historique` vérifiée
+      (tests/ingestion/test_dbt_spine_contrat.py).
+    columns:
+      - name: ref_situation_contractuelle
+        description: Situation contractuelle (RSC) — clé de partition du forward-fill.
+        data_tests: [not_null]
+      - name: pdl
+        description: Point de livraison.
+        data_tests: [not_null]
+      - name: date_evenement
+        description: Horodatage du fait (instant, Europe/Paris) — ordre du forward-fill.
+        data_tests: [not_null]
+      - name: source
+        description: Source du fait — énumération fermée (s'étendra avec les relations).
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ["flux_C15", "synthese_mensuelle"]
+      - name: type_fait
+        description: Sous-type de la spine (Class-Table Inheritance).
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ["evenement", "facturation"]

@@ -35,6 +35,7 @@ from .helpers import (
     r64,
     r151,
     releves,
+    spine,
 )
 from .query import DuckDBQuery
 from .registry import ENTREES_C15, SORTIES_C15, FluxInconnu
@@ -58,6 +59,7 @@ __all__ = [
     "f15",
     "r64",
     "releves",
+    "spine",
     "affaires",
     "FluxInconnu",
     # Groupings C15 canoniques (cf. CONTEXT.md)
