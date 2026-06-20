@@ -240,6 +240,42 @@ def spine(database_path: str | Path | None = None) -> DuckDBQuery:
     return DuckDBQuery(config=config, database_path=database_path, base_sql="SELECT * FROM flux_enedis.spine_contrat")
 
 
+def chronologie(database_path: str | Path | None = None) -> DuckDBQuery:
+    """Crée un DuckDBQuery pour le mart *Chronologie des relevés* (ADR-0041, #376).
+
+    Projection ÉNERGIE de la spine, assemblée entièrement en dbt : relevés contractuels
+    C15 aux événements qui impactent l'énergie + bornes FACTURATION mensuelles appariées
+    aux relevés périodiques (R151/R64) au **grain JOUR** (equi-join `(pdl, jour)` qui
+    remplace l'asof « nearest 4h » du cœur), dédoublonnées par priorité de source
+    (C15 > R64 > R151, ADR-0028) via `QUALIFY`. Grain : 1 ligne par
+    `(ref_situation_contractuelle, date_releve, ordre_index)`.
+
+    Read fin (ADR-0019) : `SELECT *`, `date_releve` harmonisé Europe/Paris (instant
+    préservé). Contrat `ChronologieReleves` (validation activée). Remplace l'assemblage
+    interne `_assembler_chronologie` (retiré du chemin énergie en #377).
+
+    Args:
+        database_path: Chemin vers la base DuckDB (optionnel)
+
+    Returns:
+        DuckDBQuery configuré pour le mart `chronologie_releves`
+
+    Example:
+        >>> df = chronologie().collect()
+    """
+    from electricore.core.models.chronologie_releves import ChronologieReleves
+
+    union_schema = FluxSchema(flux_name="CHRONOLOGIE_RELEVES", table="", columns=())
+    config = QueryConfig(
+        schema=union_schema,
+        transform=transform_dates(("date_releve",)),
+        validator=ChronologieReleves,
+    )
+    return DuckDBQuery(
+        config=config, database_path=database_path, base_sql="SELECT * FROM flux_enedis.chronologie_releves"
+    )
+
+
 # =============================================================================
 # UTILITAIRES
 # =============================================================================

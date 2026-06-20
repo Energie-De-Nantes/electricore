@@ -57,8 +57,10 @@ class ChronologieReleves(pa.DataFrameModel):
     # Discriminant avant/après : False = avant ou relevé périodique, True = après C15.
     ordre_index: pl.Boolean = pa.Field(nullable=False)
 
-    # Source gagnante (table de priorité explicite C15 > R64 > R151).
-    source: pl.Utf8 = pa.Field(nullable=False, isin=SOURCES_CHRONOLOGIE)
+    # Source gagnante (table de priorité explicite C15 > R64 > R151). Nullable : une borne
+    # FACTURATION sans relevé apparié (releve_manquant) n'a pas de source — elle reste une
+    # borne de période. Les valeurs non-nulles sont dans l'énumération fermée.
+    source: pl.Utf8 | None = pa.Field(nullable=True, isin=SOURCES_CHRONOLOGIE)
 
     # 🆔 Identité (ADR-0028/0029, #244) portée jusqu'au journal (#233). Mintée au seam
     # dbt pour toutes les sources. Nullable : un relevé interrogé absent (releve_manquant)

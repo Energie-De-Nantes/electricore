@@ -176,6 +176,11 @@ def construire_dbt(db_path: Path) -> bool:
     # (événements + grille FACTURATION calendaire) → on l'ajoute dès que raw_c15 est landé.
     if "raw_c15" in presentes:
         selection.append("+spine_contrat")
+    # La Chronologie des relevés (mart, ADR-0041) projette la spine sur l'énergie : elle
+    # apparie les relevés (canoniques) aux bornes de la spine. Mêmes sources que `releves`
+    # (C15 + R151/R64) ; `+chronologie_releves` tire ses ancêtres (spine, releves, flux_*).
+    if {"raw_c15", "raw_r151", "raw_r64"} <= presentes:
+        selection.append("+chronologie_releves")
     if not selection:
         _out("  aucune table brute landée — rien à construire")
         return False
