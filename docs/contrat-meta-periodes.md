@@ -118,8 +118,7 @@ porte deux lignes.
 
 La *Traçabilité des index* exigée par la loi : les relevés effectivement consommés par le
 calcul d'énergie qui **bornent** le mois, qu'Odoo tire et stocke (copie de travail sur
-`souscription.periode`, gel légal au posting de `account.move`). Périmètre **C5** ; le
-4-cadran C4 sera additif.
+`souscription.periode`, gel légal au posting de `account.move`).
 
 Chaque entrée du tableau :
 
@@ -128,7 +127,7 @@ Chaque entrée du tableau :
 | `releve_id` | `str` (hex 16) | non | **Identité de relevé** (clé métier, ADR-0028) = *handle de reprise* d'une régularisation (#191). |
 | `date_releve` | `str` ISO8601 (Europe/Paris) | non | Date du relevé. |
 | `nature_index` | `str` | non | Mention légale : `réel` / `estimé` / `corrigé`. |
-| `index_base_kwh` \| `index_hp_kwh` \| `index_hc_kwh` | `int` | — | **Registres réels** (kWh) du relevé — *uniquement ceux que le compteur porte* (jamais de cadran synthétisé). Une clé absente = registre non applicable. |
+| `index_<cadran>_kwh` | `int` | — | **Registres réels** (kWh) du relevé, pour les 7 cadrans canoniques : `base`, `hp`, `hc` (C5) **et** `hph`/`hch`/`hpb`/`hcb` (4 quadrants C4/Tempo). **Seuls les registres présents** sur le compteur ressortent (clé non émise sinon) — jamais de cadran agrégé synthétisé (le mart ne pose un index que pour les cadrans réellement portés par le flux). |
 
 **Invariant « vide ssi incalculable ».** `releves_utilises` non vide **⟺**
 `qualite ∈ {réelle, estimée}` ; `qualite = incalculable` **⟹** `[]` (plein-ou-rien, miroir
@@ -202,7 +201,10 @@ tranchés (suivis côté electricore) :
 
 ## Hors périmètre v1
 
-- **C4 / 4 cadrans réseau** : la méta-période v1 est C5 (`base`/`hp`/`hc`, une puissance).
-  Le détail 4 cadrans + 4 puissances existe en amont et sera exposé en **colonnes
-  additionnelles** (sans rupture) le jour où un C4 entre au périmètre.
+- **C4 / 4 cadrans réseau** : les **quantités d'énergie** de la méta-période restent C5
+  (`energie_base`/`hp`/`hc`, une puissance). Le détail 4 cadrans + 4 puissances existe en
+  amont et sera exposé en **colonnes additionnelles** (sans rupture) le jour où un C4 entre
+  au périmètre. *Exception* : le bloc `releves_utilises` porte déjà les **registres d'index**
+  des 7 cadrans réels (les 4 quadrants C4/Tempo compris) — l'index imprimé est légal quel
+  que soit le compteur.
 - **`accise_eur`** : non exposé (cf. règle taux vs montant ci-dessus).

@@ -17,6 +17,7 @@ import json
 import polars as pl
 
 from electricore.core.builds.contexte_mensuel import contexte_du_mois
+from electricore.core.models.cadrans import CADRANS, col_index
 from electricore.core.pipelines.accise import load_accise_rules
 from electricore.core.pipelines.cta import ajouter_cta
 from electricore.core.pipelines.taux import ajouter_taux_en_vigueur
@@ -54,9 +55,13 @@ COLONNES_CONTRAT: tuple[str, ...] = (
     "statut_communication",
 )
 
-# Registres d'index RÉELS exposés dans la trace (ADR-0038). Périmètre C5 ; jamais de
-# cadran synthétisé. Le 4-cadran C4 (hph/hpb/hch/hcb) sera additif.
-REGISTRES_REELS: tuple[str, ...] = ("index_base_kwh", "index_hp_kwh", "index_hc_kwh")
+# Registres d'index RÉELS exposés dans la trace (ADR-0038), dérivés de la SOURCE UNIQUE
+# des cadrans (`cadrans.py`, ADR-0035 §1) : les 7 registres canoniques (base, hp, hc + les
+# 4 saisonniers hph/hch/hpb/hcb du C4/Tempo). Seuls les NON-NULS d'un relevé ressortent —
+# et comme le mart ne synthétise jamais (`pivot_cadrans` ne pose un index que si le cadran
+# est présent dans le flux), un registre exposé est toujours un cadran que le compteur
+# affiche réellement (jamais de cadran agrégé synthétisé).
+REGISTRES_REELS: tuple[str, ...] = tuple(col_index(cadran) for cadran in CADRANS)
 
 # Colonnes lues dans `releves_utilises` (forme *Chronologie des relevés*, ADR-0029).
 _COLONNES_RELEVE: tuple[str, ...] = (
