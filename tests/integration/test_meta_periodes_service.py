@@ -76,9 +76,15 @@ def _releves_utilises_synthetiques(decalage_index: int = 0) -> pl.LazyFrame:
             "ordre_index": [False, False, False, False],
             "releve_id": ["a1b2c3d4e5f60718", "1122334455667788", "99aabbccddeeff00", "deadbeefdeadbeef"],
             "nature_index": ["réel", "réel", "réel", "réel"],
+            # Compteur HP/HC : seuls hp/hc portés (le mart ne synthétise jamais → les
+            # 4 cadrans saisonniers restent nuls, donc non exposés).
             "index_base_kwh": [None, None, None, 420],
             "index_hp_kwh": [1000 + k, 1150, 1312 + k, None],
             "index_hc_kwh": [500 + k, 580, 645 + k, None],
+            "index_hph_kwh": [None, None, None, None],
+            "index_hch_kwh": [None, None, None, None],
+            "index_hpb_kwh": [None, None, None, None],
+            "index_hcb_kwh": [None, None, None, None],
         }
     ).lazy()
 
@@ -190,6 +196,76 @@ def test_releves_utilises_present_si_calculable_vide_si_incalculable(monkeypatch
     assert premier["releve_id"] == "a1b2c3d4e5f60718"
     assert premier["nature_index"] == "réel"
     assert "2025-03-01" in str(premier["date_releve"])
+
+
+def test_releves_utilises_expose_tous_les_cadrans_reels(monkeypatch):
+    """Tous les **registres réels** du compteur sont exposés, pas seulement base/hp/hc.
+
+    Un compteur 4-quadrants (Tempo/C4) porte ses index `hph/hch/hpb/hcb` ; le mart ne
+    synthétise jamais (hp/hc restent nuls), donc le tableau doit rendre exactement les
+    4 cadrans réels non nuls — jamais un cadran agrégé absent du compteur."""
+    facturation = pl.DataFrame(
+        {
+            "ref_situation_contractuelle": ["RSC-T"],
+            "pdl": ["12345678909999"],
+            "mois_annee": ["2025-03"],
+            "debut": [datetime(2025, 3, 1, tzinfo=PARIS)],
+            "fin": [datetime(2025, 4, 1, tzinfo=PARIS)],
+            "nb_jours": [31],
+            "puissance_moyenne_kva": [36.0],
+            "formule_tarifaire_acheminement": ["BTSUPCU4"],
+            "energie_base_kwh": [None],
+            "energie_hp_kwh": [None],
+            "energie_hc_kwh": [None],
+            "turpe_fixe_eur": [50.0],
+            "turpe_variable_eur": [120.0],
+            "has_changement": [False],
+            "qualite": ["réelle"],
+            "statut_communication": ["communicante"],
+        }
+    )
+    releves = pl.DataFrame(
+        {
+            "ref_situation_contractuelle": ["RSC-T", "RSC-T"],
+            "date_releve": [datetime(2025, 3, 1, tzinfo=PARIS), datetime(2025, 4, 1, tzinfo=PARIS)],
+            "ordre_index": [False, False],
+            "releve_id": ["1111111111111111", "2222222222222222"],
+            "nature_index": ["réel", "réel"],
+            "index_base_kwh": [None, None],
+            "index_hp_kwh": [None, None],
+            "index_hc_kwh": [None, None],
+            "index_hph_kwh": [100, 250],
+            "index_hch_kwh": [200, 360],
+            "index_hpb_kwh": [300, 480],
+            "index_hcb_kwh": [400, 590],
+        }
+    ).lazy()
+    vide = pl.LazyFrame()
+    ctx = ContexteMensuel(
+        mois="2025-03-01",
+        historique_enrichi=vide,
+        abonnements=vide,
+        energie=vide,
+        releves_utilises=releves,
+        facturation_mensuelle=facturation,
+    )
+    monkeypatch.setattr(meta_periodes_service, "contexte_du_mois", lambda mois=None: ctx)
+
+    _, df = meta_periodes_service.meta_periodes("2025-03-01")
+    objet = df["releves_utilises"].to_list()[0][0]
+
+    assert set(objet) == {
+        "releve_id",
+        "date_releve",
+        "nature_index",
+        "index_hph_kwh",
+        "index_hch_kwh",
+        "index_hpb_kwh",
+        "index_hcb_kwh",
+    }
+    assert objet["index_hph_kwh"] == 100 and objet["index_hcb_kwh"] == 400
+    # Jamais de cadran agrégé absent du compteur (hp/hc nuls non synthétisés).
+    assert "index_hp_kwh" not in objet and "index_hc_kwh" not in objet
 
 
 def test_releves_utilises_inclut_releves_intermediaires_mct(monkeypatch):

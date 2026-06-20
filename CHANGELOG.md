@@ -9,6 +9,18 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.2.0rc2] - 2026-06-20
+
+### ✨ Temps forts
+
+- **`releves_utilises` porte tous les cadrans réels** (ADR-0038) : le bloc imbriqué expose
+  désormais les **7 registres d'index canoniques** — `base`/`hp`/`hc` (C5) **et** les
+  4 quadrants `hph`/`hch`/`hpb`/`hcb` (C4/Tempo), dérivés de la source unique `cadrans.py` —
+  au lieu des seuls `base`/`hp`/`hc` de rc1. Seuls les registres **présents** sur le compteur
+  ressortent (clé non émise sinon) ; le mart ne synthétisant jamais, un registre exposé est
+  toujours un cadran réellement affiché. Le périmètre C4 est donc inclus dès l'origine.
+  `CONTRAT_VERSION` reste `3` (ajout de clés optionnelles dans l'objet relevé = additif).
+
 ## [3.2.0rc1] - 2026-06-20
 
 Trace d'index légale (ADR-0038) : les relevés bornant chaque mois sont exposés à Odoo,

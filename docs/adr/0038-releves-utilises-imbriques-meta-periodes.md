@@ -40,8 +40,13 @@ le sous-ensemble bornant réellement consommé par le calcul d'énergie, avec `r
 - **Objet relevé = `{ releve_id, date_releve, nature_index, registres index réels }`.**
   Registres **réels** uniquement (jamais de cadran synthétisé) ; `nature_index` = mention
   légale ; `releve_id` = handle de **reprise** ([#191](https://github.com/Energie-De-Nantes/electricore/issues/191)).
-  `source`/`ordre_index` ne sont **pas** exposés (subsumés par `releve_id`). Périmètre C5
-  (`index_base_kwh` / `index_hp_kwh` / `index_hc_kwh`) ; le 4-cadran C4 sera **additif**.
+  `source`/`ordre_index` ne sont **pas** exposés (subsumés par `releve_id`). Tous les
+  **registres réels** du compteur sont portés — les 7 cadrans canoniques (`base`/`hp`/`hc`
+  C5 **et** les 4 quadrants `hph`/`hch`/`hpb`/`hcb` C4/Tempo), dérivés de la source unique
+  `cadrans.py` — seuls les non-nuls ressortant. *Note d'implémentation (rc2)* : le périmètre
+  C4 a été inclus **dès l'origine** plutôt que différé, car le mart ne synthétise jamais
+  (`pivot_cadrans` ne pose un index que pour les cadrans réellement portés par le flux) —
+  exposer tous les registres non nuls reste donc « réels uniquement », sans cas C5 vs C4.
 
 - **Invariant « vide ssi incalculable ».** `releves_utilises` non vide **⟺**
   `qualite ∈ {réelle, estimée}` ; `qualite = incalculable` **⟹** `[]`. Plein-ou-rien,
