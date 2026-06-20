@@ -82,34 +82,15 @@ dedup as (
     qualify row_number() over (partition by releve_id order by occurrence_id desc) = 1
 )
 
--- Enrichissement contractuel piloté par C15 (#243, ADR-0029) : les lignes périodiques
--- (R151/R64) ne portent pas de RSC/FTA ; on les propage (forward-fill) depuis les
--- relevés C15 — la source contractuelle — par PDL, le long du temps. Tie-break à date
--- égale : C15 d'abord, puis R64, puis R151 ; ordre_index croissant pour que la situation
--- APRÈS l'événement prime. Multi-source préservé : pas de dedup inter-sources ici,
--- l'arbitrage de priorité reste au cœur (#244).
-select * replace (
-    coalesce(
-        ref_situation_contractuelle,
-        last_value(ref_situation_contractuelle ignore nulls) over w
-    ) as ref_situation_contractuelle,
-    coalesce(
-        formule_tarifaire_acheminement,
-        last_value(formule_tarifaire_acheminement ignore nulls) over w
-    ) as formule_tarifaire_acheminement,
-    -- niveau_ouverture_services : porté nativement par les relevés C15 (niveau PRM),
-    -- propagé aux périodiques par le MÊME forward-fill par PDL que RSC/FTA (#324,
-    -- ADR-0036) — la *jumelle* de nature_index pour l'axe « voie communicante ».
-    coalesce(
-        niveau_ouverture_services,
-        last_value(niveau_ouverture_services ignore nulls) over w
-    ) as niveau_ouverture_services
-)
-from dedup
-window w as (
-    partition by pdl
-    order by date_releve,
-             case source when 'flux_C15' then 0 when 'flux_R64' then 1 else 2 end,
-             ordre_index
-    rows between unbounded preceding and current row
-)
+-- Attributs de situation HORS du relevé (ADR-0039) : le mart NE recopie PLUS
+-- (forward-fill par PDL) `ref_situation_contractuelle` / `formule_tarifaire_acheminement`
+-- / `niveau_ouverture_services` sur les périodiques. La recopie périmait dès qu'un
+-- attribut changeait sur un événement C15 SANS index (MDPRM de niveau, CFNE/MES sans
+-- index) : ces événements ne deviennent jamais des relevés (`int_releves__c15` filtre
+-- `index is not null`), et le forward-fill traînait alors une valeur périmée (bug prod
+-- RSC 834877952). Désormais : un relevé C15 garde sa valeur NATIVE (le fait propre de
+-- l'événement) ; un télérelevé périodique reste à `null`. L'attribution par-contrat
+-- appartient au substrat d'événements consolidé (`pipeline_historique` forward-fille sur
+-- le flux C15 COMPLET, MDPRM compris) ; la chronologie source RSC/FTA/niveau depuis la
+-- requête FACTURATION, plus depuis le mart. `/releves` sert donc des lectures pures.
+select * from dedup

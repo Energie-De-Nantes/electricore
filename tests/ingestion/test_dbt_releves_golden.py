@@ -80,6 +80,78 @@ def base_periodiques(tmp_path, monkeypatch):
     return db_path
 
 
+# PDL de la fixture C15 (`c15_avec_releves.xml`), événement au 2024-10-04, niveau PRM 2,
+# RSC 248912973 — la *source* d'un éventuel forward-fill.
+_PDL_C15 = "99660599682036"
+_PDL_R151 = "99740456235087"
+
+
+@pytest.fixture
+def base_c15_et_periodique_meme_pdl(tmp_path, monkeypatch):
+    """Lande C15 + un R151 RECÂBLÉ sur le MÊME PDL que le C15, à une date POSTÉRIEURE.
+
+    Les fixtures golden ont des PDL disjoints inter-flux : un test « périodiques sans
+    attribut de situation » y passerait *vacuement* (aucun C15 amont à recopier). Ici on
+    force l'overlap (R151 du `_PDL_C15`, date 2024-11-03 → harmonisée 2024-11-04, après
+    l'événement C15 du 2024-10-04) : c'est l'unique configuration où l'ancien forward-fill
+    *aurait* recopié RSC/FTA/niveau sur le périodique. Le test devient discriminant
+    (ADR-0039)."""
+    import dlt
+
+    from electricore.ingestion.raw_landing import lander_documents_bruts
+
+    r151_meme_pdl = (
+        (FIXTURES / "r151.xml")
+        .read_bytes()
+        .replace(_PDL_R151.encode(), _PDL_C15.encode())
+        .replace(b"<Date_Releve>2024-04-04</Date_Releve>", b"<Date_Releve>2024-11-03</Date_Releve>")
+    )
+
+    db_path = tmp_path / "flux.duckdb"
+    pipeline = dlt.pipeline(
+        pipeline_name="test_releves_overlap",
+        destination=dlt.destinations.duckdb(str(db_path)),
+        dataset_name="flux_raw",
+    )
+    lander_documents_bruts(
+        pipeline,
+        "raw_c15",
+        [
+            {
+                "file_name": "c15_avec_releves.xml",
+                "modification_date": "2026-01-01T00:00:00",
+                "content": xml_vers_dict((FIXTURES / "c15_avec_releves.xml").read_bytes()),
+            }
+        ],
+    )
+    lander_documents_bruts(
+        pipeline,
+        "raw_r151",
+        [
+            {
+                "file_name": "r151_meme_pdl.xml",
+                "modification_date": "2026-01-01T00:00:00",
+                "content": xml_vers_dict(r151_meme_pdl),
+            }
+        ],
+    )
+    # R64 (PDL disjoint) : nécessaire car `+releves` sélectionne `stg_r64` (sinon
+    # Catalog Error: raw_r64 does not exist). Sans incidence sur l'assertion d'overlap.
+    lander_documents_bruts(
+        pipeline,
+        "raw_r64",
+        [
+            {
+                "file_name": "r64.json",
+                "modification_date": "2026-01-01T00:00:00",
+                "content": json.loads((FIXTURES / "r64.json").read_text()),
+            }
+        ],
+    )
+    monkeypatch.setenv("DBT_DUCKDB_PATH", str(db_path))
+    return db_path
+
+
 def _build_releves(target_parent):
     return dbtRunner().invoke(
         [
@@ -279,9 +351,9 @@ def test_releves_porte_niveau_ouverture_depuis_c15(base_periodiques):
     `niveau_ouverture_services` — la *jumelle* de `nature_index`. La valeur est portée
     NATIVEMENT par les relevés C15 (niveau PRM lu dans flux_c15), comme RSC/FTA. La
     fixture C15 a `Niveau_Ouverture_Services=2` au niveau PRM → tous ses relevés C15 le
-    portent. Le forward-fill par PDL vers les périodiques est prouvé séparément sur une
-    entrée synthétique (fixtures à PDL disjoints inter-flux, cf.
-    `test_forward_fill_niveau_pilote_par_c15`)."""
+    portent. Le mart ne recopie PLUS la situation vers les périodiques (ADR-0039) ;
+    l'absence d'attribut de situation sur un télérelevé est prouvée par
+    `test_releves_periodiques_sans_attribut_de_situation`."""
     resultat = _build_releves(base_periodiques.parent)
     assert resultat.success, f"dbt build releves a échoué : {resultat.exception}"
 
@@ -337,104 +409,43 @@ def test_r64_porte_son_calendrier_distributeur(base_periodiques):
     assert cals == ["DI000003"], f"R64 doit porter son calendrier distributeur, vu : {cals}"
 
 
-def test_forward_fill_rsc_pilote_par_c15():
-    """Enrichissement contractuel (#243) : une ligne périodique hérite la RSC/FTA du
-    dernier relevé C15 amont (par PDL). Vérifie la fenêtre de forward-fill du modèle
-    `releves` sur une entrée synthétique (les fixtures ont des PDL disjoints inter-flux ;
-    la parité sur données réelles est la garde de la bascule cœur #244)."""
-    con = duckdb.connect()
-    con.execute(
+def test_releves_periodiques_sans_attribut_de_situation(base_c15_et_periodique_meme_pdl):
+    """ADR-0039 : le mart `releves` NE recopie PLUS les attributs de *situation*
+    (`ref_situation_contractuelle`, `formule_tarifaire_acheminement`,
+    `niveau_ouverture_services`) sur les relevés périodiques. Même avec un relevé C15 amont
+    sur le MÊME PDL (configuration où l'ancien forward-fill recopiait), le télérelevé R151
+    garde ces trois attributs à `null` (lecture pure) ; le relevé C15, lui, conserve sa
+    valeur native. Les attributs de situation appartiennent au substrat d'événements
+    (`pipeline_historique`), plus au relevé."""
+    resultat = _build_releves(base_c15_et_periodique_meme_pdl.parent)
+    assert resultat.success, f"dbt build releves a échoué : {resultat.exception}"
+
+    con = duckdb.connect(str(base_c15_et_periodique_meme_pdl))
+    r151 = con.execute(
         """
-        create table synth (
-            pdl varchar, date_releve timestamptz, source varchar, ordre_index boolean,
-            ref_situation_contractuelle varchar, formule_tarifaire_acheminement varchar
-        )
-        """
-    )
-    con.execute(
-        """
-        insert into synth values
-          -- PDL A : entrée C15 (après, RSC1/FTA1) puis 2 télérelevés périodiques (RSC nulle)
-          ('A', timestamptz '2026-01-01 00:00:00+01', 'flux_C15',  true,  'RSC1', 'FTA1'),
-          ('A', timestamptz '2026-01-05 00:00:00+01', 'flux_R151', false, null,   null),
-          ('A', timestamptz '2026-02-01 00:00:00+01', 'flux_R64',  false, null,   null),
-          -- PDL B : un télérelevé AVANT tout C15 → reste sans RSC
-          ('B', timestamptz '2026-01-03 00:00:00+01', 'flux_R151', false, null,   null)
-        """
-    )
-    rows = con.execute(
-        """
-        select pdl, strftime(date_releve at time zone 'Europe/Paris', '%Y-%m-%d') as jour,
-            coalesce(ref_situation_contractuelle,
-                     last_value(ref_situation_contractuelle ignore nulls) over w) as rsc,
-            coalesce(formule_tarifaire_acheminement,
-                     last_value(formule_tarifaire_acheminement ignore nulls) over w) as fta
-        from synth
-        window w as (
-            partition by pdl
-            order by date_releve,
-                     case source when 'flux_C15' then 0 when 'flux_R64' then 1 else 2 end,
-                     ordre_index
-            rows between unbounded preceding and current row
-        )
-        """
+        select ref_situation_contractuelle, formule_tarifaire_acheminement, niveau_ouverture_services
+        from flux_enedis.releves
+        where source = 'flux_R151' and pdl = ?
+        """,
+        [_PDL_C15],
     ).fetchall()
+    # Le relevé C15 du même PDL conserve, lui, sa valeur native (preuve que la source
+    # amont du forward-fill existe bien — le test n'est pas vacant).
+    c15 = con.execute(
+        """
+        select count(*) filter (where niveau_ouverture_services is not null),
+               count(*) filter (where ref_situation_contractuelle is not null)
+        from flux_enedis.releves
+        where source = 'flux_C15' and pdl = ?
+        """,
+        [_PDL_C15],
+    ).fetchone()
     con.close()
 
-    by = {(r[0], r[1]): (r[2], r[3]) for r in rows}
-    # PDL A : les périodiques héritent RSC1/FTA1 du C15 amont.
-    assert by[("A", "2026-01-05")] == ("RSC1", "FTA1")
-    assert by[("A", "2026-02-01")] == ("RSC1", "FTA1")
-    # PDL B : périodique avant tout C15 → pas de RSC propagée.
-    assert by[("B", "2026-01-03")] == (None, None)
-
-
-def test_forward_fill_niveau_pilote_par_c15():
-    """#324 (ADR-0036) : `niveau_ouverture_services` est porté par les relevés C15 (niveau
-    PRM) et propagé aux périodiques par le MÊME forward-fill par PDL que RSC/FTA — la
-    *jumelle* de plomberie de l'axe « voie communicante ». Une ligne périodique hérite le
-    niveau du dernier relevé C15 amont (par PDL) ; un périodique avant tout C15 reste null.
-    Prouvé sur une entrée synthétique (fixtures à PDL disjoints inter-flux)."""
-    con = duckdb.connect()
-    con.execute(
-        """
-        create table synth (
-            pdl varchar, date_releve timestamptz, source varchar, ordre_index boolean,
-            niveau_ouverture_services varchar
-        )
-        """
+    assert r151, "le R151 recâblé sur le PDL du C15 doit être dans le mart"
+    assert all(row == (None, None, None) for row in r151), (
+        f"un télérelevé périodique ne doit plus porter d'attribut de situation recopié, vu : {r151}"
     )
-    con.execute(
-        """
-        insert into synth values
-          -- PDL A : événement C15 niveau 2, puis deux télérelevés périodiques (niveau null)
-          ('A', timestamptz '2026-01-01 00:00:00+01', 'flux_C15',  true,  '2'),
-          ('A', timestamptz '2026-01-05 00:00:00+01', 'flux_R151', false, null),
-          ('A', timestamptz '2026-02-01 00:00:00+01', 'flux_R64',  false, null),
-          -- PDL B : un télérelevé AVANT tout C15 → reste sans niveau
-          ('B', timestamptz '2026-01-03 00:00:00+01', 'flux_R151', false, null)
-        """
+    assert c15 == (c15[0], c15[1]) and c15[0] > 0 and c15[1] > 0, (
+        "le relevé C15 amont doit garder ses attributs natifs (forward-fill possible mais retiré)"
     )
-    rows = con.execute(
-        """
-        select pdl, strftime(date_releve at time zone 'Europe/Paris', '%Y-%m-%d') as jour,
-            coalesce(niveau_ouverture_services,
-                     last_value(niveau_ouverture_services ignore nulls) over w) as niveau
-        from synth
-        window w as (
-            partition by pdl
-            order by date_releve,
-                     case source when 'flux_C15' then 0 when 'flux_R64' then 1 else 2 end,
-                     ordre_index
-            rows between unbounded preceding and current row
-        )
-        """
-    ).fetchall()
-    con.close()
-
-    by = {(r[0], r[1]): r[2] for r in rows}
-    # PDL A : les périodiques héritent le niveau 2 du C15 amont.
-    assert by[("A", "2026-01-05")] == "2"
-    assert by[("A", "2026-02-01")] == "2"
-    # PDL B : périodique avant tout C15 → pas de niveau propagé.
-    assert by[("B", "2026-01-03")] is None
