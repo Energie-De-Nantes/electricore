@@ -58,3 +58,28 @@ models:
           - not_null
           - accepted_values:
               values: ["evenement", "facturation"]
+
+  - name: chronologie_releves
+    description: >
+      Chronologie des relevés (ADR-0041) — projection ÉNERGIE de la spine : relevés C15
+      aux événements impactant l'énergie + bornes FACTURATION appariées aux périodiques
+      (R151/R64) au grain JOUR (equi-join, remplace l'asof 4h du cœur), dédoublonnées par
+      priorité C15>R64>R151. Grain : 1 ligne par (rsc, date_releve, ordre_index). Parité vs
+      `_assembler_chronologie` vérifiée (tests/ingestion/test_dbt_chronologie_releves.py).
+    columns:
+      - name: ref_situation_contractuelle
+        description: Situation contractuelle (RSC) — attribuée nativement (C15) ou par la spine (périodiques).
+        data_tests: [not_null]
+      - name: date_releve
+        description: Date du relevé / borne (instant, Europe/Paris).
+        data_tests: [not_null]
+      - name: ordre_index
+        description: Discriminant avant/après (False = avant / relevé périodique).
+        data_tests: [not_null]
+      - name: source
+        description: >
+          Source gagnante (priorité C15>R64>R151). NULLABLE : une borne FACTURATION sans
+          relevé apparié (releve_manquant) n'a pas de source.
+        data_tests:
+          - accepted_values:
+              values: ["flux_C15", "flux_R64", "flux_R151"]

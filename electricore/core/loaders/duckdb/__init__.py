@@ -26,6 +26,7 @@ from .helpers import (
     # API fluide
     affaires,
     c15,
+    chronologie,
     execute_custom_query,
     f15,
     flux,
@@ -60,6 +61,7 @@ __all__ = [
     "r64",
     "releves",
     "spine",
+    "chronologie",
     "affaires",
     "FluxInconnu",
     # Groupings C15 canoniques (cf. CONTEXT.md)
