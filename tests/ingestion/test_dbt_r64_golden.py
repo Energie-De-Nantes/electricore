@@ -80,6 +80,10 @@ def test_flux_r64_reproduit_le_golden(base_avec_brut):
     # Connexion en écriture (même config que dbt dans le process) pour éviter
     # le conflit read_only ; dbt matérialise dans le schéma `flux_enedis`.
     con = duckdb.connect(str(base_avec_brut))
+    # date_releve est un TIMESTAMPTZ (instant, ADR-0042 #394) : son rendu string dépend du
+    # fuseau de SESSION. On épingle Europe/Paris (fuseau du domaine, #393) pour que la
+    # comparaison golden soit déterministe quel que soit le fuseau de l'hôte (CI en UTC).
+    con.execute("SET TimeZone='Europe/Paris'")
     cur = con.execute("select * from flux_enedis.flux_r64")
     cols = [d[0] for d in cur.description]
     obtenu = [dict(zip(cols, r, strict=True)) for r in cur.fetchall()]

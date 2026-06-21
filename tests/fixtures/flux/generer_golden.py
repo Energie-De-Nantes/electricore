@@ -105,6 +105,10 @@ def lignes_via_dbt(fixture: Path, source: str, model: str) -> list[dict]:
         raise RuntimeError(f"dbt build {model} a échoué sur {fixture.name} : {resultat.exception}")
 
     con = duckdb.connect(db_path)
+    # Fuseau du domaine (Europe/Paris, #393/ADR-0042) épinglé : les TIMESTAMPTZ (instants)
+    # sont sérialisés en heure légale française de façon déterministe, quel que soit le fuseau
+    # de la machine qui régénère le golden (sinon rendu UTC sur un hôte UTC → churn de golden).
+    con.execute("SET TimeZone='Europe/Paris'")
     curseur = con.execute(f"select * from flux_enedis.{model}")
     colonnes = [d[0] for d in curseur.description]
     lignes = [
