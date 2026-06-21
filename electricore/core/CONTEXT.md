@@ -174,6 +174,20 @@ _Éviter_ : confondre *statut* (3 valeurs) et *état* (fin, ~16 valeurs).
 
 ---
 
+## Conventions de date
+
+**Instant** :
+Un moment précis et univoque sur la ligne du temps mondiale (l'horodatage d'un *événement* C15, le moment d'un *relevé*). Le même instant partout, quel que soit le lieu où on le lit. Convention de stockage et d'harmonisation : voir [ADR-0042](../../docs/adr/0042-convention-date-instant-jour-civil-boundary-flux.md).
+_Éviter_ : timestamp, horodatage, date (un instant n'est pas un jour).
+
+**Jour civil** :
+Une journée du calendrier, **sans** heure ni fuseau (une *date de facture*, une borne de période, une date de bascule de niveau). « Le 4 octobre » désigne le même jour partout — lui coller un fuseau (« minuit Paris ») est une erreur de modélisation qui rouvre des bugs de bord.
+_Éviter_ : date, jour (seuls) quand la distinction instant / jour civil importe.
+
+**Convention début / fin de journée** :
+La borne du jour à laquelle un flux Enedis attribue son *index*. R64 / R15 / C15 : « début de journée » (index au début du jour J). R151 : « fin de journée » (index à la fin du jour J = début de J+1). Aligner R151 sur les autres avance son label d'un jour (le « +1 jour ») — conversion **native** de R151, appliquée à l'ingestion (boundary `flux_r151`), pas une harmonisation portée en aval.
+_Éviter_ : « décalage » (ce n'est pas un bug à corriger mais la convention propre de R151).
+
 ## Mesures et énergie
 
 **Index** :
@@ -361,7 +375,7 @@ Unité de facturation côté ERP : un produit, une période, une quantité, un P
 _Éviter_ : ligne Odoo (le concept est agnostique), ligne facture client (`account.move` est la facture entière).
 
 **Harmonisation des relevés** :
-Alignement des sources de relevés (R151, R64) sur la convention de date « début de journée » (R151 +1 jour). Désormais porté par le **modèle de relevés canonique** dbt `releves` (loader `releves()`, [ADR-0029](../../docs/adr/0029-modele-releves-canonique-dbt-assemble-coeur-arbitre.md)) — l'ancien `releves_harmonises()` (union SQL R151+R64 côté loader) a été retiré (#248). Convention de date : voir [ADR-0003](../../docs/adr/0003-r151-date-harmonisation.md).
+Alignement des sources de relevés (R151, R64) sur la convention de date « début de journée » (R151 +1 jour, cf. *Convention début / fin de journée*). Le +1 jour R151 et l'ancrage en *instant* sont portés à l'**ingestion**, dans le modèle `flux_r151` (boundary), comme la conversion native de chaque source — plus dans le mart ([ADR-0042](../../docs/adr/0042-convention-date-instant-jour-civil-boundary-flux.md) révise l'amendement #294 d'[ADR-0003](../../docs/adr/0003-r151-date-harmonisation.md)). L'ancien `releves_harmonises()` (union SQL R151+R64 côté loader) a été retiré (#248).
 
 **`date_ajustee`** (champ) :
 Booléen marquant les relevés dont la date a été décalée pendant l'harmonisation (R151 +1 jour).

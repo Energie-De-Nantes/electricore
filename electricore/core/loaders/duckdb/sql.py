@@ -18,10 +18,11 @@ if TYPE_CHECKING:
     from .descriptor import FluxDescriptor
 
 # Heure légale française : le fuseau de TOUS les flux Enedis (cf.
-# docs/conventions-dates-enedis.md). Constante nommée plutôt que littéral épars —
-# l'ancrage de lecture (forme `NAIF_PARIS`) et le filtre déterministe (#391) la
-# partagent. Ce n'est PAS un `SET TimeZone` global : la responsabilité du fuseau
-# reste portée par la forme, colonne par colonne.
+# docs/conventions-dates-enedis.md), invariant de domaine uniforme (ADR-0042).
+# Constante nommée plutôt que littéral épars — la partagent : le fuseau de session de
+# la connexion read-only (`duckdb_readonly_conn`, #393), l'ancrage de lecture (forme
+# `NAIF_PARIS`) et le filtre déterministe (#391). Le mécanisme par colonne est
+# transitoire : ADR-0042 le retire (#398) au profit du seul fuseau de session.
 HEURE_LEGALE = "Europe/Paris"
 
 
