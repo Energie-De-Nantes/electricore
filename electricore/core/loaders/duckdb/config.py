@@ -16,6 +16,8 @@ import duckdb
 
 from electricore.config import runtime
 
+from .sql import HEURE_LEGALE
+
 logger = logging.getLogger(__name__)
 
 # Politique de retry lorsque le writer d'ingestion détient le verrou exclusif.
@@ -98,6 +100,12 @@ def duckdb_readonly_conn(database_path: str | Path) -> Iterator[duckdb.DuckDBPyC
             )
             time.sleep(_LOCK_RETRY_BACKOFF_S)
             continue
+        # Fuseau de session épinglé à l'heure légale française (#393, ADR-0042) : tous les
+        # flux Enedis sont en Europe/Paris (invariant de domaine uniforme). Posé une fois à
+        # la lecture, il rend les instants (TIMESTAMPTZ) déterministes — taggés Paris quel
+        # que soit le fuseau de l'hôte (VPS/CI en UTC) — et fait interpréter les littéraux
+        # de filtre en heure de Paris, sans dépendre de la machine.
+        conn.execute(f"SET TimeZone='{HEURE_LEGALE}'")
         try:
             yield conn
         finally:
