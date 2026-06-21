@@ -14,10 +14,12 @@
     "code_flux": "R64",
     "format": "JSON",
     "occurrence_id": "r64.json#2",
-    "date_releve": "2026-06-01T00:00:00",
+    "source": "flux_R64",
+    "date_releve": "2026-06-01T00:00:00+02:00",
+    "id_calendrier_distributeur": "DI000003",
     "index_hph_kwh": 10497,
-    "index_hpb_kwh": 15923,
     "index_hch_kwh": 7742,
+    "index_hpb_kwh": 15923,
     "index_hcb_kwh": 13514
   },
   {
@@ -35,10 +37,12 @@
     "code_flux": "R64",
     "format": "JSON",
     "occurrence_id": "r64.json#1",
-    "date_releve": "2026-06-01T00:00:00",
+    "source": "flux_R64",
+    "date_releve": "2026-06-01T00:00:00+02:00",
+    "id_calendrier_distributeur": "DI000003",
     "index_hph_kwh": 6038,
-    "index_hpb_kwh": 2675,
     "index_hch_kwh": 1941,
+    "index_hpb_kwh": 2675,
     "index_hcb_kwh": 789
   }
 ]

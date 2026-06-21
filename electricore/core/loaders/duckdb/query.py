@@ -75,8 +75,11 @@ class DuckDBQuery:
         Example:
             >>> query.filter({"Date_Evenement": ">= '2024-01-01'", "pdl": ["PDL123"]})
         """
-        # Marts en `SELECT *` (base_sql) : schéma non re-déclaré → allowlist ouverte.
-        if self.config.base_sql is None:
+        # Allowlist de `.filter()` fermée seulement quand le descripteur ÉNUMÈRE ses
+        # colonnes (legacy). Un loader `SELECT *` — mart (`base_sql`) ou flux dont la forme
+        # résiduelle a migré en dbt (colonnes vides, ADR-0042) — ne re-déclare pas son
+        # schéma → allowlist ouverte.
+        if self.config.base_sql is None and self.config.columns:
             allowed = {c.name for c in self.config.columns}
             unknown = [col for col in filters if col not in allowed]
             if unknown:
