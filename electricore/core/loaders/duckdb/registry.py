@@ -14,17 +14,12 @@ from .descriptor import FluxDescriptor
 from .sql import (
     Column,
     col_cast_null_varchar,
+    col_jour,
     col_literal,
     col_literal_bool,
+    col_offset,
     col_paris,
     col_simple,
-)
-from .transforms import (
-    transform_dates,
-    transform_factures,
-    transform_historique,
-    transform_r64,
-    transform_releves,
 )
 
 # =============================================================================
@@ -60,8 +55,8 @@ DESCRIPTOR_C15 = FluxDescriptor(
     flux_name="C15",
     table="flux_enedis.flux_c15",
     columns=(
-        # Colonnes principales
-        col_simple("date_evenement"),
+        # Colonnes principales. date_evenement = xsd:dateTime à offset (TIMESTAMPTZ).
+        col_offset("date_evenement"),
         col_simple("pdl"),
         col_simple("ref_situation_contractuelle"),
         col_simple("segment_clientele"),
@@ -77,11 +72,11 @@ DESCRIPTOR_C15 = FluxDescriptor(
         col_simple("id_affaire"),
         # Statut de communication (épique #313) : niveau d'ouverture aux services et sa
         # date de bascule, portés tels quels par dbt (Utf8 / Date) — le loader ne re-type
-        # pas (ADR-0035).
+        # pas (ADR-0035). La date de bascule est un jour nu (xs:date).
         col_simple("niveau_ouverture_services"),
-        col_simple("date_changement_niveau_ouverture_services"),
-        # Relevés "Avant" (index de compteurs)
-        col_simple("avant_date_releve"),
+        col_jour("date_changement_niveau_ouverture_services"),
+        # Relevés "Avant" (index de compteurs). avant_date_releve = xsd:dateTime à offset.
+        col_offset("avant_date_releve"),
         col_simple("avant_nature_index"),
         col_simple("avant_id_calendrier_fournisseur"),
         col_simple("avant_id_calendrier_distributeur"),
@@ -92,8 +87,8 @@ DESCRIPTOR_C15 = FluxDescriptor(
         col_simple("avant_index_hpb_kwh"),
         col_simple("avant_index_hcb_kwh"),
         col_simple("avant_index_base_kwh"),
-        # Relevés "Après" (index de compteurs)
-        col_simple("apres_date_releve"),
+        # Relevés "Après" (index de compteurs). apres_date_releve = xsd:dateTime à offset.
+        col_offset("apres_date_releve"),
         col_simple("apres_nature_index"),
         col_simple("apres_id_calendrier_fournisseur"),
         col_simple("apres_id_calendrier_distributeur"),
@@ -104,10 +99,12 @@ DESCRIPTOR_C15 = FluxDescriptor(
         col_simple("apres_index_hpb_kwh"),
         col_simple("apres_index_hcb_kwh"),
         col_simple("apres_index_base_kwh"),
-        # Métadonnées
+        # Métadonnées. unite/precision = littéraux SQL (anciennement ajoutés en Polars).
         col_literal("flux_C15", "source"),
+        col_literal("kWh", "unite"),
+        col_literal("kWh", "precision"),
     ),
-    transform=transform_historique,
+    transform=None,
     validator=None,
 )
 
@@ -122,11 +119,8 @@ DESCRIPTOR_R151 = FluxDescriptor(
         # en UN seul endroit, le mart `releves` (#294) ; l'endpoint /flux/r151 sert la date
         # nue et est candidat à dépréciation (l'usage direct des flux bruts incombe à
         # l'appelant, qui doit connaître la convention fin-de-journée de R151).
-        Column(
-            name="date_releve",
-            sql_expr="timezone('Europe/Paris', CAST(date_releve AS TIMESTAMP))",
-            alias="date_releve",
-        ),
+        # Source = xs:date (jour nu) ancré heure-mur Paris minuit ⟹ forme NAIF_PARIS.
+        col_paris("date_releve"),
         col_simple("pdl"),
         col_cast_null_varchar("ref_situation_contractuelle"),
         col_cast_null_varchar("formule_tarifaire_acheminement"),
@@ -154,7 +148,7 @@ DESCRIPTOR_R151 = FluxDescriptor(
 -- /flux/r151 sert cette date NUE, sans le +1 jour d'harmonisation. L'harmonisation J → J+1
 -- (qui aligne R151 sur la convention "début de journée" de R64/R15/C15) vit en UN endroit :
 -- le mart `releves` consommé par la chaîne énergie. Cet endpoint brut est dépréciable.""",
-    transform=transform_releves,
+    transform=None,
     validator=RelevéIndex,
 )
 
@@ -164,7 +158,8 @@ DESCRIPTOR_R15 = FluxDescriptor(
     flux_name="R15",
     table="flux_enedis.flux_r15",
     columns=(
-        col_simple("date_releve"),
+        # date_releve = xsd:dateTime à offset (TIMESTAMPTZ) — instant absolu.
+        col_offset("date_releve"),
         col_simple("pdl"),
         col_simple("ref_situation_contractuelle"),
         col_cast_null_varchar("formule_tarifaire_acheminement"),
@@ -187,7 +182,7 @@ DESCRIPTOR_R15 = FluxDescriptor(
         col_literal("kWh", "precision"),
     ),
     where_clause="date_releve IS NOT NULL",
-    transform=transform_releves,
+    transform=None,
     validator=RelevéIndex,
 )
 
@@ -216,7 +211,7 @@ DESCRIPTOR_F15 = FluxDescriptor(
         col_simple("libelle_ev"),
         col_literal("flux_F15", "source"),
     ),
-    transform=transform_factures,
+    transform=None,
     validator=None,  # Pas encore de modèle Pandera pour les factures
 )
 
@@ -256,7 +251,7 @@ DESCRIPTOR_R64 = FluxDescriptor(
         col_literal("flux_R64", "source"),
     ),
     where_clause="date_releve IS NOT NULL",
-    transform=transform_r64,
+    transform=None,
     validator=None,  # Pas encore de modèle Pandera pour R64
 )
 
@@ -275,17 +270,17 @@ DESCRIPTOR_AFFAIRES = FluxDescriptor(
         col_simple("pdl"),
         col_simple("segment"),
         col_simple("jalon_num"),
-        # jalon_date_heure est déjà TIMESTAMPTZ (XSD dateTime) — ne pas l'écraser en
-        # naïf (cf. test_loaders_sur_base_dbt : décalerait l'instant d'1-2 h). On le
-        # convertit en Europe/Paris (instant préservé) pour un dtype stable quel que soit
-        # le fuseau de session (poste local vs CI/VPS en UTC).
-        col_simple("jalon_date_heure"),
-        col_simple("affaire_date_effet"),
+        # jalon_date_heure est déjà TIMESTAMPTZ (XSD dateTime, offset) — instant absolu :
+        # forme OFFSET (affichage ramené Europe/Paris, instant préservé). NE PAS l'écraser
+        # en naïf (cf. test_loaders_sur_base_dbt : décalerait l'instant d'1-2 h).
+        col_offset("jalon_date_heure"),
+        # affaire_date_effet = jour nu (xs:date) — pas d'instant.
+        col_jour("affaire_date_effet"),
         col_simple("affaire_etat"),
         col_simple("affaire_etat_libelle"),
         col_literal("flux_X12X13", "source"),
     ),
-    transform=transform_dates(("jalon_date_heure",)),
+    transform=None,
     validator=None,  # opérationnel (suivi des affaires SGE), pas de schéma Pandera
 )
 
