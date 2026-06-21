@@ -17,7 +17,7 @@ import polars as pl
 
 from .config import DuckDBConfig, duckdb_readonly_conn
 from .descriptor import FluxDescriptor
-from .sql import HEURE_LEGALE, FormeTemporelle, build_base_query
+from .sql import build_base_query
 
 # =============================================================================
 # QUERY BUILDER IMMUTABLE
@@ -168,22 +168,6 @@ class DuckDBQuery:
 
     _OPERATOR_RE = re.compile(r"^\s*(>=|<=|<>|!=|>|<|=)\s*(.+?)\s*$")
 
-    def _placeholder(self, column: str) -> str:
-        """Placeholder paramétré pour `column`, mirror du cast de lecture au `WHERE` (#391).
-
-        Sur une colonne à offset (TIMESTAMPTZ), le `WHERE` tourne sur l'instant brut AVANT
-        le cast : un littéral nu serait interprété dans le fuseau de SESSION (UTC sur le VPS,
-        Paris en dev) → lignes différentes selon l'endroit. On interprète donc le littéral en
-        heure légale française — `timezone(HEURE_LEGALE, CAST(? AS TIMESTAMP))` produit le même
-        instant absolu partout. Les colonnes naïves (date↔date, naïf↔naïf) sont déjà
-        déterministes : placeholder nu. PAS de `SET TimeZone` global — la responsabilité du
-        fuseau reste portée par la forme du descripteur, colonne par colonne.
-        """
-        formes = {c.name: c.forme for c in self.config.columns}
-        if formes.get(column) is FormeTemporelle.OFFSET:
-            return f"timezone('{HEURE_LEGALE}', CAST(? AS TIMESTAMP))"
-        return "?"
-
     def _build_filter_clause(self, column: str, condition: Any) -> tuple[str, list[Any]]:
         """Construit une clause WHERE paramétrée depuis un filtre (fonction pure).
 
@@ -195,7 +179,10 @@ class DuckDBQuery:
         if column == "__raw_condition":
             return condition, []
 
-        ph = self._placeholder(column)
+        # Placeholder NU : la valeur transite par le binding (jamais interpolée). Le littéral
+        # est interprété en Europe/Paris par le fuseau de session épinglé de la connexion
+        # (#393, ADR-0042) — plus d'enveloppe `timezone(...)` par colonne (#391 retiré).
+        ph = "?"
 
         # Liste de valeurs (IN)
         if isinstance(condition, list):
@@ -271,19 +258,12 @@ class DuckDBQuery:
         # Construction SQL paramétrée (pure)
         final_query, params = self._build_final_query()
 
-        # Connexion et exécution (impure - IO) ; valeurs liées, jamais interpolées
+        # Connexion et exécution (impure - IO) ; valeurs liées, jamais interpolées. Le fuseau
+        # de session de la connexion est épinglé à Europe/Paris (#393, ADR-0042) : les instants
+        # (TIMESTAMPTZ) ressortent tagués Paris de façon déterministe, sans cast de lecture par
+        # colonne (la machinerie FormeTemporelle a été retirée — loaders SELECT *).
         with duckdb_readonly_conn(config.database_path) as conn:
             lazy_frame = conn.execute(final_query, params).pl().lazy()
-
-        # Cast de lecture DÉRIVÉ DE LA FORME (#390) : les colonnes temporelles à instant
-        # (OFFSET, déjà TIMESTAMPTZ ; NAIF_PARIS, ancrées en SQL) sont ramenées en heure
-        # légale française pour un dtype stable quel que soit le fuseau de session. Remplace
-        # les pipelines `transform_dates` par flux. Les colonnes JOUR (Date nue) sont intactes.
-        tz_cols = [
-            col.name for col in self.config.columns if col.forme in (FormeTemporelle.OFFSET, FormeTemporelle.NAIF_PARIS)
-        ]
-        if tz_cols:
-            lazy_frame = lazy_frame.with_columns(pl.col(tz_cols).dt.convert_time_zone(HEURE_LEGALE))
 
         # Application des transformations résiduelles (pure). transform=None ⟹ identité.
         if self.config.transform is not None:
