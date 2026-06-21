@@ -17,7 +17,7 @@ import polars as pl
 
 from .config import DuckDBConfig, duckdb_readonly_conn
 from .descriptor import FluxDescriptor
-from .sql import build_base_query
+from .sql import HEURE_LEGALE, FormeTemporelle, build_base_query
 
 # =============================================================================
 # QUERY BUILDER IMMUTABLE
@@ -254,7 +254,17 @@ class DuckDBQuery:
         with duckdb_readonly_conn(config.database_path) as conn:
             lazy_frame = conn.execute(final_query, params).pl().lazy()
 
-        # Application des transformations (pure). transform=None ⟹ identité (`SELECT *`).
+        # Cast de lecture DÉRIVÉ DE LA FORME (#390) : les colonnes temporelles à instant
+        # (OFFSET, déjà TIMESTAMPTZ ; NAIF_PARIS, ancrées en SQL) sont ramenées en heure
+        # légale française pour un dtype stable quel que soit le fuseau de session. Remplace
+        # les pipelines `transform_dates` par flux. Les colonnes JOUR (Date nue) sont intactes.
+        tz_cols = [
+            col.name for col in self.config.columns if col.forme in (FormeTemporelle.OFFSET, FormeTemporelle.NAIF_PARIS)
+        ]
+        if tz_cols:
+            lazy_frame = lazy_frame.with_columns(pl.col(tz_cols).dt.convert_time_zone(HEURE_LEGALE))
+
+        # Application des transformations résiduelles (pure). transform=None ⟹ identité.
         if self.config.transform is not None:
             lazy_frame = self.config.transform(lazy_frame)
 

@@ -5,7 +5,6 @@ Ces tests valident l'intégration DuckDB avec les pipelines ElectriCore,
 incluant le chargement des données, les transformations et la validation Pandera.
 """
 
-from datetime import UTC
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -23,17 +22,6 @@ from electricore.core.loaders.duckdb import (
     releves,
 )
 from electricore.core.loaders.duckdb.config import _TABLE_MAPPINGS
-
-# Import des transformations depuis le module interne
-from electricore.core.loaders.duckdb.transforms import (
-    transform_historique as _transform_historique,
-)
-from electricore.core.loaders.duckdb.transforms import (
-    transform_r64 as _transform_r64,
-)
-from electricore.core.loaders.duckdb.transforms import (
-    transform_releves as _transform_releves,
-)
 
 
 class TestDuckDBConfig:
@@ -113,131 +101,6 @@ class TestDuckDBConnection:
 
         # La connexion doit être fermée même en cas d'erreur
         mock_conn.close.assert_called_once()
-
-
-class TestTransformationFunctions:
-    """Tests pour les fonctions de transformation."""
-
-    def test_transform_historique(self):
-        """Test de transformation des données d'historique."""
-        from datetime import datetime
-
-        # Créer un LazyFrame de test avec dates timezone-aware Python
-        test_data = pl.DataFrame(
-            {
-                "date_evenement": [datetime(2024, 1, 1, 10, 0, 0, tzinfo=UTC)],
-                "avant_date_releve": [datetime(2024, 1, 1, 9, 0, 0, tzinfo=UTC)],
-                "apres_date_releve": [datetime(2024, 1, 1, 11, 0, 0, tzinfo=UTC)],
-                "pdl": ["PDL123"],
-            }
-        ).lazy()
-
-        # Appliquer la transformation
-        result = _transform_historique(test_data)
-
-        # Vérifier que c'est toujours un LazyFrame
-        assert isinstance(result, pl.LazyFrame)
-
-        # Collecter pour vérifier le contenu
-        df = result.collect()
-
-        # Vérifier que les colonnes ajoutées sont présentes
-        assert "unite" in df.columns
-        assert "precision" in df.columns
-        assert df["unite"][0] == "kWh"
-        assert df["precision"][0] == "kWh"
-
-    def test_transform_releves(self):
-        """Test de transformation des données de relevés."""
-        from datetime import datetime
-
-        # Créer un LazyFrame de test avec noms de colonnes selon convention
-        test_data = pl.DataFrame(
-            {
-                "date_releve": [datetime(2024, 1, 1, 10, 0, 0, tzinfo=UTC)],
-                "pdl": ["PDL123"],
-                "index_hp_kwh": [1000.0],
-                "index_base_kwh": [2000.0],
-                "index_hc_kwh": [500.0],
-                "index_hph_kwh": [None],
-                "index_hpb_kwh": [None],
-                "index_hcb_kwh": [None],
-                "index_hch_kwh": [None],
-                "unite": ["kWh"],
-                "precision": ["kWh"],
-            }
-        ).lazy()
-
-        # Appliquer la transformation
-        result = _transform_releves(test_data)
-
-        # Vérifier que c'est toujours un LazyFrame
-        assert isinstance(result, pl.LazyFrame)
-
-        # Collecter pour vérifier le contenu
-        df = result.collect()
-
-        # Vérifier les colonnes de base
-        assert "date_releve" in df.columns
-        assert "pdl" in df.columns
-        assert "index_hp_kwh" in df.columns
-        assert "unite" in df.columns
-        assert "precision" in df.columns
-
-    def test_transform_releves_ne_convertit_plus_les_index(self):
-        """Le loader ne convertit plus Wh→kWh (ADR-0034) : la normalisation vit au
-        boundary de linéarisation dbt (flux_r151/flux_r64 émettent des kWh entiers).
-        Reconvertir ici diviserait deux fois — le loader passe les index inchangés."""
-        from datetime import datetime
-
-        test_data = pl.DataFrame(
-            {
-                "date_releve": [datetime(2024, 1, 1, 10, 0, 0, tzinfo=UTC)],
-                "pdl": ["PDL123"],
-                "index_base_kwh": [13874.0],
-                "index_hp_kwh": [5500.0],
-                "index_hc_kwh": [None],
-                "index_hph_kwh": [None],
-                "index_hpb_kwh": [None],
-                "index_hcb_kwh": [None],
-                "index_hch_kwh": [None],
-                "unite": ["kWh"],
-            }
-        ).lazy()
-
-        df = _transform_releves(test_data).collect()
-
-        # Valeurs inchangées : aucune division par 1000 au loader.
-        assert df["index_base_kwh"][0] == 13874.0
-        assert df["index_hp_kwh"][0] == 5500.0
-        assert df["unite"][0] == "kWh"
-
-    def test_transform_r64_ne_convertit_plus_les_index(self):
-        """Idem côté R64 (ADR-0034) : transform_r64 n'harmonise que les dates ; la
-        conversion Wh→kWh est portée par flux_r64 en dbt."""
-        from datetime import datetime
-
-        test_data = pl.DataFrame(
-            {
-                "date_releve": [datetime(2024, 1, 1, 10, 0, 0, tzinfo=UTC)],
-                "modification_date": [datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC)],
-                "pdl": ["PDL123"],
-                "index_hph_kwh": [7672.0],
-                "index_hpb_kwh": [None],
-                "index_hch_kwh": [None],
-                "index_hcb_kwh": [None],
-                "index_base_kwh": [None],
-                "index_hp_kwh": [None],
-                "index_hc_kwh": [None],
-                "unite": ["kWh"],
-            }
-        ).lazy()
-
-        df = _transform_r64(test_data).collect()
-
-        # Valeur inchangée : pas de re-division au loader.
-        assert df["index_hph_kwh"][0] == 7672.0
-        assert df["unite"][0] == "kWh"
 
 
 class TestApiLegacySupprimee:

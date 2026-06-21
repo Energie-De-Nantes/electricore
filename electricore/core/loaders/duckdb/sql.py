@@ -11,10 +11,41 @@ validateur) vivent dans `registry.py` ; ce module reste de la pure génération 
 """
 
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .descriptor import FluxDescriptor
+
+# Heure légale française : le fuseau de TOUS les flux Enedis (cf.
+# docs/conventions-dates-enedis.md). Constante nommée plutôt que littéral épars —
+# l'ancrage de lecture (forme `NAIF_PARIS`) et le filtre déterministe (#391) la
+# partagent. Ce n'est PAS un `SET TimeZone` global : la responsabilité du fuseau
+# reste portée par la forme, colonne par colonne.
+HEURE_LEGALE = "Europe/Paris"
+
+
+class FormeTemporelle(StrEnum):
+    """Forme temporelle d'une colonne, qui pilote l'ancrage de fuseau à la lecture.
+
+    Tous les flux Enedis sont en heure légale française, sous deux formes de donnée
+    (cf. docs/conventions-dates-enedis.md) :
+
+    - `OFFSET` : instant à offset explicite (xsd:dateTime, ex. `+02:00`) stocké en
+      TIMESTAMPTZ — l'instant est absolu, porté par la donnée. À la lecture, seul
+      l'affichage est ramené en Europe/Paris ; au filtre, le littéral est interprété
+      en Europe/Paris (mirror du cast, #391).
+    - `NAIF_PARIS` : horodate naïve (TIMESTAMP sans fuseau, ou DATE) = heure-mur
+      Paris. Ancrée en SQL (`timezone(...)`) → instant correct quel que soit le
+      fuseau de session, puis affichée Europe/Paris.
+    - `JOUR` : jour nu (xs:date) sans instant — relève de la convention *jour*, pas
+      d'ancrage de fuseau (la colonne reste une Date).
+    """
+
+    OFFSET = "offset"
+    NAIF_PARIS = "naif_paris"
+    JOUR = "jour"
+
 
 # =============================================================================
 # DATACLASSES IMMUTABLES POUR DÉFINITION SQL
@@ -30,14 +61,22 @@ class Column:
         name: Nom de la colonne dans le résultat
         sql_expr: Expression SQL pour cette colonne
         alias: Alias optionnel (si différent du name)
+        forme: Forme temporelle (pour les colonnes date/timestamp). Pilote
+            l'ancrage de fuseau à la lecture (et le filtre déterministe, #391).
+            `None` pour une colonne non temporelle.
     """
 
     name: str
     sql_expr: str
     alias: str | None = None
+    forme: FormeTemporelle | None = None
 
     def to_sql(self) -> str:
-        """Convertit en fragment SQL SELECT."""
+        """Convertit en fragment SQL SELECT (la forme tz dérive l'ancrage SQL)."""
+        # Forme naïve = heure-mur Paris : ancrage explicite (timezone(...)) → instant
+        # correct quel que soit le fuseau de session DuckDB (poste local, CI, VPS).
+        if self.forme is FormeTemporelle.NAIF_PARIS:
+            return f"timezone('{HEURE_LEGALE}', CAST({self.name} AS TIMESTAMP)) as {self.name}"
         # Si l'expression SQL est différente du nom, ajouter l'alias
         if self.sql_expr != self.name:
             alias_name = self.alias if self.alias else self.name
@@ -105,23 +144,33 @@ def build_base_query(descriptor: "FluxDescriptor") -> str:
 
 
 def col_simple(name: str) -> Column:
-    """Colonne simple sans transformation."""
+    """Colonne simple sans transformation (non temporelle)."""
     return Column(name=name, sql_expr=name)
 
 
-def col_cast_timestamp(name: str) -> Column:
-    """Colonne castée en TIMESTAMP."""
-    return Column(name=name, sql_expr=f"CAST({name} AS TIMESTAMP)")
+def col_offset(name: str) -> Column:
+    """Colonne temporelle à offset explicite (TIMESTAMPTZ) — instant absolu.
+
+    L'offset est porté par la donnée : aucun ancrage SQL. La lecture ramène
+    seulement l'affichage en Europe/Paris ; le filtre interprète son littéral en
+    Europe/Paris (forme `OFFSET`, mirror du cast, #391).
+    """
+    return Column(name=name, sql_expr=name, forme=FormeTemporelle.OFFSET)
 
 
 def col_paris(name: str) -> Column:
     """Colonne temporelle naïve (DATE/TIMESTAMP sans fuseau) ancrée en Europe/Paris.
 
     Les sources Enedis sans offset sont des heures-mur Paris : l'ancrage explicite
-    (timezone(...)) rend l'instant correct quel que soit le fuseau de session DuckDB
-    (poste local, CI, VPS). Les colonnes déjà TIMESTAMPTZ n'en ont pas besoin.
+    (timezone(...)), dérivé de la forme `NAIF_PARIS`, rend l'instant correct quel que
+    soit le fuseau de session DuckDB (poste local, CI, VPS).
     """
-    return Column(name=name, sql_expr=f"timezone('Europe/Paris', CAST({name} AS TIMESTAMP))")
+    return Column(name=name, sql_expr=name, forme=FormeTemporelle.NAIF_PARIS)
+
+
+def col_jour(name: str) -> Column:
+    """Colonne jour nu (xs:date) — pas d'instant, pas d'ancrage de fuseau."""
+    return Column(name=name, sql_expr=name, forme=FormeTemporelle.JOUR)
 
 
 def col_cast_null_varchar(alias: str) -> Column:

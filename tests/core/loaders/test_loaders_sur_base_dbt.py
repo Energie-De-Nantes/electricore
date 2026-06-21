@@ -101,6 +101,19 @@ def test_c15_charge_des_instants_corrects(base_prod_dbt):
     assert date_evenement == datetime(2024, 10, 4, 0, 1, tzinfo=PARIS)
 
 
+def test_c15_porte_unite_et_precision_kwh(base_prod_dbt):
+    """Les métadonnées unite/precision="kWh" du C15 (jadis ajoutées en Polars par
+    `transform_add_defaults`, désormais littéraux SQL du descripteur, #390) restent
+    présentes en sortie du loader — contrat aval inchangé."""
+    from electricore.core.loaders import c15
+
+    df = c15(database_path=base_prod_dbt).collect()
+    assert df.schema["unite"] == pl.Utf8
+    assert df.schema["precision"] == pl.Utf8
+    assert df["unite"].unique().to_list() == ["kWh"]
+    assert df["precision"].unique().to_list() == ["kWh"]
+
+
 def test_c15_charge_le_niveau_ouverture_services(base_prod_dbt):
     """Statut de communication (épique #313) : le loader c15() expose le niveau
     d'ouverture aux services (Utf8, xsd:string {0,1,2}) et sa date de bascule (Date),

@@ -6,11 +6,9 @@ depuis DuckDB vers Polars avec validation Pandera.
 
 Architecture :
 - config.py : Configuration et connexions (immutable)
-- query.py : Query builder immutable avec lazy evaluation
-- sql.py : Génération SQL fonctionnelle (Column + build_base_query)
+- query.py : Query builder immutable avec lazy evaluation (cast tz dérivé de la forme)
+- sql.py : Génération SQL fonctionnelle (Column + FormeTemporelle + build_base_query)
 - descriptor.py : FluxDescriptor — descripteur unifié d'un flux/mart (#389)
-- transforms.py : Transformations composables LazyFrame
-- expressions.py : Expressions Polars pures et réutilisables
 - registry.py : Registre unique des descripteurs de flux
 - helpers.py : Fonctions factory et utilitaires
 

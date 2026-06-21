@@ -16,7 +16,7 @@ from .config import DuckDBConfig, duckdb_readonly_conn
 from .descriptor import FluxDescriptor
 from .query import DuckDBQuery, make_query
 from .registry import FLUX_DESCRIPTORS, FluxInconnu
-from .transforms import transform_dates
+from .sql import col_offset
 
 # =============================================================================
 # API FLUIDE - FONCTIONS FACTORY PAR FLUX
@@ -238,7 +238,10 @@ def spine(database_path: str | Path | None = None) -> DuckDBQuery:
     config = FluxDescriptor(
         flux_name="SPINE_CONTRAT",
         base_sql="SELECT * FROM flux_enedis.spine_contrat",
-        transform=transform_dates(("date_evenement",)),
+        # date_evenement est TIMESTAMPTZ (offset) : forme déclarée pour dériver le cast de
+        # lecture (Europe/Paris, instant préservé) malgré le `SELECT *` non énuméré.
+        columns=(col_offset("date_evenement"),),
+        transform=None,
         validator=SpineContrat,
     )
     return DuckDBQuery(config=config, database_path=database_path)
@@ -272,7 +275,10 @@ def chronologie(database_path: str | Path | None = None) -> DuckDBQuery:
     config = FluxDescriptor(
         flux_name="CHRONOLOGIE_RELEVES",
         base_sql="SELECT * FROM flux_enedis.chronologie_releves",
-        transform=transform_dates(("date_releve",)),
+        # date_releve est TIMESTAMPTZ (offset) : forme déclarée pour dériver le cast de
+        # lecture (Europe/Paris, instant préservé) malgré le `SELECT *` non énuméré.
+        columns=(col_offset("date_releve"),),
+        transform=None,
         validator=ChronologieReleves,
     )
     return DuckDBQuery(config=config, database_path=database_path)
