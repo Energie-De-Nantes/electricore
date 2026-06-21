@@ -16,7 +16,6 @@ from .config import DuckDBConfig, duckdb_readonly_conn
 from .descriptor import FluxDescriptor
 from .query import DuckDBQuery, make_query
 from .registry import FLUX_DESCRIPTORS, FluxInconnu
-from .sql import col_offset
 
 # =============================================================================
 # API FLUIDE - FONCTIONS FACTORY PAR FLUX
@@ -238,9 +237,8 @@ def spine(database_path: str | Path | None = None) -> DuckDBQuery:
     config = FluxDescriptor(
         flux_name="SPINE_CONTRAT",
         base_sql="SELECT * FROM flux_enedis.spine_contrat",
-        # date_evenement est TIMESTAMPTZ (offset) : forme déclarée pour dériver le cast de
-        # lecture (Europe/Paris, instant préservé) malgré le `SELECT *` non énuméré.
-        columns=(col_offset("date_evenement"),),
+        # date_evenement (TIMESTAMPTZ) ressort taguée Europe/Paris via le fuseau de session
+        # épinglé (#393, ADR-0042) — plus besoin de déclarer une forme de cast de lecture.
         transform=None,
         validator=SpineContrat,
     )
@@ -275,9 +273,8 @@ def chronologie(database_path: str | Path | None = None) -> DuckDBQuery:
     config = FluxDescriptor(
         flux_name="CHRONOLOGIE_RELEVES",
         base_sql="SELECT * FROM flux_enedis.chronologie_releves",
-        # date_releve est TIMESTAMPTZ (offset) : forme déclarée pour dériver le cast de
-        # lecture (Europe/Paris, instant préservé) malgré le `SELECT *` non énuméré.
-        columns=(col_offset("date_releve"),),
+        # date_releve (TIMESTAMPTZ) ressort taguée Europe/Paris via le fuseau de session
+        # épinglé (#393, ADR-0042) — plus besoin de déclarer une forme de cast de lecture.
         transform=None,
         validator=ChronologieReleves,
     )
