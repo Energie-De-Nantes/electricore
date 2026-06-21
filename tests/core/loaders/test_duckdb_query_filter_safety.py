@@ -64,10 +64,12 @@ class TestParameterizedFilters:
         assert params == ["A", "B", "C"]
 
     def test_operator_filter_parsed_and_parameterized(self):
-        """`{date: ">= '2024-01-01'"}` → `date >= ?`, valeur sans quotes dans params."""
+        """`{date: ">= '2024-01-01'"}` sur une colonne à offset → le littéral est ancré en
+        heure légale française (mirror du cast, #391) tout en restant PARAMÉTRÉ : la valeur
+        transite par params, jamais interpolée."""
         sql, params = c15().filter({"date_evenement": ">= '2024-01-01'"})._build_final_query()
 
-        assert "date_evenement >= ?" in sql
+        assert "date_evenement >= timezone('Europe/Paris', CAST(? AS TIMESTAMP))" in sql
         assert "'2024-01-01'" not in sql
         assert params == ["2024-01-01"]
 
