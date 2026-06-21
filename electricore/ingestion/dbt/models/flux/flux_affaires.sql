@@ -55,7 +55,11 @@ select
     cast(jalon ->> '$.dateHeure' as timestamptz)                as jalon_date_heure,
     cast(jalon ->> '$.affaireDateEffet' as date)                as affaire_date_effet,
     jalon ->> '$.affaireEtat[0]."@code"'                        as affaire_etat,
-    jalon ->> '$.affaireEtat[0].libelle'                        as affaire_etat_libelle
+    jalon ->> '$.affaireEtat[0].libelle'                        as affaire_etat_libelle,
+    -- Source résiduelle descendue du loader (ADR-0042, #397) : `affaires()` devient un
+    -- SELECT *. jalon_date_heure (TIMESTAMPTZ offset) et affaire_date_effet (DATE) sont déjà
+    -- bien typés, rien à ré-ancrer.
+    'flux_X12X13'                                               as source
 from jalons
 -- Dédup cross-livraisons : une ligne par (affaire, jalon), la plus récente gagne.
 qualify row_number() over (

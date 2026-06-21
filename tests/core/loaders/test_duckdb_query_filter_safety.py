@@ -1,33 +1,32 @@
 """Tests pour la validation/paramétrisation des filtres `DuckDBQuery.filter()`.
 
 Vérifie que :
-- Les noms de colonnes inconnus sont rejetés (allowlist via FluxDescriptor).
+- Un loader `SELECT *` (ADR-0042) accepte toute colonne (allowlist ouverte) — l'existence
+  est tranchée par DuckDB à l'exécution, pas pré-validée par le builder.
 - Les valeurs sont passées en paramètres liés (pas d'interpolation f-string).
 - Une tentative d'injection SQL est neutralisée.
-"""
 
-import pytest
+La sûreté anti-injection repose sur la PARAMÉTRISATION des valeurs (jamais interpolées),
+pas sur l'allowlist : les noms de colonnes des `.filter()` de l'API sont des littéraux du
+code (`pdl`, `date_releve`, `source`), jamais du HTTP.
+"""
 
 from electricore.core.loaders.duckdb import c15
 
 
 class TestColumnAllowlist:
-    """`.filter()` rejette les colonnes absentes du schéma du flux."""
+    """Loader `SELECT *` (ADR-0042) : `.filter()` n'a plus de schéma à re-déclarer → allowlist
+    ouverte (comme les marts `base_sql`). L'existence de la colonne est tranchée par DuckDB."""
 
-    def test_unknown_column_raises_value_error(self):
-        """Un nom de colonne hors schéma déclenche une erreur claire avant tout SQL."""
-        with pytest.raises(ValueError, match="colonne inconnue"):
-            c15().filter({"nonexistent_column": "X"})
-
-    def test_error_message_lists_allowed_columns(self):
-        """L'erreur cite quelques colonnes valides pour aider à corriger l'appel."""
-        with pytest.raises(ValueError) as excinfo:
-            c15().filter({"nonexistent_column": "X"})
-        # Au moins une colonne connue de C15 doit apparaître pour orienter l'utilisateur
-        assert "pdl" in str(excinfo.value)
+    def test_select_star_loader_accepte_toute_colonne(self):
+        """Un loader SELECT * (c15, #397) accepte un nom de colonne arbitraire sans lever :
+        la forme résiduelle ayant migré en dbt, le builder ne connaît plus le schéma. Une
+        colonne inexistante échouerait au Binder DuckDB à l'exécution, pas ici."""
+        q = c15().filter({"colonne_quelconque": "X"})
+        assert q.filters == (("colonne_quelconque", "X"),)
 
     def test_known_column_passes(self):
-        """Une colonne valide ne lève pas d'erreur."""
+        """Une colonne valide est acceptée et enregistrée telle quelle."""
         q = c15().filter({"pdl": "PDL123"})
         assert q.filters == (("pdl", "PDL123"),)
 
@@ -64,12 +63,14 @@ class TestParameterizedFilters:
         assert params == ["A", "B", "C"]
 
     def test_operator_filter_parsed_and_parameterized(self):
-        """`{date: ">= '2024-01-01'"}` sur une colonne à offset → le littéral est ancré en
-        heure légale française (mirror du cast, #391) tout en restant PARAMÉTRÉ : la valeur
-        transite par params, jamais interpolée."""
+        """`{date: ">= '2024-01-01'"}` → placeholder NU `col >= ?`, PARAMÉTRÉ : la valeur
+        transite par params, jamais interpolée. Plus d'enveloppe `timezone(...)` par colonne
+        (loader SELECT *, #397) ; le littéral est interprété en Europe/Paris par le fuseau de
+        session épinglé de la connexion (#393), pas par un wrap SQL."""
         sql, params = c15().filter({"date_evenement": ">= '2024-01-01'"})._build_final_query()
 
-        assert "date_evenement >= timezone('Europe/Paris', CAST(? AS TIMESTAMP))" in sql
+        assert "date_evenement >= ?" in sql
+        assert "timezone(" not in sql
         assert "'2024-01-01'" not in sql
         assert params == ["2024-01-01"]
 

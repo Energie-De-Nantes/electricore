@@ -184,109 +184,19 @@ def test_f15_sert_des_jours_civils(base_prod_dbt):
     assert df["source"].unique().to_list() == ["flux_F15"]
 
 
-def _lignes_sous_session_tz(query, db_path, tz):
-    """Exécute le SQL bâti par le loader sous un fuseau de SESSION DuckDB donné.
-
-    Mime la différence prod (VPS en UTC) vs dev (poste en Europe/Paris) : le `WHERE`
-    s'exécute sur l'instant brut, le littéral est interprété dans le fuseau de session.
-    """
-    sql, params = query._build_final_query()
-    con = duckdb.connect(str(db_path), read_only=True)
-    try:
-        con.execute(f"SET TimeZone='{tz}'")
-        return con.execute(sql, params).fetchall()
-    finally:
-        con.close()
-
-
-def test_filtre_offset_est_deterministe_quel_que_soit_le_fuseau_de_session(base_prod_dbt):
-    """#391 : un filtre de date sur une colonne à offset (TIMESTAMPTZ) doit renvoyer les
-    MÊMES lignes sous `TZ=UTC` (VPS) et `TZ=Europe/Paris` (dev). Le `WHERE` tournant sur
-    l'instant brut AVANT le cast, le littéral doit être interprété en heure légale française
-    (mirror du cast), pas dans le fuseau de session."""
-    from electricore.core.loaders import c15
-
-    # Fixture : un événement à 2024-10-04T00:01:00+02:00 (= 2024-10-03 22:01 UTC), juste
-    # APRÈS minuit Paris du 4 mais AVANT minuit UTC : c'est la ligne-bord qui distingue
-    # les deux fuseaux pour la borne `>= '2024-10-04'`.
-    q = c15(database_path=base_prod_dbt).filter({"date_evenement": ">= '2024-10-04'"})
-    assert _lignes_sous_session_tz(q, base_prod_dbt, "UTC") == _lignes_sous_session_tz(q, base_prod_dbt, "Europe/Paris")
-
-
 def test_filtre_offset_respecte_la_semantique_europe_paris(base_prod_dbt):
-    """#391 (correct-by-construction) : la borne respecte la sémantique Europe/Paris.
-    L'événement à 00:01 Paris le 2024-10-04 est INCLUS par sa propre borne de minuit Paris
-    (`>= '2024-10-04'`) et EXCLU dès le lendemain (`>= '2024-10-05'`)."""
+    """ADR-0042 : un filtre de date sur une colonne TIMESTAMPTZ, exécuté à travers la
+    connexion du loader (fuseau de session épinglé Paris, #393), respecte la sémantique
+    Europe/Paris. L'événement à 00:01 Paris le 2024-10-04 est INCLUS par sa borne de minuit
+    Paris (`>= '2024-10-04'`) et EXCLU dès le lendemain (`>= '2024-10-05'`). Le déterminisme
+    selon le fuseau de l'hôte (VPS/CI en UTC) est prouvé par test_duckdb_session_timezone ;
+    le filtre n'enveloppe plus le littéral par colonne (loader SELECT *, #394-#397)."""
     from electricore.core.loaders import c15
 
     inclus = c15(database_path=base_prod_dbt).filter({"date_evenement": ">= '2024-10-04'"}).collect()
     assert inclus.height == 1
     exclus = c15(database_path=base_prod_dbt).filter({"date_evenement": ">= '2024-10-05'"}).collect()
     assert exclus.height == 0
-
-
-def test_filtre_colonne_naive_ou_date_inchange_et_deterministe(base_prod_dbt):
-    """#391 : les colonnes naïves (R64) et DATE (R151) sont déjà déterministes (naïf↔naïf,
-    date↔date) — leur `WHERE` n'enveloppe PAS le littéral (placeholder nu) et reste
-    identique quel que soit le fuseau de session ; aucun `SET TimeZone` global n'est émis."""
-    from electricore.core.loaders import r64, r151
-
-    for query in (
-        r64(database_path=base_prod_dbt).filter({"date_releve": ">= '2022-01-01'"}),
-        r151(database_path=base_prod_dbt).filter({"date_releve": ">= '2024-01-01'"}),
-    ):
-        sql, _ = query._build_final_query()
-        clause_where = sql.split("WHERE")[-1]
-        assert "timezone(" not in clause_where  # le WHERE n'ancre pas les colonnes non-offset
-        assert "set timezone" not in sql.lower()  # pas de réglage global du fuseau
-        assert _lignes_sous_session_tz(query, base_prod_dbt, "UTC") == _lignes_sous_session_tz(
-            query, base_prod_dbt, "Europe/Paris"
-        )
-
-
-def _colonnes_tz_aware_projetees(desc, db_path) -> dict:
-    """{nom: forme} des colonnes tz-aware (TIMESTAMPTZ) de la table que le descripteur projette."""
-    schema_name, table_name = desc.table.split(".")
-    con = duckdb.connect(str(db_path), read_only=True)
-    try:
-        tz_aware = {
-            nom
-            for (nom,) in con.execute(
-                "SELECT column_name FROM information_schema.columns "
-                "WHERE table_schema = ? AND table_name = ? AND data_type LIKE '%WITH TIME ZONE%'",
-                [schema_name, table_name],
-            ).fetchall()
-        }
-    finally:
-        con.close()
-    projetees = {c.name: c.forme for c in desc.columns}
-    return {nom: projetees[nom] for nom in tz_aware & projetees.keys()}
-
-
-@pytest.mark.parametrize("flux", ["c15", "r151", "r15", "r64"])
-def test_garde_inventaire_colonnes_tz_aware_sont_offset(base_prod_dbt, flux):
-    """#391 (garde d'inventaire) : toute colonne tz-aware (TIMESTAMPTZ) qu'un descripteur
-    legacy projette doit être déclarée OFFSET — sinon son filtre dériverait selon le fuseau
-    de session (cf. test de déterminisme) et son cast de lecture serait incohérent. Une
-    future colonne tz-aware ajoutée à la projection sans forme OFFSET échoue donc ICI
-    (vacuité assumée pour les flux sans colonne tz-aware ; cf. la garde-de-la-garde)."""
-    from electricore.core.loaders.duckdb.registry import FLUX_DESCRIPTORS
-    from electricore.core.loaders.duckdb.sql import FormeTemporelle
-
-    for nom, forme in _colonnes_tz_aware_projetees(FLUX_DESCRIPTORS[flux], base_prod_dbt).items():
-        assert forme is FormeTemporelle.OFFSET, (
-            f"{flux}.{nom} est tz-aware (TIMESTAMPTZ) mais n'est pas déclarée OFFSET : "
-            f"son filtre dériverait selon le fuseau de session (#391)."
-        )
-
-
-def test_la_garde_inventaire_n_est_pas_vacante(base_prod_dbt):
-    """Garde-de-la-garde : C15 expose bel et bien des colonnes tz-aware (date_evenement,
-    avant/apres_date_releve) — la garde d'inventaire mord donc sur du réel, elle n'est pas
-    vacuement verte."""
-    from electricore.core.loaders.duckdb.registry import FLUX_DESCRIPTORS
-
-    assert _colonnes_tz_aware_projetees(FLUX_DESCRIPTORS["c15"], base_prod_dbt)
 
 
 @pytest.mark.parametrize("flux", ["c15", "r151", "r15", "r64"])
