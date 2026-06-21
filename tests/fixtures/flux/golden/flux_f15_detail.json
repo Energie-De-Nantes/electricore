@@ -16,6 +16,7 @@
     "libelle_ev": "Pénalité pour coupure réseau",
     "flux": "F15",
     "num_facture": "3210619182009",
-    "date_facture": "2025-02-05"
+    "date_facture": "2025-02-05",
+    "source": "flux_F15"
   }
 ]
