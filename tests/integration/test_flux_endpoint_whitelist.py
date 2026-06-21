@@ -1,4 +1,4 @@
-"""Tests d'intégration : `/flux/{table_name}*` reposent sur le whitelist FLUX_CONFIGS."""
+"""Tests d'intégration : `/flux/{table_name}*` reposent sur le whitelist FLUX_DESCRIPTORS."""
 
 import pytest
 from fastapi.testclient import TestClient
@@ -17,7 +17,7 @@ def client():
 
 
 class TestUnknownTableReturns404:
-    """Une table absente de FLUX_CONFIGS renvoie 404 sur tous les exports."""
+    """Une table absente de FLUX_DESCRIPTORS renvoie 404 sur tous les exports."""
 
     def test_get_flux_unknown(self, client):
         response = client.get("/flux/totalement_inexistant")

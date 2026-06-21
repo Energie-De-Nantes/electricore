@@ -119,3 +119,10 @@ Toute nouvelle fonctionnalité (par exemple le module `integrations/odoo/verific
 - **`slots=True` casse `__dict__`-based dynamic attribute access.** Du code qui ferait `setattr(instance, "champ_dynamique", x)` sur un attribut non-déclaré lève `AttributeError`. C'est *voulu* — c'est la détection de typo. Mais une lib externe qui patche dynamiquement des attributs (rare) serait incompatible. Aucun cas connu dans la codebase aujourd'hui.
 
 - **Pas de seam pour « value object polymorphe ».** Si un jour un cas légitime apparaît où plusieurs records doivent partager une interface commune (héritage de dataclass frozen), la convention demandera un ajustement. Les héritages d'`OdooReader` (`OdooWriter`) marchent parce qu'`OdooReader` n'est pas un dataclass ; un héritage entre deux `@dataclass(frozen=True, slots=True)` est techniquement faisable mais pas testé. À traiter le jour où le cas se présente.
+
+## Amendement (#389, juin 2026)
+
+`QueryConfig` et `FluxSchema`, listés ci-dessus parmi les value objects, ont été **fusionnés
+en un descripteur unique `FluxDescriptor`** (loaders DuckDB, `descriptor.py`). La convention
+de cet ADR est inchangée : `FluxDescriptor` reste un `@dataclass(frozen=True, slots=True)`,
+tout comme `Column`. Seul l'inventaire évolue (deux value objects → un).

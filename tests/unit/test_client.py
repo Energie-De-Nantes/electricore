@@ -186,7 +186,7 @@ def test_flux_propage_filtre_prm_a_lendpoint(monkeypatch):
 
 
 def test_flux_renvoie_404_pour_table_inconnue():
-    """Le client propage une `HTTPStatusError` quand la table n'est pas dans FLUX_CONFIGS."""
+    """Le client propage une `HTTPStatusError` quand la table n'est pas dans FLUX_DESCRIPTORS."""
     app.dependency_overrides[get_current_api_key] = lambda: "test-key"
     try:
         client = ElectricoreClient(url="http://testserver", api_key="key", http_client=TestClient(app))

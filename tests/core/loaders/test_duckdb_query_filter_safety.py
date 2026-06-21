@@ -1,7 +1,7 @@
 """Tests pour la validation/paramétrisation des filtres `DuckDBQuery.filter()`.
 
 Vérifie que :
-- Les noms de colonnes inconnus sont rejetés (allowlist via FluxSchema).
+- Les noms de colonnes inconnus sont rejetés (allowlist via FluxDescriptor).
 - Les valeurs sont passées en paramètres liés (pas d'interpolation f-string).
 - Une tentative d'injection SQL est neutralisée.
 """

@@ -2,7 +2,7 @@
 
 Expose le *modèle de relevés canonique* (mart dbt `releves`, ADR-0029) — union
 arbitrée C15/R64/R151 — hors du namespace `/flux/*` réservé aux flux Enedis
-bruts. Adossé au loader `releves()` (et **non** au registre `FLUX_CONFIGS`),
+bruts. Adossé au loader `releves()` (et **non** au registre `FLUX_DESCRIPTORS`),
 consommé par les notebooks distants via `ElectricoreClient.releves()`.
 
 **Ordre des routes important** — comme `/flux/*`, les routes `.xlsx`, `.arrow`

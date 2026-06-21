@@ -28,3 +28,11 @@ Une catégorie partagée `/canonique/*` est différée (YAGNI : un seul mart exp
 aujourd'hui). Si un second mart est exposé, regrouper impliquera de déplacer
 `/releves` — changement d'URL cassant (alias/redirect à prévoir pour les clients
 existants).
+
+## Amendement (#389, juin 2026)
+
+Le registre `FLUX_CONFIGS` mentionné ci-dessus a été renommé `FLUX_DESCRIPTORS`, et
+`FluxSchema`/`QueryConfig` fusionnés en un descripteur unique `FluxDescriptor` (#389). La
+décision de cet ADR est inchangée : `releves()` reste adossé à un `base_sql` (passthrough
+`SELECT *`, `transform=None`) plutôt qu'au registre des flux bruts, et l'endpoint `/releves`
+reste hors du namespace `/flux/*`.
