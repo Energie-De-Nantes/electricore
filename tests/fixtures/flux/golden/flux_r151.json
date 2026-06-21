@@ -2,16 +2,19 @@
   {
     "releve_id": "6ea5c7b6519070d5",
     "nature_index": "réel",
+    "date_releve": "2024-04-05T00:00:00+02:00",
+    "source": "flux_R151",
+    "ordre_index": false,
+    "precision": "kWh",
     "pdl": "99740456235087",
-    "date_releve": "2024-04-04",
     "id_calendrier_fournisseur": "FC022034",
     "id_calendrier_distributeur": "DI000003",
     "id_affaire": "5112502",
     "unite": "kWh",
     "occurrence_id": "r151.xml#1#1",
     "index_hph_kwh": 5933,
-    "index_hpb_kwh": 12823,
     "index_hch_kwh": 6107,
+    "index_hpb_kwh": 12823,
     "index_hcb_kwh": 15670
   }
 ]
