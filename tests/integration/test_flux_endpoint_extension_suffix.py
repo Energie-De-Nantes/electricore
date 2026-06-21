@@ -118,7 +118,7 @@ def test_generic_flux_arrow_extension_suffix_returns_200(client, monkeypatch, df
 
 
 def test_generic_flux_extension_suffix_whitelist_unknown_returns_404(client):
-    """`GET /flux/inconnu.xlsx` (table absente de FLUX_CONFIGS) → 404."""
+    """`GET /flux/inconnu.xlsx` (table absente de FLUX_DESCRIPTORS) → 404."""
     response = client.get("/flux/inconnu.xlsx")
     assert response.status_code == 404
 

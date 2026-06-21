@@ -1,7 +1,7 @@
 """Tests d'intégration de l'endpoint relevés canoniques (`/releves*`, ADR-0032).
 
 Le mart `releves` (ADR-0029) est exposé hors `/flux/*` : route nommée par le
-domaine, adossée au loader `releves()` (pas au registre `FLUX_CONFIGS`).
+domaine, adossée au loader `releves()` (pas au registre `FLUX_DESCRIPTORS`).
 
 Convention de test : on monkeypatche le helper de chargement
 `_load_releves_df` pour court-circuiter l'IO DuckDB (CI sans base), comme les
@@ -68,7 +68,7 @@ def test_releves_arrow_requires_api_key():
 def test_releves_not_served_by_flux_catchall(client):
     """`/releves` n'est PAS routé via `/flux/{table_name}` (ADR-0032).
 
-    `releves` est absent de `FLUX_CONFIGS` : le catch-all flux le rejette en 404,
+    `releves` est absent de `FLUX_DESCRIPTORS` : le catch-all flux le rejette en 404,
     preuve que le mart n'emprunte pas le namespace des flux bruts.
     """
     assert client.get("/flux/releves.arrow").status_code == 404
