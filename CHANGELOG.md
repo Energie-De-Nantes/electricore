@@ -9,6 +9,27 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.4.0rc3] - 2026-06-21
+
+La *Chronologie du contrat* devient interrogeable **par point ou par contrat**, et expose
+une **vue facturiste** : la frise complète d'un PDL/RSC tissant faits et verdicts, sans montant.
+
+### ✨ Temps forts
+
+- **Chronologie filtrable par PDL/RSC au boundary de chargement** (ADR-0041, #366).
+  `contexte_du_mois_filtre(pdl, rsc, …)` pousse le prédicat dans DuckDB (clause `WHERE`
+  paramétrée sur les marts `spine()` / `chronologie()`, pas de scan parc). Le pipeline de
+  chronologie reste **inchangé** (partition-local + horizon paramétrique #179), garanti par
+  un test de parité « run filtré sur X ≡ run plein ∩ X » qui garde explicitement l'invariant
+  « horizon = paramètre ».
+- **Endpoint `GET /facturation/chronologie?pdl|rsc`** — vue facturiste (ADR-0041/0039, #367).
+  Read-only, authentifié (`X-API-Key`), JSON enveloppé cohérent avec `/meta-periodes` et
+  `/releves`. Renvoie la frise complète d'un point (toute l'histoire du PDL, RSC successives +
+  charnières) ou d'un contrat (une tenure bornée) : les **faits** (événements C15 *y compris
+  hors-comptage* — MDPRM, MCT — et relevés R151/R64/C15) tissés avec les **verdicts dérivés**
+  qualité / communication / énergie de chaque période. **Sans montant tarifaire** (turpe/cta/
+  accise) — différenciateur explicite vs `/meta-periodes`.
+
 ## [3.4.0rc2] - 2026-06-21
 
 Les loaders `/flux` deviennent de **vrais `SELECT *`** (convention de date unifiée ADR-0042),
