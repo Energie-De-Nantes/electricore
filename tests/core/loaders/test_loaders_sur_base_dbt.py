@@ -157,14 +157,15 @@ def test_r64_charge_le_flux_brut(base_prod_dbt):
 
 @pytest.mark.parametrize("flux", ["c15", "r151", "r15", "r64"])
 def test_aucune_derive_loader_mart(base_prod_dbt, flux):
-    """Garde anti-dérive loader↔mart (#333) : chaque colonne déclarée par un `FluxSchema`
+    """Garde anti-dérive loader↔mart (#333) : chaque colonne déclarée par un `FluxDescriptor`
     doit exister dans le mart correspondant. On exécute le SELECT du loader avec `LIMIT 0` —
     DuckDB lie alors toutes les colonnes référencées sans matérialiser de ligne ; une colonne
     déclarée mais absente du mart lève un Binder Error. Une future dérive (comme #333) échoue
     donc ICI, en test, plutôt qu'en prod sur l'endpoint."""
-    from electricore.core.loaders.duckdb.sql import FLUX_SCHEMAS, build_base_query
+    from electricore.core.loaders.duckdb.registry import FLUX_DESCRIPTORS
+    from electricore.core.loaders.duckdb.sql import build_base_query
 
-    sql = build_base_query(FLUX_SCHEMAS[flux])
+    sql = build_base_query(FLUX_DESCRIPTORS[flux])
     con = duckdb.connect(str(base_prod_dbt), read_only=True)
     try:
         con.execute(f"SELECT * FROM ({sql}) LIMIT 0")  # Binder Error si dérive
