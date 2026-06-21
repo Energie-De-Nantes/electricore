@@ -90,7 +90,8 @@ dedup as (
 -- `index is not null`), et le forward-fill traînait alors une valeur périmée (bug prod
 -- RSC 834877952). Désormais : un relevé C15 garde sa valeur NATIVE (le fait propre de
 -- l'événement) ; un télérelevé périodique reste à `null`. L'attribution par-contrat
--- appartient au substrat d'événements consolidé (`pipeline_historique` forward-fille sur
--- le flux C15 COMPLET, MDPRM compris) ; la chronologie source RSC/FTA/niveau depuis la
--- requête FACTURATION, plus depuis le mart. `/releves` sert donc des lectures pures.
+-- appartient au substrat consolidé : la spine relationnelle dbt (`spine_contrat.sql`)
+-- forward-fille la situation en SQL sur le flux C15 COMPLET (MDPRM compris) ; la
+-- chronologie source RSC/FTA/niveau depuis la spine, plus depuis ce mart. `/releves`
+-- sert donc des lectures pures. Voir ADR-0041 (révise ADR-0039).
 select * from dedup
