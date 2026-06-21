@@ -249,11 +249,11 @@ def detecter_points_de_rupture(spine: pl.LazyFrame) -> pl.LazyFrame:
         # Appliquer la détection d'impact abonnement avec nos expressions pures. Les bornes
         # FACTURATION (forward-fillées, donc « sans changement ») impactent toujours
         # l'abonnement : ce sont des bornes de période — on les force ici (concern de la spine).
+        # On clé sur le discriminant typé non-null `type_fait` de la spine (`SpineContrat`),
+        # pas sur le `evenement_declencheur` nullable (ADR-0041 #378).
         .with_columns(
             [
-                (expr_impacte_abonnement() | (pl.col("evenement_declencheur") == "FACTURATION")).alias(
-                    "impacte_abonnement"
-                ),
+                (expr_impacte_abonnement() | (pl.col("type_fait") == "facturation")).alias("impacte_abonnement"),
                 expr_resume_modification().alias("resume_modification"),
             ]
         )

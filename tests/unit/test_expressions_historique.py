@@ -262,6 +262,8 @@ def test_detecter_points_de_rupture_pipeline_complet():
         "ref_situation_contractuelle": ["PDL1", "PDL1", "PDL1", "PDL1", "PDL1"],
         "date_evenement": ["2024-01-01", "2024-02-01", "2024-03-15", "2024-04-01", "2024-05-20"],
         "evenement_declencheur": ["MES", "FACTURATION", "MCT", "FACTURATION", "RES"],
+        # Discriminant typé de la spine (épine) : FACTURATION ⇒ 'facturation', sinon 'evenement'.
+        "type_fait": ["evenement", "facturation", "evenement", "facturation", "evenement"],
         "puissance_souscrite_kva": [6.0, 6.0, 9.0, 9.0, 9.0],
         "formule_tarifaire_acheminement": ["BTINFCU4", "BTINFCU4", "BTINFMU4", "BTINFMU4", "BTINFMU4"],
     }

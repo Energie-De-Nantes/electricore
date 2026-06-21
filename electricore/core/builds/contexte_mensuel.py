@@ -35,7 +35,7 @@ from electricore.core.models.lignes_facture_rapprochees import LignesFactureRapp
 from electricore.core.pipelines.abonnements import pipeline_abonnements
 from electricore.core.pipelines.energie import pipeline_energie
 from electricore.core.pipelines.facturation import pipeline_facturation
-from electricore.core.pipelines.historique import horizon_par_defaut, pipeline_historique
+from electricore.core.pipelines.historique import _horizon_expr, horizon_par_defaut, pipeline_historique
 
 # Les clés sont des *catégories produit* (labels ERP, cf. LignesFacture) —
 # concept distinct des cadrans malgré l'homonymie ; seules les valeurs
@@ -117,7 +117,7 @@ def _composer(
     historique_enrichi = pipeline_historique(spine_mart, horizon=horizon)
     abonnements = pipeline_abonnements(historique_enrichi)
     # Horizon = filtre au boundary (le mart va jusqu'à une borne généreuse, ADR-0041).
-    chronologie_horizon = chronologie_mart.filter(pl.col("date_releve") <= pl.lit(horizon))
+    chronologie_horizon = chronologie_mart.filter(pl.col("date_releve") <= _horizon_expr(horizon))
     energie = pipeline_energie(chronologie_horizon)  # type: ignore[arg-type]
     # Journal des relevés utilisés (#233, ADR-0029/0038) = la MÊME source que l'énergie.
     releves_utilises = chronologie_horizon
