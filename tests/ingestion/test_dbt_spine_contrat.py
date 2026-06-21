@@ -33,7 +33,6 @@ pytest.importorskip("dbt.adapters.duckdb", reason="dbt-duckdb absent — uv sync
 from dbt.cli.main import dbtRunner  # noqa: E402
 
 from electricore.core.loaders import spine  # noqa: E402
-from electricore.core.loaders.duckdb.registry import DESCRIPTOR_C15  # noqa: E402
 from electricore.ingestion.parsing.xml import xml_vers_dict  # noqa: E402
 
 RACINE = Path(__file__).parents[2]
@@ -102,11 +101,28 @@ def _construire_spine(tmp, documents_c15: list[dict]) -> Path:
     return copie
 
 
-# Colonnes RÉELLES de flux_c15 (sql_expr == name ⟹ vraie colonne table, pas un littéral
-# comme `'flux_C15' as source`). Dérivées de DESCRIPTOR_C15 (source unique) pour bâtir un
-# flux_c15 synthétique COMPLET : le mart spine ET le loader c15()/pipeline_historique le
-# lisent (parité). Type heuristique aligné sur le contrat XSD/dbt.
-_COLS_C15_REELLES = tuple(c.name for c in DESCRIPTOR_C15.columns if c.sql_expr == c.name)
+# Colonnes de flux_c15 que le mart `spine_contrat` consomme (CTE `evenements`) — le contrat
+# d'entrée de la spine. Depuis ADR-0042 (#397) le loader c15() est un `SELECT *` et le
+# descripteur n'énumère plus ses colonnes ; on liste donc ici explicitement ce que la spine
+# lit, pour bâtir un flux_c15 synthétique. Type heuristique aligné sur le contrat XSD/dbt.
+_COLS_C15_REELLES = (
+    "date_evenement",
+    "pdl",
+    "ref_situation_contractuelle",
+    "evenement_declencheur",
+    "type_evenement",
+    "segment_clientele",
+    "etat_contractuel",
+    "puissance_souscrite_kva",
+    "formule_tarifaire_acheminement",
+    "type_compteur",
+    "num_compteur",
+    "categorie",
+    "ref_demandeur",
+    "id_affaire",
+    "niveau_ouverture_services",
+    "date_changement_niveau_ouverture_services",
+)
 
 
 def _type_c15(nom: str) -> str:

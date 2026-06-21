@@ -61,7 +61,18 @@ select
     {{ mint_releve_id("'flux_R15'", "pdl", "(date_releve at time zone 'Europe/Paris')", "false") }} as releve_id,
     id_releve,
     {{ nature_depuis_nature_index("nature_index_source") }}          as nature_index,
-    flat.* exclude (occurrence_id, id_releve, nature_index_source),
+    -- Forme résiduelle descendue du loader (ADR-0042, #397) : `r15()` devient un SELECT *.
+    -- Rename id_calendrier → id_calendrier_distributeur, placeholders null (FTA, calendrier
+    -- fournisseur), littéraux source/ordre_index/unite/precision. date_releve est déjà un
+    -- instant TIMESTAMPTZ (offset), rien à ré-ancrer.
+    'flux_R15'              as source,
+    false                  as ordre_index,
+    'kWh'                  as unite,
+    'kWh'                  as precision,
+    cast(null as varchar)  as formule_tarifaire_acheminement,
+    cast(null as varchar)  as id_calendrier_fournisseur,
+    id_calendrier          as id_calendrier_distributeur,
+    flat.* exclude (occurrence_id, id_releve, nature_index_source, unite, id_calendrier),
     occurrence_id,
     cadrans.* exclude (occurrence_id)
 from flat left join cadrans using (occurrence_id)

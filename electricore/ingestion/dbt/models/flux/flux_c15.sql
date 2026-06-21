@@ -116,4 +116,12 @@ releves_agg as (
     group by prm_id
 )
 
-select * exclude (prm_id) from flat left join releves_agg using (prm_id)
+select
+    * exclude (prm_id),
+    -- Forme résiduelle descendue du loader (ADR-0042, #397) : `c15()` devient un SELECT *.
+    -- Les dates sont déjà bien typées (date_evenement/avant/apres = TIMESTAMPTZ offset ;
+    -- date_changement_niveau / date_derniere_modification_fta = DATE), rien à ré-ancrer.
+    'flux_C15' as source,
+    'kWh'      as unite,
+    'kWh'      as precision
+from flat left join releves_agg using (prm_id)
