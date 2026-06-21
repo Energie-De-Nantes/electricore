@@ -165,6 +165,22 @@ class DuckDBQuery:
 
     _OPERATOR_RE = re.compile(r"^\s*(>=|<=|<>|!=|>|<|=)\s*(.+?)\s*$")
 
+    def _placeholder(self, column: str) -> str:
+        """Placeholder paramétré pour `column`, mirror du cast de lecture au `WHERE` (#391).
+
+        Sur une colonne à offset (TIMESTAMPTZ), le `WHERE` tourne sur l'instant brut AVANT
+        le cast : un littéral nu serait interprété dans le fuseau de SESSION (UTC sur le VPS,
+        Paris en dev) → lignes différentes selon l'endroit. On interprète donc le littéral en
+        heure légale française — `timezone(HEURE_LEGALE, CAST(? AS TIMESTAMP))` produit le même
+        instant absolu partout. Les colonnes naïves (date↔date, naïf↔naïf) sont déjà
+        déterministes : placeholder nu. PAS de `SET TimeZone` global — la responsabilité du
+        fuseau reste portée par la forme du descripteur, colonne par colonne.
+        """
+        formes = {c.name: c.forme for c in self.config.columns}
+        if formes.get(column) is FormeTemporelle.OFFSET:
+            return f"timezone('{HEURE_LEGALE}', CAST(? AS TIMESTAMP))"
+        return "?"
+
     def _build_filter_clause(self, column: str, condition: Any) -> tuple[str, list[Any]]:
         """Construit une clause WHERE paramétrée depuis un filtre (fonction pure).
 
@@ -176,9 +192,11 @@ class DuckDBQuery:
         if column == "__raw_condition":
             return condition, []
 
+        ph = self._placeholder(column)
+
         # Liste de valeurs (IN)
         if isinstance(condition, list):
-            placeholders = ", ".join(["?"] * len(condition))
+            placeholders = ", ".join([ph] * len(condition))
             return f"{column} IN ({placeholders})", list(condition)
 
         # String avec opérateur préfixe : ">= '2024-01-01'", "< 100", etc.
@@ -189,10 +207,10 @@ class DuckDBQuery:
                 # Strip enclosing quotes (simple ou double) si présentes
                 if len(raw_value) >= 2 and raw_value[0] == raw_value[-1] and raw_value[0] in ("'", '"'):
                     raw_value = raw_value[1:-1]
-                return f"{column} {op} ?", [raw_value]
+                return f"{column} {op} {ph}", [raw_value]
 
         # Égalité simple
-        return f"{column} = ?", [condition]
+        return f"{column} = {ph}", [condition]
 
     def _build_final_query(self) -> tuple[str, list[Any]]:
         """Construit la requête SQL finale + ses paramètres (fonction pure).
