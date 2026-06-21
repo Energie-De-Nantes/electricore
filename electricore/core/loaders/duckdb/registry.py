@@ -109,45 +109,16 @@ DESCRIPTOR_C15 = FluxDescriptor(
 )
 
 
-# Flux R151 - Relevés périodiques, date BRUTE (fidèle source, ADR-0003 amendé / #294)
+# Flux R151 - Relevés périodiques. SELECT * (ADR-0042, #395) : la forme résiduelle
+# (source, ordre_index, placeholders null RSC/FTA, precision) et l'instant J+1 vivent
+# désormais dans le modèle dbt `flux_r151`. date_releve sert l'INSTANT harmonisé (révise
+# l'amendement #294 d'ADR-0003 : flux_r151 n'est plus « fidèle au label brut » mais
+# « fidèle à l'instant de relevé » ; endpoint déprécié). releve_id reste minté sur la date
+# brute en amont. Le loader ne projette ni ne re-type plus.
 DESCRIPTOR_R151 = FluxDescriptor(
     flux_name="R151",
     table="flux_enedis.flux_r151",
-    columns=(
-        # Date BRUTE, fidèle à la source (convention Enedis « fin de journée ») : ancrée
-        # heure-mur Paris, SANS le +1 jour. L'harmonisation J → J+1 (ADR-0003) vit désormais
-        # en UN seul endroit, le mart `releves` (#294) ; l'endpoint /flux/r151 sert la date
-        # nue et est candidat à dépréciation (l'usage direct des flux bruts incombe à
-        # l'appelant, qui doit connaître la convention fin-de-journée de R151).
-        # Source = xs:date (jour nu) ancré heure-mur Paris minuit ⟹ forme NAIF_PARIS.
-        col_paris("date_releve"),
-        col_simple("pdl"),
-        col_cast_null_varchar("ref_situation_contractuelle"),
-        col_cast_null_varchar("formule_tarifaire_acheminement"),
-        col_simple("id_calendrier_fournisseur"),
-        col_simple("id_calendrier_distributeur"),
-        col_simple("id_affaire"),
-        # Cadrans (index de compteurs). kWh entiers (ADR-0034) : flux_r151 émet du bigint
-        # floor ; le loader ne re-caste plus (Int64 natif, ADR-0035), il trust dbt.
-        col_simple("index_hp_kwh"),
-        col_simple("index_hc_kwh"),
-        col_simple("index_hch_kwh"),
-        col_simple("index_hph_kwh"),
-        col_simple("index_hpb_kwh"),
-        col_simple("index_hcb_kwh"),
-        col_simple("index_base_kwh"),
-        # Métadonnées
-        col_literal("flux_R151", "source"),
-        col_literal_bool(False, "ordre_index"),
-        col_simple("unite"),
-        Column(name="precision", sql_expr="unite", alias="precision"),
-    ),
     where_clause="date_releve IS NOT NULL AND id_calendrier_distributeur IN ('DI000001', 'DI000002', 'DI000003')",
-    comments="""-- DATE BRUTE (fidèle source, ADR-0003 amendé / #294)
--- R151 utilise la convention "fin de journée" (date J = index fin du jour J). L'endpoint
--- /flux/r151 sert cette date NUE, sans le +1 jour d'harmonisation. L'harmonisation J → J+1
--- (qui aligne R151 sur la convention "début de journée" de R64/R15/C15) vit en UN endroit :
--- le mart `releves` consommé par la chaîne énergie. Cet endpoint brut est dépréciable.""",
     transform=None,
     validator=RelevéIndex,
 )

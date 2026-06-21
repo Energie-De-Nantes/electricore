@@ -109,7 +109,15 @@ SPECS = [
         instant_cols=frozenset({"date_releve"}),
         type_contract={"date_releve": TZ},
     ),
-    FluxSpec("flux_r151", "r151.xml", "raw_r151", type_contract={"date_releve": DATE}),
+    # R151 : date_releve est l'INSTANT minuit Paris J+1 (TIMESTAMPTZ), le +1j natif au
+    # boundary flux_r151 (ADR-0042, #395) — plus une date nue. Comparé sur l'instant.
+    FluxSpec(
+        "flux_r151",
+        "r151.xml",
+        "raw_r151",
+        instant_cols=frozenset({"date_releve"}),
+        type_contract={"date_releve": TZ},
+    ),
     FluxSpec(
         "flux_f12_detail",
         "f12.xml",
@@ -157,7 +165,13 @@ SPECS = [
         cas="flux_r15_acc_xsd",
         instant_cols=frozenset({"date_releve"}),
     ),
-    FluxSpec("flux_r151", "r151_xsd.xml", "raw_r151", cas="flux_r151_xsd"),
+    FluxSpec(
+        "flux_r151",
+        "r151_xsd.xml",
+        "raw_r151",
+        cas="flux_r151_xsd",
+        instant_cols=frozenset({"date_releve"}),
+    ),
     FluxSpec(
         "flux_f12_detail",
         "f12_xsd.xml",

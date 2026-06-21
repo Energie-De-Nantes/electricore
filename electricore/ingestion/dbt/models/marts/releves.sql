@@ -17,15 +17,16 @@
 -- restent au cœur (#244, ADR-0029). flux_c15 reste fidèle (avant/après conservés).
 
 with
--- R151 : adapter de source. Télérelevés périodiques. Harmonisation J → J+1 (ADR-0003)
--- puis ancrage heure-mur Paris. releve_id (clé métier) est minté sur la date BRUTE en
--- amont (flux_r151) : l'harmonisation d'affichage ne change pas l'identité. Ne porte pas
+-- R151 : adapter de source. Télérelevés périodiques. date_releve est déjà l'INSTANT J+1
+-- (TIMESTAMPTZ) — l'harmonisation « fin de journée → début de journée » (+1j, ADR-0003)
+-- est posée au boundary flux_r151 (ADR-0042, #395) : passthrough, plus de +1j ici.
+-- releve_id (clé métier) reste minté sur la date BRUTE en amont (flux_r151). Ne porte pas
 -- de RSC/FTA (null-fill au conformer).
 r151_raw as (
     select
         releve_id,
         pdl,
-        timezone('Europe/Paris', cast(date_releve as timestamp) + interval '1 day') as date_releve,
+        date_releve,
         false                                                                       as ordre_index,
         nature_index,
         occurrence_id,

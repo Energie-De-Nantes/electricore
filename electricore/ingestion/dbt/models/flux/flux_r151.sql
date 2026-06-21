@@ -16,7 +16,9 @@ with flat as (
     select
         releve_id as occurrence_id,
         pdl,
-        cast(releve ->> '$.Date_Releve' as date)       as date_releve,
+        -- Date BRUTE (xs:date, convention « fin de journée ») : sert au mint de releve_id
+        -- (identité stable, ADR-0028) et à la dérivation de l'instant J+1 ci-dessous.
+        cast(releve ->> '$.Date_Releve' as date)       as date_releve_brute,
         releve ->> '$.Id_Calendrier_Fournisseur'       as id_calendrier_fournisseur,
         releve ->> '$.Id_Calendrier_Distributeur'      as id_calendrier_distributeur,
         releve ->> '$.Id_Affaire'                      as id_affaire,
@@ -49,10 +51,22 @@ cadrans as (
 )
 
 select
-    {{ mint_releve_id("'flux_R151'", "pdl", "date_releve", "false") }} as releve_id,
+    -- releve_id minté sur la date BRUTE (identité stable, zéro re-hash malgré le +1j).
+    {{ mint_releve_id("'flux_R151'", "pdl", "date_releve_brute", "false") }} as releve_id,
     cast(null as varchar)                                              as id_releve,
     cast('réel' as varchar)                                           as nature_index,
-    flat.* exclude (occurrence_id),
+    -- date_releve = INSTANT minuit Paris du jour J+1 (ADR-0042) : la conversion « fin de
+    -- journée → début de journée » (le +1j, ADR-0003) devient la conversion NATIVE de R151,
+    -- posée au boundary flux_r151 comme R64 fait son ancrage. Après ça R151 ≡ R64 (une seule
+    -- convention « début de journée » en aval). Le mart `releves` ne ré-applique plus le +1j.
+    timezone('Europe/Paris', date_releve_brute::timestamp + interval '1 day') as date_releve,
+    -- Forme résiduelle descendue du loader (ADR-0042, #395) : `r151()` devient un SELECT *.
+    'flux_R151'                                                       as source,
+    false                                                             as ordre_index,
+    cast(null as varchar)                                             as ref_situation_contractuelle,
+    cast(null as varchar)                                             as formule_tarifaire_acheminement,
+    unite                                                             as precision,
+    flat.* exclude (occurrence_id, date_releve_brute),
     occurrence_id,
     cadrans.* exclude (occurrence_id)
 from flat left join cadrans using (occurrence_id)

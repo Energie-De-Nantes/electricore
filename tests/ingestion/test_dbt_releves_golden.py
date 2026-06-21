@@ -237,17 +237,17 @@ def test_releves_union_grain_et_harmonisation(base_periodiques):
     sources = {r[0] for r in con.execute("select distinct source from flux_enedis.releves").fetchall()}
     assert sources == {"flux_R151", "flux_R64", "flux_C15"}
 
-    # Harmonisation R151 : date_releve = date brute (flux_r151) + 1 jour (ADR-0003).
+    # Harmonisation R151 : le +1j est désormais NATIF de flux_r151 (instant J+1, ADR-0042,
+    # #395). Le mart lit cet instant en passthrough → date_releve(mart) == date_releve(flux_r151).
     bad = con.execute(
         """
         select count(*)
         from flux_enedis.releves r
         join flux_enedis.flux_r151 f on r.releve_id = f.releve_id
-        where date_trunc('day', r.date_releve at time zone 'Europe/Paris')
-              <> f.date_releve + interval '1 day'
+        where r.date_releve <> f.date_releve
         """
     ).fetchone()[0]
-    assert bad == 0, "R151 : date_releve doit être harmonisée J → J+1"
+    assert bad == 0, "R151 : le mart doit lire l'instant J+1 de flux_r151 en passthrough"
 
     con.close()
 

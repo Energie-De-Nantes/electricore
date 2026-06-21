@@ -78,13 +78,17 @@ models:
     description: >
       Index périodiques R151 : une ligne par RELEVÉ (jusqu'à 20 relevés par PRM
       observés dans un même fichier), 4 cadrans saisonniers (+ INCONNU éventuel).
-      date_releve en date nue. Parité golden et parité totale sur données réelles.
+      date_releve = instant minuit Paris du jour J+1 (le +1j natif, ADR-0042).
+      Parité golden et parité totale sur données réelles.
     columns:
       - name: pdl
         description: Point de livraison (14 chiffres).
         data_tests: [not_null]
       - name: date_releve
-        description: Date du relevé (date nue, pas d'horodatage).
+        description: >
+          Instant du relevé (TIMESTAMPTZ) : minuit Paris du jour J+1 — la conversion
+          « fin de journée → début de journée » native de R151 (ADR-0042). releve_id
+          reste minté sur la date brute.
         data_tests: [not_null]
       - name: releve_id
         description: Clé métier déterministe (ADR-0028) source|pdl|date|ordre_index.
