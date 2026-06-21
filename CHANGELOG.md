@@ -9,6 +9,34 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.4.0rc2] - 2026-06-21
+
+Les loaders `/flux` deviennent de **vrais `SELECT *`** (convention de date unifiée ADR-0042),
+et la branche abonnement affine sa consommation de la spine *Chronologie du contrat*.
+
+### ✨ Temps forts
+
+- **Loaders `/flux` = `SELECT *` typeless** (ADR-0042, #393→#398). La forme résiduelle (types,
+  littéraux `source`/`unite`, renames, placeholders null) et l'ancrage de date descendent dans
+  les modèles dbt `flux_*`. Convention tranchée : un **instant** est un `TIMESTAMPTZ` harmonisé
+  **au boundary `flux_*`** (R64 → instant heure-mur Paris ; R151 → instant minuit Paris **J+1**,
+  le « +1 jour » devenu natif), un **jour civil** reste un `DATE` (F15, bascules de niveau, dates
+  d'effet d'affaire). Le **fuseau de session** DuckDB est épinglé à `Europe/Paris` à la lecture
+  (`duckdb_readonly_conn`) → instants déterministes quel que soit le fuseau de l'hôte (poste/CI/VPS)
+  et filtres de date interprétés en heure de Paris, sans ancrage par colonne. Retrait de la
+  machinerie `FormeTemporelle`/`col_*`/`convert_time_zone`/enveloppe de filtre (#391).
+- **Affinage de la consommation de la spine** (ADR-0041). `detecter_points_de_rupture` force les
+  bornes FACTURATION sur le discriminant **typé non-null `type_fait`** de la spine (`SpineContrat`)
+  plutôt que sur `evenement_declencheur` (nullable) ; le filtre d'horizon de la *Chronologie des
+  relevés* passe par le même helper `_horizon_expr` que `pipeline_historique` (cohérence).
+
+### ⚠️ Changements de sortie (endpoints `/flux`, assumés)
+
+- `/flux/r64`, `/flux/r151` servent désormais des **instants** (`TIMESTAMPTZ`) ; `/flux/r151` sert
+  l'instant **J+1** harmonisé (endpoint déprécié — l'aval consomme le mart `releves`).
+- `/flux/f15` sert `date_facture`/`date_debut`/`date_fin` en **`DATE`** (jour civil), plus en instant.
+- Empreinte canonique `/releves` **stable** ; `releve_id` inchangés ; instants exacts préservés.
+
 ## [3.4.0rc1] - 2026-06-21
 
 Fin de la **descente d'assemblage d'ADR-0041** : le cœur consomme, dbt assemble. La branche
