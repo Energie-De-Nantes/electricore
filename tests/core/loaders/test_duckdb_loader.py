@@ -277,7 +277,7 @@ class TestLoadFunctions:
         """releves() porte une requête SQL pré-construite (modèle canonique dbt) et reste chaînable."""
         query = releves()
         assert isinstance(query, DuckDBQuery)
-        assert query.base_sql is not None  # Vérifie que c'est une requête pré-construite
+        assert query.config.base_sql is not None  # Vérifie que c'est une requête pré-construite
 
         query_filtered = query.filter({"pdl": ["PDL123"]}).limit(50)
         assert isinstance(query_filtered, DuckDBQuery)

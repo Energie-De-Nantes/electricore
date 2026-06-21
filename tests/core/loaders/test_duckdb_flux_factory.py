@@ -1,6 +1,6 @@
 """Tests de la factory `flux(nom)` et de l'erreur `FluxInconnu` (#272).
 
-La factory `flux(nom)` résout un flux Enedis enregistré (`FLUX_CONFIGS`) en
+La factory `flux(nom)` résout un flux Enedis enregistré (`FLUX_DESCRIPTORS`) en
 `DuckDBQuery` ; un nom non enregistré lève `FluxInconnu` (sous-classe de
 `ValueError`) — l'interface du loader porte la connaissance du registre, le
 routeur n'a plus à l'atteindre. Portée : les 5 flux Enedis uniquement ;
@@ -10,7 +10,7 @@ routeur n'a plus à l'atteindre. Portée : les 5 flux Enedis uniquement ;
 import pytest
 
 from electricore.core.loaders.duckdb import DuckDBQuery, FluxInconnu, flux
-from electricore.core.loaders.duckdb.registry import FLUX_CONFIGS
+from electricore.core.loaders.duckdb.registry import FLUX_DESCRIPTORS
 
 
 class TestFluxFactory:
@@ -47,7 +47,7 @@ class TestFluxInconnu:
         with pytest.raises(FluxInconnu) as excinfo:
             flux("totalement_inexistant")
         message = str(excinfo.value)
-        for nom in FLUX_CONFIGS:
+        for nom in FLUX_DESCRIPTORS:
             assert nom in message
 
     def test_flux_inconnu_porte_le_nom_et_la_liste(self):
@@ -56,7 +56,7 @@ class TestFluxInconnu:
             flux("totalement_inexistant")
         erreur = excinfo.value
         assert erreur.nom == "totalement_inexistant"
-        assert sorted(FLUX_CONFIGS) == list(erreur.disponibles)
+        assert sorted(FLUX_DESCRIPTORS) == list(erreur.disponibles)
 
 
 class TestPorteeFluxFactory:

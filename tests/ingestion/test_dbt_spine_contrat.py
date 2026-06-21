@@ -33,7 +33,7 @@ pytest.importorskip("dbt.adapters.duckdb", reason="dbt-duckdb absent — uv sync
 from dbt.cli.main import dbtRunner  # noqa: E402
 
 from electricore.core.loaders import spine  # noqa: E402
-from electricore.core.loaders.duckdb.sql import SCHEMA_C15  # noqa: E402
+from electricore.core.loaders.duckdb.registry import DESCRIPTOR_C15  # noqa: E402
 from electricore.ingestion.parsing.xml import xml_vers_dict  # noqa: E402
 
 RACINE = Path(__file__).parents[2]
@@ -103,10 +103,10 @@ def _construire_spine(tmp, documents_c15: list[dict]) -> Path:
 
 
 # Colonnes RÉELLES de flux_c15 (sql_expr == name ⟹ vraie colonne table, pas un littéral
-# comme `'flux_C15' as source`). Dérivées de SCHEMA_C15 (source unique) pour bâtir un
+# comme `'flux_C15' as source`). Dérivées de DESCRIPTOR_C15 (source unique) pour bâtir un
 # flux_c15 synthétique COMPLET : le mart spine ET le loader c15()/pipeline_historique le
 # lisent (parité). Type heuristique aligné sur le contrat XSD/dbt.
-_COLS_C15_REELLES = tuple(c.name for c in SCHEMA_C15.columns if c.sql_expr == c.name)
+_COLS_C15_REELLES = tuple(c.name for c in DESCRIPTOR_C15.columns if c.sql_expr == c.name)
 
 
 def _type_c15(nom: str) -> str:

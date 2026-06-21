@@ -9,39 +9,15 @@ Ce module fournit un builder de requêtes suivant les principes fonctionnels :
 """
 
 import re
-from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
-import pandera.polars as pa
 import polars as pl
 
 from .config import DuckDBConfig, duckdb_readonly_conn
-from .sql import FluxSchema, build_base_query
-
-# =============================================================================
-# CONFIGURATIONS IMMUTABLES
-# =============================================================================
-
-
-@dataclass(frozen=True, slots=True)
-class QueryConfig:
-    """
-    Configuration immutable d'une requête flux.
-
-    Attributes:
-        schema: Schéma SQL du flux
-        transform: Fonction de transformation LazyFrame
-        validator: Classe Pandera pour validation (optionnel)
-    """
-
-    schema: FluxSchema
-    # None = aucune mise en forme (loader `SELECT *` : il trust les types émis par dbt,
-    # ADR-0035). Sinon Fn(LazyFrame) -> LazyFrame appliquée après l'IO.
-    transform: Callable[[pl.LazyFrame], pl.LazyFrame] | None
-    validator: type[pa.DataFrameModel] | None = None
-
+from .descriptor import FluxDescriptor
+from .sql import build_base_query
 
 # =============================================================================
 # QUERY BUILDER IMMUTABLE
@@ -68,15 +44,14 @@ class DuckDBQuery:
         >>> lazy_df = query.lazy()
     """
 
-    # Configuration du flux (immutable)
-    config: QueryConfig
+    # Descripteur du flux (immutable) — colonnes, transform, validateur, base_sql.
+    config: FluxDescriptor
 
     # État de la requête (immutable tuples)
     database_path: str | Path | None = None
     filters: tuple[tuple[str, Any], ...] = ()  # Tuple de tuples = immutable
     limit_value: int | None = None
     valider: bool = True
-    base_sql: str | None = None  # Pour requêtes CTE/UNION pré-construites
 
     # =========================================================================
     # MÉTHODES BUILDER (Retournent nouvelles instances)
@@ -100,13 +75,13 @@ class DuckDBQuery:
         Example:
             >>> query.filter({"Date_Evenement": ">= '2024-01-01'", "pdl": ["PDL123"]})
         """
-        allowed = {c.name for c in self.config.schema.columns}
-        # Schémas CTE/UNION (base_sql) sans colonnes typées : on saute l'allowlist
-        if allowed:
+        # Marts en `SELECT *` (base_sql) : schéma non re-déclaré → allowlist ouverte.
+        if self.config.base_sql is None:
+            allowed = {c.name for c in self.config.columns}
             unknown = [col for col in filters if col not in allowed]
             if unknown:
                 raise ValueError(
-                    f"colonne inconnue {unknown!r} pour le flux {self.config.schema.flux_name}. "
+                    f"colonne inconnue {unknown!r} pour le flux {self.config.flux_name}. "
                     f"Colonnes valides : {sorted(allowed)}"
                 )
         new_filters = self.filters + tuple(filters.items())
@@ -180,7 +155,7 @@ class DuckDBQuery:
 
     def _assert_c15(self, method_name: str) -> None:
         """Garde-fou : les groupings entrées/sorties n'existent que pour C15."""
-        flux = self.config.schema.flux_name
+        flux = self.config.flux_name
         if flux != "C15":
             raise ValueError(f"{method_name} ne s'applique qu'au flux C15, reçu : {flux}")
 
@@ -225,11 +200,11 @@ class DuckDBQuery:
         Returns:
             (sql_avec_placeholders, params) — à passer à `conn.execute(sql, params)`.
         """
-        # Si base_sql fourni (CTE/UNION), l'utiliser directement
-        if self.base_sql:
-            query = self.base_sql
+        # Si base_sql fourni (CTE/UNION, marts), l'utiliser directement
+        if self.config.base_sql:
+            query = self.config.base_sql
         else:
-            query = build_base_query(self.config.schema)
+            query = build_base_query(self.config)
 
         params: list[Any] = []
         if self.filters:
@@ -317,20 +292,20 @@ class DuckDBQuery:
 # =============================================================================
 
 
-def make_query(config: QueryConfig, database_path: str | Path | None = None) -> DuckDBQuery:
+def make_query(config: FluxDescriptor, database_path: str | Path | None = None) -> DuckDBQuery:
     """
-    Factory générique pour créer un DuckDBQuery depuis une configuration.
+    Factory générique pour créer un DuckDBQuery depuis un descripteur de flux.
 
-    Fonction pure : Fn(QueryConfig, Optional[Path]) -> DuckDBQuery
+    Fonction pure : Fn(FluxDescriptor, Optional[Path]) -> DuckDBQuery
 
     Args:
-        config: Configuration du flux
+        config: Descripteur du flux
         database_path: Chemin vers la base DuckDB (optionnel)
 
     Returns:
         Instance DuckDBQuery configurée
 
     Example:
-        >>> query = make_query(FLUX_CONFIGS["c15"])
+        >>> query = make_query(FLUX_DESCRIPTORS["c15"])
     """
     return DuckDBQuery(config=config, database_path=database_path)
