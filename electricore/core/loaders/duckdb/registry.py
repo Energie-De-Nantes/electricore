@@ -18,7 +18,6 @@ from .sql import (
     col_literal,
     col_literal_bool,
     col_offset,
-    col_paris,
     col_simple,
 )
 
@@ -158,30 +157,13 @@ DESCRIPTOR_R15 = FluxDescriptor(
 )
 
 
-# Flux F15 - Factures détaillées
+# Flux F15 - Factures détaillées. SELECT * (ADR-0042, #396) : la forme résiduelle (source)
+# vit dans le modèle dbt `flux_f15_detail`. Les dates F15 (date_facture/date_debut/date_fin)
+# sont des JOURS CIVILS (DATE) servis tels quels — plus d'ancrage en instant Paris (le loader
+# les traitait à tort comme des naïves). Le loader ne projette ni ne re-type plus.
 DESCRIPTOR_F15 = FluxDescriptor(
     flux_name="F15",
     table="flux_enedis.flux_f15_detail",
-    columns=(
-        col_paris("date_facture"),
-        col_simple("pdl"),
-        col_simple("num_facture"),
-        col_simple("type_facturation"),
-        col_simple("ref_situation_contractuelle"),
-        col_simple("type_compteur"),
-        col_simple("id_ev"),
-        col_simple("nature_ev"),
-        col_simple("formule_tarifaire_acheminement"),
-        col_simple("taux_tva_applicable"),
-        col_simple("unite"),
-        col_simple("prix_unitaire"),
-        col_simple("quantite"),
-        col_simple("montant_ht"),
-        col_paris("date_debut"),
-        col_paris("date_fin"),
-        col_simple("libelle_ev"),
-        col_literal("flux_F15", "source"),
-    ),
     transform=None,
     validator=None,  # Pas encore de modèle Pandera pour les factures
 )

@@ -41,5 +41,9 @@ select
     ev ->> '$.Libelle_EV'                            as libelle_ev,
     flux,
     num_facture,
-    date_facture
+    -- date_facture / date_debut / date_fin sont des JOURS CIVILS (DATE), pas d'ancrage en
+    -- instant (ADR-0042, #396) : le loader f15() devient un SELECT * et les sert en DATE.
+    date_facture,
+    -- Source résiduelle descendue du loader (ADR-0042, #396) : `f15()` devient un SELECT *.
+    'flux_F15' as source
 from ev

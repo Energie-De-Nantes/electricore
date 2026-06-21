@@ -48,6 +48,7 @@ def base_prod_dbt(tmp_path_factory):
         ("r151.xml", "raw_r151"),
         ("r15.xml", "raw_r15"),
         ("r64.json", "raw_r64"),
+        ("f15.xml", "raw_f15"),
     ]
     for fixture, source in cas:
         contenu = (FIXTURES / fixture).read_bytes()
@@ -74,6 +75,7 @@ def base_prod_dbt(tmp_path_factory):
             "+flux_r151",
             "+flux_r15",
             "+flux_r64",
+            "+flux_f15_detail",
             "--project-dir",
             str(PROJET_DBT),
             "--profiles-dir",
@@ -167,6 +169,19 @@ def test_r64_charge_le_flux_brut(base_prod_dbt):
     assert df.height > 0
     assert "modification_date" not in df.columns
     assert {"pdl", "date_releve", "index_base_kwh", "source"} <= set(df.columns)
+
+
+def test_f15_sert_des_jours_civils(base_prod_dbt):
+    """ADR-0042 (#396) : les dates F15 (date_facture/date_debut/date_fin) sont des JOURS
+    CIVILS — servies en DATE par /flux/f15, plus en instant Paris (le loader les ancrait
+    à tort comme des naïves heure-mur). La source résiduelle est portée par flux_f15_detail."""
+    from electricore.core.loaders import f15
+
+    df = f15(database_path=base_prod_dbt).collect()
+    assert df.schema["date_facture"] == pl.Date
+    assert df.schema["date_debut"] == pl.Date
+    assert df.schema["date_fin"] == pl.Date
+    assert df["source"].unique().to_list() == ["flux_F15"]
 
 
 def _lignes_sous_session_tz(query, db_path, tz):
