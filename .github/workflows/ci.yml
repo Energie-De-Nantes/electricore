@@ -10,6 +10,11 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Jeton en lecture seule : les jobs ne font que checkout + lint/mypy/pytest,
+# aucune écriture (commits, releases, comments…) n'est nécessaire.
+permissions:
+  contents: read
+
 jobs:
   lint:
     name: lint (ruff)
