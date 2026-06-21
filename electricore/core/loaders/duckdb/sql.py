@@ -125,9 +125,14 @@ def build_base_query(descriptor: "FluxDescriptor") -> str:
     if descriptor.comments:
         parts.append(descriptor.comments)
 
-    # Clause SELECT
-    select = build_select_clause(descriptor.columns)
-    parts.append(f"SELECT\n    {select}")
+    # Clause SELECT — un descripteur SANS colonnes énumérées est un `SELECT *` pur
+    # (ADR-0042) : la forme résiduelle vit dans le modèle dbt `flux_*`, le loader ne
+    # re-projette ni ne re-type plus. Sinon, projection colonne par colonne (legacy).
+    if descriptor.columns:
+        select = build_select_clause(descriptor.columns)
+        parts.append(f"SELECT\n    {select}")
+    else:
+        parts.append("SELECT *")
 
     # Clause FROM
     parts.append(f"FROM {descriptor.table}")

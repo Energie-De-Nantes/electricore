@@ -35,13 +35,14 @@ r151_raw as (
 ),
 
 -- R64 : adapter de source. Relevés JSON timeseries (déjà dédoublonnés intra-source dans
--- flux_r64). date_releve naïve → ancrage heure-mur Paris (convention début de journée
--- native). Porte son calendrier distributeur (#304). Ne porte pas de RSC/FTA.
+-- flux_r64). date_releve est déjà un INSTANT (TIMESTAMPTZ) ancré au boundary flux_r64
+-- (ADR-0042, #394) : passthrough, plus de ré-ancrage ici. Porte son calendrier
+-- distributeur (#304). Ne porte pas de RSC/FTA.
 r64_raw as (
     select
         releve_id,
         pdl,
-        timezone('Europe/Paris', date_releve)                                       as date_releve,
+        date_releve,
         false                                                                       as ordre_index,
         nature_index,
         occurrence_id,

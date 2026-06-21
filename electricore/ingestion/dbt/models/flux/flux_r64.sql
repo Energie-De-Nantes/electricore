@@ -175,10 +175,16 @@ select
     en_tete.code_flux,
     en_tete.format,
     mesure_id as occurrence_id,
+    -- Source résiduelle descendue du loader (ADR-0042, #394) : `r64()` devient un SELECT *.
+    'flux_R64' as source,
     -- Wh → kWh entier (floor par index, ADR-0034). meta.unite est l'unité déclarée
     -- (1er couple CONS/EA) ; // = division entière DuckDB, NULL-safe, exacte sur des
     -- cumuls non négatifs. L'erreur de troncature télescope (< 1 kWh / vie du registre).
     cadrans.* exclude (mesure_id) replace (
+        -- date_releve devient un INSTANT (TIMESTAMPTZ) : ancrage heure-mur Paris au boundary
+        -- flux_r64 (convention « début de journée » native de R64, ADR-0042). Le mart `releves`
+        -- ne ré-ancre plus. releve_id reste minté sur la date naïve `cadrans.date_releve`.
+        timezone('Europe/Paris', date_releve) as date_releve,
         case when meta.unite = 'Wh' then index_base_kwh // 1000 else index_base_kwh end as index_base_kwh,
         case when meta.unite = 'Wh' then index_hp_kwh   // 1000 else index_hp_kwh   end as index_hp_kwh,
         case when meta.unite = 'Wh' then index_hc_kwh   // 1000 else index_hc_kwh   end as index_hc_kwh,

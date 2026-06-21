@@ -216,40 +216,14 @@ DESCRIPTOR_F15 = FluxDescriptor(
 )
 
 
-# Flux R64 - Relevés JSON timeseries
+# Flux R64 - Relevés JSON timeseries. SELECT * (ADR-0042, #394) : la forme résiduelle
+# (source, ancrage date naïf → instant TIMESTAMPTZ) vit désormais dans le modèle dbt
+# `flux_r64`. Le loader ne projette ni ne re-type plus ; le fuseau de session (#393) rend
+# l'instant déterministe. La garde loader↔mart (test_loaders_sur_base_dbt) reste verte :
+# un SELECT * lie exactement les colonnes du mart.
 DESCRIPTOR_R64 = FluxDescriptor(
     flux_name="R64",
     table="flux_enedis.flux_r64",
-    columns=(
-        col_paris("date_releve"),
-        col_simple("pdl"),
-        col_simple("etape_metier"),
-        col_simple("contexte_releve"),
-        col_simple("type_releve"),
-        col_simple("grandeur_physique"),
-        col_simple("grandeur_metier"),
-        col_simple("unite"),
-        # Métadonnées header
-        col_simple("id_demande"),
-        col_simple("si_demandeur"),
-        col_simple("code_flux"),
-        col_simple("format"),
-        # Cadrans (format WIDE - index de compteurs)
-        col_simple("index_hpb_kwh"),
-        col_simple("index_hph_kwh"),
-        col_simple("index_hch_kwh"),
-        col_simple("index_hcb_kwh"),
-        col_simple("index_hp_kwh"),
-        col_simple("index_hc_kwh"),
-        col_simple("index_base_kwh"),
-        # Métadonnées système (#333) : modification_date / _source_zip / _flux_type /
-        # _json_name ne sont PAS projetées par le mart `flux_r64` (modification_date n'y
-        # sert qu'en interne, clé de tri du qualify de dédup ; les `_*` sont des colonnes de
-        # landing dlt). Les déclarer ici déclenchait un Binder Error sur tout /flux/r64
-        # depuis la refonte `releves` (#241/#304/#285). Le test de garde loader↔mart
-        # (test_loaders_sur_base_dbt) verrouille l'alignement.
-        col_literal("flux_R64", "source"),
-    ),
     where_clause="date_releve IS NOT NULL",
     transform=None,
     validator=None,  # Pas encore de modèle Pandera pour R64
