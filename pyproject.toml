@@ -107,6 +107,7 @@ packages = ["electricore"]
 # emplacement résolvable par importlib.resources (electricore/_operator_notebooks/).
 # Le lanceur electricore-notebooks les sert en mode run. À retirer avec souscriptions_odoo.
 [tool.hatch.build.targets.wheel.force-include]
+"notebooks/accueil.py" = "electricore/_operator_notebooks/accueil.py"
 "notebooks/facturation.py" = "electricore/_operator_notebooks/facturation.py"
 "notebooks/injection_rsc.py" = "electricore/_operator_notebooks/injection_rsc.py"
 

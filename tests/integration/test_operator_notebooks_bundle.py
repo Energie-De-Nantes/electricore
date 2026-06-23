@@ -1,8 +1,8 @@
 """Vérifie que le wheel force-inclut les notebooks opérateur (pont transitoire, #414).
 
-`uv build` doit produire un wheel `electricore` qui CONTIENT `facturation.py` et
-`injection_rsc.py` sous `electricore/_operator_notebooks/`, tandis que les sources
-restent dans `notebooks/` (aucun déplacement).
+`uv build` doit produire un wheel `electricore` qui CONTIENT `accueil.py`,
+`facturation.py` et `injection_rsc.py` sous `electricore/_operator_notebooks/`,
+tandis que les sources restent dans `notebooks/` (aucun déplacement).
 
 Test lent : construit réellement le wheel via `uv build` en sous-process.
 """
@@ -18,8 +18,14 @@ import pytest
 _RACINE = Path(__file__).resolve().parents[2]
 
 # Sources attendues, et leur emplacement embarqué dans le wheel.
-_NOTEBOOKS = ("facturation.py", "injection_rsc.py")
+# `accueil.py` est la page de liens : sans elle, l'opérateur ne peut atteindre
+# qu'un seul notebook (le middleware de dossier dynamique n'expose pas d'index).
+_NOTEBOOKS = ("accueil.py", "facturation.py", "injection_rsc.py")
 _PREFIXE_EMBARQUE = "electricore/_operator_notebooks"
+
+# Notebooks Odoo gardés par la garde de sécurité (simulation + mo.stop). L'accueil
+# n'écrit rien et n'a donc pas cette garde — il est exclu de ce sous-ensemble.
+_NOTEBOOKS_GARDES = ("facturation.py", "injection_rsc.py")
 
 
 def _est_erreur_reseau(stderr: str) -> bool:
@@ -35,7 +41,7 @@ def test_sources_restent_dans_notebooks():
         assert (_RACINE / "notebooks" / nom).is_file()
 
 
-@pytest.mark.parametrize("nom", _NOTEBOOKS)
+@pytest.mark.parametrize("nom", _NOTEBOOKS_GARDES)
 def test_garde_de_securite_des_notebooks_intacte(nom):
     """Mode simulation `value=True` par défaut + écriture gardée par `mo.stop(run_button)`.
 
@@ -55,7 +61,7 @@ def test_garde_de_securite_des_notebooks_intacte(nom):
 
 @pytest.mark.slow
 def test_wheel_contient_les_notebooks_operateur(tmp_path: Path):
-    """`uv build --wheel` produit un wheel electricore contenant les 2 notebooks."""
+    """`uv build --wheel` produit un wheel electricore contenant les 3 notebooks."""
     if shutil.which("uv") is None:
         pytest.skip("uv indisponible : build du wheel non testable")
 
