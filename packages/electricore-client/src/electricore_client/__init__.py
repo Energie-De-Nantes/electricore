@@ -23,8 +23,11 @@ from .models import (
     LigneEvenement,
     LignePeriodeEnergie,
     LigneReleve,
+    LigneTurpeVariable,
     ObjetReleve,
     PeriodeMeta,
+    ResultatTurpeVariable,
+    TurpeVariableRequest,
 )
 from .streaming import JsonlStream
 
@@ -43,5 +46,8 @@ __all__ = [
     "LigneEvenement",
     "LigneReleve",
     "LignePeriodeEnergie",
+    "LigneTurpeVariable",
+    "TurpeVariableRequest",
+    "ResultatTurpeVariable",
     "__version__",
 ]

@@ -43,3 +43,20 @@ def test_turpe_variable_n_importe_pas_integrations(module: Path) -> None:
         f"{module.name} importe {forbidden} — le calculateur turpe-variable doit rester "
         "ERP-agnostique (ADR-0030 / ADR-0016)."
     )
+
+
+def test_router_turpe_variable_single_source_les_modeles() -> None:
+    """ADR-0043 (#409) : le router importe ses modèles de `electricore_client`, plus aucune
+    définition inline (`class LigneTurpeVariable`/`TurpeVariableRequest` dans le router)."""
+    router = API_ROOT / "routers" / "turpe_variable.py"
+    imports = _absolute_imports(router)
+    assert any(m == "electricore_client.models" or m.startswith("electricore_client") for m in imports), (
+        "Le router turpe-variable doit importer ses modèles depuis electricore_client (single-source)."
+    )
+
+    tree = ast.parse(router.read_text(encoding="utf-8"))
+    classes = {node.name for node in ast.walk(tree) if isinstance(node, ast.ClassDef)}
+    inline = classes & {"LigneTurpeVariable", "TurpeVariableRequest"}
+    assert not inline, (
+        f"Modèles encore définis inline dans le router : {sorted(inline)} (déménager vers electricore_client)."
+    )

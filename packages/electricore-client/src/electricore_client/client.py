@@ -19,6 +19,12 @@ from .models.meta_periodes import (
     CONTRAT_VERSION_META_PERIODES,
     PeriodeMeta,
 )
+from .models.turpe_variable import (
+    CONTRAT_VERSION_TURPE_VARIABLE,
+    LigneTurpeVariable,
+    ResultatTurpeVariable,
+    TurpeVariableRequest,
+)
 from .streaming import JsonlStream
 from .transport import _BaseClient
 
@@ -132,3 +138,43 @@ class ElectricoreClient(_BaseClient):
             verifier_version=lambda attendue, servie: self._verifier_version(attendue=attendue, servie=servie),
             raise_for_status=self._raise_for_status,
         )
+
+    def turpe_variable(
+        self,
+        lignes: list[LigneTurpeVariable | dict],
+    ) -> list[ResultatTurpeVariable]:
+        """Valorise un lot d'assiettes TURPE variable — **POST RPC** (pas un stream).
+
+        Petit calcul stateless, batch POST : un round-trip pour tout le lot. Chaque
+        résultat porte `turpe_variable_eur` **ou** un `error`, **apparié à l'entrée
+        par l'`id` opaque** ré-émis (jamais positionnel — un serveur libre de
+        réordonner reste correct). La garde de version s'applique (en-tête).
+
+        Args:
+            lignes: lot de `LigneTurpeVariable` (ou de dicts validés en
+                `LigneTurpeVariable`) — `{id, formule_tarifaire_acheminement, debut,
+                energie_*_kwh}` (7 cadrans nullables).
+
+        Returns:
+            Liste de `ResultatTurpeVariable` (autant que d'entrées). Pour un
+            appariement explicite : `{r.id: r for r in resultats}`.
+        """
+        requete = TurpeVariableRequest(
+            lignes=[
+                ligne if isinstance(ligne, LigneTurpeVariable) else LigneTurpeVariable.model_validate(ligne)
+                for ligne in lignes
+            ]
+        )
+        response = self._http.post(
+            f"{self.url}/facturation/turpe-variable",
+            content=requete.model_dump_json(),
+            headers={**self._headers, "Content-Type": "application/json"},
+        )
+        self._raise_for_status(response)
+
+        version_servie = response.headers.get("X-Contract-Version")
+        if version_servie is not None:
+            self._verifier_version(attendue=CONTRAT_VERSION_TURPE_VARIABLE, servie=int(version_servie))
+
+        corps = response.json()
+        return [ResultatTurpeVariable.model_validate(r) for r in corps["results"]]
