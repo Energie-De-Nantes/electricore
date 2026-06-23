@@ -771,6 +771,11 @@ ingestion = [
     { name = "psutil" },
     { name = "pycryptodome" },
 ]
+notebooks = [
+    { name = "altair" },
+    { name = "marimo" },
+    { name = "plotly", extra = ["express"] },
+]
 viz = [
     { name = "altair" },
     { name = "marimo" },
@@ -794,6 +799,7 @@ typecheck = [
 
 [package.metadata]
 requires-dist = [
+    { name = "altair", marker = "extra == 'notebooks'", specifier = ">=5.5.0,<6.0.0" },
     { name = "altair", marker = "extra == 'viz'", specifier = ">=5.5.0,<6.0.0" },
     { name = "dbt-core", marker = "extra == 'dbt'", specifier = ">=1.10.0,<2.0.0" },
     { name = "dbt-duckdb", marker = "extra == 'dbt'", specifier = ">=1.9.0,<2.0.0" },
@@ -803,10 +809,12 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.116.1" },
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "lxml", marker = "extra == 'ingestion'", specifier = ">=6.1.0,<7.0.0" },
+    { name = "marimo", marker = "extra == 'notebooks'", specifier = ">=0.23.0" },
     { name = "marimo", marker = "extra == 'viz'", specifier = ">=0.23.0" },
     { name = "numpy", specifier = ">=2.4.3" },
     { name = "pandera", extras = ["polars"], specifier = ">=0.24.0" },
     { name = "paramiko", marker = "extra == 'ingestion'", specifier = ">=4.0.0,<5.0.0" },
+    { name = "plotly", extras = ["express"], marker = "extra == 'notebooks'", specifier = ">=6.2.0" },
     { name = "plotly", extras = ["express"], marker = "extra == 'viz'", specifier = ">=6.2.0" },
     { name = "polars", specifier = ">=1.0.0,<2.0.0" },
     { name = "psutil", marker = "extra == 'ingestion'", specifier = ">=5.9.0,<8.0.0" },
@@ -820,7 +828,7 @@ requires-dist = [
     { name = "vl-convert-python", marker = "extra == 'viz'", specifier = ">=1.8.0,<2.0.0" },
     { name = "xlsxwriter", specifier = ">=3.0.0" },
 ]
-provides-extras = ["ingestion", "viz", "dbt"]
+provides-extras = ["ingestion", "viz", "notebooks", "dbt"]
 
 [package.metadata.requires-dev]
 test = [
