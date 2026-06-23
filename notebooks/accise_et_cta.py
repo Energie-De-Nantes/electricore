@@ -16,7 +16,7 @@ with app.setup(hide_code=True):
     if str(project_root) not in sys.path:
         sys.path.append(str(project_root))
 
-    from electricore.client import ElectricoreClient
+    from electricore_client.arrow import ElectricoreArrowClient as ElectricoreClient
 
     # Client HTTP vers l'API electricore (cf. ADR-0009 — les notebooks
     # consomment l'API, pas la base DuckDB locale).
@@ -48,8 +48,8 @@ def _():
     df_cta_all = client.cta()
     df_accise_all = client.accise()
     mo.md(f"""
-    - CTA chargée : **{len(df_cta_all)} lignes mensuelles**, **{df_cta_all['pdl'].n_unique()} PDLs**
-    - Accise chargée : **{len(df_accise_all)} lignes mensuelles**, **{df_accise_all['pdl'].n_unique()} PDLs**
+    - CTA chargée : **{len(df_cta_all)} lignes mensuelles**, **{df_cta_all["pdl"].n_unique()} PDLs**
+    - Accise chargée : **{len(df_accise_all)} lignes mensuelles**, **{df_accise_all["pdl"].n_unique()} PDLs**
     """)
     return df_accise_all, df_cta_all
 
@@ -57,7 +57,9 @@ def _():
 @app.cell(hide_code=True)
 def _(df_accise_all, df_cta_all):
     """Sélecteur de trimestre — union des trimestres présents dans les deux flux."""
-    trimestres_dispo = sorted(set(df_cta_all["trimestre"].unique().to_list()) | set(df_accise_all["trimestre"].unique().to_list()))
+    trimestres_dispo = sorted(
+        set(df_cta_all["trimestre"].unique().to_list()) | set(df_accise_all["trimestre"].unique().to_list())
+    )
     trimestre_selectionne = mo.ui.dropdown(
         options=trimestres_dispo,
         value=trimestres_dispo[-1] if trimestres_dispo else None,
@@ -93,8 +95,9 @@ def _(df_cta_all, trimestre_selectionne):
     taux_distincts = sorted({t for lst in df_detail_cta["taux_cta_appliques"].to_list() for t in lst})
     taux_str = " + ".join(f"{t:.2f} %" for t in taux_distincts) if taux_distincts else "—"
 
-    mo.vstack([
-        mo.md(f"""
+    mo.vstack(
+        [
+            mo.md(f"""
         ## 💰 CTA — {trimestre_selectionne.value}
 
         - **Nombre de PDL** : {nb_pdl}
@@ -104,8 +107,9 @@ def _(df_cta_all, trimestre_selectionne):
 
         ### 📋 Détail par PDL
         """),
-        df_detail_cta,
-    ])
+            df_detail_cta,
+        ]
+    )
     return
 
 
@@ -131,19 +135,21 @@ def _(df_accise_all, trimestre_selectionne):
     nb_pdl_total = df_accise_trimestre["pdl"].n_unique()
     df_detail_accise = df_accise_trimestre.sort(["pdl", "mois_consommation"])
 
-    mo.vstack([
-        mo.md(f"""
+    mo.vstack(
+        [
+            mo.md(f"""
         ## ⚡ Accise — {trimestre_selectionne.value}
 
         - **Nombre de PDL** : {nb_pdl_total}
         - **Énergie totale** : {energie_totale:,.2f} MWh
         - **Accise totale** : **{accise_total:,.2f} €**
         """),
-        mo.md("#### Vue agrégée par taux"),
-        df_par_taux,
-        mo.md("#### Vue détaillée par PDL et mois"),
-        df_detail_accise,
-    ])
+            mo.md("#### Vue agrégée par taux"),
+            df_par_taux,
+            mo.md("#### Vue détaillée par PDL et mois"),
+            df_detail_accise,
+        ]
+    )
     return
 
 

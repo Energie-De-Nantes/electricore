@@ -442,13 +442,14 @@ Les endpoints `xlsx` existants restent inchangés.
 ### Client Python
 
 ```bash
-uv add electricore --extra viz   # core + libs notebooks
+# Client Arrow (DataFrames polars) — paquet séparé electricore-client, extra [arrow]
+pip install "electricore-client[arrow]"
 ```
 
 ```python
-from electricore.client import ElectricoreClient
+from electricore_client.arrow import ElectricoreArrowClient
 
-client = ElectricoreClient(
+client = ElectricoreArrowClient(
     url="https://<slug>.electricore.fr",
     api_key="votre_cle_api",
 )
@@ -462,10 +463,10 @@ df_cta = client.cta(trimestre="2025-T1")
 
 ```python
 import httpx
-from electricore.client import ElectricoreClient
+from electricore_client.arrow import ElectricoreArrowClient
 
 http = httpx.Client(verify=False, timeout=httpx.Timeout(30.0, read=120.0))
-client = ElectricoreClient(url="https://electricore.localhost", api_key="…", http_client=http)
+client = ElectricoreArrowClient(url="https://electricore.localhost", api_key="…", http_client=http)
 ```
 
 ## Mode SFTP distant vs fichiers collocés

@@ -20,8 +20,8 @@ with app.setup:
 
     from datetime import date
 
-    from electricore.client import ElectricoreClient
     from electricore.integrations.odoo import OdooReader, lignes_factures_du_mois
+    from electricore_client.arrow import ElectricoreArrowClient as ElectricoreClient
 
     # Configuration du logging
     logging.basicConfig(level=logging.INFO)
@@ -147,10 +147,7 @@ def _():
 def _(mois_input):
     fact_mois_brut = client.facturation(mois=mois_input.value)
     fact_mois = fact_mois_brut.filter(pl.col("a_facturer"))
-    mo.md(
-        f"**{len(fact_mois_brut)}** lignes du mois côté serveur · "
-        f"**{len(fact_mois)}** à facturer (a_facturer=True)"
-    )
+    mo.md(f"**{len(fact_mois_brut)}** lignes du mois côté serveur · **{len(fact_mois)}** à facturer (a_facturer=True)")
     return (fact_mois,)
 
 
