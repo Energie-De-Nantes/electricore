@@ -8,12 +8,22 @@ ici au top-level.
 
 from __future__ import annotations
 
+from .models.chronologie import (
+    CONTRAT_VERSION_CHRONOLOGIE,
+    LigneEvenement,
+    LignePeriodeEnergie,
+    LigneReleve,
+    valider_ligne_chronologie,
+)
 from .models.meta_periodes import (
     CONTRAT_VERSION_META_PERIODES,
     PeriodeMeta,
 )
 from .streaming import JsonlStream
 from .transport import _BaseClient
+
+# Type de ligne résolu par l'union discriminée de la chronologie.
+LigneFrise = LigneEvenement | LigneReleve | LignePeriodeEnergie
 
 
 class ElectricoreClient(_BaseClient):
@@ -71,6 +81,54 @@ class ElectricoreClient(_BaseClient):
             headers=self._headers,
             validateur=PeriodeMeta.model_validate,
             version_attendue=CONTRAT_VERSION_META_PERIODES,
+            verifier_version=lambda attendue, servie: self._verifier_version(attendue=attendue, servie=servie),
+            raise_for_status=self._raise_for_status,
+        )
+
+    def chronologie(
+        self,
+        *,
+        pdl: str | None = None,
+        rsc: str | None = None,
+        page_size: int | None = None,
+    ) -> JsonlStream[LigneFrise]:
+        """Flux JSONL de la frise d'un point (`pdl`) **ou** d'un contrat (`rsc`) — contrat v1.
+
+        Chaque ligne se résout en son sous-type via l'union discriminée
+        `LigneChronologie` (`LigneEvenement | LigneReleve | LignePeriodeEnergie`).
+        Faits + verdicts, **sans montant tarifaire** (différenciateur vs
+        méta-périodes). Pas de pagination ; `contract_version`/`grain` en en-têtes.
+
+        Le grain est validé **côté client** (`pdl` XOR `rsc`) — un `ValueError`
+        est levé *avant* toute requête (miroir du 422 serveur).
+
+        Args:
+            pdl: grain point — toute l'histoire du PDL (RSC successives + charnières).
+            rsc: grain contrat — une tenure bornée entrée→sortie.
+            page_size: indication optionnelle de taille de lot serveur (hint).
+
+        Raises:
+            ValueError: si ni `pdl` ni `rsc`, ou si les deux sont fournis (XOR).
+        """
+        if (pdl is None) == (rsc is None):
+            raise ValueError("Fournir exactement un grain : `pdl` (point) XOR `rsc` (contrat).")
+
+        params: dict[str, object] = {}
+        if pdl is not None:
+            params["pdl"] = pdl
+        if rsc is not None:
+            params["rsc"] = rsc
+        if page_size is not None:
+            params["page_size"] = page_size
+
+        return JsonlStream(
+            client=self._http,
+            method="GET",
+            url=f"{self.url}/facturation/chronologie",
+            params=params or None,
+            headers=self._headers,
+            validateur=valider_ligne_chronologie,
+            version_attendue=CONTRAT_VERSION_CHRONOLOGIE,
             verifier_version=lambda attendue, servie: self._verifier_version(attendue=attendue, servie=servie),
             raise_for_status=self._raise_for_status,
         )
