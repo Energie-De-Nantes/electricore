@@ -1,0 +1,60 @@
+[project]
+name = "electricore-client"
+version = "0.1.0"
+description = "Client Python léger (httpx + pydantic) vers l'API facturiste electricore — sans polars/duckdb/fastapi"
+authors = [
+    {name = "Virgile"}
+]
+license = {text = "AGPL-3.0"}
+readme = "README.md"
+requires-python = ">=3.10"
+keywords = [
+    "electricore",
+    "energy",
+    "enedis",
+    "api-client",
+    "facturation",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU Affero General Public License v3",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
+]
+# Deps de base STRICTEMENT légères : httpx + pydantic (aucune trace de
+# polars/duckdb/fastapi). C'est l'invariant prouvé par le test de pureté.
+dependencies = [
+    "httpx>=0.27.0",
+    "pydantic>=2.0.0",
+]
+
+[project.optional-dependencies]
+# Extra `arrow` : recolle le client Arrow historique (DataFrames polars).
+# polars n'est importé que paresseusement, dans le sous-module Arrow — jamais
+# au top-level (l'invariant de pureté tient sans cet extra).
+arrow = [
+    "polars>=1.0.0,<2.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/Energie-De-Nantes/electricore"
+Repository = "https://github.com/Energie-De-Nantes/electricore"
+Issues = "https://github.com/Energie-De-Nantes/electricore/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/electricore_client"]
+
+[dependency-groups]
+test = [
+    "pytest>=8.2.0",
+]

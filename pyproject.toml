@@ -45,6 +45,10 @@ dependencies = [
     "pyarrow>=23.0.1,<24.0.0",
     "numpy>=2.4.3",
     "pydantic-settings>=2.14.1",
+    # Client léger distribué séparément (workspace local) : le moteur en dépend
+    # comme source unique des modèles de contrat, même s'il n'en importe les
+    # modèles qu'aux slices d'endpoint (#406+).
+    "electricore-client",
 ]
 
 [project.optional-dependencies]
@@ -79,6 +83,20 @@ Changelog = "https://github.com/Energie-De-Nantes/electricore/blob/main/CHANGELO
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+# Le wheel du moteur ne livre QUE le package `electricore` : sans ce pin,
+# l'auto-discovery hatchling embarquerait aussi `packages/electricore-client/`.
+# Les deux distributions restent disjointes (cf. ADR-0043, #406).
+[tool.hatch.build.targets.wheel]
+packages = ["electricore"]
+
+# Workspace uv : `packages/*` sont des membres résolus localement. Le moteur
+# déclare `electricore-client` en dépendance et la prend depuis le workspace.
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.uv.sources]
+electricore-client = { workspace = true }
 
 
 [dependency-groups]
