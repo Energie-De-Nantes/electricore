@@ -15,6 +15,7 @@ from electricore.config import runtime
 from electricore.operator_launcher import (
     construire_app,
     dossier_notebooks,
+    url_navigateur,
     valider_environnement,
 )
 
@@ -98,6 +99,38 @@ def test_dossier_notebooks_contient_les_deux_notebooks():
     noms = {p.name for p in dossier.glob("*.py")}
     assert "facturation.py" in noms
     assert "injection_rsc.py" in noms
+
+
+def test_dossier_notebooks_contient_l_accueil():
+    """L'accueil (page de liens) est servi comme les autres notebooks."""
+    dossier = dossier_notebooks()
+    noms = {p.name for p in dossier.glob("*.py")}
+    assert "accueil.py" in noms
+
+
+# --- Seam : URL d'ouverture du navigateur (sans démarrer de serveur) ---
+
+_BASE = "http://127.0.0.1:2718/apps"
+
+
+def test_url_navigateur_cible_l_accueil():
+    """Le navigateur s'ouvre sur /apps/accueil quand l'accueil est servi.
+
+    `DynamicDirectoryMiddleware` n'expose aucun index sous /apps : ouvrir l'accueil
+    (et pas le 1er notebook trié) est le seul moyen de lister tous les notebooks.
+    """
+    noms = ["accueil", "facturation", "injection_rsc"]
+    assert url_navigateur(_BASE, noms) == f"{_BASE}/accueil"
+
+
+def test_url_navigateur_repli_sur_le_premier_sans_accueil():
+    """Sans accueil (config dégradée), on retombe sur le 1er notebook trié."""
+    assert url_navigateur(_BASE, ["facturation", "injection_rsc"]) == f"{_BASE}/facturation"
+
+
+def test_url_navigateur_aucun_notebook():
+    """Dossier vide → aucune URL à ouvrir."""
+    assert url_navigateur(_BASE, []) is None
 
 
 def test_construire_app_monte_le_dossier_embarque(tmp_path: Path):

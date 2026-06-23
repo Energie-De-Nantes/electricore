@@ -37,6 +37,24 @@ _PORT = 2718  # port marimo par défaut
 # Préfixe de montage du dossier dynamique. marimo 0.23.9 REFUSE path="/" (exige un
 # préfixe non vide) → chaque notebook est servi sous /apps/<nom>.
 _PREFIXE_APPS = "/apps"
+# Notebook d'accueil servi à la racine fonctionnelle : `DynamicDirectoryMiddleware`
+# n'expose AUCUN index sous /apps, donc on ouvre le navigateur sur cette page de
+# liens vers les autres notebooks (sinon l'opérateur ne peut en atteindre qu'un seul).
+_NOTEBOOK_ACCUEIL = "accueil"
+
+
+def url_navigateur(base: str, noms: list[str]) -> str | None:
+    """URL d'ouverture du navigateur : l'accueil si présent, sinon le 1er notebook.
+
+    Le middleware de dossier dynamique ne fournit pas d'index ; ouvrir l'accueil
+    (`/apps/accueil`) donne à l'opérateur les liens vers tous les notebooks. En son
+    absence (config dégradée), on retombe sur le 1er notebook trié, ou rien si vide.
+    """
+    if _NOTEBOOK_ACCUEIL in noms:
+        return f"{base}/{_NOTEBOOK_ACCUEIL}"
+    if noms:
+        return f"{base}/{noms[0]}"
+    return None
 
 
 def _manquantes_operateur() -> dict[str, str]:
@@ -133,10 +151,10 @@ def main() -> None:
         print(f"   - {base}/{nom}", file=sys.stderr)
     print("   (chaque notebook garde son mode simulation par défaut)", file=sys.stderr)
 
-    # Ouvrir le navigateur sur le 1er notebook dès que le serveur est prêt
-    # (best-effort, non bloquant).
-    if noms:
-        cible = f"{base}/{noms[0]}"
+    # Ouvrir le navigateur sur l'accueil dès que le serveur est prêt (best-effort,
+    # non bloquant) : c'est la seule page qui liste tous les notebooks servis.
+    cible = url_navigateur(base, noms)
+    if cible:
         threading.Timer(1.0, lambda: webbrowser.open(cible)).start()
 
     import uvicorn
