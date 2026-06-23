@@ -26,3 +26,6 @@ le versionnage suit [SemVer](https://semver.org/lang/fr/).
 - Extra `[arrow]` : client Arrow historique (`flux/releves/facturation/accise/
   cta` → `pl.DataFrame`) dans `electricore_client.arrow`, polars importé
   paresseusement (la base reste polars-free).
+- CI/CD : `release-client.yml` (tags `client-v*`, publication PyPI Trusted
+  Publishing / OIDC) + job `test-client` (install isolé, garantie polars-free).
+  Conception : ADR-0043.

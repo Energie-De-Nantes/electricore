@@ -1,0 +1,54 @@
+name: Release electricore-client
+
+# Publication du paquet SÉPARÉ electricore-client sur PyPI, déclenchée par un tag
+# `client-v*` (distinct des tags `v*` du moteur — cf. release.yml). Pas de Docker.
+# Miroir du flux moteur : build uv → vérif nom d'artefact → Trusted Publishing OIDC.
+on:
+  push:
+    tags:
+      # Stable : client-v0.1.0
+      - 'client-v[0-9]+.[0-9]+.[0-9]+'
+      # Pré-releases PEP 440 : client-v0.1.0a1 / b1 / rc1 / .dev1
+      - 'client-v[0-9]+.[0-9]+.[0-9]+a[0-9]+'
+      - 'client-v[0-9]+.[0-9]+.[0-9]+b[0-9]+'
+      - 'client-v[0-9]+.[0-9]+.[0-9]+rc[0-9]+'
+      - 'client-v[0-9]+.[0-9]+.[0-9]+.dev[0-9]+'
+
+# Pas de bloc concurrency : un release ne doit jamais être annulé en cours de publication.
+
+permissions:
+  contents: read    # checkout
+  id-token: write   # OIDC pour PyPI trusted publishing (aucun token PyPI en secret)
+
+jobs:
+  release-client:
+    name: Build + publish electricore-client to PyPI (OIDC)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Build sdist + wheel (sous-projet electricore-client)
+        run: uv build packages/electricore-client --out-dir dist
+
+      - name: Vérifier que les artefacts correspondent au tag
+        run: |
+          # Le tag `client-vX.Y.Z…` → version PEP 440 `X.Y.Z…`. Le nom de wheel
+          # normalise les tirets en underscores (electricore-client → electricore_client).
+          TAG_VERSION="${GITHUB_REF_NAME#client-v}"
+          echo "Tag version attendue : ${TAG_VERSION}"
+          ls -la dist/
+          test -f "dist/electricore_client-${TAG_VERSION}-py3-none-any.whl"
+          test -f "dist/electricore_client-${TAG_VERSION}.tar.gz"
+
+      - name: Publish to PyPI (trusted publisher / OIDC)
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist
+          skip-existing: true
