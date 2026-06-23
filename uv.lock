@@ -2,6 +2,12 @@ version = 1
 revision = 3
 requires-python = ">=3.12, <3.14"
 
+[manifest]
+members = [
+    "electricore",
+    "electricore-client",
+]
+
 [[package]]
 name = "agate"
 version = "1.9.1"
@@ -739,6 +745,7 @@ version = "3.4.0rc3"
 source = { editable = "." }
 dependencies = [
     { name = "duckdb" },
+    { name = "electricore-client" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "numpy" },
@@ -792,6 +799,7 @@ requires-dist = [
     { name = "dbt-duckdb", marker = "extra == 'dbt'", specifier = ">=1.9.0,<2.0.0" },
     { name = "dlt", extras = ["filesystem"], marker = "extra == 'ingestion'", specifier = ">=1.16.0,<2.0.0" },
     { name = "duckdb", specifier = ">=1.3.2,<2.0.0" },
+    { name = "electricore-client", editable = "packages/electricore-client" },
     { name = "fastapi", specifier = ">=0.116.1" },
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "lxml", marker = "extra == 'ingestion'", specifier = ">=6.1.0,<7.0.0" },
@@ -824,6 +832,36 @@ test = [
     { name = "syrupy", specifier = ">=4.7.2" },
 ]
 typecheck = [{ name = "mypy", specifier = ">=1.13" }]
+
+[[package]]
+name = "electricore-client"
+version = "0.1.0"
+source = { editable = "packages/electricore-client" }
+dependencies = [
+    { name = "httpx" },
+    { name = "pydantic" },
+]
+
+[package.optional-dependencies]
+arrow = [
+    { name = "polars" },
+]
+
+[package.dev-dependencies]
+test = [
+    { name = "pytest" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "httpx", specifier = ">=0.27.0" },
+    { name = "polars", marker = "extra == 'arrow'", specifier = ">=1.0.0,<2.0.0" },
+    { name = "pydantic", specifier = ">=2.0.0" },
+]
+provides-extras = ["arrow"]
+
+[package.metadata.requires-dev]
+test = [{ name = "pytest", specifier = ">=8.2.0" }]
 
 [[package]]
 name = "execnet"
