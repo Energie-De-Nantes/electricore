@@ -7,10 +7,24 @@ de redéfinir des modèles inline.
 
 from __future__ import annotations
 
+from .chronologie import (
+    CONTRAT_VERSION_CHRONOLOGIE,
+    LigneChronologie,
+    LigneEvenement,
+    LignePeriodeEnergie,
+    LigneReleve,
+    valider_ligne_chronologie,
+)
 from .meta_periodes import CONTRAT_VERSION_META_PERIODES, ObjetReleve, PeriodeMeta
 
 __all__ = [
     "PeriodeMeta",
     "ObjetReleve",
     "CONTRAT_VERSION_META_PERIODES",
+    "LigneChronologie",
+    "LigneEvenement",
+    "LigneReleve",
+    "LignePeriodeEnergie",
+    "CONTRAT_VERSION_CHRONOLOGIE",
+    "valider_ligne_chronologie",
 ]

@@ -1,20 +1,28 @@
-"""Tests d'intégration de `GET /facturation/chronologie` (vue facturiste, #367).
+"""Tests d'intégration de `GET /facturation/chronologie` (vue facturiste, #367/#408).
 
 Endpoint de lecture (ADR-0027/0012) : frise complète d'un point/contrat + verdicts, **sans
-montant tarifaire**. Le seam de test est la fonction `chronologie_point_ou_contrat` référencée
-par le router (même patron que `tests/integration/test_meta_periodes_endpoint.py`) — on
-court-circuite la reconstruction DuckDB, le chemin transport + enveloppe reste réel.
+montant tarifaire**. Depuis #408, la réponse est un **flux JSONL** (`application/jsonl`, une
+ligne = un `LigneChronologie` — union discriminée sur `type_ligne`) avec métadonnées en
+en-têtes (`X-Contract-Version`, `X-Grain`). Le seam de test est la fonction
+`chronologie_point_ou_contrat` référencée par le router — on court-circuite la reconstruction
+DuckDB, le chemin transport + sérialisation reste réel.
 
 Couvre aussi (acceptance #367) un **point à plusieurs RSC** (changement de main) et un **point
 récemment activé** (MDPRM → verdict communication correct, post-#365) en faisant tisser le vrai
 service depuis un `ContexteMensuel` synthétique.
 """
 
+import json
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import polars as pl
 import pytest
+from electricore_client.models import (
+    LigneEvenement,
+    LignePeriodeEnergie,
+    valider_ligne_chronologie,
+)
 from fastapi.testclient import TestClient
 
 from electricore.api.main import app
@@ -51,8 +59,12 @@ def frise_synthetique() -> pl.DataFrame:
     )
 
 
-def test_chronologie_retourne_enveloppe_json(monkeypatch, frise_synthetique):
-    """Tracer bullet : GET par PDL sert la frise en JSON enveloppé, grain `point`."""
+def _lignes(response) -> list[dict]:
+    return [json.loads(ligne) for ligne in response.text.splitlines() if ligne.strip()]
+
+
+def test_chronologie_streame_du_jsonl(monkeypatch, frise_synthetique):
+    """Tracer bullet : GET par PDL sert la frise en JSONL, grain `point` en en-tête."""
     app.dependency_overrides[get_current_api_key] = lambda: "test-key"
     monkeypatch.setattr(
         "electricore.api.routers.chronologie.chronologie_point_ou_contrat",
@@ -64,16 +76,35 @@ def test_chronologie_retourne_enveloppe_json(monkeypatch, frise_synthetique):
         app.dependency_overrides.clear()
 
     assert response.status_code == 200
-    body = response.json()
-    assert body["grain"] == "point"
-    assert body["filters"] == {"pdl": "PDL_X"}
-    assert body["pagination"]["total"] == 2
-    types = {r["type_ligne"] for r in body["data"]}
-    assert types == {"evenement", "periode_energie"}
+    assert response.headers["content-type"].startswith("application/jsonl")
+    assert response.headers["X-Grain"] == "point"
+    assert response.headers["X-Contract-Version"] == "1"
+
+    lignes = _lignes(response)
+    assert len(lignes) == 2
+    assert {ligne["type_ligne"] for ligne in lignes} == {"evenement", "periode_energie"}
+
+
+def test_chronologie_lignes_resolvent_lunion(monkeypatch, frise_synthetique):
+    """Chaque ligne se résout en son sous-type via l'union discriminée client."""
+    app.dependency_overrides[get_current_api_key] = lambda: "test-key"
+    monkeypatch.setattr(
+        "electricore.api.routers.chronologie.chronologie_point_ou_contrat",
+        lambda pdl=None, rsc=None: frise_synthetique,
+    )
+    try:
+        response = TestClient(app).get("/facturation/chronologie", params={"pdl": "PDL_X"})
+    finally:
+        app.dependency_overrides.clear()
+
+    typees = [valider_ligne_chronologie(ligne) for ligne in _lignes(response)]
+    assert isinstance(typees[0], LigneEvenement)
+    assert isinstance(typees[1], LignePeriodeEnergie)
+    assert typees[1].energie_base_kwh == 50.0
 
 
 def test_chronologie_par_rsc_grain_contrat(monkeypatch, frise_synthetique):
-    """Le grain contrat (`rsc`) est servi avec `grain=contrat`."""
+    """Le grain contrat (`rsc`) est servi avec `X-Grain: contrat`."""
     app.dependency_overrides[get_current_api_key] = lambda: "test-key"
     appels: list[tuple] = []
 
@@ -89,7 +120,7 @@ def test_chronologie_par_rsc_grain_contrat(monkeypatch, frise_synthetique):
 
     assert response.status_code == 200
     assert appels == [(None, "REF_1")]
-    assert response.json()["grain"] == "contrat"
+    assert response.headers["X-Grain"] == "contrat"
 
 
 def test_chronologie_pas_de_montant_tarifaire(monkeypatch, frise_synthetique):
@@ -124,22 +155,6 @@ def test_chronologie_exige_un_grain(monkeypatch):
     finally:
         app.dependency_overrides.clear()
     assert response.status_code == 422
-
-
-def test_chronologie_pagine(monkeypatch, frise_synthetique):
-    """`limit`/`offset` tranchent ; `total` reste le total non paginé."""
-    app.dependency_overrides[get_current_api_key] = lambda: "test-key"
-    monkeypatch.setattr(
-        "electricore.api.routers.chronologie.chronologie_point_ou_contrat",
-        lambda pdl=None, rsc=None: frise_synthetique,
-    )
-    try:
-        response = TestClient(app).get("/facturation/chronologie", params={"pdl": "PDL_X", "limit": 1, "offset": 1})
-    finally:
-        app.dependency_overrides.clear()
-    body = response.json()
-    assert body["pagination"] == {"limit": 1, "offset": 1, "returned": 1, "total": 2}
-    assert len(body["data"]) == 1
 
 
 # =============================================================================
@@ -264,11 +279,12 @@ def test_chronologie_point_plusieurs_rsc_via_service(monkeypatch):
         app.dependency_overrides.clear()
 
     assert response.status_code == 200
-    data = response.json()["data"]
-    rsc = {r["ref_situation_contractuelle"] for r in data if r["type_ligne"] == "evenement"}
+    typees = [valider_ligne_chronologie(ligne) for ligne in _lignes(response)]
+    evenements = [ligne for ligne in typees if isinstance(ligne, LigneEvenement)]
+    rsc = {ligne.ref_situation_contractuelle for ligne in evenements}
     assert rsc == {"REF_1", "REF_2"}
     # Les charnières (RES sortie / CFNE entrée) sont visibles comme faits.
-    evts = {r["evenement_declencheur"] for r in data if r["type_ligne"] == "evenement"}
+    evts = {ligne.evenement_declencheur for ligne in evenements}
     assert {"RES", "CFNE"} <= evts
 
 
@@ -287,11 +303,11 @@ def test_chronologie_point_recemment_active_communication_correcte(monkeypatch):
         app.dependency_overrides.clear()
 
     assert response.status_code == 200
-    data = response.json()["data"]
+    typees = [valider_ligne_chronologie(ligne) for ligne in _lignes(response)]
     # MDPRM (hors-comptage) figure dans la frise.
-    evts = {r["evenement_declencheur"] for r in data if r["type_ligne"] == "evenement"}
+    evts = {ligne.evenement_declencheur for ligne in typees if isinstance(ligne, LigneEvenement)}
     assert "MDPRM" in evts
     # La période d'énergie porte le verdict communication CORRECT (communicante).
-    periode = next(r for r in data if r["type_ligne"] == "periode_energie")
-    assert periode["statut_communication"] == "communicante"
-    assert periode["qualite"] == "réelle"
+    periode = next(ligne for ligne in typees if isinstance(ligne, LignePeriodeEnergie))
+    assert periode.statut_communication == "communicante"
+    assert periode.qualite == "réelle"
