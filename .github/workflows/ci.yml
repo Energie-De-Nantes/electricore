@@ -68,3 +68,37 @@ jobs:
 
       - name: Run tests
         run: uv run --group test pytest
+
+  test-client:
+    name: test-client (isolé, polars-free)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          python-version: "3.12"
+
+      # Environnement ISOLÉ : uniquement electricore-client (httpx + pydantic) +
+      # pytest. PAS le moteur, PAS polars — la garantie polars-free devient un
+      # gate de CI (le test de pureté du paquet le prouve dans ce même venv).
+      - name: Créer un venv isolé pour le client
+        run: uv venv /tmp/client-venv
+
+      - name: Installer electricore-client seul (base, sans [arrow])
+        run: |
+          uv pip install --python /tmp/client-venv ./packages/electricore-client pytest
+
+      - name: Garde-fou — polars/duckdb/fastapi ABSENTS de l'environnement
+        run: |
+          uv pip list --python /tmp/client-venv | tee /tmp/pkgs.txt
+          if grep -iqE '^(polars|duckdb|fastapi)[[:space:]]' /tmp/pkgs.txt; then
+            echo "::error::Un module lourd (polars/duckdb/fastapi) a fuité dans l'env client isolé."
+            exit 1
+          fi
+
+      - name: Lancer les tests du client (les tests Arrow se skippent sans polars)
+        run: |
+          /tmp/client-venv/bin/python -m pytest packages/electricore-client/tests -q
