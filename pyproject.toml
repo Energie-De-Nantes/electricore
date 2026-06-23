@@ -1,6 +1,6 @@
 [project]
 name = "electricore"
-version = "3.4.0rc3"
+version = "3.4.0rc4"
 description = "Moteur de traitement données énergétiques françaises - Architecture Polars/DuckDB pour flux Enedis"
 authors = [
     {name = "Virgile"}
@@ -48,7 +48,7 @@ dependencies = [
     # Client léger distribué séparément (workspace local) : le moteur en dépend
     # comme source unique des modèles de contrat, même s'il n'en importe les
     # modèles qu'aux slices d'endpoint (#406+).
-    "electricore-client",
+    "electricore-client>=0.1.0",
 ]
 
 [project.optional-dependencies]
