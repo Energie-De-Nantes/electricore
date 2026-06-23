@@ -18,6 +18,8 @@ from .exceptions import (
     IngestionEnCours,
 )
 from .headers import EnTetesMeta
+from .models import ObjetReleve, PeriodeMeta
+from .streaming import JsonlStream
 
 __version__ = "0.1.0"
 
@@ -27,5 +29,8 @@ __all__ = [
     "IngestionEnCours",
     "ContractVersionError",
     "EnTetesMeta",
+    "JsonlStream",
+    "PeriodeMeta",
+    "ObjetReleve",
     "__version__",
 ]

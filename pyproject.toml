@@ -205,4 +205,7 @@ no_implicit_optional = true         # forbid `x: str = None`
 "electricore/ingestion/sources/sftp_enedis.py" = ["E402"]  # imports after section banner
 "electricore/ingestion/transformers/archive.py" = ["E402"]  # cross-module import after constants block
 "tests/integration/test_odoo_writer.py" = ["B017"]  # XML-RPC raises raw Exception, no specific type
+# electricore-client cible py310 (>=3.10) : la syntaxe PEP 695 (UP046/UP047) n'y existe pas.
+# Le repo cible py312, mais ce sous-paquet doit rester compatible 3.10 → Generic[T] conservé.
+"packages/electricore-client/**" = ["UP046", "UP047"]
 
