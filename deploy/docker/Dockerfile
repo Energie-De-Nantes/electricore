@@ -23,8 +23,11 @@ ENV UV_LINK_MODE=copy \
 
 WORKDIR /app
 
-# Couche cache deps : on copie d'abord les manifestes pour profiter du cache Docker
+# Couche cache deps : manifestes + source du client. `electricore-client` est un membre
+# du workspace uv dont le moteur dépend ; uv en a besoin pour résoudre le lock gelé, même
+# avec --no-install-project. (Source minuscule : l'impact sur le cache de couche est négligeable.)
 COPY pyproject.toml uv.lock README.md ./
+COPY packages/ ./packages/
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-install-project --extra ingestion --extra dbt --no-dev
 
@@ -32,6 +35,14 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 COPY electricore/ ./electricore/
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --extra ingestion --extra dbt --no-dev
+
+# `uv sync` a installé `electricore-client` en ÉDITABLE (membre du workspace, pointant vers
+# /app/packages/…). On le remplace par un vrai WHEEL installé dans le venv : ainsi l'image
+# runtime n'embarque PAS le source `packages/` (seul le moteur reste servi depuis son source).
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv build packages/electricore-client --wheel --out-dir /tmp/wheels \
+ && uv pip install --python /app/.venv/bin/python --no-deps --reinstall \
+        /tmp/wheels/electricore_client-*.whl
 
 # =============================================================================
 # Stage 2 — runtime : image légère sans outils de build

@@ -9,6 +9,30 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.4.0rc4] - 2026-06-23
+
+Extraction du **client léger `electricore-client`** (paquet distribué séparément) et bascule
+des endpoints facturiste en **flux JSONL typé**, pour que `souscriptions_odoo` consomme l'API
+sans tirer polars/duckdb/fastapi.
+
+### ✨ Temps forts
+
+- **Paquet `electricore-client`** (httpx + pydantic seuls, `[arrow]` en extra) : modèles de
+  contrat single-source, méthodes client, garde de version par en-tête (ADR-0043, #406–#411).
+- **Endpoints facturiste en JSONL streaming** (`/facturation/chronologie`, `/facturation/meta-periodes`) :
+  métadonnées en en-têtes HTTP, plus d'enveloppe ni de pagination ; `turpe_variable` en RPC POST typé.
+- **Contrat single-source** : les routers importent les modèles depuis `electricore-client`
+  (le moteur en dépend via le workspace uv).
+- Client Arrow historique migré derrière l'extra `[arrow]` (polars en import paresseux,
+  garde de pureté en CI).
+
+### 🛠️ Release
+
+- Image Docker : `electricore-client` installé en **wheel** dans le venv (le runtime n'embarque
+  pas le source `packages/`).
+- Smoke-test de release élargi à `import electricore.api.main` (exerce réellement `electricore_client`).
+- Publication PyPI du client par tag `client-v*` (Trusted Publishing / OIDC), versionné indépendamment.
+
 ## [3.4.0rc3] - 2026-06-21
 
 La *Chronologie du contrat* devient interrogeable **par point ou par contrat**, et expose

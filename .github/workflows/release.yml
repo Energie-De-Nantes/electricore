@@ -141,7 +141,7 @@ jobs:
       - name: Smoke-test image
         run: |
           docker run --rm "${{ steps.docker_tags.outputs.smoke_tag }}" \
-            python -c "import electricore; import electricore.ingestion.runner; import dbt.cli.main; print('image OK')"
+            python -c "import electricore; import electricore.ingestion.runner; import electricore.api.main; import dbt.cli.main; print('image OK')"
 
       # Build n°2 : réhydrate le cache GHA du build n°1 (cache-from) → quasi
       # rien à reconstruire, l'essentiel du temps est l'export + le push.
