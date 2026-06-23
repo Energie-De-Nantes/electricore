@@ -386,6 +386,22 @@ uv run uvicorn electricore.api.main:app --reload
 uv run marimo edit notebooks/
 ```
 
+#### Lanceur opérateur `electricore-notebooks` (pont transitoire — retirer à l'arrivée de `souscriptions_odoo`)
+
+Pour qu'un opérateur non-dev fasse tourner les notebooks Odoo opérationnels
+(`facturation`, `injection_rsc`) sans git ni code : installer l'extra `notebooks`
+puis lancer la commande. Les deux notebooks sont servis en mode **run**
+(lecture seule), chacun avec son mode simulation par défaut et son bouton
+« Injecter dans Odoo » gardés.
+
+```bash
+uv sync --extra notebooks
+uv run electricore-notebooks   # valide l'env, sert les apps sur localhost, ouvre le navigateur
+```
+
+Variables requises (sinon message clair + sortie non-nulle) : creds Odoo
+(`ODOO_<ENV>_*`) + `ELECTRICORE_API_URL` + `ELECTRICORE_API_KEY` (voir `.env.example`).
+
 ### Déploiement VPS (Docker)
 
 Pour exécuter ElectriCore en production sur un VPS — ingestion planifiée, API + bot 24/7, TLS automatique — un script d'installation provisionne tout depuis un VPS Ubuntu/Debian frais :
