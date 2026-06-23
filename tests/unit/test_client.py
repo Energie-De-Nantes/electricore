@@ -8,13 +8,13 @@ déterministe, et on vérifie la boucle complète client → endpoint → client
 import httpx
 import polars as pl
 import pytest
+from electricore_client.arrow import ElectricoreArrowClient as ElectricoreClient
 from fastapi.testclient import TestClient
 from polars.testing import assert_frame_equal
 
 from electricore.api.config import settings
 from electricore.api.main import app
 from electricore.api.security import get_current_api_key
-from electricore.client import ElectricoreClient
 
 
 @pytest.fixture(autouse=True)

@@ -18,8 +18,8 @@ with app.setup:
 
     import httpx
 
-    from electricore.client import ElectricoreClient
     from electricore.integrations.odoo import OdooReader, query
+    from electricore_client.arrow import ElectricoreArrowClient as ElectricoreClient
 
     logging.basicConfig(level=logging.INFO)
 
@@ -77,10 +77,12 @@ def _():
         .with_columns(pl.col("date_debut_contrat").dt.replace_time_zone(None))
         .sort(["pdl", "date_debut_contrat"])
     )
-    mo.vstack([
-        mo.md(f"**{contrats_par_pdl['pdl'].n_unique()} PDLs**, **{len(contrats_par_pdl)} contrats** dans le C15"),
-        mo.ui.table(contrats_par_pdl.head(10)),
-    ])
+    mo.vstack(
+        [
+            mo.md(f"**{contrats_par_pdl['pdl'].n_unique()} PDLs**, **{len(contrats_par_pdl)} contrats** dans le C15"),
+            mo.ui.table(contrats_par_pdl.head(10)),
+        ]
+    )
     return (contrats_par_pdl,)
 
 
@@ -95,20 +97,20 @@ def _():
 @app.cell
 def _():
     with OdooReader(config=config) as _odoo:
-        orders_df = (
-            query(_odoo, 'sale.order',
-                  domain=[('x_pdl', '!=', False), ('state', '=', 'sale')],
-                  fields=['name', 'x_pdl', 'date_order', 'partner_id'])
-            .collect()
-        )
+        orders_df = query(
+            _odoo,
+            "sale.order",
+            domain=[("x_pdl", "!=", False), ("state", "=", "sale")],
+            fields=["name", "x_pdl", "date_order", "partner_id"],
+        ).collect()
     # Normaliser date_order en Datetime naïf (Odoo envoie UTC en string)
-    orders_df = orders_df.with_columns(
-        pl.col("date_order").str.to_datetime("%Y-%m-%d %H:%M:%S", strict=False)
+    orders_df = orders_df.with_columns(pl.col("date_order").str.to_datetime("%Y-%m-%d %H:%M:%S", strict=False))
+    mo.vstack(
+        [
+            mo.md(f"**{len(orders_df)} sale.orders** avec PDL"),
+            mo.ui.table(orders_df.head(10)),
+        ]
     )
-    mo.vstack([
-        mo.md(f"**{len(orders_df)} sale.orders** avec PDL"),
-        mo.ui.table(orders_df.head(10)),
-    ])
     return (orders_df,)
 
 
@@ -124,35 +126,27 @@ def _():
 def _(contrats_par_pdl, orders_df):
     # Renommer pdl → x_pdl pour aligner les noms de colonnes des deux côtés
     # (évite que join_asof ajoute une colonne 'pdl' en doublon dans le résultat)
-    _contrats = (
-        contrats_par_pdl
-        .rename({"pdl": "x_pdl"})
-        .sort("date_debut_contrat")
-    )
+    _contrats = contrats_par_pdl.rename({"pdl": "x_pdl"}).sort("date_debut_contrat")
     _orders_sorted = orders_df.sort("date_order")
 
-    orders_avec_rsc = (
-        _orders_sorted
-        .join_asof(
-            _contrats,
-            left_on="date_order",
-            right_on="date_debut_contrat",
-            by="x_pdl",
-            strategy="nearest",
-        )
-        .select(["sale_order_id", "name", "x_pdl", "date_order",
-                 "ref_situation_contractuelle"])
-    )
+    orders_avec_rsc = _orders_sorted.join_asof(
+        _contrats,
+        left_on="date_order",
+        right_on="date_debut_contrat",
+        by="x_pdl",
+        strategy="nearest",
+    ).select(["sale_order_id", "name", "x_pdl", "date_order", "ref_situation_contractuelle"])
     return (orders_avec_rsc,)
 
 
 @app.cell
 def _(orders_avec_rsc):
-    _ok       = orders_avec_rsc.filter(pl.col("ref_situation_contractuelle").is_not_null())
+    _ok = orders_avec_rsc.filter(pl.col("ref_situation_contractuelle").is_not_null())
     _sans_rsc = orders_avec_rsc.filter(pl.col("ref_situation_contractuelle").is_null())
 
-    mo.vstack([
-        mo.md(f"""
+    mo.vstack(
+        [
+            mo.md(f"""
         ### Résultats
 
         | | |
@@ -160,31 +154,33 @@ def _(orders_avec_rsc):
         | ✅ Matchés | **{len(_ok)}** orders |
         | ❌ Sans correspondance C15 | **{len(_sans_rsc)}** orders |
         """),
-        mo.ui.table(orders_avec_rsc),
-        mo.md("### Orders sans correspondance C15") if not _sans_rsc.is_empty() else mo.md(""),
-        mo.ui.table(_sans_rsc) if not _sans_rsc.is_empty() else mo.md(""),
-    ])
+            mo.ui.table(orders_avec_rsc),
+            mo.md("### Orders sans correspondance C15") if not _sans_rsc.is_empty() else mo.md(""),
+            mo.ui.table(_sans_rsc) if not _sans_rsc.is_empty() else mo.md(""),
+        ]
+    )
     return
 
 
 @app.cell
 def _(orders_avec_rsc):
     _rsc_counts = (
-        orders_avec_rsc
-        .filter(pl.col("ref_situation_contractuelle").is_not_null())
+        orders_avec_rsc.filter(pl.col("ref_situation_contractuelle").is_not_null())
         .group_by("ref_situation_contractuelle")
         .agg(pl.len().alias("n"), pl.col("sale_order_id").alias("orders"))
         .filter(pl.col("n") > 1)
         .sort("n", descending=True)
     )
-    mo.vstack([
-        mo.md(f"### RSC en doublon : {len(_rsc_counts)} RSC partagées par plusieurs orders"),
-        mo.ui.table(
-            orders_avec_rsc.filter(
-                pl.col("ref_situation_contractuelle").is_in(_rsc_counts["ref_situation_contractuelle"])
-            ).sort("ref_situation_contractuelle")
-        ),
-    ])
+    mo.vstack(
+        [
+            mo.md(f"### RSC en doublon : {len(_rsc_counts)} RSC partagées par plusieurs orders"),
+            mo.ui.table(
+                orders_avec_rsc.filter(
+                    pl.col("ref_situation_contractuelle").is_in(_rsc_counts["ref_situation_contractuelle"])
+                ).sort("ref_situation_contractuelle")
+            ),
+        ]
+    )
     return
 
 
@@ -201,18 +197,19 @@ def _(orders_avec_rsc):
     from electricore.integrations.odoo import OdooWriter
 
     _a_injecter = orders_avec_rsc.filter(pl.col("ref_situation_contractuelle").is_not_null())
-    _sans_rsc   = orders_avec_rsc.filter(pl.col("ref_situation_contractuelle").is_null())
+    _sans_rsc = orders_avec_rsc.filter(pl.col("ref_situation_contractuelle").is_null())
 
-    sim_mode   = mo.ui.checkbox(label="Mode simulation (aucune écriture réelle)", value=True)
+    sim_mode = mo.ui.checkbox(label="Mode simulation (aucune écriture réelle)", value=True)
     run_button = mo.ui.run_button(label="Injecter dans Odoo")
 
-    mo.vstack([
-        mo.md(f"**{len(_a_injecter)}** orders à mettre à jour "
-              f"· **{len(_sans_rsc)}** sans RSC (ignorés)"),
-        mo.ui.table(_a_injecter.select(["name", "x_pdl", "date_order", "ref_situation_contractuelle"])),
-        sim_mode,
-        run_button,
-    ])
+    mo.vstack(
+        [
+            mo.md(f"**{len(_a_injecter)}** orders à mettre à jour · **{len(_sans_rsc)}** sans RSC (ignorés)"),
+            mo.ui.table(_a_injecter.select(["name", "x_pdl", "date_order", "ref_situation_contractuelle"])),
+            sim_mode,
+            run_button,
+        ]
+    )
     return OdooWriter, run_button, sim_mode
 
 
@@ -221,8 +218,7 @@ def _(OdooWriter, orders_avec_rsc, run_button, sim_mode):
     mo.stop(not run_button.value, mo.md("Vérifiez les données ci-dessus puis cliquez sur **Injecter**."))
 
     _records = (
-        orders_avec_rsc
-        .filter(pl.col("ref_situation_contractuelle").is_not_null())
+        orders_avec_rsc.filter(pl.col("ref_situation_contractuelle").is_not_null())
         .rename({"sale_order_id": "id", "ref_situation_contractuelle": "x_ref_situation_contractuelle"})
         .select(["id", "x_ref_situation_contractuelle"])
         .to_dicts()
@@ -232,8 +228,7 @@ def _(OdooWriter, orders_avec_rsc, run_button, sim_mode):
         _writer.update("sale.order", _records)
 
     _label = "simulés" if sim_mode.value else "écrits"
-    mo.callout(mo.md(f"✅ **{len(_records)} sale.orders** {_label} (`x_ref_situation_contractuelle`)."),
-               kind="success")
+    mo.callout(mo.md(f"✅ **{len(_records)} sale.orders** {_label} (`x_ref_situation_contractuelle`)."), kind="success")
     return
 
 
