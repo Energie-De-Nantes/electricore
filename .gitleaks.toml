@@ -21,6 +21,9 @@ paths = [
     # Fixtures .env de tests deploy/ (déjà annotées `# gitleaks:allow` en ligne,
     # listées ici pour robustesse si l'annotation en ligne ne couvre pas tout).
     '''deploy/tests/fixtures/env-valid''',
+    # Fake-binaries des tests deploy-shell (secrets-as-code) — le fake `sops` émet un
+    # dotenv clair FACTICE (valeurs de test, ne protègent rien).
+    '''deploy/tests/fixtures/fake_bin/sops''',
 ]
 # Clé age privée de test (la regex couvre la valeur exacte committée).
 regexes = [

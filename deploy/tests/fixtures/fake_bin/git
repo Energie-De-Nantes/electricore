@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Fake `git` pour les tests de secrets.sh (ADR-0044) — simule clone/pull du dépôt
+# de déploiement privé sans réseau. Trace les appels dans $FAKE_GIT_LOG si défini.
+# Le contenu du dépôt simulé est posé par le test dans $FAKE_GIT_SRC.
+[[ -n "${FAKE_GIT_LOG:-}" ]] && printf '%s\n' "$*" >> "$FAKE_GIT_LOG"
+
+cmd="$1"; shift || true
+case "$cmd" in
+    clone)
+        # `git clone <url> <dest>` → recopie $FAKE_GIT_SRC dans <dest>.
+        dest="${*: -1}"
+        mkdir -p "$dest"
+        cp -r "${FAKE_GIT_SRC:?FAKE_GIT_SRC requis}/." "$dest/"
+        mkdir -p "${dest}/.git"   # marque "cloné" pour les pulls suivants
+        ;;
+    -C)
+        # `git -C <repo> pull --ff-only` → no-op succès (déjà à jour).
+        :
+        ;;
+    *)
+        echo "fake git: commande non simulée ($cmd $*)" >&2; exit 1 ;;
+esac

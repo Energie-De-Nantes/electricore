@@ -18,18 +18,23 @@ map_version_to_git_ref() {
     esac
 }
 
-# download_config_files <version> <home_dir>
+# download_config_files <version> <home_dir> [<skip_env>]
 # Télécharge depuis le tag <version> vers <home_dir>/{.env,deploy/docker/*}.
 # Idempotent : si .env existe déjà, on ne l'écrase pas (mode reconfigure).
+# Si <skip_env>=1 (secrets-as-code, ADR-0044) : on ne télécharge AUCUN .env — la
+# config claire arrive via le dépôt de déploiement (providers/<slug>/config.env).
 download_config_files() {
     local version="$1"
     local home="$2"
+    local skip_env="${3:-0}"
     local docker_dir="${home}/deploy/docker"
     local ref; ref=$(map_version_to_git_ref "$version")
     local base="${CONFIG_BASE_URL}/${ref}/deploy/docker"
     install -d "$docker_dir"
-    # .env : ne pas écraser si présent (rerun)
-    if [[ ! -f "${home}/.env" ]]; then
+    # .env : ne pas écraser si présent (rerun) ; ne pas créer du tout en secrets-as-code.
+    if [[ "$skip_env" == "1" ]]; then
+        log_skip ".env non téléchargé (secrets-as-code : config.env vient du dépôt)"
+    elif [[ ! -f "${home}/.env" ]]; then
         curl -fsSL "${base}/.env.example" -o "${home}/.env"
         log_ok ".env téléchargé depuis ${version}"
     else
@@ -55,6 +60,8 @@ download_config_files() {
 # par les valeurs réelles. `--version` étant la source de vérité de la version
 # Docker à pin, on évite de devoir l'éditer à la main dans le step EDITOR.
 # Préserve l'ownership du fichier (sed -i peut le casser).
+# NB (ADR-0044) : ces trois clés sont TOUTES côté config CLAIRE → cette fonction
+# écrit aussi bien le legacy `.env` que le `config.env` du split secrets-as-code.
 substitute_env() {
     local env_file="$1"
     local slug="$2"

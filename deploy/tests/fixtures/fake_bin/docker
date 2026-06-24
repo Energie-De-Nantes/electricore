@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# Fake `docker` pour les tests de secrets.sh (ADR-0044) — simule `docker run … <tool>`.
+# On n'a PAS de vrai Docker en CI deploy-shell : on imite juste les sous-commandes
+# qu'appelle secrets.sh (age-keygen, age-keygen -y, ssh-keygen). Trace les appels
+# dans $FAKE_DOCKER_LOG si défini.
+[[ -n "${FAKE_DOCKER_LOG:-}" ]] && printf '%s\n' "$*" >> "$FAKE_DOCKER_LOG"
+
+# Sauter les flags `run --rm [-v src:dst[:ro]]* <image>` pour atteindre la commande.
+args=("$@")
+i=0
+# avance jusqu'après l'image (1er token qui ne commence pas par '-' après 'run',
+# en sautant les valeurs de -v). Simplification : on cherche le 1er token connu.
+tool=""
+mount_src=""
+while [[ $i -lt ${#args[@]} ]]; do
+    case "${args[$i]}" in
+        -v) mount_src="${args[$((i+1))]%%:*}"; i=$((i+2)); continue ;;
+        age-keygen|ssh-keygen) tool="${args[$i]}"; break ;;
+    esac
+    i=$((i+1))
+done
+
+case "$tool" in
+    age-keygen)
+        # `age-keygen -y /age.key` → imprime une pub factice déterministe ;
+        # `age-keygen` seul → imprime une clé privée factice (format age) sur stdout.
+        if [[ "${args[$((i+1))]:-}" == "-y" ]]; then
+            echo "age1faketestpublickeyxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxq9"
+        else
+            echo "# created: fake"
+            echo "# public key: age1faketestpublickeyxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxq9"
+            echo "AGE-SECRET-KEY-1FAKETESTPRIVATEKEYXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+        fi
+        ;;
+    ssh-keygen)
+        # `ssh-keygen … -f /out/ssh_deploy_key` → écrit privée + .pub dans le mount.
+        out="${mount_src}/ssh_deploy_key"
+        echo "FAKE-OPENSSH-PRIVATE-KEY" > "$out"
+        echo "ssh-ed25519 AAAAFAKEDEPLOYKEY deploy-key" > "${out}.pub"
+        ;;
+    *)
+        echo "fake docker: commande non simulée ($*)" >&2; exit 1 ;;
+esac
