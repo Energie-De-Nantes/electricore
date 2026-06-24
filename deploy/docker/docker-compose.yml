@@ -1,23 +1,33 @@
 # ElectriCore — stack VPS reproductible.
 #
-# Layout attendu (cf. ADR-0017) :
+# Layout attendu (cf. ADR-0017, ADR-0044 secrets-as-code) :
 #   /srv/<slug>/                       ← home du user système de l'instance
-#   ├── .env                           ← secrets (source unique)
+#   ├── age.key                        ← clé age PRIVÉE de la box (600, ne sort jamais)
+#   ├── ssh_deploy_key                 ← clé SSH RO du dépôt de déploiement privé (600)
+#   ├── config.env                     ← config CLAIRE versionnée (substitutions compose + non-secret)
+#   ├── providers/<slug>/              ← copie pull du dépôt privé (config.env + secrets.env chiffré)
+#   │   ├── config.env
+#   │   └── secrets.env                ← credentials CHIFFRÉS (SOPS + age)
 #   ├── backups/                       ← bind-mount des snapshots DuckDB
 #   └── deploy/docker/
 #       ├── docker-compose.yml         ← ce fichier
 #       ├── Caddyfile
 #       └── crontab
 #
-# Invocation : depuis `deploy/docker/`, lancer avec --env-file pour que les
-# substitutions `${...}` ci-dessous résolvent les valeurs du .env racine :
+# Secrets (ADR-0044) : plus de `.env` en clair. La config claire arrive via
+# `env_file: ../../config.env` ; les CREDENTIALS sont déchiffrés DANS le process
+# par l'entrypoint de l'image (`electricore-entrypoint`, SOPS+age) à partir du
+# `secrets.env` chiffré + de la clé age, tous deux montés RO. Jamais de clair sur disque.
 #
-#   docker compose --env-file ../../.env up -d
+# Invocation : depuis `deploy/docker/`, lancer avec --env-file pour que les
+# substitutions `${...}` ci-dessous résolvent les valeurs du config.env racine :
+#
+#   docker compose --env-file ../../config.env up -d
 #
 # Sans --env-file, Compose chercherait un .env dans le cwd (deploy/docker/) et
 # tomberait sur les défauts (ELECTRICORE_VERSION=latest, BACKUPS_PATH=./backups
-# côté deploy/docker/). Les vars dans les conteneurs (env_file: ../../.env) ne
-# sont PAS utilisées pour les substitutions du compose lui-même — c'est une
+# côté deploy/docker/). Les vars dans les conteneurs (env_file: ../../config.env)
+# ne sont PAS utilisées pour les substitutions du compose lui-même — c'est une
 # subtilité Compose qui justifie l'invocation explicite.
 #
 # Documentation complète : docs/deploiement.md
@@ -35,12 +45,19 @@ services:
       - --port
       - "8001"
     env_file:
-      - ../../.env
+      - ../../config.env
     environment:
       DUCKDB_PATH: /data/flux_enedis_pipeline.duckdb
+      # Secrets SOPS+age (ADR-0044) : l'entrypoint déchiffre secrets.env avec la clé age.
+      SOPS_AGE_KEY_FILE: /run/secrets/age.key
+      SECRETS_ENV_FILE: /run/secrets/secrets.env
     volumes:
       - duckdb_data:/data
-      # Mode "fichiers collocés" : décommenter et adapter si SFTP__URL=file://... dans .env
+      # Secrets montés en lecture seule (ADR-0044) : la clé age privée de la box et
+      # le secrets.env chiffré (pull du dépôt privé dans providers/<slug>/).
+      - ../../age.key:/run/secrets/age.key:ro
+      - ../../providers/${INSTANCE_SLUG:-electricore}/secrets.env:/run/secrets/secrets.env:ro
+      # Mode "fichiers collocés" : décommenter et adapter si SFTP__URL=file://... dans secrets.env
       # - /var/enedis:/var/enedis:ro
     expose:
       - "8001"
@@ -64,12 +81,18 @@ services:
       - -passthrough-logs
       - /etc/cron/crontab
     env_file:
-      - ../../.env
+      - ../../config.env
     environment:
       DUCKDB_PATH: /data/flux_enedis_pipeline.duckdb
       TZ: Europe/Paris
+      # Secrets SOPS+age (ADR-0044) : l'entrypoint déchiffre secrets.env (SFTP/AES).
+      SOPS_AGE_KEY_FILE: /run/secrets/age.key
+      SECRETS_ENV_FILE: /run/secrets/secrets.env
     volumes:
       - duckdb_data:/data
+      # Secrets montés en lecture seule (ADR-0044).
+      - ../../age.key:/run/secrets/age.key:ro
+      - ../../providers/${INSTANCE_SLUG:-electricore}/secrets.env:/run/secrets/secrets.env:ro
       # Bind-mount des backups (cf. ADR-0017). Côté host, le dossier est owned
       # par uid 1000 (le user `electricore` du conteneur). Le user système
       # de l'instance (`<slug>`) doit être ajouté au groupe 1000 par le script

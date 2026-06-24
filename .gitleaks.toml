@@ -1,0 +1,28 @@
+# Configuration gitleaks du dépôt — étend les règles par défaut et allowliste les
+# secrets de TEST qui ne protègent rien de réel (ADR-0044 §9).
+#
+# Sans cette allowlist, la clé age privée de test committée et la fixture
+# `secrets.env` chiffrée (valeurs FACTICES) font sonner gitleaks (Palier 0, scan
+# de secrets en pre-commit). Conséquence assumée et explicitement documentée.
+
+# Repart des règles par défaut de gitleaks (sinon on remplace tout le jeu de règles).
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Fixtures de test SOPS+age — secrets factices, ne protègent rien (ADR-0044 §9)."
+paths = [
+    # Paire age de TEST + fixtures de secrets (clair source + ciphertext SOPS).
+    '''tests/fixtures/sops/test_age\.key''',
+    '''tests/fixtures/sops/secrets\.env''',
+    '''tests/fixtures/sops/secrets\.env\.clair''',
+    # Le test bout-en-bout asserte les valeurs factices déchiffrées (API_KEY, etc.).
+    '''tests/integration/test_entrypoint_dechiffrement\.py''',
+    # Fixtures .env de tests deploy/ (déjà annotées `# gitleaks:allow` en ligne,
+    # listées ici pour robustesse si l'annotation en ligne ne couvre pas tout).
+    '''deploy/tests/fixtures/env-valid''',
+]
+# Clé age privée de test (la regex couvre la valeur exacte committée).
+regexes = [
+    '''AGE-SECRET-KEY-1[0-9A-Z]+''',
+]
