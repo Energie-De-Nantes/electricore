@@ -59,6 +59,37 @@ def test_garde_de_securite_des_notebooks_intacte(nom):
     assert "OdooWriter(config=config" in source
 
 
+# Noms de colonnes RETIRÉS de la sortie de `lignes_factures_du_mois` par le refactor
+# breaking `ecaa930` (wire-up facturation api/services) : `x_ref_situation_contractuelle`
+# → `ref_situation_contractuelle`, `name_product_category` → `categorie_produit`. Le
+# notebook `facturation.py` consomme `fact_mois` (`client.facturation`), qui porte les
+# noms RENOMMÉS via le passe-plat de `rapprocher`. Référencer un nom pré-rename = le
+# drift qui a cassé le notebook 13 jours sans détection (#417). Ces deux noms n'ont
+# aucun homonyme légitime dans `facturation.py` (à la différence de `quantity`/`a_facturer`,
+# qui sont des champs d'écriture Odoo valides) → ils sont sûrement interdits.
+_COLONNES_PRE_RENAME_INTERDITES_FACTURATION = (
+    "name_product_category",
+    "x_ref_situation_contractuelle",
+)
+
+
+@pytest.mark.parametrize("colonne_retiree", _COLONNES_PRE_RENAME_INTERDITES_FACTURATION)
+def test_facturation_ne_reference_pas_de_colonne_pre_rename(colonne_retiree):
+    """`facturation.py` ne référence que les noms post-rename du contrat `fact_mois` (#417).
+
+    Anti-drift : un refactor `core` qui renomme une sortie consommée par le notebook
+    doit casser CE test, pas l'opérateur. Garde **purement statique** (texte source) —
+    n'exécute jamais le notebook, n'instancie aucun `OdooWriter`, n'ouvre aucune
+    connexion Odoo (cf. la garde de sécurité ci-dessus : zéro écriture en prod).
+    """
+    source = (_RACINE / "notebooks" / "facturation.py").read_text()
+    assert colonne_retiree not in source, (
+        f"`facturation.py` référence `{colonne_retiree}`, retiré de la sortie de "
+        f"`lignes_factures_du_mois` (refactor api/services). Utiliser le nom post-rename "
+        f"porté par `fact_mois` (`client.facturation`) — cf. #417."
+    )
+
+
 @pytest.mark.slow
 def test_wheel_contient_les_notebooks_operateur(tmp_path: Path):
     """`uv build --wheel` produit un wheel electricore contenant les 3 notebooks."""
