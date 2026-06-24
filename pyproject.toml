@@ -73,6 +73,7 @@ notebooks = [
     "marimo>=0.23.0",  # pre-auth RCE fix (CVE-2026-39987)
     "altair>=5.5.0,<6.0.0",
     "plotly[express]>=6.2.0",
+    "python-dotenv>=1.0.0",  # charger_env() : .env → os.environ pour ELECTRICORE_API_URL/KEY (déjà transitif via pydantic-settings)
 ]
 # Linéarisation des flux en dbt (ADR-0020, prototype branche dbt).
 dbt = [

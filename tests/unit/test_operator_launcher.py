@@ -7,12 +7,14 @@ Couvre deux seams :
 Le smoke navigateur/serveur est une vérif MANUELLE (non automatisée).
 """
 
+import os
 from pathlib import Path
 
 import pytest
 
 from electricore.config import runtime
 from electricore.operator_launcher import (
+    charger_env,
     construire_app,
     dossier_notebooks,
     url_navigateur,
@@ -87,6 +89,47 @@ def test_message_nomme_la_variable_et_son_role(monkeypatch, capsys):
     captured = capsys.readouterr()
     sortie = captured.out + captured.err
     assert "ELECTRICORE_API_KEY" in sortie
+
+
+# --- Seam : chargement du .env dans os.environ (précédence env-système > .env) ---
+
+
+def test_charger_env_charge_le_fichier_dans_environ(monkeypatch, tmp_path):
+    """`charger_env()` rend les vars du .env visibles dans os.environ.
+
+    Les notebooks et la validation lisent ELECTRICORE_API_URL/KEY via os.getenv :
+    sans ce chargement, un opérateur qui remplit .env reste « manquant ».
+    """
+    monkeypatch.delenv("ELECTRICORE_API_URL", raising=False)
+    fichier = tmp_path / ".env"
+    fichier.write_text("ELECTRICORE_API_URL=https://depuis-le-fichier.example\n")
+    monkeypatch.setattr(runtime, "FICHIER_ENV", fichier)
+
+    charger_env()
+
+    assert os.environ.get("ELECTRICORE_API_URL") == "https://depuis-le-fichier.example"
+
+
+def test_charger_env_ne_surcharge_pas_l_env_systeme(monkeypatch, tmp_path):
+    """L'env-système l'emporte sur le .env (précédence documentée, override=False)."""
+    monkeypatch.setenv("ELECTRICORE_API_URL", "https://depuis-le-systeme.example")
+    fichier = tmp_path / ".env"
+    fichier.write_text("ELECTRICORE_API_URL=https://depuis-le-fichier.example\n")
+    monkeypatch.setattr(runtime, "FICHIER_ENV", fichier)
+
+    charger_env()
+
+    assert os.environ.get("ELECTRICORE_API_URL") == "https://depuis-le-systeme.example"
+
+
+def test_charger_env_sans_fichier_ne_fait_rien(monkeypatch):
+    """Seam de test : FICHIER_ENV None → aucun chargement, aucune erreur."""
+    monkeypatch.delenv("ELECTRICORE_API_URL", raising=False)
+    monkeypatch.setattr(runtime, "FICHIER_ENV", None)
+
+    charger_env()  # ne doit pas lever
+
+    assert os.environ.get("ELECTRICORE_API_URL") is None
 
 
 # --- Seam : résolution du dossier embarqué + construction de l'app ASGI ---
