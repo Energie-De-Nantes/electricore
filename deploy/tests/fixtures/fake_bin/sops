@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Fake `sops` pour les tests de secrets.sh / env_validate.sh (ADR-0044).
+# `sops decrypt … <file>` → si $FAKE_SOPS_FAIL=1, échoue (clé non destinataire) ;
+# sinon imprime un dotenv clair factice (valide pour validate_secrets_plaintext).
+[[ -n "${FAKE_SOPS_LOG:-}" ]] && printf '%s\n' "$*" >> "$FAKE_SOPS_LOG"
+
+if [[ "${FAKE_SOPS_FAIL:-0}" == "1" ]]; then
+    echo "fake sops: échec déchiffrement (clé non destinataire)" >&2
+    exit 1
+fi
+
+# Émet un clair factice cohérent (utilisé par validate_secrets_env).
+cat <<'EOF'
+API_KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+SFTP__URL=sftp://user:pass@host.fr:22/exports
+AES__TROUSSEAU__demo__KEY=00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
+EOF

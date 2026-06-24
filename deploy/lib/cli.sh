@@ -17,8 +17,11 @@ Options :
   --email <addr>         Email pour les notifications Let's Encrypt
                          (défaut: laisse le placeholder du Caddyfile, à éditer)
   --version <tag>        Tag GHCR à déployer (défaut: latest)
+  --deploy-repo <url>    Dépôt de déploiement PRIVÉ (secrets-as-code, ADR-0044) d'où
+                         pull providers/<slug>/{config.env,secrets.env}. La box y accède
+                         via sa deploy key SSH RO (générée à l'install).
   --env-from <file>      Charge un .env pré-rempli au lieu d'ouvrir l'éditeur
-                         (utile pour les tests e2e et déploiements scriptés)
+                         (legacy/migration ; utile pour les tests e2e et scripts)
   --skip-dns             N'attend pas la propagation DNS (test local)
   --no-harden            Saute tout le durcissement VPS (ADR-0031)
   --no-sshd              Durcit mais ne verrouille pas sshd (garde root SSH actif)
@@ -41,6 +44,7 @@ parse_args() {
     OPT_ADMIN_PUBKEY=""
     OPT_EMAIL=""
     OPT_VERSION="latest"
+    OPT_DEPLOY_REPO=""
     OPT_ENV_FROM=""
     OPT_SKIP_DNS=0
     OPT_NO_HARDEN=0
@@ -55,6 +59,7 @@ parse_args() {
             --admin-pubkey) OPT_ADMIN_PUBKEY="${2:-}"; shift 2 ;;
             --email)        OPT_EMAIL="${2:-}"; shift 2 ;;
             --version)      OPT_VERSION="${2:-}"; shift 2 ;;
+            --deploy-repo)  OPT_DEPLOY_REPO="${2:-}"; shift 2 ;;
             --env-from)     OPT_ENV_FROM="${2:-}"; shift 2 ;;
             --skip-dns)     OPT_SKIP_DNS=1; shift ;;
             --no-harden)    OPT_NO_HARDEN=1; shift ;;
