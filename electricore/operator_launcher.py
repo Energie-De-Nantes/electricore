@@ -76,6 +76,26 @@ def _manquantes_odoo() -> list[str]:
     return []
 
 
+def charger_env() -> None:
+    """Charge le `.env` à la racine du dépôt dans `os.environ` (précédence préservée).
+
+    Les creds Odoo passent par pydantic-settings (`_env_file`), mais
+    `ELECTRICORE_API_URL`/`ELECTRICORE_API_KEY` sont lues en direct via `os.getenv`
+    (ici et dans les notebooks). Sans ce chargement, un opérateur qui remplit `.env`
+    resterait « manquant ». Comme les apps marimo tournent dans le MÊME process
+    uvicorn lancé par `main()`, ce seul chargement les rend visibles à la fois pour
+    la validation et pour les notebooks.
+
+    `override=False` : une vraie variable d'env-système l'emporte toujours sur le
+    `.env` (précédence documentée, ADR-0024). `FICHIER_ENV is None` (seam de test)
+    → on ne fait rien.
+    """
+    from dotenv import load_dotenv
+
+    if runtime.FICHIER_ENV is not None:
+        load_dotenv(runtime.FICHIER_ENV, override=False)
+
+
 def valider_environnement() -> None:
     """Valide l'environnement requis ; sinon imprime un message clair et sort (non-nul).
 
@@ -138,7 +158,8 @@ def construire_app(directory: str | Path, *, prefixe: str = _PREFIXE_APPS):
 
 
 def main() -> None:
-    """Point d'entrée `electricore-notebooks` : valide, sert, ouvre le navigateur."""
+    """Point d'entrée `electricore-notebooks` : charge le .env, valide, sert, ouvre le navigateur."""
+    charger_env()
     valider_environnement()
 
     dossier = dossier_notebooks()
