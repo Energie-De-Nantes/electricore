@@ -91,7 +91,7 @@ models:
       Chronologie des relevés — VUE (ADR-0045) : star-join `chronologie_releves_situation ⨝
       releves ON releve_id` qui ré-attache le payload d'index (index_*/nature_index/
       id_calendrier_distributeur), faisant de `releves` la source de vérité unique
-      (ADR-0029/0038). Modèle consommé par le cœur (loader `chronologie()`) ; contrat
+      (ADR-0029/0038). Modèle consommé par le cœur (loader `chronologie_releves()`) ; contrat
       `ChronologieReleves` inchangé. Grain `(rsc, date_releve, ordre_index)` préservé : left
       join 1:1 (`releve_id` unique dans `releves`) — garanti par le test singulier de grain
       `assert_chronologie_releves_grain_unique`. L'intégrité référentielle `releve_id ⊆

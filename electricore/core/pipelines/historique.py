@@ -6,7 +6,7 @@ fonctionnelle de Polars. Les expressions sont des transformations pures
 qui peuvent être composées entre elles.
 
 Depuis ADR-0041 (#378), `pipeline_historique` est *rétréci* : il consomme la **spine**
-de la Chronologie du contrat (mart `spine_contrat`, loader `spine()`), déjà forward-fillée
+de la Chronologie du contrat (mart `spine_contrat`, loader `spine_contrat()`), déjà forward-fillée
 et augmentée de la grille FACTURATION mensuelle **en dbt** (#375), et ne fait plus que
 (1) **filtrer l'horizon** et (2) **détecter les ruptures d'abonnement**. La génération des
 FACTURATION, le forward-fill de situation et la détection énergie (`impacte_energie`,
@@ -223,7 +223,7 @@ def detecter_points_de_rupture(spine: pl.LazyFrame) -> pl.LazyFrame:
         `impacte_abonnement`, `resume_modification`
 
     Example:
-        >>> historique_enrichi = detecter_points_de_rupture(spine().lazy()).collect()
+        >>> historique_enrichi = detecter_points_de_rupture(spine_contrat().lazy()).collect()
     """
     return (
         spine.sort(
@@ -266,7 +266,7 @@ def pipeline_historique(spine: pl.LazyFrame, horizon: pl.Expr | dt.datetime | No
     Pipeline *rétréci* de production de l'Historique enrichi (branche abonnement).
 
     Depuis ADR-0041 (#378), `pipeline_historique` ne ré-assemble plus rien : il consomme
-    la **spine** (mart `spine_contrat`, loader `spine()`), déjà forward-fillée et augmentée
+    la **spine** (mart `spine_contrat`, loader `spine_contrat()`), déjà forward-fillée et augmentée
     de la grille FACTURATION mensuelle **en dbt** (#375). Il ne fait plus que :
     1. **Filtrer l'horizon** : `date_evenement <= horizon` (l'horizon reste un *filtre*,
        pureté #179 — la grille FACTURATION de la spine va jusqu'à une borne généreuse) ;
@@ -277,7 +277,7 @@ def pipeline_historique(spine: pl.LazyFrame, horizon: pl.Expr | dt.datetime | No
     ont quitté le cœur (portés par dbt — spine + *Chronologie des relevés*, #375/#377).
 
     Args:
-        spine: LazyFrame de la spine de la Chronologie du contrat (sortie de `spine()`),
+        spine: LazyFrame de la spine de la Chronologie du contrat (sortie de `spine_contrat()`),
             horizon-indépendante.
         horizon: borne de facturation, un `datetime` en Europe/Paris (ou `pl.Expr`).
             `None` → 1er du mois courant, résolu *une seule fois* en vraie heure de Paris.
@@ -290,11 +290,11 @@ def pipeline_historique(spine: pl.LazyFrame, horizon: pl.Expr | dt.datetime | No
     Example:
         >>> from datetime import datetime
         >>> from zoneinfo import ZoneInfo
-        >>> from electricore.core.loaders import spine
+        >>> from electricore.core.loaders import spine_contrat
         >>>
         >>> # Avec horizon explicite (déterministe)
         >>> horizon = datetime(2024, 5, 1, tzinfo=ZoneInfo("Europe/Paris"))
-        >>> enrichi = pipeline_historique(spine().lazy(), horizon)
+        >>> enrichi = pipeline_historique(spine_contrat().lazy(), horizon)
     """
     horizon_expr = _horizon_expr(horizon)
 

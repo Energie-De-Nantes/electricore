@@ -8,7 +8,7 @@ puissance, niveau d'ouverture, segment…) forward-fillés **en SQL** sur la tim
 d'événements complète (`last_value(<attr> IGNORE NULLS) OVER (PARTITION BY rsc ORDER BY
 date_evenement)`).
 
-Contrat (côté cœur) — ce que le loader `spine()` garantit :
+Contrat (côté cœur) — ce que le loader `spine_contrat()` garantit :
 
 - **`ref_situation_contractuelle` non-null** : la spine est partitionnée par RSC ; tout
   fait appartient à une situation contractuelle.

@@ -174,8 +174,8 @@ class TestContexteDuMois:
             def lazy(self):
                 return self._lf
 
-        monkeypatch.setattr(cm, "spine", lambda: _Query(spine_sentinel))
-        monkeypatch.setattr(cm, "chronologie", lambda: _Query(rel_sentinel))
+        monkeypatch.setattr(cm, "spine_contrat", lambda: _Query(spine_sentinel))
+        monkeypatch.setattr(cm, "chronologie_releves", lambda: _Query(rel_sentinel))
 
         captures: dict = {}
         composition = _make_stub_composition(debuts_mois=[datetime(2025, 3, 1)])
