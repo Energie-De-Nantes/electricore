@@ -169,8 +169,11 @@ validate_secrets_plaintext() {
 }
 
 # validate_secrets_env <secrets_file> <age_keyfile>
-# Déchiffre <secrets_file> (SOPS+age) avec <age_keyfile> EN MÉMOIRE (jamais sur disque)
-# et valide le clair via `validate_secrets_plaintext`. 0 si OK, 1 sinon (erreurs stdout).
+# Déchiffre <secrets_file> (SOPS+age) avec <age_keyfile> et valide le clair via
+# `validate_secrets_plaintext`. 0 si OK, 1 sinon (erreurs stdout). NB : chemin de
+# validation côté MACHINE ADMIN à la (re)config — PAS le runtime (l'entrypoint
+# `sops exec-env` n'écrit, lui, jamais de clair). Ici le clair transite par un tmp 0600
+# shreddé immédiatement (cf. plus bas pourquoi un fichier et pas un pipe).
 validate_secrets_env() {
     local file="$1"
     local keyfile="$2"
@@ -181,12 +184,16 @@ validate_secrets_env() {
         echo "déchiffrement SOPS échoué (clé age non destinataire ? fichier corrompu ?)"
         return 1
     fi
-    # On valide via un tmp en mémoire (mktemp puis suppression immédiate).
+    # validate_secrets_plaintext relit son argument plusieurs fois (un read_env_var/grep
+    # par variable) → une substitution de process (pipe à lecture unique) ne convient pas.
+    # Le clair touche donc un tmp 0600 (mktemp), shreddé immédiatement après validation.
+    # (Pas de trap de nettoyage ici : install.sh possède déjà un `trap … INT TERM` au
+    #  niveau process qu'on ne doit pas écraser depuis une fonction de lib.)
     local tmp; tmp=$(mktemp)
     printf '%s\n' "$plaintext" > "$tmp"
     local rc=0 out
     out=$(validate_secrets_plaintext "$tmp") || rc=1
-    rm -f "$tmp"
+    shred -u "$tmp" 2>/dev/null || rm -f "$tmp"
     [[ -n "$out" ]] && printf '%s\n' "$out"
     return "$rc"
 }
