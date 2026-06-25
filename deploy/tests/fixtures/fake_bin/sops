@@ -1,17 +1,28 @@
 #!/usr/bin/env bash
-# Fake `sops` pour les tests de secrets.sh / env_validate.sh (ADR-0044).
-# `sops decrypt … <file>` → si $FAKE_SOPS_FAIL=1, échoue (clé non destinataire) ;
-# sinon imprime un dotenv clair factice (valide pour validate_secrets_plaintext).
+# Fake `sops` pour les tests de secrets.sh / env_validate.sh / add-provider.sh (ADR-0044).
+# Sous-commandes simulées :
+#   decrypt … <file>      → si $FAKE_SOPS_FAIL=1, échoue ; sinon imprime un dotenv clair.
+#   updatekeys [--yes] f  → trace l'appel (re-wrap d'enveloppe) ; succès no-op.
 [[ -n "${FAKE_SOPS_LOG:-}" ]] && printf '%s\n' "$*" >> "$FAKE_SOPS_LOG"
 
-if [[ "${FAKE_SOPS_FAIL:-0}" == "1" ]]; then
-    echo "fake sops: échec déchiffrement (clé non destinataire)" >&2
-    exit 1
-fi
-
-# Émet un clair factice cohérent (utilisé par validate_secrets_env).
-cat <<'EOF'
+sub="${1:-}"
+case "$sub" in
+    updatekeys)
+        # Re-chiffrement d'enveloppe simulé : succès silencieux.
+        exit 0
+        ;;
+    decrypt|"")
+        if [[ "${FAKE_SOPS_FAIL:-0}" == "1" ]]; then
+            echo "fake sops: échec déchiffrement (clé non destinataire)" >&2
+            exit 1
+        fi
+        # Émet un clair factice cohérent (utilisé par validate_secrets_env).
+        cat <<'EOF'
 API_KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 SFTP__URL=sftp://user:pass@host.fr:22/exports
 AES__TROUSSEAU__demo__KEY=00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
 EOF
+        ;;
+    *)
+        echo "fake sops: sous-commande non simulée ($sub)" >&2; exit 1 ;;
+esac

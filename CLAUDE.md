@@ -242,11 +242,22 @@ déchiffrement. La bonne clé est **sélectionnée par essai** (oracle PKCS7 + m
 ZIP), sans aucune date ni notion de protocole — AES-128 et AES-256 sont le même schéma,
 la longueur de clé est auto-sélectionnée.
 
-Procédure de rotation :
+Procédure de rotation (secrets-as-code, ADR-0044) — en prod, le trousseau vit dans le
+`secrets.env` **chiffré** du provider, plus dans un `.env` édité sur la box :
 1. Obtenir la nouvelle clé Enedis
-2. L'ajouter au trousseau sous un nouveau label (`AES__TROUSSEAU__<nouveau>__KEY`, plus `__IV` seulement si Enedis en fournit un — schéma IV-fixe ; sans IV ⇒ IV-préfixé, ADR-0040)
-3. Relancer le pipeline — chaque fichier déchiffre avec la clé qui marche, par essai
+2. Sur la machine admin, édition chiffrée in-place : `sops providers/<slug>/secrets.env`,
+   ajouter un nouveau label (`AES__TROUSSEAU__<nouveau>__KEY`, plus `__IV` seulement si Enedis
+   en fournit un — schéma IV-fixe ; sans IV ⇒ IV-préfixé, ADR-0040)
+3. Commit → push → `reconfigure` sur la box (pull + déchiffre + restart) — chaque fichier
+   déchiffre avec la clé qui marche, par essai
 4. Retirer une vieille clé seulement quand plus aucune archive chiffrée avec elle n'est (re)téléchargeable
+
+> **`sops updatekeys` ≠ rotation de secret** (ADR-0044) : `updatekeys` (ex. ajout d'une box
+> via `deploy/add-provider.sh`) ne rote que l'**enveloppe** (destinataires age). Une clé qui a
+> pu **fuiter** doit être changée **à la source** (nouvelle clé Enedis), pas juste re-wrappée.
+
+(Dev local non-conteneur : `uv run` lit toujours `.env`/env système directement —
+pydantic-settings — non concerné par SOPS.)
 
 L'échec de déchiffrement n'est plus silencieux : un flux qui a des fichiers mais **0**
 déchiffrement réussi fait passer le job à `failed` → la surveillance bot alerte

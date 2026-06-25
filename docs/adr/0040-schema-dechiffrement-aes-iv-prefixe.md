@@ -82,6 +82,10 @@ d'ADR-0037 (trousseau N-clés, sélection par essai, escalade per-flux, rupture 
 - **Migration `.env` EDN** : ajouter `AES__TROUSSEAU__aes256_2026__KEY=<64hex>` **sans** `__IV` ; garder
   les labels AES-128 (avec IV) pour relire les archives. *Quels flux ont basculé* (R64 seul vs tous) se
   confirme à la sonde — sans incidence sur le design (le trial couvre un parc mixte).
+
+  > **Révisé par [ADR-0044](0044-secrets-as-code-sops-age.md)** : depuis secrets-as-code, ce label
+  > AES-256 (sans `__IV`) s'ajoute non plus dans un `.env` clair mais dans le `secrets.env` **chiffré**
+  > du provider : `sops providers/<slug>/secrets.env` → commit → push → `reconfigure`.
 - Glossaire : [`electricore/ingestion/CONTEXT.md`](../../electricore/ingestion/CONTEXT.md) — terme
   **« Schéma de déchiffrement »** ajouté, l'entrée *Trousseau* corrigée (la bascule **change de schéma**,
   pas seulement de longueur de clé).

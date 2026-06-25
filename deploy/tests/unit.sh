@@ -39,6 +39,11 @@ source "${LIB_DIR}/../harden.sh"
 # shellcheck source=../unharden.sh
 source "${LIB_DIR}/../unharden.sh"
 
+# `add-provider.sh` (outil admin secrets-as-code, ADR-0044) — guard
+# `main_add_provider` ; expose parse_add_provider_args + add_recipient_to_sops + add_provider.
+# shellcheck source=../add-provider.sh
+source "${LIB_DIR}/../add-provider.sh"
+
 PASS=0; FAIL=0
 ok() { printf '  \033[32m✓\033[0m %s\n' "$1"; PASS=$((PASS+1)); }
 ko() { printf '  \033[31m✗\033[0m %s\n' "$1"; FAIL=$((FAIL+1)); }
@@ -417,6 +422,38 @@ PATH="${FAKE_BIN}:$PATH" FAKE_SOPS_FAIL=1 validate_secrets_env "${secrets_root}/
 
 unset SRV_BASE
 rm -rf "$secrets_root"
+
+echo
+echo "→ add-provider.sh (parse + add_recipient + add_provider, fake sops)"
+# parse_add_provider_args : exige --provider-dir + --age-pubkey (format age1…)
+( parse_add_provider_args --provider-dir providers/edn --age-pubkey age1abcdef >/dev/null 2>&1
+  [[ "$OPT_PROVIDER_DIR" == "providers/edn" && "$OPT_AGE_PUBKEY" == "age1abcdef" && "$OPT_NO_UPDATEKEYS" == "0" ]]
+) && ok "parse_add_provider_args: --provider-dir + --age-pubkey" || ko "parse_add_provider_args minimal"
+assert_fail "parse_add_provider_args: --age-pubkey manquant" parse_add_provider_args --provider-dir providers/edn
+assert_fail "parse_add_provider_args: clé non-age rejetée"   parse_add_provider_args --provider-dir p --age-pubkey "ssh-ed25519 AAAA"
+( parse_add_provider_args --provider-dir p --age-pubkey age1zzz --no-updatekeys >/dev/null 2>&1
+  [[ "$OPT_NO_UPDATEKEYS" == "1" ]]
+) && ok "parse_add_provider_args: --no-updatekeys" || ko "parse_add_provider_args --no-updatekeys"
+
+# add_recipient_to_sops : insère un destinataire, idempotent au 2e appel.
+prov=$(mktemp -d)
+cp "${LIB_DIR}/../providers/example/.sops.yaml.example" "${prov}/.sops.yaml"
+add_recipient_to_sops "${prov}/.sops.yaml" "age1nouvelleboxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" >/dev/null 2>&1
+grep -q "age1nouvelleboxxx" "${prov}/.sops.yaml" && ok "add_recipient_to_sops: destinataire inséré" || ko "destinataire non inséré"
+add_recipient_to_sops "${prov}/.sops.yaml" "age1nouvelleboxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" >/dev/null 2>&1
+n=$(grep -c "age1nouvelleboxxx" "${prov}/.sops.yaml")
+assert_eq "$n" "1" "add_recipient_to_sops: idempotent (1 seule occurrence après 2 appels)"
+# L'admin (destinataire FACTICE toujours présent) survit à l'ajout.
+grep -q "age1adminFACTICE" "${prov}/.sops.yaml" && ok "add_recipient_to_sops: admin (toujours destinataire) préservé" || ko "admin effacé"
+
+# add_provider : ajoute + updatekeys (fake sops) ; --no-updatekeys saute le re-chiffrement.
+printf '#ENC[fake]\n' > "${prov}/secrets.env"
+PATH="${FAKE_BIN}:$PATH" SOPS_BIN=sops add_provider "$prov" "age1autreboxyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy" 1 >/dev/null 2>&1 \
+    && ok "add_provider: ajoute destinataire + updatekeys (fake sops réussit)" || ko "add_provider a échoué"
+grep -q "age1autreboxyyy" "${prov}/.sops.yaml" && ok "add_provider: 2e destinataire bien ajouté" || ko "2e destinataire absent"
+PATH="${FAKE_BIN}:$PATH" SOPS_BIN=sops add_provider "$prov" "age1encoreunboxzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz" 0 >/dev/null 2>&1 \
+    && ok "add_provider: --no-updatekeys ajoute sans re-chiffrer" || ko "add_provider --no-updatekeys"
+rm -rf "$prov"
 
 echo
 if [[ "$FAIL" -eq 0 ]]; then

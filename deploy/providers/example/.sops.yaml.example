@@ -1,0 +1,29 @@
+# EXEMPLE — règles SOPS pour un provider (ADR-0044). À COPIER dans le dépôt de
+# déploiement PRIVÉ sous providers/<slug>/.sops.yaml, puis remplacer les destinataires
+# FACTICES par les VRAIES clés publiques (admin + box). NE JAMAIS committer ce fichier
+# tel quel dans un dépôt avec de vrais secrets : ces clés sont des PLACEHOLDERS.
+#
+# Isolation CRYPTOGRAPHIQUE multi-cible (ADR-0044 §6) : chaque secrets.env n'est chiffré
+# QUE pour les destinataires de SA règle. Une box n'est destinataire que de SON provider
+# → elle ne peut pas déchiffrer ceux des autres. L'isolation n'est pas une convention de
+# dossiers, c'est la liste de destinataires.
+#
+# Destinataires (ADR-0044 §6) :
+#   - admin  : TOUJOURS, dans CHAQUE règle (récupération, rotation, edition).
+#   - box    : la clé age publique de la box qui sert ce provider.
+#   - la CI n'est JAMAIS destinataire (elle build des images publiques sans secret —
+#     elle ne déchiffre jamais ; cf. NOTE plus bas).
+
+creation_rules:
+  # Le chiffrement cible les fichiers secrets.env de ce provider.
+  - path_regex: secrets\.env$
+    key_groups:
+      - age:
+          # FACTICE — clé publique age de l'ADMIN (toujours destinataire).
+          - age1adminFACTICExxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx00
+          # FACTICE — clé publique age de la BOX qui sert ce provider.
+          - age1boxFACTICExxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx11
+
+# NOTE — la CI n'est PAS destinataire (ADR-0044 §6). Elle ne déchiffre jamais : elle
+# build des images publiques sans secret, garanties par le scan d'image. N'ajoute
+# JAMAIS de clé « CI » ici.
