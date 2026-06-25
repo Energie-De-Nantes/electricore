@@ -44,6 +44,11 @@ source "${LIB_DIR}/../unharden.sh"
 # shellcheck source=../add-provider.sh
 source "${LIB_DIR}/../add-provider.sh"
 
+# `smoke.sh` (fume l'image Docker buildée, issue #435) — guard `main_smoke` ;
+# expose smoke_image + smoke_importabilite + smoke_dechiffrement.
+# shellcheck source=../docker/smoke.sh
+source "${LIB_DIR}/../docker/smoke.sh"
+
 PASS=0; FAIL=0
 ok() { printf '  \033[32m✓\033[0m %s\n' "$1"; PASS=$((PASS+1)); }
 ko() { printf '  \033[31m✗\033[0m %s\n' "$1"; FAIL=$((FAIL+1)); }
@@ -414,6 +419,51 @@ SOPS_EX="${LIB_DIR}/../providers/example/.sops.yaml.example"
 n_age=$(grep -cE '^[[:space:]]*- age1' "$SOPS_EX")
 assert_eq "$n_age" "3" ".sops.yaml.example: 3 destinataires (admin ops + escrow + box)"
 grep -qi "escrow" "$SOPS_EX" && ok ".sops.yaml.example: clé escrow modélisée + commentée" || ko "escrow absent du modèle"
+
+echo
+echo "→ smoke.sh (fume l'image Docker — fake docker)"
+# Fixtures SOPS factices : le fake docker ne les lit pas (il simule l'entrypoint),
+# elles n'ont qu'à exister pour les montages `-v`.
+SMOKE_FIX=$(mktemp -d); : > "${SMOKE_FIX}/secrets.env"; : > "${SMOKE_FIX}/test_age.key"
+PATH="${FAKE_BIN}:$PATH" DOCKER_BIN=docker SMOKE_FIXTURES_DIR="$SMOKE_FIX" \
+    assert_ok "smoke_image: image saine (import + déchiffrement OK) → succès" \
+    smoke_image "electricore:test"
+
+# Importabilité cassée → échec qui NOMME la vérification fautive.
+out=$(PATH="${FAKE_BIN}:$PATH" DOCKER_BIN=docker SMOKE_FIXTURES_DIR="$SMOKE_FIX" \
+    FAKE_SMOKE_IMPORT_FAIL=1 smoke_image "electricore:test" 2>&1); rc=$?
+[[ "$rc" -ne 0 ]] && ok "smoke_image: import cassé → exit non-zero" || ko "smoke_image: import cassé devait échouer"
+grep -qi "importabilité" <<<"$out" && ok "smoke_image: import cassé → message nomme l'importabilité" || ko "smoke_image: message d'échec import manquant"
+
+# Déchiffrement cassé (entrypoint fail-fast) → échec qui NOMME la vérification fautive.
+out=$(PATH="${FAKE_BIN}:$PATH" DOCKER_BIN=docker SMOKE_FIXTURES_DIR="$SMOKE_FIX" \
+    FAKE_SMOKE_DECRYPT_FAIL=1 smoke_image "electricore:test" 2>&1); rc=$?
+[[ "$rc" -ne 0 ]] && ok "smoke_image: déchiffrement cassé → exit non-zero" || ko "smoke_image: déchiffrement cassé devait échouer"
+grep -qi "déchiffrement" <<<"$out" && ok "smoke_image: déchiffrement cassé → message nomme le déchiffrement" || ko "smoke_image: message d'échec déchiffrement manquant"
+
+# Sans tag → erreur d'usage explicite (exit 2, distinct d'un échec de fumée).
+( smoke_image >/dev/null 2>&1 ); rc=$?
+[[ "$rc" -eq 2 ]] && ok "smoke_image: sans tag → exit 2 (usage)" || ko "smoke_image: sans tag devait être exit 2 (got $rc)"
+
+# Détails PORTEURS (régression silencieuse = faux échec en CI) : on trace les appels docker.
+SMOKE_LOG=$(mktemp)
+PATH="${FAKE_BIN}:$PATH" DOCKER_BIN=docker SMOKE_FIXTURES_DIR="$SMOKE_FIX" FAKE_DOCKER_LOG="$SMOKE_LOG" \
+    smoke_image "electricore:test" >/dev/null 2>&1
+# L'import DOIT contourner l'entrypoint SOPS, sinon il fail-fast → faux échec (#434, ADR-0044 §3).
+grep -q -- '-e ELECTRICORE_DECRYPT=off' "$SMOKE_LOG" \
+    && ok "smoke_image: l'import contourne l'entrypoint (ELECTRICORE_DECRYPT=off, #434)" \
+    || ko "smoke_image: l'import ne pose pas ELECTRICORE_DECRYPT=off"
+# Le déchiffrement DOIT monter les deux secrets aux chemins attendus par l'entrypoint,
+# sinon il fail-fast (chemins par défaut /run/secrets/{secrets.env,age.key}).
+grep -Eq -- '-v [^ ]*/secrets\.env:/run/secrets/secrets\.env:ro' "$SMOKE_LOG" \
+    && ok "smoke_image: déchiffrement monte secrets.env → /run/secrets/secrets.env" \
+    || ko "smoke_image: secrets.env non monté au bon chemin"
+grep -Eq -- '-v [^ ]*/test_age\.key:/run/secrets/age\.key:ro' "$SMOKE_LOG" \
+    && ok "smoke_image: déchiffrement monte la clé age → /run/secrets/age.key" \
+    || ko "smoke_image: clé age non montée au bon chemin"
+rm -f "$SMOKE_LOG"
+
+rm -rf "$SMOKE_FIX"
 
 echo
 if [[ "$FAIL" -eq 0 ]]; then

@@ -1,0 +1,93 @@
+name: Docker image (build + smoke)
+
+# Workflow RÉUTILISABLE (issue #435). Build l'image, la scanne (TruffleHog) puis la
+# FUME (deploy/docker/smoke.sh : importabilité + déchiffrement) — et seulement si
+# `push: true` (release), la pousse vers GHCR en réhydratant le cache du build n°1.
+#
+# Appelé par :
+#   - ci.yml      (PR)  → push=false : build + scan + smoke, RIEN n'est poussé.
+#   - release.yml (tag) → push=true  : idem + push n°2 vers ghcr.io.
+#
+# Source unique du gate « build → scan → smoke → push » (avant #435 il vivait inline
+# dans release.yml, donc jamais exercé sur les PR — d'où des casses build/smoke restées
+# invisibles jusqu'au tag de release). Deux temps : on ne fait pas load+push dans le
+# même build (load = image locale, push = export direct ; ils ne cohabitent pas de
+# façon fiable sur un seul builder). La séquence garantit l'invariant : rien n'est
+# poussé tant que l'image n'a pas été scannée ET fumée.
+#
+# Pas de bloc `permissions:` ici : le workflow hérite des permissions que LUI DÉLÈGUE
+# l'appelant (ci.yml → contents:read ; release.yml/image → +packages:write pour le push).
+
+on:
+  workflow_call:
+    inputs:
+      push:
+        description: "Pousser l'image vers GHCR après le gate (release uniquement)."
+        type: boolean
+        default: false
+      push_tags:
+        description: "Tags GHCR à pousser (séparés par des virgules) — requis si push=true."
+        type: string
+        default: ""
+
+jobs:
+  build-smoke:
+    name: build + scan + smoke
+    runs-on: ubuntu-latest
+    env:
+      # Tag LOCAL du build n°1 (chargé dans le démon Docker, jamais poussé tel quel).
+      SMOKE_TAG: electricore:ci-smoke
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Login to GHCR
+        if: ${{ inputs.push }}
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      # Build n°1 : le vrai build. Charge l'image en local (load) pour le gate
+      # ci-dessous et alimente le cache GHA (cache-to) que le push n°2 réutilisera.
+      - name: Build image (n°1 — local, sans push, pour le gate scan + smoke)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/docker/Dockerfile
+          push: false
+          load: true
+          platforms: linux/amd64
+          tags: ${{ env.SMOKE_TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Scan image for verified secrets (TruffleHog)
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            trufflesecurity/trufflehog:latest \
+            docker --image "${SMOKE_TAG}" \
+            --only-verified \
+            --fail
+
+      # Fume l'image : importabilité (entrypoint SOPS contourné, #434) + déchiffrement
+      # RÉEL (entrypoint SOPS + fixtures de test → label AES dynamique injecté, #435).
+      - name: Smoke-test image (importabilité + déchiffrement)
+        run: bash deploy/docker/smoke.sh "${SMOKE_TAG}"
+
+      # Build n°2 : réhydrate le cache GHA du build n°1 (cache-from) → quasi rien à
+      # reconstruire ; l'essentiel du temps est l'export + le push. Release uniquement.
+      - name: Push image vers GHCR (n°2 — cache du n°1 réhydraté, quasi gratuit)
+        if: ${{ inputs.push }}
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/docker/Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: ${{ inputs.push_tags }}
+          cache-from: type=gha

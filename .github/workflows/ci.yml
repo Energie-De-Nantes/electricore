@@ -124,3 +124,22 @@ jobs:
       - name: Lancer les tests du client (les tests Arrow se skippent sans polars)
         run: |
           /tmp/client-venv/bin/python -m pytest packages/electricore-client/tests -q
+
+  deploy-tests:
+    name: deploy shell tests (bash, fake-binaries)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # Couvre les helpers deploy/lib/ + deploy/docker/smoke.sh (secrets-as-code,
+      # ADR-0044 ; smoke d'image, #435). Bash pur, fake-binaires docker/git/sops,
+      # zéro dépendance → ces logiques d'infra étaient jusqu'ici hors-CI.
+      - name: Run deploy unit tests
+        run: bash deploy/tests/unit.sh
+
+  # Build + scan + smoke de l'image Docker sur CHAQUE PR (#435) — via le workflow
+  # réutilisable partagé avec release.yml. `push` reste à false : seul release.yml pousse.
+  docker-image:
+    name: docker image (build + smoke)
+    permissions:
+      contents: read
+    uses: ./.github/workflows/docker-image.yml
