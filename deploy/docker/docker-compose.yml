@@ -47,7 +47,7 @@ services:
     env_file:
       - ../../config.env
     environment:
-      DUCKDB_PATH: /data/flux_enedis_pipeline.duckdb
+      DUCKDB__PATH: /data/flux_enedis_pipeline.duckdb
       # Secrets SOPS+age (ADR-0044) : l'entrypoint déchiffre secrets.env avec la clé age.
       SOPS_AGE_KEY_FILE: /run/secrets/age.key
       SECRETS_ENV_FILE: /run/secrets/secrets.env
@@ -83,7 +83,7 @@ services:
     env_file:
       - ../../config.env
     environment:
-      DUCKDB_PATH: /data/flux_enedis_pipeline.duckdb
+      DUCKDB__PATH: /data/flux_enedis_pipeline.duckdb
       TZ: Europe/Paris
       # Secrets SOPS+age (ADR-0044) : l'entrypoint déchiffre secrets.env (SFTP/AES).
       SOPS_AGE_KEY_FILE: /run/secrets/age.key

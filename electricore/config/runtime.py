@@ -1,8 +1,9 @@
 """Registre runtime : lecteur unique de la configuration d'exécution (ADR-0024/0025, #141).
 
 Un `BaseSettings` pydantic-settings indépendant par domaine (sftp, aes, duckdb,
-api, bot, odoo), mappé sur les noms de variables existants — aucun renommage.
-Deux sources, dans cet ordre de précédence : env-système > `.env` à la racine
+api, bot, odoo), mappé sur les noms `<DOMAINE>__<CHAMP>` (convention ADR-0046 ;
+ex. `BOT__TOKEN`, `DUCKDB__PATH`, `API__TITLE`). Deux sources, dans cet ordre de
+précédence : env-système > `.env` à la racine
 du dépôt. Accès par accessors de module mis en cache ; `valider(*accessors)`
 offre le fail-fast par point d'entrée.
 """
@@ -56,7 +57,7 @@ class Duckdb(BaseSettings):
 
     model_config = SettingsConfigDict(populate_by_name=True, extra="ignore")
 
-    chemin: Path = Field(default=_DEFAUT_BASE_DUCKDB, validation_alias="DUCKDB_PATH")
+    chemin: Path = Field(default=_DEFAUT_BASE_DUCKDB, validation_alias="DUCKDB__PATH")
 
 
 class Sftp(BaseSettings):
@@ -147,10 +148,10 @@ class Api(BaseSettings):
 
     model_config = SettingsConfigDict(populate_by_name=True, extra="ignore")
 
-    titre: str = Field(default="ElectriCore API", validation_alias="API_TITLE")
-    version: str = Field(default_factory=_version_package, validation_alias="API_VERSION")
+    titre: str = Field(default="ElectriCore API", validation_alias="API__TITLE")
+    version: str = Field(default_factory=_version_package, validation_alias="API__VERSION")
     description: str = Field(
-        default="API sécurisée pour accéder aux données flux Enedis", validation_alias="API_DESCRIPTION"
+        default="API sécurisée pour accéder aux données flux Enedis", validation_alias="API__DESCRIPTION"
     )
     instance_slug: str = Field(default="", validation_alias="INSTANCE_SLUG")
     cle: str = Field(default="", validation_alias="API_KEY")
@@ -173,9 +174,9 @@ class Bot(BaseSettings):
 
     model_config = SettingsConfigDict(populate_by_name=True, extra="ignore")
 
-    token: str = Field(validation_alias="TELEGRAM_BOT_TOKEN")
-    allowed_users: str = Field(default="", validation_alias="TELEGRAM_ALLOWED_USERS")
-    notify_chat_id: str = Field(default="", validation_alias="TELEGRAM_NOTIFY_CHAT_ID")
+    token: str = Field(validation_alias="BOT__TOKEN")
+    allowed_users: str = Field(default="", validation_alias="BOT__ALLOWED_USERS")
+    notify_chat_id: str = Field(default="", validation_alias="BOT__NOTIFY_CHAT_ID")
 
     def utilisateurs_autorises(self) -> set[int]:
         """Allowlist Telegram : IDs entiers, les entrées invalides sont ignorées."""
@@ -259,7 +260,7 @@ def odoo_env_actif() -> str:
 
 
 def bot_est_configure() -> bool:
-    """L'instance a-t-elle un bot Telegram ? (TELEGRAM_BOT_TOKEN présent)."""
+    """L'instance a-t-elle un bot Telegram ? (BOT__TOKEN présent)."""
     try:
         bot()
     except ConfigurationManquante:

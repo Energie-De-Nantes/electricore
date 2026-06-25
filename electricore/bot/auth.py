@@ -1,7 +1,7 @@
 """Contrôle d'accès du bot : allowlist Telegram appliquée par décorateur.
 
 Voir [CONTEXT.md](CONTEXT.md) — allowlist d'IDs numériques via
-`TELEGRAM_ALLOWED_USERS`, pas de rôles ni de granularité (ADR-0010).
+`BOT__ALLOWED_USERS`, pas de rôles ni de granularité (ADR-0010).
 """
 
 import functools

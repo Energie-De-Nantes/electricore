@@ -32,7 +32,7 @@ a été retiré (#141) — les clés vivent en variables d'environnement uniquem
 
 | variable | rôle | défaut |
 |---|---|---|
-| `DUCKDB_PATH` | la base DuckDB de production — résolue par le domaine `duckdb` du registre (`runtime.duckdb().chemin`, issue #146), consommé par les loaders core, l'API, le runner d'ingestion et les tools (`reset_incremental_state`). En Docker : `/data/flux_enedis_pipeline.duckdb` (volume) | `electricore/ingestion/flux_enedis_pipeline.duckdb` (absolu, ancré sur le dépôt — indépendant du CWD) |
+| `DUCKDB__PATH` | la base DuckDB de production — résolue par le domaine `duckdb` du registre (`runtime.duckdb().chemin`, issue #146), consommé par les loaders core, l'API, le runner d'ingestion et les tools (`reset_incremental_state`). En Docker : `/data/flux_enedis_pipeline.duckdb` (volume) | `electricore/ingestion/flux_enedis_pipeline.duckdb` (absolu, ancré sur le dépôt — indépendant du CWD) |
 | `DBT_DUCKDB_PATH` | chemin vu par dbt (`ingestion/dbt/profiles.yml`) — **seul pont `os.environ`** (ADR-0025), positionné par le runner autour de l'invocation dbt (scopé `try/finally`) ; ne se règle pas à la main | suit `runtime.duckdb().chemin` via le runner |
 
 Schémas dans la base : `flux_raw` (brut JSON), `flux_enedis` (tables typées, lues par
@@ -46,16 +46,16 @@ qu'une façade de compatibilité (`settings`) déléguant au registre.
 | variable | rôle | défaut |
 |---|---|---|
 | `API_KEY` / `API_KEYS` | clé(s) d'authentification (`X-API-Key`) | — |
-| `API_TITLE` / `API_DESCRIPTION` / `API_VERSION` | métadonnées OpenAPI | version du paquet |
+| `API__TITLE` / `API__DESCRIPTION` / `API__VERSION` | métadonnées OpenAPI | version du paquet |
 | `INSTANCE_SLUG` | identifiant d'instance (multi-déploiements) | `""` |
 
 ### Bot Telegram
 
 | variable | rôle |
 |---|---|
-| `TELEGRAM_BOT_TOKEN` | token du bot |
-| `TELEGRAM_ALLOWED_USERS` | allowlist d'IDs utilisateurs |
-| `TELEGRAM_NOTIFY_CHAT_ID` | chat des alertes proactives (échec d'un job d'ingestion, scheduler compris) ; vide = désactivé |
+| `BOT__TOKEN` | token du bot |
+| `BOT__ALLOWED_USERS` | allowlist d'IDs utilisateurs |
+| `BOT__NOTIFY_CHAT_ID` | chat des alertes proactives (échec d'un job d'ingestion, scheduler compris) ; vide = désactivé |
 
 `API_BASE_URL` a été **supprimée** (#141/ADR-0025) : le bot tourne dans le processus de
 l'API et la joint en interne (`localhost:8001`) — aucune variable requise.
@@ -87,7 +87,7 @@ ce sont les modèles SQL `ingestion/dbt/models/` — voir [ingestion.md](ingesti
 
 | fichier | rôle |
 |---|---|
-| `docker-compose.yml` | services api/bot/ingestion-scheduler ; `env_file: .env` + `environment:` (`DUCKDB_PATH=/data/...`, `TZ=Europe/Paris`) ; volume `duckdb_data` |
+| `docker-compose.yml` | services api/bot/ingestion-scheduler ; `env_file: .env` + `environment:` (`DUCKDB__PATH=/data/...`, `TZ=Europe/Paris`) ; volume `duckdb_data` |
 | `crontab` (copié de `crontab.example`) | planning : `/ingestion/run all` à 02:00 via l'API, backup à 03:30 |
 | `Caddyfile` (copié de `.example`) | reverse proxy TLS |
 | `backup_duckdb.sh` | sauvegarde quotidienne de la base |

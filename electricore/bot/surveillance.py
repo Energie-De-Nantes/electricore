@@ -2,7 +2,7 @@
 
 Le bot reste pur client HTTP : c'est lui qui interroge périodiquement
 `/ingestion/jobs` et pousse une alerte dans le chat de notification
-(`TELEGRAM_NOTIFY_CHAT_ID`) quand un job passe à `failed` — y compris les
+(`BOT__NOTIFY_CHAT_ID`) quand un job passe à `failed` — y compris les
 jobs lancés par le scheduler, pas seulement ceux lancés depuis Telegram.
 
 Au démarrage, l'historique est marqué « vu » sans alerte ; seuls les échecs

@@ -106,7 +106,7 @@ Le notebook génère une évaluation automatique :
 ### Variables d'environnement
 ```bash
 # Chemin vers la base DuckDB (optionnel, utilise la config par défaut)
-DUCKDB_PATH="electricore/ingestion/flux_enedis_pipeline.duckdb"
+DUCKDB__PATH="electricore/ingestion/flux_enedis_pipeline.duckdb"
 ```
 
 ## 🚨 Résolution des problèmes

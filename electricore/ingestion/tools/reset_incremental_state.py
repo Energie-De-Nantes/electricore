@@ -7,7 +7,7 @@ DLT stocke l'état dans DEUX endroits :
   2. DuckDB         : flux_raw._dlt_pipeline_state            (restauré au lancement)
 
 Ce script met à jour les deux de manière cohérente. La base visée est résolue
-par `runtime.duckdb().chemin` (DUCKDB_PATH, .env compris — issue #146) : le script
+par `runtime.duckdb().chemin` (DUCKDB__PATH, .env compris — issue #146) : le script
 se lance depuis n'importe quel répertoire.
 
 Usage :

@@ -170,7 +170,7 @@ with client.chronologie(pdl="12345678901234") as flux:
 
 L'exploitation quotidienne (ingestion, exports, taxes, contrôles pré-facturation) passe par un
 bot Telegram ([ADR-0010](docs/adr/0010-bot-telegram-ui-operationnelle.md)) démarré dans le process
-de l'API quand `TELEGRAM_BOT_TOKEN` est défini. Cinq domaines : `/ingestion`, `/flux`,
+de l'API quand `BOT__TOKEN` est défini. Cinq domaines : `/ingestion`, `/flux`,
 `/perimetre`, `/taxes`, `/facturation` (sans argument = clavier découvrable ; avec argument =
 action directe). Voir le [README du bot](electricore/bot/README.md).
 
@@ -337,7 +337,7 @@ ODOO_ENV=prod
 # secrets.env — CHIFFRÉ (SOPS + age) : uniquement des credentials
 API_KEY=cle_api_d_au_moins_32_caracteres          # ou API_KEYS=cle1,cle2
 SFTP__URL=sftp://utilisateur:mot_de_passe@hote:22/chemin
-TELEGRAM_BOT_TOKEN=token_botfather                # bot = process de l'API
+BOT__TOKEN=token_botfather                        # bot = process de l'API
 ODOO_PROD_URL=https://votre-instance.odoo.com     # + _DB / _USERNAME / _PASSWORD
 # Trousseau de clés AES (ADR-0037/0040) : un <label> parlant par clé, sélection par essai.
 # __IV optionnel : absent ⇒ schéma IV-préfixé (AES-256) ; présent ⇒ IV-fixe (AES-128).

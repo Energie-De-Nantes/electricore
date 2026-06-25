@@ -9,6 +9,6 @@ SFTP__URL=sftp://user:pass@host.fr:22/exports  # gitleaks:allow
 AES__TROUSSEAU__aes256_2026__KEY=00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff  # gitleaks:allow
 AES__TROUSSEAU__aes128_2024__KEY=00112233445566778899aabbccddeeff  # gitleaks:allow
 AES__TROUSSEAU__aes128_2024__IV=ffeeddccbbaa99887766554433221100  # gitleaks:allow
-TELEGRAM_BOT_TOKEN=
+BOT__TOKEN=
 QUOTED_VALUE="hello world"
 WITH_COMMENT=foo   # trailing comment ignored

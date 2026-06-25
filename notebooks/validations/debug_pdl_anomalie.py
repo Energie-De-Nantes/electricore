@@ -21,7 +21,7 @@ def _():
 
     charger_env()
     PDL_CIBLE = "14290738060355"
-    DB_PATH = os.getenv("DUCKDB_PATH", "electricore/ingestion/flux_enedis_pipeline.duckdb")
+    DB_PATH = os.getenv("DUCKDB__PATH", "electricore/ingestion/flux_enedis_pipeline.duckdb")
     return DB_PATH, PDL_CIBLE, c15, pl, releves
 
 

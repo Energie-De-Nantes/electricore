@@ -42,7 +42,7 @@ PROJET_DBT = ICI / "dbt"
 
 
 def chemin_db_defaut() -> Path:
-    """Base cible par défaut : DUCKDB_PATH (.env compris, volume Docker via compose)
+    """Base cible par défaut : DUCKDB__PATH (.env compris, volume Docker via compose)
     sinon la base de prod locale — résolution partagée avec l'API et les loaders
     core via le registre runtime (`runtime.duckdb().chemin`, #141/#146)."""
     return runtime.duckdb().chemin
@@ -249,7 +249,7 @@ def main() -> None:
         "'resync' (re-télécharge tout) ou liste de flux",
     )
     parseur.add_argument(
-        "--db", type=Path, default=None, help="base DuckDB cible (défaut : $DUCKDB_PATH ou la base de prod locale)"
+        "--db", type=Path, default=None, help="base DuckDB cible (défaut : $DUCKDB__PATH ou la base de prod locale)"
     )
     parseur.add_argument("--max-files", type=int, default=None, help="limite de fichiers par flux")
     args = parseur.parse_args()

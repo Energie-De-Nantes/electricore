@@ -121,8 +121,8 @@ marquées `# TODO:`. Voici la table de référence (cf. aussi
 
 | Variable | Notes |
 |---|---|
-| `TELEGRAM_BOT_TOKEN` | Via [@BotFather](https://t.me/BotFather). Convention : `<slug>_electricore_bot`. |
-| `TELEGRAM_ALLOWED_USERS` | IDs Telegram autorisés (séparés par virgules). Via [@userinfobot](https://t.me/userinfobot). |
+| `BOT__TOKEN` | Via [@BotFather](https://t.me/BotFather). Convention : `<slug>_electricore_bot`. |
+| `BOT__ALLOWED_USERS` | IDs Telegram autorisés (séparés par virgules). Via [@userinfobot](https://t.me/userinfobot). |
 
 **Odoo** (optionnel — requis pour `/taxes/*` et `/facturation/check/odoo`)
 
@@ -258,7 +258,7 @@ Vérifs manuelles complémentaires :
 - [ ] `curl https://<slug>.electricore.fr/health` retourne `{"status":"ok","instance":"<slug>"}`.
 - [ ] `/docs` ouvre l'API et le titre contient `<slug>` (ex : `ElectriCore API — EDN`).
 - [ ] Certificat Let's Encrypt valide (badge cadenas).
-- [ ] Bot Telegram répond à `/start` pour un user dans `TELEGRAM_ALLOWED_USERS`.
+- [ ] Bot Telegram répond à `/start` pour un user dans `BOT__ALLOWED_USERS`.
 
 ### 7. Documenter et archiver
 
@@ -310,7 +310,7 @@ Le `.env` se scinde en deux :
 | Fichier | Contenu | Versionné | Chiffré |
 |---|---|---|---|
 | `config.env` | config NON secrète + substitutions compose (`INSTANCE_SLUG`, `ELECTRICORE_VERSION`, `BACKUPS_PATH`, `ODOO_ENV`…) | oui | non (clair) |
-| `secrets.env` | **uniquement** des credentials (`SFTP__URL`, trousseau `AES__TROUSSEAU__*`, `API_KEY`/`API_KEYS`, `TELEGRAM_BOT_TOKEN`, bloc `ODOO_*`) | oui | **oui** (SOPS + age) |
+| `secrets.env` | **uniquement** des credentials (`SFTP__URL`, trousseau `AES__TROUSSEAU__*`, `API_KEY`/`API_KEYS`, `BOT__TOKEN`, bloc `ODOO_*`) | oui | **oui** (SOPS + age) |
 
 `docker compose` résout ses substitutions `${...}` **côté hôte avant tout conteneur**
 → il lui faut du clair, d'où `config.env` séparé. Les credentials, eux, sont déchiffrés
@@ -380,7 +380,7 @@ de secrets en clair se fait **sur la machine admin** et **n'est jamais committé
 2. **Machine admin** — scinder le `.env` vivant récupéré de la box en deux :
    - `config.env` ← `INSTANCE_SLUG`, `ELECTRICORE_VERSION`, `BACKUPS_PATH`, config non-secrète ;
    - `secrets.env.clair` ← `SFTP__URL`, `AES__TROUSSEAU__*`, `API_KEY`/`API_KEYS`,
-     `TELEGRAM_BOT_TOKEN`, `ODOO_*`.
+     `BOT__TOKEN`, `ODOO_*`.
 3. **Machine admin** — chiffrer **sur place**, jamais committer le clair :
    ```bash
    sops encrypt --input-type dotenv --output-type dotenv \
@@ -996,7 +996,7 @@ reconfigure pour ré-éditer `.env` proprement.
 ### Le bot Telegram ne répond pas
 
 - Vérifier que `bot.running: true` dans `/health`.
-- Vérifier que votre ID Telegram est listé dans `TELEGRAM_ALLOWED_USERS`.
+- Vérifier que votre ID Telegram est listé dans `BOT__ALLOWED_USERS`.
 - Logs : `sudo -u <slug> docker compose -f /srv/<slug>/deploy/docker/docker-compose.yml logs api | grep -i telegram`.
 
 ### Erreur de permissions sur `/srv/<slug>/backups/`
