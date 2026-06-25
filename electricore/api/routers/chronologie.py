@@ -12,39 +12,14 @@ métadonnées (`contract_version`, `grain`) remontent dans les en-têtes. Le mod
 **single-sourcé** dans `electricore_client`.
 """
 
-import datetime as dt
-from collections.abc import Iterator
-
 from electricore_client.models import valider_ligne_chronologie
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import StreamingResponse
 
 from electricore.api.security import get_current_api_key
+from electricore.api.serializers.jsonl import jsonl_response
 from electricore.api.services.chronologie_service import CONTRAT_VERSION, chronologie_point_ou_contrat
 
 router = APIRouter(tags=["facturation"])
-
-MEDIA_TYPE_JSONL = "application/jsonl"
-
-
-def _stringifier_dates(ligne: dict) -> dict:
-    """Rend les `datetime`/`date` de la ligne en ISO8601 (le contrat porte des `str`)."""
-    return {
-        clef: (valeur.isoformat() if isinstance(valeur, (dt.datetime, dt.date)) else valeur)
-        for clef, valeur in ligne.items()
-    }
-
-
-def _lignes_jsonl(rows: list[dict]) -> Iterator[bytes]:
-    """Valide chaque ligne via l'union discriminée et l'émet comme une ligne JSONL.
-
-    Les clés à valeur nulle sont retirées (un registre/une énergie nul n'est jamais
-    émis, conformément au service) avant la résolution de l'union.
-    """
-    for row in rows:
-        propres = {clef: valeur for clef, valeur in _stringifier_dates(row).items() if valeur is not None}
-        ligne = valider_ligne_chronologie(propres)
-        yield (ligne.model_dump_json(exclude_none=True) + "\n").encode()
 
 
 @router.get("/facturation/chronologie")
@@ -79,7 +54,9 @@ async def get_chronologie(
         raise HTTPException(422, "Fournir un grain : `pdl` (point) ou `rsc` (contrat).")
 
     frise = chronologie_point_ou_contrat(pdl=pdl, rsc=rsc)
-    rows = frise.to_dicts()
     grain = "point" if pdl is not None else "contrat"
     headers = {"X-Contract-Version": str(CONTRAT_VERSION), "X-Grain": grain}
-    return StreamingResponse(_lignes_jsonl(rows), media_type=MEDIA_TYPE_JSONL, headers=headers)
+    # `omettre_les_nuls=True` : clés nulles retirées avant la résolution de l'union discriminée
+    # (registre/énergie nul jamais émis) + `exclude_none` au dump. Validate-then-stream (#427)
+    # → une ligne hors-contrat fait un 500 atomique avant tout octet.
+    return jsonl_response(frise, valider=valider_ligne_chronologie, headers=headers, omettre_les_nuls=True)
