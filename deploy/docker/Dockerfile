@@ -33,6 +33,10 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 # Couche projet : on copie le code et on l'installe dans le venv
 COPY electricore/ ./electricore/
+# Les notebooks opérateur sont force-inclus dans le wheel electricore (pont #414,
+# → electricore/_operator_notebooks/) : hatchling exige leur source présente à l'install
+# de la racine. Sans eux, `uv sync` casse (FileNotFoundError: Forced include not found).
+COPY notebooks/accueil.py notebooks/facturation.py notebooks/injection_rsc.py ./notebooks/
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --extra ingestion --extra dbt --no-dev
 
