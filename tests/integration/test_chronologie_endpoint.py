@@ -141,6 +141,37 @@ def test_chronologie_pas_de_montant_tarifaire(monkeypatch, frise_synthetique):
     assert "accise" not in payload
 
 
+def test_chronologie_ligne_hors_contrat_500_atomique(monkeypatch):
+    """Une ligne hors-contrat (`type_ligne` hors de l'union discriminée) fait un **500 propre**
+    *avant* tout octet — pas un 200 tronqué en cours de flux (validate-then-stream, #427)."""
+    frise_cassee = pl.DataFrame(
+        [
+            {
+                "type_ligne": "bidon",  # hors union evenement|releve|periode_energie
+                "date": datetime(2024, 1, 5, tzinfo=PARIS),
+                "pdl": "PDL_X",
+                "ref_situation_contractuelle": "REF_1",
+            }
+        ],
+        infer_schema_length=None,
+    )
+    app.dependency_overrides[get_current_api_key] = lambda: "test-key"
+    monkeypatch.setattr(
+        "electricore.api.routers.chronologie.chronologie_point_ou_contrat",
+        lambda pdl=None, rsc=None: frise_cassee,
+    )
+    try:
+        client = TestClient(app, raise_server_exceptions=False)
+        response = client.get("/facturation/chronologie", params={"pdl": "PDL_X"})
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 500
+    # Le flux n'a pas commencé : pas de données de frise dans le corps.
+    assert not response.headers["content-type"].startswith("application/jsonl")
+    assert "type_ligne" not in response.text
+
+
 def test_chronologie_refuse_sans_api_key():
     """Endpoint sécurisé : 401 sans clé."""
     response = TestClient(app).get("/facturation/chronologie", params={"pdl": "PDL_X"})
