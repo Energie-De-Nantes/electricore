@@ -10,6 +10,10 @@ Accepté (grill 25/06/2026, `/grill-with-docs`). S'appuie sur [ADR-0011](0011-de
 et [ADR-0040](0040-schema-dechiffrement-aes-iv-prefixe.md) (« éditer le `.env` » → éditer le `secrets.env`
 chiffré). Porté par la chaîne d'issues *secrets-as-code* (à créer via `/to-issues`).
 
+> **Vue d'ensemble visuelle** — diagramme [`secrets-as-code-sops`](../secrets-as-code-sops.png)
+> ([source Excalidraw](../secrets-as-code-sops.excalidraw)) : où vit quoi (admin / dépôt privé /
+> box VPS), le cycle de vie d'un secret, les sécurités en place, et l'ouverture sur la suite.
+
 ## Contexte
 
 Aujourd'hui les secrets vivent en clair dans `/srv/<slug>/.env` ([ADR-0017](0017-layout-deploiement-srv-slug.md)) :
