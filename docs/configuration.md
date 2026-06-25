@@ -45,7 +45,7 @@ qu'une façade de compatibilité (`settings`) déléguant au registre.
 
 | variable | rôle | défaut |
 |---|---|---|
-| `API_KEY` / `API_KEYS` | clé(s) d'authentification (`X-API-Key`) | — |
+| `API__TROUSSEAU__<consommateur>__KEY` | trousseau de clés d'authentification (`X-API-Key`), une par consommateur — révocation ciblée + attribution (ADR-0046 §4) | — |
 | `API__TITLE` / `API__DESCRIPTION` / `API__VERSION` | métadonnées OpenAPI | version du paquet |
 | `INSTANCE_SLUG` | identifiant d'instance (multi-déploiements) | `""` |
 

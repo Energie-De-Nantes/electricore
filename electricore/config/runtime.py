@@ -143,10 +143,24 @@ def _version_package() -> str:
         return "0.0.0+unknown"
 
 
-class Api(BaseSettings):
-    """Domaine api : identité de l'instance et clés d'authentification."""
+class CleConsommateur(BaseSettings):
+    """Clé d'un consommateur de l'API, dans le trousseau (ADR-0046 §4)."""
 
-    model_config = SettingsConfigDict(populate_by_name=True, extra="ignore")
+    model_config = SettingsConfigDict(extra="ignore")
+
+    key: str
+
+
+class Api(BaseSettings):
+    """Domaine api : identité de l'instance et trousseau de clés des consommateurs.
+
+    Trousseau étiqueté `API__TROUSSEAU__<consommateur>__KEY` (ADR-0046 §4, calqué sur
+    le trousseau AES) : une clé par consommateur → révocation ciblée + attribution.
+    """
+
+    model_config = SettingsConfigDict(
+        env_prefix="API__", env_nested_delimiter="__", populate_by_name=True, extra="ignore"
+    )
 
     titre: str = Field(default="ElectriCore API", validation_alias="API__TITLE")
     version: str = Field(default_factory=_version_package, validation_alias="API__VERSION")
@@ -154,19 +168,26 @@ class Api(BaseSettings):
         default="API sécurisée pour accéder aux données flux Enedis", validation_alias="API__DESCRIPTION"
     )
     instance_slug: str = Field(default="", validation_alias="INSTANCE_SLUG")
-    cle: str = Field(default="", validation_alias="API_KEY")
-    cles: str = Field(default="", validation_alias="API_KEYS")
+    trousseau: dict[str, CleConsommateur] = Field(default_factory=dict)
 
     def cles_valides(self) -> list[str]:
-        """Clés acceptées : API_KEY puis les API_KEYS (séparées par des virgules)."""
-        brutes = [self.cle, *self.cles.split(",")]
-        return [c.strip() for c in brutes if c.strip()]
+        """Clés acceptées : une par consommateur du trousseau (API__TROUSSEAU__<c>__KEY)."""
+        return [c.key for c in self.trousseau.values() if c.key.strip()]
 
     def cle_valide(self, cle: str) -> bool:
         """Comparaison en temps constant (anti-timing), False sans clé configurée."""
         if not cle:
             return False
         return any(_secrets.compare_digest(cle, valide) for valide in self.cles_valides())
+
+    def consommateur_pour(self, cle: str) -> str | None:
+        """Label du consommateur dont la clé matche (attribution, ADR-0046 §4), sinon None."""
+        if not cle:
+            return None
+        for label, consommateur in self.trousseau.items():
+            if consommateur.key and _secrets.compare_digest(cle, consommateur.key):
+                return label
+        return None
 
 
 class Bot(BaseSettings):
