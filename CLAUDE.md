@@ -69,8 +69,7 @@ electricore/
 │   │   └── rapport_taxe.py        # RapportTaxe
 │   ├── models/                # Pandera validation schemas (Enedis only)
 │   ├── loaders/               # Data loading & query builders
-│   │   ├── duckdb/            # DuckDBQuery builder (c15, r151, releves, etc.)
-│   │   └── parquet.py         # Parquet loader
+│   │   └── duckdb/            # DuckDBQuery builder (c15, r151, releves, etc.)
 │   └── writers/               # Data export (ERP-agnostique, vide pour l'instant)
 │
 ├── integrations/              # 🔌 INTEGRATIONS - Adaptateurs ERP (ADR-0016)
@@ -176,7 +175,6 @@ All energy meter data columns follow the **`grandeur_cadran_unité`** format for
 # Loaders (read operations) — core/ ERP-agnostique (ADR-0016)
 from electricore.core.loaders import (
     c15, r151, r15, releves,           # DuckDB query builders
-    charger_releves, charger_historique # Polars loaders
 )
 
 # Adaptateur Odoo — vit dans integrations/, pas dans core/
