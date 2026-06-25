@@ -4,6 +4,7 @@ Fonctions pures pour lire les tables de flux Enedis.
 """
 
 import logging
+import re
 from datetime import UTC, datetime
 
 import duckdb
@@ -14,6 +15,20 @@ from electricore.core.loaders.duckdb import duckdb_readonly_conn
 logger = logging.getLogger(__name__)
 
 SCHEMA = "flux_enedis"
+
+# Garde d'identifiant SQL (#428) : les positions d'identifiant non-bindables (nom de table
+# dans `COUNT(*)`/`max()`, colonne de date) n'opèrent que sur un nom validé. Défense en
+# profondeur, en plus de la validation au bord (`/flux/{table_name}/info` confronte le nom
+# à `list_tables()` avant d'appeler ce service).
+_IDENTIFIANT_SQL = re.compile(r"^[a-z0-9_]+$")
+
+
+def _garde_identifiant(identifiant: str) -> str:
+    """Rejette tout identifiant SQL hors `^[a-z0-9_]+$` (interpolé, donc non-bindable)."""
+    if not _IDENTIFIANT_SQL.match(identifiant):
+        raise ValueError(f"Identifiant SQL non autorisé : {identifiant!r}")
+    return identifiant
+
 
 # Colonne de date métier par table — la fraîcheur (#158) est le max de cette
 # colonne (date de relevé / d'événement / de facture), pas la date d'ingestion.
@@ -81,25 +96,31 @@ def get_table_info(table_name: str, *, prefix: str = "flux_", date_column: str |
     Returns:
         Dict avec table, schema, count, columns, derniere_date
     """
-    physical = f"{prefix}{table_name}"
+    # Nom physique interpolé dans `COUNT(*)`/`max()` (positions d'identifiant non-bindables) :
+    # gardé en amont, avant toute connexion (l'injection ne touche jamais le moteur).
+    physical = _garde_identifiant(f"{prefix}{table_name}")
     colonne_date = date_column or COLONNE_DATE_METIER.get(table_name)
     with duckdb_readonly_conn(runtime.duckdb().chemin) as conn:
         # Nombre de lignes
         count = conn.execute(f"SELECT COUNT(*) FROM {SCHEMA}.{physical}").fetchone()[0]
 
-        # Colonnes avec leurs types
-        columns_result = conn.execute(f"""
-            SELECT column_name, data_type
-            FROM information_schema.columns
-            WHERE table_schema = '{SCHEMA}'
-            AND table_name = '{physical}'
-            ORDER BY ordinal_position
-        """).fetchall()
+        # Colonnes avec leurs types — `schema` + nom de table **liés** (comme `get_freshness`),
+        # aucune valeur dérivée de l'utilisateur n'est interpolée dans un littéral SQL.
+        columns_result = conn.execute(
+            "SELECT column_name, data_type "
+            "FROM information_schema.columns "
+            "WHERE table_schema = ? AND table_name = ? "
+            "ORDER BY ordinal_position",
+            [SCHEMA, physical],
+        ).fetchall()
 
         columns = [{"name": col[0], "type": col[1]} for col in columns_result]
 
         derniere_date = None
         if colonne_date and any(c["name"] == colonne_date for c in columns):
+            # `colonne_date` est un identifiant (interpolé dans `max()`) : il vient déjà d'une
+            # colonne réelle de la table, on le garde quand même par cohérence (non-bindable).
+            colonne_date = _garde_identifiant(colonne_date)
             max_val = conn.execute(f"SELECT max({colonne_date}) FROM {SCHEMA}.{physical}").fetchone()[0]
             if max_val is not None:
                 derniere_date = str(max_val)[:10]

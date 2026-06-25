@@ -46,6 +46,14 @@ def test_table_sans_colonne_date_connue_reste_servie(base_flux):
     assert info["count"] == 0
 
 
+def test_get_table_info_rejette_un_nom_porteur_dinjection(base_flux):
+    """Défense en profondeur (#428) : un nom dont l'identifiant physique sort de
+    `^[a-z0-9_]+$` est rejeté (`ValueError`) *avant* tout SQL — les positions
+    d'identifiant non-bindables (`COUNT(*)` / `max()`) ne peuvent pas porter d'injection."""
+    with pytest.raises(ValueError):
+        duckdb_service.get_table_info("c15'; DROP TABLE flux_c15; --")
+
+
 def test_get_table_info_pour_mart_sans_prefixe_flux(base_flux):
     """Le mart `releves` (table sans préfixe `flux_`, #264) est interrogeable.
 
