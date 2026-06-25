@@ -9,14 +9,63 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.4.0rc5] - 2026-06-25
+
+**Secrets-as-code** : les secrets de déploiement quittent le `.env` en clair pour un
+chiffrement **SOPS + age** versionné dans un dépôt privé, déchiffré dans l'image à
+l'exécution. Convention de noms d'environnement unifiée `<DOMAINE>__<CHAMP>`, identité/accès
+des secrets modélisés, et retrait du chemin d'installation `.env` legacy — un seul cutover
+(ADR-0044 / ADR-0046).
+
+### ✨ Temps forts
+
+- **Secrets-as-code SOPS + age** (ADR-0044, #418–#420) : `config.env` (clair, versionné) +
+  `secrets.env` (chiffré SOPS+age) ; déchiffrement à l'entrypoint de l'image (`sops exec-env`,
+  **fail-fast** sans clé, bypass dev `ELECTRICORE_DECRYPT=off`) ; chaque box génère ses deux
+  identités (clé age + deploy key SSH) ; onboarding **en deux temps** + auto-pull GitOps ;
+  scaffolding multi-cible `providers/<slug>/` + `add-provider.sh` + procédure de rotation.
+- **Convention de noms `<DOMAINE>__<CHAMP>`** (ADR-0046, #436) sur les domaines runtime
+  (`SFTP`/`AES` déjà conformes ; `DUCKDB__PATH`, `API__TITLE/VERSION/DESCRIPTION`, `BOT__*`),
+  avec un **test de parité de frontière** (les noms lus par le runtime == ceux des exemples deploy).
+- **Trousseau API étiqueté** (#438) : `API__TROUSSEAU__<consommateur>__KEY` — une clé par
+  consommateur (révocation ciblée + attribution dans les logs via le label) ; clé dédiée pour
+  le scheduler d'ingestion in-conteneur.
+- **Bloc Odoo unique** `ODOO__{URL,DB,USERNAME,PASSWORD}` (#439) — suppression du sélecteur
+  test/prod (`ODOO_ENV`/`_SelecteurOdoo`) ; clôture de #190 (Odoo read-only). no-ERP préservé.
+- **Clé admin d'escrow** (#437) : deux destinataires admin distincts (opérationnel + escrow
+  hors-ligne), destinataires permanents de chaque règle SOPS — plus de point unique de
+  défaillance sur l'autorité de déchiffrement au re-keying.
+- **Frontière JSONL durcie** (#426–#428) : helper `jsonl_response` (valide-puis-streame), adopté
+  par `/facturation/meta-periodes` et `/facturation/chronologie` (corrige une coupure en plein
+  flux) ; validation amont de `/flux/{table}/info` + SQL `get_table_info` paramétré.
+- **Chronologie dbt normalisée** (#431/#432) : `chronologie_releves` = mart mince + vue star-join ;
+  loaders `spine()`/`chronologie()` dés-abrégés (vocabulaire « Chronologie du périmètre »).
+- **Lanceur opérateur `electricore-notebooks`** (#414/#423) : validation env + app ASGI marimo,
+  page d'accueil, notebooks force-inclus dans le wheel (pont transitoire avant `souscriptions_odoo`).
+
 ### 🗑️ Suppressions (Breaking Changes)
 
-#### Modules supprimés
+- **Chemin d'installation `.env` legacy retiré** (ADR-0044 §8) : `--deploy-repo` devient
+  **obligatoire** ; `install.sh` ne télécharge ni n'édite plus de `.env`
+  (`deploy/docker/.env.example`, `validate_env_file`, la boucle d'édition et `--env-from`
+  supprimés). Le split `config.env`/`secrets.env` est le **seul** chemin d'installation.
+- **Variables d'environnement renommées** : `DUCKDB_PATH` → `DUCKDB__PATH`,
+  `API_TITLE/VERSION/DESCRIPTION` → `API__*`, `TELEGRAM_*` → `BOT__*`, bloc Odoo → `ODOO__*`,
+  et bare `API_KEY`/`API_KEYS` → `API__TROUSSEAU__<consommateur>__KEY`. Infra/compose
+  (`INSTANCE_SLUG`, `ELECTRICORE_VERSION`, `BACKUPS_PATH`) restent plats.
 - `electricore.core.loaders.parquet` (`charger_releves` / `charger_historique`) → derniers
   chargeurs Parquet pré-DuckDB, sans appelant (moteur, tests, notebooks). Le chargement passe
   désormais par les query builders DuckDB et les loaders Polars qui lisent les marts dbt. Le
   contrat Pandera `RelevéIndex` est conservé (toujours utilisé par les validateurs de flux
   DuckDB et `pipeline_energie`). #429
+
+### 🛠️ Release / CI
+
+- **CI : build + smoke-test de l'image Docker sur les PR** (#435) via workflow réutilisable —
+  plus seulement au tag de release ; rattrape les casses build (notebooks force-inclus) et
+  entrypoint (smoke SOPS) avant qu'elles n'atteignent `main`.
+- Smoke de release : bypass de l'entrypoint SOPS (`ELECTRICORE_DECRYPT=off`) ; image construite
+  avec les notebooks force-inclus du wheel (#414).
 
 ## [3.4.0rc4] - 2026-06-23
 
