@@ -9,8 +9,10 @@
 # - `flock` n'est pas utilisé : supercronic empêche déjà la concurrence d'un job
 #   donné, et l'API tracke les jobs via /ingestion/jobs.
 
-# Lancement quotidien à 02:00 — appelle l'API qui tracke le job dans /ingestion/jobs
-0 2 * * * curl --fail --silent --show-error --max-time 60 -X POST -H "X-API-Key:${API_KEY}" -H "Content-Type: application/json" -d '{"mode":"all"}' http://api:8001/ingestion/run
+# Lancement quotidien à 02:00 — appelle l'API qui tracke le job dans /ingestion/jobs.
+# S'authentifie avec la clé du consommateur "scheduler" du trousseau API (ADR-0046 §4),
+# injectée dans l'env du conteneur par l'entrypoint depuis secrets.env.
+0 2 * * * curl --fail --silent --show-error --max-time 60 -X POST -H "X-API-Key:${API__TROUSSEAU__scheduler__KEY}" -H "Content-Type: application/json" -d '{"mode":"all"}' http://api:8001/ingestion/run
 
 # Sauvegarde quotidienne à 03:30 (après la fenêtre d'ingestion typique)
 30 3 * * * /app/deploy/docker/backup_duckdb.sh
