@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 from electricore.api.main import app
 from electricore.api.security import get_current_api_key
 from electricore.api.services import duckdb_service
+from electricore.config import runtime
 
 
 @pytest.fixture
@@ -34,7 +35,11 @@ def base_flux(tmp_path, monkeypatch):
     conn.execute("CREATE TABLE flux_enedis.flux_c15 (pdl VARCHAR, date_evenement TIMESTAMP)")
     conn.execute("INSERT INTO flux_enedis.flux_c15 VALUES ('pdl1', '2026-06-01 00:00:00')")
     conn.close()
-    monkeypatch.setenv("DUCKDB_PATH", str(base))
+    # On substitue l'accessor `runtime.duckdb` (pas un `setenv`) : le cache `lru_cache`
+    # peut être réchauffé sur le chemin par défaut pendant la mise en place de `client`,
+    # *avant* ce fixture — un `setenv` serait alors ignoré (vert en local où la base par
+    # défaut existe, rouge en CI). Le `setattr` est insensible au cache et à l'ordre.
+    monkeypatch.setattr(runtime, "duckdb", lambda: runtime.Duckdb(chemin=base))
     return base
 
 
