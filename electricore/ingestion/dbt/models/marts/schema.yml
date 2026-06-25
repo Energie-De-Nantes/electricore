@@ -59,13 +59,15 @@ models:
           - accepted_values:
               values: ["evenement", "facturation"]
 
-  - name: chronologie_releves
+  - name: chronologie_releves_situation
     description: >
-      Chronologie des relevés (ADR-0041) — projection ÉNERGIE de la spine : relevés C15
-      aux événements impactant l'énergie + bornes FACTURATION appariées aux périodiques
-      (R151/R64) au grain JOUR (equi-join, remplace l'asof 4h du cœur), dédoublonnées par
-      priorité C15>R64>R151. Grain : 1 ligne par (rsc, date_releve, ordre_index). Parité vs
-      `_assembler_chronologie` vérifiée (tests/ingestion/test_dbt_chronologie_releves.py).
+      Chronologie des relevés — MART MINCE (ADR-0041, normalisé ADR-0045) : projection
+      ÉNERGIE de la spine, SANS le payload d'index. Relevés C15 aux événements impactant
+      l'énergie + bornes FACTURATION appariées aux périodiques (R151/R64) au grain JOUR
+      (equi-join, remplace l'asof 4h du cœur), dédoublonnées par priorité C15>R64>R151.
+      Porte l'identité + la situation (FTA/niveau/RSC) + `releve_id` (référence) + les
+      attributs de slot (ordre_index, source, releve_manquant). Grain : 1 ligne par
+      (rsc, date_releve, ordre_index).
     columns:
       - name: ref_situation_contractuelle
         description: Situation contractuelle (RSC) — attribuée nativement (C15) ou par la spine (périodiques).
@@ -83,3 +85,23 @@ models:
         data_tests:
           - accepted_values:
               values: ["flux_C15", "flux_R64", "flux_R151"]
+
+  - name: chronologie_releves
+    description: >
+      Chronologie des relevés — VUE (ADR-0045) : star-join `chronologie_releves_situation ⨝
+      releves ON releve_id` qui ré-attache le payload d'index (index_*/nature_index/
+      id_calendrier_distributeur), faisant de `releves` la source de vérité unique
+      (ADR-0029/0038). Modèle consommé par le cœur (loader `chronologie()`) ; contrat
+      `ChronologieReleves` inchangé. Grain `(rsc, date_releve, ordre_index)` préservé : left
+      join 1:1 (`releve_id` unique dans `releves`) — garanti par le test singulier de grain
+      `assert_chronologie_releves_grain_unique`. L'intégrité référentielle `releve_id ⊆
+      releves` + la parité du payload sont vérifiées côté Python (test_dbt_chronologie_releves
+      `test_index_proviennent_de_releves`) : un test dbt `relationships` ici serait tiré
+      (sélection indirecte « eager ») dans tout build partiel `+releves` (runner prod, golden
+      releves) où la vue n'est pas matérialisée → on s'en remet à la parité Python.
+    columns:
+      - name: releve_id
+        description: >
+          Référence (clé métier ADR-0028) vers `releves` — la relation par laquelle le payload
+          d'index est ré-attaché. NULLABLE : une borne sans relevé apparié (releve_manquant)
+          ne référence rien (payload nul).
