@@ -159,6 +159,12 @@ def test_flux_json_endpoint_still_works(client, monkeypatch, df_flux_synthetique
 
 def test_flux_info_endpoint_still_at_segment_path(client, monkeypatch):
     """`GET /flux/{table_name}/info` reste en segment (métadonnée, pas un format)."""
+    # Depuis #428, `/info` valide le nom via `list_tables()` *avant* `get_table_info` :
+    # on substitue les deux seams (sinon `list_tables` ouvre la vraie base, absente en CI).
+    monkeypatch.setattr(
+        "electricore.api.services.duckdb_service.list_tables",
+        lambda: ["c15"],
+    )
     monkeypatch.setattr(
         "electricore.api.services.duckdb_service.get_table_info",
         lambda name: {"table": f"flux_{name}", "schema": "flux_enedis", "count": 0, "columns": []},
