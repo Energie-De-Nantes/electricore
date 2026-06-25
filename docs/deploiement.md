@@ -334,6 +334,32 @@ inutile sans la clé age. Toute la sécurité repose sur la clé age, jamais sur
 > pas de récupération de clé (forger est déjà bon marché). La clé privée d'une box ne
 > transite jamais.
 
+### Clé admin d'escrow (secours, hors-ligne — ADR-0046 §8)
+
+Côté admin, l'autorité de **déchiffrement** est dédoublée en **deux clés age distinctes**,
+toutes deux destinataires **permanentes** de **chaque** règle `.sops.yaml` :
+
+- **admin opérationnel** — privée sur la machine admin, utilisée en routine (re-keying,
+  rotation, édition) ;
+- **admin escrow** — privée générée **hors-ligne** et **jamais** utilisée en routine.
+
+Pourquoi : une box ne déchiffre que **son** provider. Si la seule clé admin était perdue,
+**aucun destinataire vivant** ne pourrait plus re-keyer un provider (ajouter une box,
+tourner une clé) → secrets irrécupérables au re-chiffrement. L'escrow supprime ce point
+unique de défaillance.
+
+```bash
+# UNE fois, sur une machine HORS-LIGNE (jamais connectée). Sauvegarder la privée en
+# coffre/papier ; n'enregistrer que la PUBLIQUE comme destinataire de chaque .sops.yaml.
+age-keygen -o admin-escrow.key       # → "Public key: age1…"  (la seule à committer/diffuser)
+```
+
+- L'escrow ne sert **qu'en sinistre** (perte de la clé admin opérationnelle) — sinon on
+  n'y touche jamais.
+- ⚠️ Elle **ne remplace pas** le changement d'un secret fuité : un secret exposé se change
+  **à la source** (cf. l'encadré `updatekeys ≠ rotation` plus bas). L'escrow ne préserve que
+  la **capacité de re-keyer**.
+
 ### Onboarding en deux temps
 
 La box ne peut **pas déchiffrer** tant que sa clé age publique n'est pas destinataire
@@ -378,15 +404,16 @@ de secrets en clair se fait **sur la machine admin** et **n'est jamais committé
    deux pubs. (La box garde son `.env` vivant intact pour l'instant.)
 2. **Machine admin** — scinder le `.env` vivant récupéré de la box en deux :
    - `config.env` ← `INSTANCE_SLUG`, `ELECTRICORE_VERSION`, `BACKUPS_PATH`, config non-secrète ;
-   - `secrets.env.clair` ← `SFTP__URL`, `AES__TROUSSEAU__*`, `API_KEY`/`API_KEYS`,
-     `BOT__TOKEN`, `ODOO_*`.
+   - `secrets.env.clair` ← `SFTP__URL`, `AES__TROUSSEAU__*`, `API__TROUSSEAU__*`,
+     `BOT__TOKEN`, `ODOO__*`.
 3. **Machine admin** — chiffrer **sur place**, jamais committer le clair :
    ```bash
    sops encrypt --input-type dotenv --output-type dotenv \
        secrets.env.clair > providers/<slug>/secrets.env
    shred -u secrets.env.clair    # détruire le clair
    ```
-   (`.sops.yaml` du provider porte déjà l'admin + la box comme destinataires.)
+   (`.sops.yaml` du provider porte déjà l'admin opérationnel + l'admin escrow + la box
+   comme destinataires.)
 4. **Machine admin** — committer `providers/<slug>/{config.env,secrets.env}` + pousser ;
    enregistrer la SSH pub comme deploy key RO.
 5. **Box** — `reconfigure` (2e temps) : pull + déchiffre + démarre.

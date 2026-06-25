@@ -467,8 +467,10 @@ grep -q "age1nouvelleboxxx" "${prov}/.sops.yaml" && ok "add_recipient_to_sops: d
 add_recipient_to_sops "${prov}/.sops.yaml" "age1nouvelleboxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" >/dev/null 2>&1
 n=$(grep -c "age1nouvelleboxxx" "${prov}/.sops.yaml")
 assert_eq "$n" "1" "add_recipient_to_sops: idempotent (1 seule occurrence après 2 appels)"
-# L'admin (destinataire FACTICE toujours présent) survit à l'ajout.
-grep -q "age1adminFACTICE" "${prov}/.sops.yaml" && ok "add_recipient_to_sops: admin (toujours destinataire) préservé" || ko "admin effacé"
+# Les DEUX destinataires admin (opérationnel + escrow hors-ligne, ADR-0046 §8) survivent à
+# l'ajout d'une box : l'escrow est destinataire permanent de chaque règle (secours re-keying).
+grep -q "age1adminops" "${prov}/.sops.yaml" && ok "add_recipient_to_sops: admin opérationnel préservé" || ko "admin opérationnel effacé"
+grep -q "age1adminescrow" "${prov}/.sops.yaml" && ok "add_recipient_to_sops: admin escrow préservé (destinataire permanent)" || ko "admin escrow effacé"
 
 # add_provider : ajoute + updatekeys (fake sops) ; --no-updatekeys saute le re-chiffrement.
 printf '#ENC[fake]\n' > "${prov}/secrets.env"
@@ -478,6 +480,14 @@ grep -q "age1autreboxyyy" "${prov}/.sops.yaml" && ok "add_provider: 2e destinata
 PATH="${FAKE_BIN}:$PATH" SOPS_BIN=sops add_provider "$prov" "age1encoreunboxzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz" 0 >/dev/null 2>&1 \
     && ok "add_provider: --no-updatekeys ajoute sans re-chiffrer" || ko "add_provider --no-updatekeys"
 rm -rf "$prov"
+
+echo
+echo "→ .sops.yaml.example : modèle clé escrow admin (ADR-0046 §8, #437)"
+SOPS_EX="${LIB_DIR}/../providers/example/.sops.yaml.example"
+# Trois destinataires : admin OPÉRATIONNEL + admin ESCROW (hors-ligne) DISTINCTS + box.
+n_age=$(grep -cE '^[[:space:]]*- age1' "$SOPS_EX")
+assert_eq "$n_age" "3" ".sops.yaml.example: 3 destinataires (admin ops + escrow + box)"
+grep -qi "escrow" "$SOPS_EX" && ok ".sops.yaml.example: clé escrow modélisée + commentée" || ko "escrow absent du modèle"
 
 echo
 if [[ "$FAIL" -eq 0 ]]; then

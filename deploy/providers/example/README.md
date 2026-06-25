@@ -14,7 +14,7 @@ destinataires → **isolation cryptographique** (une box ne déchiffre que les s
 
 | Fichier | Rôle | Versionné | Chiffré |
 |---|---|---|---|
-| `.sops.yaml` | destinataires age (admin **toujours** + box) | oui | non |
+| `.sops.yaml` | destinataires age (admin **opérationnel** + admin **escrow** + box) | oui | non |
 | `config.env` | config CLAIRE (substitutions compose + non-secret) | oui | non |
 | `secrets.env` | credentials | oui | **oui** (SOPS + age) |
 
@@ -31,7 +31,36 @@ l'enveloppe** de `secrets.env` vers le nouveau jeu de destinataires.
 > (le re-wrap de la clé de données). Si un secret a pu **fuiter**, le changer **AUSSI à
 > la source** (nouvelle clé Enedis, nouveau token, etc.) — `updatekeys` ne le protège pas.
 
+## Clé admin d'escrow (secours, hors-ligne) — ADR-0046 §8
+
+Le `.sops.yaml` porte **deux** destinataires admin **distincts**, dans **chaque** règle :
+
+- **admin opérationnel** — clé privée sur la machine admin, utilisée en routine
+  (récupération, rotation, `updatekeys`, édition) ;
+- **admin escrow** — clé privée générée **hors-ligne** (`age-keygen`, sur une machine
+  jamais connectée, sauvegardée en coffre/papier), **jamais** utilisée en routine.
+
+**Pourquoi.** Une box ne déchiffre que **son** provider (isolation cryptographique). Si la
+seule clé admin était perdue, **plus aucun destinataire vivant** ne pourrait re-keyer un
+provider (ajouter une box, tourner une clé) — les secrets deviendraient irrécupérables au
+re-chiffrement. L'escrow, destinataire **permanent** de chaque règle, supprime ce point
+unique de défaillance : elle reste capable de déchiffrer et de re-keyer en dernier recours.
+
+> ⚠️ **L'escrow n'est pas un remède à une fuite.** Un secret qui a pu fuiter se change **à
+> la source** (nouvelle clé Enedis, nouveau token…). L'escrow ne protège que la **capacité
+> de re-keyer l'enveloppe**, pas la confidentialité d'un secret déjà exposé.
+
+Génère-la une fois, ajoute sa **clé publique** comme destinataire de **toutes** les règles
+(elle est déjà dans ce gabarit), range la **clé privée** hors-ligne, et n'y touche plus sauf
+sinistre (perte de la clé opérationnelle).
+
 ## La CI n'est jamais destinataire
 
 La CI build des images publiques **sans secret** (garanties par le scan d'image) : elle
 ne déchiffre jamais. N'ajoute **jamais** de clé « CI » à un `.sops.yaml` (ADR-0044 §6).
+
+---
+
+> **Suivi cross-repo (manuel)** — le dépôt privé `electricore-secrets` doit refléter ce
+> modèle : `providers/<slug>/.sops.yaml` porte lui aussi les **deux** destinataires admin
+> (opérationnel + escrow) + la box. Ce gabarit public ne fait que le **prescrire**.

@@ -8,9 +8,17 @@
 # → elle ne peut pas déchiffrer ceux des autres. L'isolation n'est pas une convention de
 # dossiers, c'est la liste de destinataires.
 #
-# Destinataires (ADR-0044 §6) :
-#   - admin  : TOUJOURS, dans CHAQUE règle (récupération, rotation, edition).
-#   - box    : la clé age publique de la box qui sert ce provider.
+# Destinataires (ADR-0044 §6, ADR-0046 §8) :
+#   - admin OPÉRATIONNEL : TOUJOURS, dans CHAQUE règle (récupération, rotation, edition
+#     courantes). Sa clé privée vit sur la machine admin.
+#   - admin ESCROW : TOUJOURS, dans CHAQUE règle, mais sa clé privée reste HORS-LIGNE
+#     (coffre/papier). Elle ne sert JAMAIS en routine — uniquement en secours, si la clé
+#     admin opérationnelle est perdue (sinon plus aucun destinataire vivant ne peut re-keyer
+#     un provider : les box ne déchiffrent que LE LEUR). Deux clés admin DISTINCTES ⇒ pas
+#     de point unique de défaillance sur l'autorité de déchiffrement (ADR-0046 §8).
+#     ⚠️ L'escrow N'EST PAS un remède à une fuite : un secret qui a pu fuiter se change
+#        À LA SOURCE (cf. README) ; l'escrow ne fait que préserver la capacité de re-keyer.
+#   - box : la clé age publique de la box qui sert ce provider.
 #   - la CI n'est JAMAIS destinataire (elle build des images publiques sans secret —
 #     elle ne déchiffre jamais ; cf. NOTE plus bas).
 
@@ -19,8 +27,11 @@ creation_rules:
   - path_regex: secrets\.env$
     key_groups:
       - age:
-          # FACTICE — clé publique age de l'ADMIN (toujours destinataire).
-          - age1adminFACTICExxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx00
+          # FACTICE — clé publique age de l'ADMIN OPÉRATIONNEL (toujours destinataire).
+          - age1adminopsFACTICExxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx00
+          # FACTICE — clé publique age de l'ADMIN ESCROW (toujours destinataire ; privée
+          # hors-ligne, secours uniquement). DISTINCTE de l'admin opérationnel ci-dessus.
+          - age1adminescrowFACTICExxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx02
           # FACTICE — clé publique age de la BOX qui sert ce provider.
           - age1boxFACTICExxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx11
 
