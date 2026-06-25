@@ -624,12 +624,21 @@ Enedis rote périodiquement ses clés (et en change la longueur : AES-128 → AE
 Le **trousseau** porte un nombre arbitraire de clés labellisées ; la bonne est
 sélectionnée par essai (aucune date, aucun protocole).
 
-### Procédure (via le mode reconfigure)
+### Procédure (secrets-as-code, ADR-0044)
+
+Depuis [ADR-0044](adr/0044-secrets-as-code-sops-age.md), le trousseau AES vit dans le
+`secrets.env` **chiffré** du provider — plus dans un `.env` édité sur la box. La rotation
+se fait donc **sur la machine admin**, par édition chiffrée in-place :
 
 1. Recevoir la nouvelle clé Enedis.
-2. Relancer le script : `sudo bash /srv/<slug>/deploy/install.sh --slug <slug> --domain <slug>.electricore.fr`.
-3. L'éditeur s'ouvre sur `.env`. **Ajouter** la nouvelle clé au trousseau sous un
-   nouveau label, sans retirer les anciennes :
+2. Sur la machine admin (dépôt de déploiement privé), éditer **in-place** le secrets
+   chiffré (SOPS ouvre l'éditeur sur le clair, re-chiffre à la fermeture) :
+
+   ```bash
+   sops providers/<slug>/secrets.env
+   ```
+
+   **Ajouter** la nouvelle clé au trousseau sous un nouveau label, sans retirer les anciennes :
 
    ```
    # AES-256 (depuis juin 2026) : Enedis ne fournit QUE la clé, sans IV → pas de __IV.
@@ -640,8 +649,14 @@ sélectionnée par essai (aucune date, aucun protocole).
    AES__TROUSSEAU__aes128_2024__IV=ancien_iv_hex
    ```
 
-4. Sauvegarder, fermer l'éditeur. Le script valide, restart la stack, lance
-   une ingestion test pour confirmer que le trousseau déchiffre tout.
+3. Commit + push le `secrets.env` (re-chiffré).
+4. Sur la box, `reconfigure` (pull + déchiffre + restart) :
+
+   ```bash
+   ssh ops@<vps>
+   sudo bash /srv/<slug>/deploy/install.sh --slug <slug> --domain <slug>.electricore.fr \
+       --deploy-repo git@github.com:org/electricore-deploy-prive.git
+   ```
 
 Les logs `[<label>]` indiquent quelle clé a déchiffré quel fichier. Si un flux a des
 fichiers mais **0** déchiffrement réussi, le job passe à `failed` et le bot alerte
@@ -649,6 +664,11 @@ fichiers mais **0** déchiffrement réussi, le job passe à `failed` et le bot a
 
 Retirer une vieille clé seulement quand plus aucune archive chiffrée avec elle
 n'est (re)téléchargeable depuis le SFTP.
+
+> **`sops updatekeys` ≠ rotation de secret** (ADR-0044) : `updatekeys` ne rote que
+> l'**enveloppe** (re-wrap vers le jeu de destinataires, ex. ajout d'une box via
+> [`add-provider.sh`](../deploy/add-provider.sh)). Si une **clé AES a pu fuiter**, il
+> faut la changer **à la source** (nouvelle clé Enedis) — `updatekeys` ne la protège pas.
 
 ## Sauvegarde et restauration
 

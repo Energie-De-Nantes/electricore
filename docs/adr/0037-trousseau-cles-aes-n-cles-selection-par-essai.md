@@ -89,6 +89,12 @@ L'agrégation succès/échec par resource vit au niveau runner (il orchestre dé
   puis resync — l'escalade signalera tout segment encore sans clé.
 - [ADR-0008](0008-rotation-cles-aes.md) **superseded**.
 
+> **Procédure de rotation révisée par [ADR-0044](0044-secrets-as-code-sops-age.md)** : le trousseau ne
+> vit plus dans un `.env` édité sur la box mais dans le `secrets.env` **chiffré** du provider. Rotation :
+> `sops providers/<slug>/secrets.env` (édition chiffrée in-place, ajout d'un label) → commit → push →
+> `reconfigure` (la box pull + déchiffre + restart). **Distinction cruciale** : `sops updatekeys` ne rote
+> que l'**enveloppe** (destinataires) ; une clé AES qui a pu fuiter doit être changée **à la source**.
+
 ## Statut
 
 Accepté (grill 18/06/2026). Supersède [ADR-0008](0008-rotation-cles-aes.md). Porté par
