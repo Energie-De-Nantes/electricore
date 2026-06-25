@@ -10,7 +10,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from electricore.api.decorators import arrow_endpoint, xlsx_endpoint
 from electricore.api.security import get_current_api_key
 from electricore.api.services import duckdb_service
-from electricore.core.loaders.duckdb import DuckDBLockError
 
 router = APIRouter(tags=["flux"])
 
@@ -112,15 +111,16 @@ async def get_table_info(table_name: str, api_key: str = Depends(get_current_api
     Returns:
         Dict avec les métadonnées de la table (colonnes, types, nombre de lignes)
     """
-    try:
-        return duckdb_service.get_table_info(table_name)
-    except DuckDBLockError:
-        # Base verrouillée par l'ingestion ≠ table inconnue — laisser le
-        # handler d'app répondre 503 « ingestion en cours » (#171).
-        raise
-    except Exception:
-        available_tables = duckdb_service.list_tables()
-        raise HTTPException(404, f"Table '{table_name}' non trouvée. Tables disponibles: {available_tables}")
+    # Validation **en amont** (#428) : le nom est confronté aux tables physiquement
+    # présentes (`list_tables()`, le même ensemble que les routes data et le menu bot)
+    # *avant* toute requête de métadonnées. Un nom inconnu (ou porteur de quote) est
+    # ainsi rejeté en 404 sans jamais atteindre le SQL — l'unique f-string piloté par
+    # l'utilisateur est neutralisé au bord. `DuckDBLockError` (ingestion en cours) levée
+    # par `list_tables`/`get_table_info` remonte au handler d'app (503, #171).
+    disponibles = duckdb_service.list_tables()
+    if table_name not in disponibles:
+        raise HTTPException(404, f"Table '{table_name}' non trouvée. Tables disponibles: {disponibles}")
+    return duckdb_service.get_table_info(table_name)
 
 
 # `/flux/{table_name}` (JSON) déclaré APRÈS les routes plus spécifiques pour que

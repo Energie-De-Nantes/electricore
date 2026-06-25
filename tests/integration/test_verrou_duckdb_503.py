@@ -49,12 +49,17 @@ class TestVerrouPendantIngestion:
         assert "ingestion en cours" in response.json()["detail"].lower()
 
     def test_info_repond_503_pas_un_faux_404(self, client, monkeypatch):
-        """Le verrou ne doit pas être maquillé en « Table non trouvée »."""
+        """Le verrou ne doit pas être maquillé en « Table non trouvée ».
 
-        def _verrou(table_name):
+        Depuis #428, la 1re lecture du chemin `/info` est `list_tables` (validation du nom
+        en amont) ; sous verrou, c'est elle qui lève `DuckDBLockError` → 503 via le handler
+        d'app, sans dégénérer en faux 404.
+        """
+
+        def _verrou(*args, **kwargs):
             raise DuckDBLockError("IO Error: Conflicting lock is held")
 
-        monkeypatch.setattr("electricore.api.services.duckdb_service.get_table_info", _verrou)
+        monkeypatch.setattr("electricore.api.services.duckdb_service.list_tables", _verrou)
         response = client.get("/flux/r151/info")
 
         assert response.status_code == 503
