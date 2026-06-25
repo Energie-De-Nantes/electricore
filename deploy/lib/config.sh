@@ -18,28 +18,17 @@ map_version_to_git_ref() {
     esac
 }
 
-# download_config_files <version> <home_dir> [<skip_env>]
-# Télécharge depuis le tag <version> vers <home_dir>/{.env,deploy/docker/*}.
-# Idempotent : si .env existe déjà, on ne l'écrase pas (mode reconfigure).
-# Si <skip_env>=1 (secrets-as-code, ADR-0044) : on ne télécharge AUCUN .env — la
-# config claire arrive via le dépôt de déploiement (providers/<slug>/config.env).
+# download_config_files <version> <home_dir>
+# Télécharge depuis le tag <version> vers <home_dir>/deploy/docker/*. En secrets-as-code
+# (ADR-0044) on ne télécharge JAMAIS de .env : la config claire (config.env) et les secrets
+# (secrets.env chiffré) arrivent par le dépôt de déploiement privé (providers/<slug>/).
 download_config_files() {
     local version="$1"
     local home="$2"
-    local skip_env="${3:-0}"
     local docker_dir="${home}/deploy/docker"
     local ref; ref=$(map_version_to_git_ref "$version")
     local base="${CONFIG_BASE_URL}/${ref}/deploy/docker"
     install -d "$docker_dir"
-    # .env : ne pas écraser si présent (rerun) ; ne pas créer du tout en secrets-as-code.
-    if [[ "$skip_env" == "1" ]]; then
-        log_skip ".env non téléchargé (secrets-as-code : config.env vient du dépôt)"
-    elif [[ ! -f "${home}/.env" ]]; then
-        curl -fsSL "${base}/.env.example" -o "${home}/.env"
-        log_ok ".env téléchargé depuis ${version}"
-    else
-        log_skip ".env déjà présent (conservé)"
-    fi
     for f in docker-compose.yml Caddyfile.example crontab.example backup_duckdb.sh; do
         local dest="${docker_dir}/${f}"
         local dest_final="${dest}"
@@ -53,29 +42,6 @@ download_config_files() {
     done
     chmod +x "${docker_dir}/backup_duckdb.sh"
     log_ok "fichiers compose téléchargés dans ${docker_dir}/"
-}
-
-# substitute_env <env_file> <slug> [<version>]
-# Remplace INSTANCE_SLUG=, BACKUPS_PATH= et — si fourni — ELECTRICORE_VERSION=
-# par les valeurs réelles. `--version` étant la source de vérité de la version
-# Docker à pin, on évite de devoir l'éditer à la main dans le step EDITOR.
-# Préserve l'ownership du fichier (sed -i peut le casser).
-# NB (ADR-0044) : ces trois clés sont TOUTES côté config CLAIRE → cette fonction
-# écrit aussi bien le legacy `.env` que le `config.env` du split secrets-as-code.
-substitute_env() {
-    local env_file="$1"
-    local slug="$2"
-    local version="${3:-}"
-    local owner; owner=$(stat -c '%u:%g' "$env_file" 2>/dev/null || echo "")
-    local sed_exprs=(
-        -e "s|^INSTANCE_SLUG=.*|INSTANCE_SLUG=${slug}|"
-        -e "s|^BACKUPS_PATH=.*|BACKUPS_PATH=/srv/${slug}/backups|"
-    )
-    if [[ -n "$version" ]]; then
-        sed_exprs+=(-e "s|^ELECTRICORE_VERSION=.*|ELECTRICORE_VERSION=${version}|")
-    fi
-    sed -i "${sed_exprs[@]}" "$env_file"
-    [[ -n "$owner" ]] && chown "$owner" "$env_file" 2>/dev/null || true
 }
 
 # substitute_caddyfile <file> <domain> [<email>]

@@ -296,14 +296,16 @@ Un script provisionne tout depuis un VPS Ubuntu/Debian frais (~5-10 min), durcis
 ```bash
 ssh root@<vps>
 curl -fsSL https://raw.githubusercontent.com/Energie-De-Nantes/electricore/main/deploy/install.sh -o install.sh
-EDITOR=nano sudo -E bash install.sh \
-    --slug <slug> --domain <slug>.electricore.fr --email ops@example.com
+sudo bash install.sh \
+    --slug <slug> --domain <slug>.electricore.fr --email ops@example.com \
+    --deploy-repo git@github.com:Energie-De-Nantes/electricore-secrets.git
 ```
 
 Le script crée un user système dédié, installe Docker, configure UFW, télécharge la stack
-tag-pinnée sous `/srv/<slug>/` ([ADR-0017](docs/adr/0017-layout-deploiement-srv-slug.md)), ouvre la
-config dans l'éditeur avec une **boucle de validation**, vérifie le DNS, démarre les conteneurs et
-lance une ingestion test. Sauvegardes DuckDB nocturnes (`EXPORT DATABASE`, rétention 14 jours).
+tag-pinnée sous `/srv/<slug>/` ([ADR-0017](docs/adr/0017-layout-deploiement-srv-slug.md)), génère
+l'identité **age** de la box puis pull la config (`config.env` clair + `secrets.env` chiffré
+SOPS+age) depuis le dépôt de déploiement privé, **valide le split et déchiffre**, vérifie le DNS,
+démarre les conteneurs et lance une ingestion test. Sauvegardes DuckDB nocturnes (`EXPORT DATABASE`, rétention 14 jours).
 Relancer avec le même `--slug` = mode reconfiguration (rotation des clés AES, bump de version…),
 sans toucher à la base.
 

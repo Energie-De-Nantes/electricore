@@ -29,7 +29,7 @@ On applique la règle canonique (`PermitRootLogin no`) **en introduisant un util
 ## Raison
 
 1. **Moindre privilège sans renoncer au confort.** Désactiver root est le geste canonique ; le user dédié `ops` évite l'alternative coûteuse (donner sudo au user de service `<slug>`, ce qui mélangerait « qui fait tourner la stack » et « qui administre la machine »). On garde la séparation de rôles d'ADR-0017 en la rendant explicite.
-2. **NOPASSWD découle du modèle clé-uniquement.** Avec `PasswordAuthentication no`, `ops` n'a aucune raison d'avoir un mot de passe ; en exiger un pour `sudo` casserait les reconfigure scriptés (`--env-from`) et les tests e2e. La frontière de sécurité est déjà la clé SSH — un porteur de clé peut de toute façon piloter toute la stack en `<slug>`.
+2. **NOPASSWD découle du modèle clé-uniquement.** Avec `PasswordAuthentication no`, `ops` n'a aucune raison d'avoir un mot de passe ; en exiger un pour `sudo` casserait les reconfigure scriptés et les tests e2e. La frontière de sécurité est déjà la clé SSH — un porteur de clé peut de toute façon piloter toute la stack en `<slug>`.
 3. **Durci par défaut.** L'intérêt d'un installeur unattended est qu'il fasse le bon geste sans qu'on y pense ; le durcissement opt-in serait oublié. Le garde-fou rend l'activation par défaut sûre.
 4. **Auto-reboot pour que les correctifs s'appliquent.** Installer les patches kernel/openssl sans jamais redémarrer les laisse dormants. Le `restart: unless-stopped` de la stack rend le redémarrage nocturne quasi indolore.
 
