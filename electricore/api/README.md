@@ -34,14 +34,12 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 openssl rand -base64 32
 ```
 
-### 3. Configurer les clés API
+### 3. Configurer le trousseau de consommateurs (ADR-0046 §4)
 
 ```env
-# Une seule clé
-API_KEY=votre-cle-generee-ici
-
-# Ou plusieurs clés (séparées par des virgules)
-API_KEYS=cle1,cle2,cle3
+# Une clé par consommateur (label DYNAMIQUE) → révocation ciblée + attribution.
+API__TROUSSEAU__librewatt__KEY=votre-cle-consommateur-generee-ici
+API__TROUSSEAU__bot__KEY=une-autre-cle-pour-le-bot
 ```
 
 ### 4. Configuration optionnelle

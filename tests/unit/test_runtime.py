@@ -135,12 +135,47 @@ class TestDomaineOdoo:
 
 
 class TestDomaineApi:
-    def test_cles_valides_combine_api_key_et_api_keys(self):
-        api = runtime.Api(cle="k-principale", cles="k-2, k-3 ,")
-        assert api.cles_valides() == ["k-principale", "k-2", "k-3"]
+    def test_trousseau_etiquete_authentifie(self, monkeypatch):
+        """ADR-0046 §4 : une clé API__TROUSSEAU__<consommateur>__KEY est acceptée."""
+        monkeypatch.setenv("API__TROUSSEAU__librewatt__KEY", "k-librewatt-tres-longue")
+        api = runtime.api()
+        assert api.cle_valide("k-librewatt-tres-longue")
+        assert "k-librewatt-tres-longue" in api.cles_valides()
+
+    def test_attribution_du_consommateur(self, monkeypatch):
+        """ADR-0046 §4 : la clé entrante est attribuée à son consommateur (label)."""
+        monkeypatch.setenv("API__TROUSSEAU__librewatt__KEY", "k-librewatt")
+        monkeypatch.setenv("API__TROUSSEAU__odoo__KEY", "k-odoo")
+        api = runtime.api()
+        assert api.consommateur_pour("k-librewatt") == "librewatt"
+        assert api.consommateur_pour("k-odoo") == "odoo"
+        assert api.consommateur_pour("inconnue") is None
+
+    def test_revocation_ciblee_d_un_consommateur(self, monkeypatch):
+        """ADR-0046 §4 : retirer la clé d'un consommateur ne touche pas les autres."""
+        monkeypatch.setenv("API__TROUSSEAU__librewatt__KEY", "k-librewatt")
+        monkeypatch.setenv("API__TROUSSEAU__odoo__KEY", "k-odoo")
+        assert runtime.api().cle_valide("k-librewatt")
+        assert runtime.api().cle_valide("k-odoo")
+        monkeypatch.delenv("API__TROUSSEAU__odoo__KEY")
+        runtime.vider_cache()
+        api = runtime.api()
+        assert api.cle_valide("k-librewatt")  # l'autre consommateur survit
+        assert not api.cle_valide("k-odoo")  # le révoqué est rejeté
+
+    def test_cle_bare_api_key_refusee(self, monkeypatch):
+        """ADR-0046 §4 : le bare API_KEY/API_KEYS est retiré (trousseau-only)."""
+        monkeypatch.setenv("API_KEY", "ancienne-cle-plate-bare")
+        api = runtime.api()
+        assert not api.cle_valide("ancienne-cle-plate-bare")
+        assert api.cles_valides() == []
+
+    def test_cles_valides_liste_les_cles_du_trousseau(self):
+        api = runtime.Api(trousseau={"principal": {"key": "k-principale"}, "second": {"key": "k-2"}})
+        assert api.cles_valides() == ["k-principale", "k-2"]
 
     def test_cle_valide_compare_digest(self):
-        api = runtime.Api(cle="bonne-cle")
+        api = runtime.Api(trousseau={"c": {"key": "bonne-cle"}})
         assert api.cle_valide("bonne-cle")
         assert not api.cle_valide("mauvaise-cle")
         assert not api.cle_valide("")
@@ -254,7 +289,7 @@ _EXEMPLES = (
 )
 # Noms retirés par ADR-0046 (#436). Odoo (ODOO_ENV/ODOO_<ENV>_*) et API_KEY/KEYS
 # relèvent de #439/#438 — pas encore retirés ici.
-_NOMS_RETIRES = ("TELEGRAM_", "DUCKDB_PATH", "API_TITLE", "API_VERSION", "API_DESCRIPTION")
+_NOMS_RETIRES = ("TELEGRAM_", "DUCKDB_PATH", "API_TITLE", "API_VERSION", "API_DESCRIPTION", "API_KEY")
 
 
 def _charger_dotenv(path: pathlib.Path) -> dict[str, str]:
@@ -282,3 +317,10 @@ class TestPariteFrontiereDeploiement:
             texte = path.read_text()
             for nom in _NOMS_RETIRES:
                 assert nom not in texte, f"nom retiré {nom!r} encore présent dans {path.name}"
+
+    def test_l_exemple_declare_au_moins_un_consommateur_api(self, monkeypatch):
+        """ADR-0046 §4 : secrets.env.example fournit ≥ 1 clé API__TROUSSEAU__<c>__KEY."""
+        for path in _EXEMPLES:
+            for cle, val in _charger_dotenv(path).items():
+                monkeypatch.setenv(cle, val)
+        assert runtime.api().cles_valides()  # le trousseau API n'est pas vide

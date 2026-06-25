@@ -372,19 +372,28 @@ tmp_cfg=$(mktemp)
 printf 'INSTANCE_SLUG=edn\nELECTRICORE_VERSION=1.7.0\nBACKUPS_PATH=/srv/edn/backups\nBOT__NOTIFY_CHAT_ID=-100\n' > "$tmp_cfg"
 assert_ok "validate_config_env autorise BOT__NOTIFY_CHAT_ID (routage)" validate_config_env "$tmp_cfg" "edn"
 rm -f "$tmp_cfg"
+# Trousseau API : une clé API__TROUSSEAU__ en clair dans config.env est une fuite (ADR-0046 §4)
+tmp_cfg=$(mktemp)
+printf 'INSTANCE_SLUG=edn\nELECTRICORE_VERSION=1.7.0\nBACKUPS_PATH=/srv/edn/backups\nAPI__TROUSSEAU__librewatt__KEY=secret_factice\n' > "$tmp_cfg"
+assert_fail "validate_config_env refuse un secret en clair (API__TROUSSEAU__)" validate_config_env "$tmp_cfg" "edn"
+rm -f "$tmp_cfg"
 # config.env manquant version → échec
 tmp_cfg=$(mktemp); printf 'INSTANCE_SLUG=edn\nBACKUPS_PATH=/srv/edn/backups\n' > "$tmp_cfg"
 assert_fail "validate_config_env exige ELECTRICORE_VERSION" validate_config_env "$tmp_cfg" "edn"
 rm -f "$tmp_cfg"
 
-# Secrets (clair) : API_KEY + SFTP + trousseau AES
+# Secrets (clair) : trousseau API + SFTP + trousseau AES (ADR-0046 §4)
 tmp_sec=$(mktemp)
-printf 'API_KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nSFTP__URL=sftp://u:p@h.fr:22/x\nAES__TROUSSEAU__demo__KEY=00112233445566778899aabbccddeeff\n' > "$tmp_sec"
+printf 'API__TROUSSEAU__librewatt__KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nSFTP__URL=sftp://u:p@h.fr:22/x\nAES__TROUSSEAU__demo__KEY=00112233445566778899aabbccddeeff\n' > "$tmp_sec"
 assert_ok   "validate_secrets_plaintext (secrets clairs valides)" validate_secrets_plaintext "$tmp_sec"
 rm -f "$tmp_sec"
-# Trousseau vide → échec
-tmp_sec=$(mktemp); printf 'API_KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nSFTP__URL=sftp://u:p@h.fr:22/x\n' > "$tmp_sec"
+# Trousseau AES vide → échec
+tmp_sec=$(mktemp); printf 'API__TROUSSEAU__librewatt__KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nSFTP__URL=sftp://u:p@h.fr:22/x\n' > "$tmp_sec"
 assert_fail "validate_secrets_plaintext refuse trousseau AES vide" validate_secrets_plaintext "$tmp_sec"
+rm -f "$tmp_sec"
+# Trousseau API vide → échec (ADR-0046 §4 : ≥ 1 consommateur requis)
+tmp_sec=$(mktemp); printf 'SFTP__URL=sftp://u:p@h.fr:22/x\nAES__TROUSSEAU__demo__KEY=00112233445566778899aabbccddeeff\n' > "$tmp_sec"
+assert_fail "validate_secrets_plaintext refuse trousseau API vide" validate_secrets_plaintext "$tmp_sec"
 rm -f "$tmp_sec"
 
 echo

@@ -112,7 +112,7 @@ validate_config_env() {
 
     # Garde-fou anti-fuite : un credential n'a RIEN à faire dans config.env (clair).
     local leaked
-    leaked=$(grep -oE '^[[:space:]]*(API_KEY|API_KEYS|SFTP__URL|BOT__(TOKEN|ALLOWED_USERS)|AES__TROUSSEAU__|ODOO_(TEST|PROD)_PASSWORD)' "$file" 2>/dev/null | head -1)
+    leaked=$(grep -oE '^[[:space:]]*(API__TROUSSEAU__|API_KEY|API_KEYS|SFTP__URL|BOT__(TOKEN|ALLOWED_USERS)|AES__TROUSSEAU__|ODOO_(TEST|PROD)_PASSWORD)' "$file" 2>/dev/null | head -1)
     [[ -z "$leaked" ]] || \
         errors+=("secret en clair détecté dans config.env (« ${leaked} ») — il doit vivre dans secrets.env chiffré")
 
@@ -125,20 +125,33 @@ validate_config_env() {
 
 # validate_secrets_plaintext <plaintext_file>
 # Valide la moitié SECRÈTE déjà DÉCHIFFRÉE (dotenv en clair, jamais sur disque en prod) :
-# API_KEY, SFTP__URL, trousseau AES présents et valides. Réutilise les règles AES de
-# `validate_env_file`. Imprime les erreurs sur stdout ; 0 si OK, 1 sinon.
+# trousseau API (ADR-0046 §4), SFTP__URL, trousseau AES présents et valides. Réutilise les
+# règles AES de `validate_env_file`. Imprime les erreurs sur stdout ; 0 si OK, 1 sinon.
 validate_secrets_plaintext() {
     local file="$1"
     local errors=()
 
     [[ -r "$file" ]] || { echo "secrets (clair) introuvable : $file"; return 1; }
 
-    local api_key sftp
-    api_key=$(read_env_var "$file" API_KEY)
+    local sftp
     sftp=$(read_env_var "$file" SFTP__URL)
 
-    validate_api_key "$api_key" || \
-        errors+=("API_KEY manquant ou trop court (≥ 32 caractères requis)")
+    # Trousseau API (ADR-0046 §4) : ≥ 1 clé API__TROUSSEAU__<consommateur>__KEY (≥ 32 chars).
+    local api_labels api_label api_cle
+    mapfile -t api_labels < <(
+        grep -oE '^[[:space:]]*API__TROUSSEAU__.+__KEY[[:space:]]*=' "$file" 2>/dev/null \
+            | sed -E 's/^[[:space:]]*API__TROUSSEAU__(.+)__KEY[[:space:]]*=.*/\1/' | sort -u
+    )
+    if [[ ${#api_labels[@]} -eq 0 ]]; then
+        errors+=("trousseau API vide : ajoutez au moins une clé API__TROUSSEAU__<consommateur>__KEY (≥ 32 caractères)")
+    else
+        for api_label in "${api_labels[@]}"; do
+            api_cle=$(read_env_var "$file" "API__TROUSSEAU__${api_label}__KEY")
+            validate_api_key "$api_cle" || \
+                errors+=("API__TROUSSEAU__${api_label}__KEY absent ou trop court (≥ 32 caractères)")
+        done
+    fi
+
     validate_url "$sftp" || \
         errors+=("SFTP__URL invalide (attendu sftp://… ou file://…) : '${sftp}'")
 

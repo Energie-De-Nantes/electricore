@@ -68,6 +68,7 @@ class APIKeyInfo:
 
     key_preview: str
     is_valid: bool
+    consumer: str | None = None
     source: str = "header"
 
     @classmethod
@@ -75,6 +76,7 @@ class APIKeyInfo:
         return cls(
             key_preview=f"{key[:8]}..." if len(key) > 8 else "***",
             is_valid=runtime.api().cle_valide(key),
+            consumer=runtime.api().consommateur_pour(key),
         )
 
 

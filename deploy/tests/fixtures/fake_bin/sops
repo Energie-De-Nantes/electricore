@@ -18,7 +18,7 @@ case "$sub" in
         fi
         # Émet un clair factice cohérent (utilisé par validate_secrets_env).
         cat <<'EOF'
-API_KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+API__TROUSSEAU__librewatt__KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 SFTP__URL=sftp://user:pass@host.fr:22/exports
 AES__TROUSSEAU__demo__KEY=00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
 EOF

@@ -335,7 +335,7 @@ BACKUPS_PATH=/srv/monfournisseur/backups
 ODOO_ENV=prod
 
 # secrets.env — CHIFFRÉ (SOPS + age) : uniquement des credentials
-API_KEY=cle_api_d_au_moins_32_caracteres          # ou API_KEYS=cle1,cle2
+API__TROUSSEAU__librewatt__KEY=cle_consommateur_32_caracteres   # 1 clé/consommateur, label dynamique
 SFTP__URL=sftp://utilisateur:mot_de_passe@hote:22/chemin
 BOT__TOKEN=token_botfather                        # bot = process de l'API
 ODOO_PROD_URL=https://votre-instance.odoo.com     # + _DB / _USERNAME / _PASSWORD
