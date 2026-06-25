@@ -32,6 +32,10 @@ Cas particulier : `runtime.odoo(env=None)` résout le sélecteur `ODOO_ENV` (`te
 et injecte le préfixe `ODOO_{ENV}_` à l'instanciation — seul l'environnement demandé est
 validé.
 
+> **Mise à jour (#439, ADR-0046 §5)** — le sélecteur a été retiré : `runtime.odoo()` lit
+> désormais un **bloc unique read-only** `ODOO__{URL,DB,USERNAME,PASSWORD}`. Le reste de
+> cette ADR décrit l'état d'origine et est conservé tel quel.
+
 ### Fail-fast par point d'entrée
 
 Un helper `valider(*accessors)` appelle chaque domaine, collecte les `ValidationError`,
@@ -127,10 +131,10 @@ groupées par domaine. Chaque point d'entrée déclare ses domaines au boot :
   fois, deux transports) et n'est jamais lue depuis `.env`. L'alternative — générer un
   `profiles.yml` temporaire par run — troquerait une ligne documentée contre de la
   génération de fichiers.
-- **La mécanique `ODOO_ENV`/`ODOO_TEST_*` est conservée à l'identique** dans l'attente
-  de #190 (stratégie de test des écritures Odoo) — le sélecteur est un outillage
-  d'opérateur (répéter une injection avant de la jouer sur prod), pas une dimension du
-  déploiement. Ne pas retoucher avant l'arbitrage de #190.
+- ~~**La mécanique `ODOO_ENV`/`ODOO_TEST_*` est conservée à l'identique** dans l'attente
+  de #190 (stratégie de test des écritures Odoo).~~ **Levé (#439)** : #190 est clos
+  *completed* (plus d'écritures Odoo à répéter) — le sélecteur a été remplacé par le bloc
+  unique read-only `ODOO__*` (ADR-0046 §5). Odoo reste read-only (ADR-0012).
 - **Si le bot devient un conteneur séparé**, le transport ASGI ne suffit plus : injecter
   un transport réseau et réintroduire une URL de base — le paramètre `transport` du
   client est le seam prévu pour ça.

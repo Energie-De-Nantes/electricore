@@ -62,10 +62,10 @@ l'API et la joint en interne (`localhost:8001`) — aucune variable requise.
 
 ### Odoo (intégration)
 
-Domaine `odoo` du registre (`runtime.odoo(env=None)`) — sélecteur `ODOO_ENV`
-(`test`/`prod`) puis `ODOO_{TEST|PROD}_{URL,DB,USERNAME,PASSWORD}` ; `charger_config_odoo()`
-reste une façade déléguant au registre. `ODOO_ENV=prod` sans variables `ODOO_PROD_*` lève
-`ConfigurationManquante` au boot (plus de retombée silencieuse sur la base test).
+Domaine `odoo` du registre (`runtime.odoo()`) — bloc unique read-only
+`ODOO__{URL,DB,USERNAME,PASSWORD}` (#439, ADR-0046 §5) ; `charger_config_odoo()` reste une
+façade déléguant au registre. Plus de sélecteur test/prod (#190 clos) : une variable absente
+lève `ConfigurationManquante` au boot (no-ERP servi tant que le bloc est entièrement absent).
 
 ## 2. Fichiers de configuration versionnés
 

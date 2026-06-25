@@ -63,11 +63,10 @@ def _manquantes_operateur() -> dict[str, str]:
 
 
 def _manquantes_odoo() -> list[str]:
-    """Noms des variables Odoo manquantes pour l'environnement actif.
+    """Noms des variables Odoo manquantes (bloc unique ODOO__*, #439).
 
     S'appuie sur le registre runtime (source de vérité, ADR-0025) : la connexion
-    Odoo de l'env `ODOO_ENV` est validée ; les variables absentes remontent via
-    `ConfigurationManquante`.
+    Odoo est validée ; les variables absentes remontent via `ConfigurationManquante`.
     """
     try:
         runtime.odoo()
@@ -99,7 +98,7 @@ def charger_env() -> None:
 def valider_environnement() -> None:
     """Valide l'environnement requis ; sinon imprime un message clair et sort (non-nul).
 
-    Requis : les creds Odoo lus par `charger_config_odoo()` (env `ODOO_ENV`) +
+    Requis : les creds Odoo lus par `charger_config_odoo()` (bloc ODOO__*) +
     `ELECTRICORE_API_URL` + `ELECTRICORE_API_KEY`. L'opérateur ne doit jamais
     deviner : chaque variable manquante est nommée avec son rôle.
     """

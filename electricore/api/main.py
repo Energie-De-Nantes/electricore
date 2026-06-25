@@ -52,9 +52,8 @@ async def lifespan(app: FastAPI):
     global _tg_app
     odoo_db = runtime.odoo().db if settings.is_odoo_configured else "(unset)"
     logger.info(
-        "Instance=%s, odoo_env=%s, odoo_db=%s, sftp=%s",
+        "Instance=%s, odoo_db=%s, sftp=%s",
         settings.instance_slug or "(unset)",
-        settings.odoo_env,
         odoo_db,
         _format_sftp_source(),
     )

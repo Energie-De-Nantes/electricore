@@ -83,7 +83,7 @@ async def check_facturation_odoo(api_key: str = Depends(get_current_api_key)):
     if not settings.is_odoo_configured:
         raise HTTPException(
             501,
-            f"Odoo [{settings.odoo_env}] non configuré. Définissez ODOO_{settings.odoo_env.upper()}_URL/DB/USERNAME/PASSWORD dans .env",
+            "Odoo non configuré. Définissez ODOO__URL/DB/USERNAME/PASSWORD.",
         )
     try:
         result = await asyncio.get_event_loop().run_in_executor(None, verifier_odoo)

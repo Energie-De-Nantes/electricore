@@ -81,13 +81,11 @@ def _():
 @app.cell(hide_code=True)
 def _():
     """Configuration Odoo depuis .env"""
-    import os
     from electricore.config import charger_config_odoo
 
     try:
         config = charger_config_odoo()
-        _env = os.getenv("ODOO_ENV", "test")
-        print(f"✅ Configuration Odoo chargée (env: {_env}) — {config['url']}")
+        print(f"✅ Configuration Odoo chargée — {config['url']}")
     except ValueError as e:
         config = None
         print(f"⚠️ {e}")
