@@ -10,40 +10,17 @@ de réponse. Les modèles de ligne (`PeriodeMeta`/`ObjetReleve`) sont **single-s
 `electricore_client` — le router les importe, ne les redéfinit pas.
 """
 
-import datetime as dt
-from collections.abc import Iterator
 from typing import Annotated
 
 # Modèles single-sourcés dans le paquet client (ADR-0043).
 from electricore_client.models import PeriodeMeta
 from fastapi import APIRouter, Depends, Query
-from fastapi.responses import StreamingResponse
 
 from electricore.api.security import get_current_api_key
+from electricore.api.serializers.jsonl import jsonl_response
 from electricore.api.services.meta_periodes_service import CONTRAT_VERSION, meta_periodes
 
 router = APIRouter(tags=["facturation"])
-
-MEDIA_TYPE_JSONL = "application/jsonl"
-
-
-def _stringifier_dates(ligne: dict) -> dict:
-    """Rend les `datetime`/`date` de la ligne en ISO8601 (le contrat porte des `str`)."""
-    return {
-        clef: (valeur.isoformat() if isinstance(valeur, (dt.datetime, dt.date)) else valeur)
-        for clef, valeur in ligne.items()
-    }
-
-
-def _lignes_jsonl(rows: list[dict]) -> Iterator[bytes]:
-    """Construit un `PeriodeMeta` par ligne et l'émet comme une ligne JSONL.
-
-    La construction par modèle **valide** chaque ligne (le serveur ne peut pas servir
-    une ligne hors-contrat) et normalise la sérialisation (alias, types).
-    """
-    for row in rows:
-        periode = PeriodeMeta.model_validate(_stringifier_dates(row))
-        yield (periode.model_dump_json() + "\n").encode()
 
 
 @router.get("/facturation/meta-periodes")
@@ -74,9 +51,10 @@ async def get_meta_periodes(
     Odoo construit/upsert ses `souscription.periode` à partir de ce flux.
     """
     mois_resolu, df = meta_periodes(mois=mois, rsc=rsc)
-    rows = df.to_dicts()
     headers = {
         "X-Contract-Version": str(CONTRAT_VERSION),
         "X-Mois": mois_resolu,
     }
-    return StreamingResponse(_lignes_jsonl(rows), media_type=MEDIA_TYPE_JSONL, headers=headers)
+    # Validate-then-stream (#426) : `jsonl_response` valide toutes les lignes en amont, donc
+    # une ligne hors-contrat fait un 500 atomique avant tout octet (pas un 200 tronqué).
+    return jsonl_response(df, valider=PeriodeMeta.model_validate, headers=headers)
