@@ -328,15 +328,15 @@ assert_fail "validate_secrets_plaintext refuse trousseau API vide" validate_secr
 rm -f "$tmp_sec"
 
 echo
-echo "→ secrets.sh (fake-binaries docker/git/sops)"
+echo "→ secrets.sh (fake-binaries age-keygen/ssh-keygen/sops/git)"
 FAKE_BIN="${FIXTURES_DIR}/fake_bin"
-# Sandbox d'instance jetable : SRV_BASE pointe sur un tmp, fake docker/git/sops sur PATH.
+# Sandbox d'instance jetable : SRV_BASE pointe sur un tmp, fakes age/ssh-keygen/sops/git sur PATH.
 secrets_root=$(mktemp -d)
 export SRV_BASE="$secrets_root"
 install -d "${secrets_root}/edn"
 
 # generate_box_identities : génère age.key + ssh_deploy_key (600) + imprime les 2 pubs.
-out=$(PATH="${FAKE_BIN}:$PATH" DOCKER_BIN=docker generate_box_identities edn 2>/dev/null)
+out=$(PATH="${FAKE_BIN}:$PATH" generate_box_identities edn 2>/dev/null)
 grep -q "^AGE_PUBLIC_KEY=age1" <<<"$out" && ok "generate_box_identities: imprime la clé age publique" || ko "pas de AGE_PUBLIC_KEY"
 grep -q "^SSH_DEPLOY_PUBKEY=ssh-ed25519" <<<"$out" && ok "generate_box_identities: imprime la deploy key SSH publique" || ko "pas de SSH_DEPLOY_PUBKEY"
 [[ -f "${secrets_root}/edn/age.key" ]] && ok "generate_box_identities: clé age privée écrite" || ko "age.key absent"

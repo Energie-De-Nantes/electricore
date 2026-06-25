@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Fake `ssh-keygen` pour les tests de secrets.sh (ADR-0044, design outils-hôte).
+# `ssh-keygen … -f FILE` → écrit une clé privée + .pub factices dans FILE.
+out=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -f) out="$2"; shift 2 ;;
+        *)  shift ;;
+    esac
+done
+[[ -n "$out" ]] || exit 1
+echo "FAKE-OPENSSH-PRIVATE-KEY" > "$out"
+echo "ssh-ed25519 AAAAFAKEDEPLOYKEY deploy-key" > "${out}.pub"

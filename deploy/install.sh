@@ -215,11 +215,14 @@ main() {
 
     # ─── Étape 9 : secrets-as-code (ADR-0044) — identité box + pull + déchiffrement ──
     log_step "Identité de la box (age + SSH deploy key)"
+    # Outils crypto sur l'hôte (sops + age) — la box génère/déchiffre avec eux, pas via
+    # l'image (dont l'entrypoint SOPS fail-fast n'est pas fait pour un `docker run`).
+    ensure_secrets_tools || die "Installation des outils crypto (sops/age) échouée — vérifie l'accès réseau à github.com."
     if pubs=$(generate_box_identities "$OPT_SLUG"); then
         age_pub=$(printf '%s\n' "$pubs" | sed -n 's/^AGE_PUBLIC_KEY=//p')
         ssh_pub=$(printf '%s\n' "$pubs" | sed -n 's/^SSH_DEPLOY_PUBKEY=//p')
     else
-        die "Génération des identités de la box échouée (image ${SECRETS_IMAGE} indisponible ?)."
+        die "Génération des identités de la box échouée (age-keygen / ssh-keygen sur l'hôte)."
     fi
 
     log_step "Pull du dépôt de déploiement privé"

@@ -1,28 +1,66 @@
 # shellcheck shell=bash
-# Secrets-as-code (ADR-0044) : génération des deux identités de la box (age + SSH),
-# pull du dépôt de déploiement privé, validation du split config/secret.
+# Secrets-as-code (ADR-0044) : installation des outils crypto sur l'hôte, génération des
+# deux identités de la box (age + SSH), pull du dépôt de déploiement privé, validation du
+# split config/secret.
 #
-# Toutes les commandes externes (docker, git, age) sont appelées PAR LEUR NOM (via
-# le PATH) → les tests `deploy/tests/` les stubbent en fake-binaries (motif maison).
+# Toutes les commandes externes (sops, age, age-keygen, ssh-keygen, git) sont appelées PAR
+# LEUR NOM (via le PATH) → les tests `deploy/tests/` les stubbent en fake-binaries.
 #
 # Décisions clés (ADR-0044) :
-#   §4 — chaque box génère SA paire age + SA paire SSH ; les clés PRIVÉES naissent sur
-#        la box et n'en sortent jamais (/srv/<slug>/, 600). L'opérateur enregistre les
-#        deux PUBLIQUES (age → destinataire .sops.yaml ; SSH → deploy key RO).
-#        Génération VIA L'IMAGE (age-keygen / ssh-keygen embarqués) → zéro dép hôte.
+#   §4 — chaque box génère SA paire age + SA paire SSH ; les clés PRIVÉES naissent sur la
+#        box et n'en sortent jamais (/srv/<slug>/, 600). L'opérateur enregistre les deux
+#        PUBLIQUES (age → destinataire .sops.yaml ; SSH → deploy key RO). La crypto tourne
+#        avec les outils de l'HÔTE (sops + age installés par `ensure_secrets_tools` ;
+#        ssh-keygen déjà présent sur tout VPS). L'image ne sert QU'au runtime : son
+#        entrypoint SOPS fail-fast n'est pas fait pour un `docker run age-keygen`.
 #   §5 — le ciphertext arrive par auto-pull : la box clone/pull le dépôt privé via sa
 #        deploy key RO et lit providers/<slug>/{config.env,secrets.env}.
 
-# Image runtime par défaut (porte age + ssh-keygen + sops).
-SECRETS_IMAGE="${SECRETS_IMAGE:-ghcr.io/energie-de-nantes/electricore:latest}"
-# Commandes externes, surchargeable pour les tests.
-DOCKER_BIN="${DOCKER_BIN:-docker}"
+# Commande git, surchargeable pour les tests.
 GIT_BIN="${GIT_BIN:-git}"
 # Racine des homes d'instance (/srv en prod, ADR-0017). Surchargeable pour les tests.
 SRV_BASE="${SRV_BASE:-/srv}"
 
+# Outils crypto installés sur l'hôte (mêmes versions/checksums que le Dockerfile de l'image,
+# binaires statiques amd64). La box manipule ses clés et déchiffre le pré-flight avec eux.
+SOPS_VERSION="${SOPS_VERSION:-3.9.4}"
+SOPS_SHA256="${SOPS_SHA256:-5488e32bc471de7982ad895dd054bbab3ab91c417a118426134551e9626e4e85}"
+AGE_VERSION="${AGE_VERSION:-1.2.1}"
+AGE_SHA256="${AGE_SHA256:-7df45a6cc87d4da11cc03a539a7470c15b1041ab2b396af088fe9990f7c79d50}"
+
+# ensure_secrets_tools
+# Installe sops + age + age-keygen dans /usr/local/bin si absents (curl + checksum, même
+# motif que le Dockerfile). Idempotent. ssh-keygen est déjà présent sur tout VPS (openssh).
+ensure_secrets_tools() {
+    local bin=/usr/local/bin
+    if ! command -v sops >/dev/null 2>&1; then
+        curl -fsSL -o "${bin}/sops" \
+            "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.amd64" \
+            && echo "${SOPS_SHA256}  ${bin}/sops" | sha256sum -c - >/dev/null 2>&1 \
+            && chmod +x "${bin}/sops" \
+            || { log_err "installation de sops échouée (téléchargement ou checksum)" >&2; return 1; }
+        log_ok "sops installé (${bin}/sops, v${SOPS_VERSION})" >&2
+    else
+        log_skip "sops déjà présent ($(command -v sops))" >&2
+    fi
+    if ! command -v age-keygen >/dev/null 2>&1; then
+        local tmp; tmp=$(mktemp -d)
+        curl -fsSL -o "${tmp}/age.tgz" \
+            "https://github.com/FiloSottile/age/releases/download/v${AGE_VERSION}/age-v${AGE_VERSION}-linux-amd64.tar.gz" \
+            && echo "${AGE_SHA256}  ${tmp}/age.tgz" | sha256sum -c - >/dev/null 2>&1 \
+            && tar -xzf "${tmp}/age.tgz" -C "$tmp" \
+            && mv "${tmp}/age/age" "${tmp}/age/age-keygen" "${bin}/" \
+            && chmod +x "${bin}/age" "${bin}/age-keygen" \
+            || { log_err "installation de age échouée (téléchargement ou checksum)" >&2; rm -rf "$tmp"; return 1; }
+        rm -rf "$tmp"
+        log_ok "age + age-keygen installés (${bin}, v${AGE_VERSION})" >&2
+    else
+        log_skip "age déjà présent ($(command -v age-keygen))" >&2
+    fi
+}
+
 # generate_age_identity <home>
-# Génère la paire age de la box VIA L'IMAGE (age-keygen), écrit la clé privée dans
+# Génère la paire age de la box avec `age-keygen` (outil hôte), écrit la clé privée dans
 # <home>/age.key (600), et imprime la clé PUBLIQUE sur stdout. Idempotent : si
 # <home>/age.key existe déjà, on ne régénère pas (on re-dérive juste la pub).
 generate_age_identity() {
@@ -31,10 +69,10 @@ generate_age_identity() {
     if [[ -f "$keyfile" ]]; then
         log_skip "clé age déjà présente (${keyfile}) — conservée" >&2
     else
-        # age-keygen écrit la clé privée sur stdout (+ la pub en commentaire) et la
-        # pub sur stderr. On capture la privée via l'image, sans jamais l'exposer.
-        "$DOCKER_BIN" run --rm "$SECRETS_IMAGE" age-keygen 2>/dev/null > "$keyfile" \
-            || { log_err "échec age-keygen via l'image" >&2; return 1; }
+        # age-keygen écrit la clé privée sur stdout (+ la pub en commentaire) et la pub
+        # sur stderr. On capture la privée dans le keyfile, sans jamais l'exposer.
+        age-keygen 2>/dev/null > "$keyfile" \
+            || { log_err "échec age-keygen (outil hôte absent ? cf. ensure_secrets_tools)" >&2; return 1; }
         chmod 600 "$keyfile"
         log_ok "paire age générée (${keyfile}, 600)" >&2
     fi
@@ -42,28 +80,24 @@ generate_age_identity() {
 }
 
 # age_public_key <keyfile>
-# Dérive la clé publique age depuis la clé privée VIA L'IMAGE (age-keygen -y).
+# Dérive la clé publique age depuis la clé privée avec `age-keygen -y` (outil hôte).
 age_public_key() {
     local keyfile="$1"
-    "$DOCKER_BIN" run --rm -v "${keyfile}:/age.key:ro" "$SECRETS_IMAGE" \
-        age-keygen -y /age.key 2>/dev/null
+    age-keygen -y "$keyfile" 2>/dev/null
 }
 
 # generate_ssh_deploy_identity <home>
-# Génère la paire SSH de la box VIA L'IMAGE (ssh-keygen ed25519), clé privée dans
-# <home>/ssh_deploy_key (600), et imprime la clé PUBLIQUE sur stdout. Idempotent.
+# Génère la paire SSH de la box avec `ssh-keygen` ed25519 (outil hôte, openssh), clé privée
+# dans <home>/ssh_deploy_key (600), et imprime la clé PUBLIQUE sur stdout. Idempotent.
 generate_ssh_deploy_identity() {
     local home="$1"
     local keyfile="${home}/ssh_deploy_key"
     if [[ -f "$keyfile" ]]; then
         log_skip "clé SSH de déploiement déjà présente (${keyfile}) — conservée" >&2
     else
-        # ssh-keygen écrit keyfile + keyfile.pub. On le lance dans l'image, le home
-        # monté en RW pour récupérer les deux fichiers.
-        "$DOCKER_BIN" run --rm -v "${home}:/out" "$SECRETS_IMAGE" \
-            ssh-keygen -t ed25519 -N '' -C "deploy-key" -f /out/ssh_deploy_key \
-            >/dev/null 2>&1 \
-            || { log_err "échec ssh-keygen via l'image" >&2; return 1; }
+        # ssh-keygen écrit keyfile + keyfile.pub directement (openssh est sur tout VPS).
+        ssh-keygen -t ed25519 -N '' -C "deploy-key" -f "$keyfile" >/dev/null 2>&1 \
+            || { log_err "échec ssh-keygen (openssh absent ?)" >&2; return 1; }
         chmod 600 "$keyfile"
         [[ -f "${keyfile}.pub" ]] && chmod 644 "${keyfile}.pub"
         log_ok "paire SSH de déploiement générée (${keyfile}, 600)" >&2
