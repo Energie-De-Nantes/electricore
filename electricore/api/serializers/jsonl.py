@@ -59,14 +59,14 @@ def jsonl_response(
             brut = {clef: valeur for clef, valeur in brut.items() if valeur is not None}
         try:
             modele = valider(brut)
-        except Exception as exc:
+        except Exception:
             # Le corps 500 générique de FastAPI ne fuit rien : on logge ici de quoi
             # diagnostiquer en prod *quelle* ligne était hors-contrat, puis on propage
             # (le mois entier échoue, zéro ligne appliquée côté consommateur).
-            logger.error(
-                "Ligne hors-contrat (ref_situation_contractuelle=%s) : %s",
+            # `logger.exception` attache la trace (et l'erreur pydantic qui nomme le champ).
+            logger.exception(
+                "Ligne hors-contrat (ref_situation_contractuelle=%s)",
                 row.get("ref_situation_contractuelle"),
-                exc,
             )
             raise
         lignes.append((modele.model_dump_json(exclude_none=omettre_les_nuls) + "\n").encode())
