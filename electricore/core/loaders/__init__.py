@@ -1,4 +1,4 @@
-"""Chargeurs de données pour ElectriCore (DuckDB, Parquet).
+"""Chargeurs de données pour ElectriCore (DuckDB).
 
 Module ERP-agnostique conformément à [ADR-0016](../../../docs/adr/0016-core-erp-agnostique.md) :
 toute intégration ERP (Odoo, …) vit dans `electricore.integrations.<erp>`.
