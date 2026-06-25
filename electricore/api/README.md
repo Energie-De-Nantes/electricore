@@ -52,8 +52,8 @@ ENABLE_API_KEY_HEADER=true
 ENABLE_API_KEY_QUERY=false
 
 # Personnaliser les métadonnées
-API_TITLE="Mon API ElectriCore"
-API_VERSION="1.0.0"
+API__TITLE="Mon API ElectriCore"
+API__VERSION="1.0.0"
 ```
 
 ## 📡 Endpoints

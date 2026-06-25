@@ -122,7 +122,7 @@ RUN mkdir -p /data /backups \
 ENV PATH="/app/.venv/bin:${PATH}" \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    DUCKDB_PATH=/data/flux_enedis_pipeline.duckdb \
+    DUCKDB__PATH=/data/flux_enedis_pipeline.duckdb \
     TZ=Europe/Paris
 
 USER electricore

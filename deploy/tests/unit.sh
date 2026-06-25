@@ -362,6 +362,16 @@ tmp_cfg=$(mktemp)
 printf 'INSTANCE_SLUG=edn\nELECTRICORE_VERSION=1.7.0\nBACKUPS_PATH=/srv/edn/backups\nODOO_PROD_PASSWORD=secret_factice\n' > "$tmp_cfg"
 assert_fail "validate_config_env refuse un secret en clair (ODOO_PROD_PASSWORD)" validate_config_env "$tmp_cfg" "edn"
 rm -f "$tmp_cfg"
+# Token bot : BOT__TOKEN confère une capacité ⇒ secret (ADR-0046 §7)
+tmp_cfg=$(mktemp)
+printf 'INSTANCE_SLUG=edn\nELECTRICORE_VERSION=1.7.0\nBACKUPS_PATH=/srv/edn/backups\nBOT__TOKEN=000000:factice\n' > "$tmp_cfg"
+assert_fail "validate_config_env refuse un secret en clair (BOT__TOKEN)" validate_config_env "$tmp_cfg" "edn"
+rm -f "$tmp_cfg"
+# Mais BOT__NOTIFY_CHAT_ID (routage, pas une capacité) est AUTORISÉ en config.env (ADR-0046 §7)
+tmp_cfg=$(mktemp)
+printf 'INSTANCE_SLUG=edn\nELECTRICORE_VERSION=1.7.0\nBACKUPS_PATH=/srv/edn/backups\nBOT__NOTIFY_CHAT_ID=-100\n' > "$tmp_cfg"
+assert_ok "validate_config_env autorise BOT__NOTIFY_CHAT_ID (routage)" validate_config_env "$tmp_cfg" "edn"
+rm -f "$tmp_cfg"
 # config.env manquant version → échec
 tmp_cfg=$(mktemp); printf 'INSTANCE_SLUG=edn\nBACKUPS_PATH=/srv/edn/backups\n' > "$tmp_cfg"
 assert_fail "validate_config_env exige ELECTRICORE_VERSION" validate_config_env "$tmp_cfg" "edn"

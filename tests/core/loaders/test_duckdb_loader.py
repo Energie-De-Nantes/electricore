@@ -41,14 +41,14 @@ class TestDuckDBConfig:
         Ordre volontaire : from_env() d'abord — s'il ne déléguait pas, il rendrait
         son propre défaut avant que le résolveur n'ait chargé le .env.
         """
-        monkeypatch.delenv("DUCKDB_PATH", raising=False)
+        monkeypatch.delenv("DUCKDB__PATH", raising=False)
         runtime.vider_cache()
         depuis_config = DuckDBConfig.from_env().database_path
         assert depuis_config == runtime.duckdb().chemin
 
     def test_from_env_honore_duckdb_path(self, monkeypatch):
-        """DUCKDB_PATH explicite prime, telle quelle."""
-        monkeypatch.setenv("DUCKDB_PATH", "/data/flux.duckdb")
+        """DUCKDB__PATH explicite prime, telle quelle."""
+        monkeypatch.setenv("DUCKDB__PATH", "/data/flux.duckdb")
         runtime.vider_cache()
         assert DuckDBConfig.from_env().database_path == Path("/data/flux.duckdb")
 

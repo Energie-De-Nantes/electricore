@@ -45,27 +45,27 @@ def test_selection_multi_flux():
 
 
 def test_la_base_par_defaut_honore_duckdb_path(monkeypatch):
-    """En conteneur, DUCKDB_PATH pointe le volume de données (docker-compose) :
+    """En conteneur, DUCKDB__PATH pointe le volume de données (docker-compose) :
     le runner doit l'honorer, comme l'API et les loaders."""
     from electricore.ingestion.runner import chemin_db_defaut
 
-    monkeypatch.setenv("DUCKDB_PATH", "/data/flux_enedis_pipeline.duckdb")
+    monkeypatch.setenv("DUCKDB__PATH", "/data/flux_enedis_pipeline.duckdb")
     assert str(chemin_db_defaut()) == "/data/flux_enedis_pipeline.duckdb"
-    monkeypatch.delenv("DUCKDB_PATH")
+    monkeypatch.delenv("DUCKDB__PATH")
     assert chemin_db_defaut().name == "flux_enedis_pipeline.duckdb"
 
 
 def test_la_base_par_defaut_honore_le_dotenv(tmp_path, monkeypatch):
-    """Même résolution que l'API et les loaders core (issue #146) : un DUCKDB_PATH
+    """Même résolution que l'API et les loaders core (issue #146) : un DUCKDB__PATH
     porté par le .env vaut pour le runner aussi, pas seulement pour l'API."""
     from pathlib import Path
 
     from electricore.config import runtime
     from electricore.ingestion.runner import chemin_db_defaut
 
-    monkeypatch.delenv("DUCKDB_PATH", raising=False)
+    monkeypatch.delenv("DUCKDB__PATH", raising=False)
     fichier_env = tmp_path / ".env"
-    fichier_env.write_text("DUCKDB_PATH=/data/depuis_dotenv.duckdb\n")
+    fichier_env.write_text("DUCKDB__PATH=/data/depuis_dotenv.duckdb\n")
     monkeypatch.setattr(runtime, "FICHIER_ENV", fichier_env)
     runtime.vider_cache()
 

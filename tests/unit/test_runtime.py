@@ -23,12 +23,12 @@ def _isolation_env(monkeypatch):
 
 class TestDomaineDuckdb:
     def test_duckdb_path_definit_le_chemin(self, monkeypatch):
-        monkeypatch.setenv("DUCKDB_PATH", "/data/flux.duckdb")
+        monkeypatch.setenv("DUCKDB__PATH", "/data/flux.duckdb")
         assert str(runtime.duckdb().chemin) == "/data/flux.duckdb"
 
     def test_defaut_ancre_sur_le_depot_independant_du_cwd(self, monkeypatch, tmp_path):
-        """Sans DUCKDB_PATH, la base de prod locale — absolue, jamais relative au CWD."""
-        monkeypatch.delenv("DUCKDB_PATH", raising=False)
+        """Sans DUCKDB__PATH, la base de prod locale — absolue, jamais relative au CWD."""
+        monkeypatch.delenv("DUCKDB__PATH", raising=False)
         chemin = runtime.duckdb().chemin
         monkeypatch.chdir(tmp_path)
         runtime.vider_cache()
@@ -156,13 +156,42 @@ class TestDomaineApi:
 
         assert re.match(r"\d+\.\d+", runtime.Api().version)
 
+    def test_metadonnees_lues_depuis_api_prefixe(self, monkeypatch):
+        """ADR-0046 : API__TITLE / API__VERSION / API__DESCRIPTION."""
+        monkeypatch.setenv("API__TITLE", "Mon API")
+        monkeypatch.setenv("API__VERSION", "9.9.9")
+        monkeypatch.setenv("API__DESCRIPTION", "desc")
+        api = runtime.api()
+        assert (api.titre, api.version, api.description) == ("Mon API", "9.9.9", "desc")
+
 
 class TestDomaineBot:
+    def test_token_lu_depuis_bot_token(self, monkeypatch):
+        """ADR-0046 : le préfixe suit le domaine runtime (bot()), pas le fournisseur."""
+        monkeypatch.setenv("BOT__TOKEN", "123:abc")
+        assert runtime.bot().token == "123:abc"
+
+    def test_ancien_nom_telegram_ne_resout_plus(self, monkeypatch):
+        """ADR-0046 : pas de double alias — l'ancien TELEGRAM_BOT_TOKEN est mort."""
+        monkeypatch.delenv("BOT__TOKEN", raising=False)
+        monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "t")
+        with pytest.raises(runtime.ConfigurationManquante):
+            runtime.bot()
+
     def test_token_manquant_leve_configuration_manquante(self, monkeypatch):
-        monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+        monkeypatch.delenv("BOT__TOKEN", raising=False)
         with pytest.raises(runtime.ConfigurationManquante) as exc:
             runtime.bot()
-        assert "TELEGRAM_BOT_TOKEN" in str(exc.value)
+        assert "BOT__TOKEN" in str(exc.value)
+
+    def test_allowlist_et_notify_lus_depuis_bot(self, monkeypatch):
+        """ADR-0046 : BOT__ALLOWED_USERS / BOT__NOTIFY_CHAT_ID (ex TELEGRAM_*)."""
+        monkeypatch.setenv("BOT__TOKEN", "t")
+        monkeypatch.setenv("BOT__ALLOWED_USERS", "1, 2")
+        monkeypatch.setenv("BOT__NOTIFY_CHAT_ID", "-100")
+        bot = runtime.bot()
+        assert bot.utilisateurs_autorises() == {1, 2}
+        assert bot.notify_chat_id == "-100"
 
     def test_allowlist_parse_en_ids_entiers(self):
         bot = runtime.Bot(token="t", allowed_users="123, 456 ,abc,")
@@ -179,16 +208,16 @@ class TestValider:
 
     def test_agrege_les_manquantes_de_tous_les_domaines(self, monkeypatch):
         monkeypatch.delenv("SFTP__URL", raising=False)
-        monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+        monkeypatch.delenv("BOT__TOKEN", raising=False)
         with pytest.raises(runtime.ConfigurationManquante) as exc:
             runtime.valider(runtime.sftp, runtime.bot)
         assert "SFTP__URL" in str(exc.value)
-        assert "TELEGRAM_BOT_TOKEN" in str(exc.value)
+        assert "BOT__TOKEN" in str(exc.value)
         assert set(exc.value.manquantes) == {"sftp", "bot"}
 
     def test_silencieux_quand_tout_est_la(self, monkeypatch):
         monkeypatch.setenv("SFTP__URL", "sftp://x")
-        monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "t")
+        monkeypatch.setenv("BOT__TOKEN", "t")
         runtime.valider(runtime.sftp, runtime.bot)  # ne lève pas
 
 
@@ -208,3 +237,48 @@ class TestAccessors:
         monkeypatch.setenv("ODOO_TEST_PASSWORD", "p")
         runtime.vider_cache()
         assert runtime.odoo_est_configure()
+
+
+# ── Parité de frontière (ADR-0046) ──────────────────────────────────────────
+# Les exemples de déploiement (deploy/providers/example/) déclarent EXACTEMENT
+# les noms que le runtime lit. Un respell d'un côté non miroité de l'autre casse
+# ces tests — c'est ce qui rend la convention <DOMAINE>__<CHAMP> *appliquée*, pas
+# juste aspirationnelle.
+
+import pathlib  # noqa: E402
+
+_RACINE = pathlib.Path(__file__).resolve().parents[2]
+_EXEMPLES = (
+    _RACINE / "deploy/providers/example/config.env.example",
+    _RACINE / "deploy/providers/example/secrets.env.example",
+)
+# Noms retirés par ADR-0046 (#436). Odoo (ODOO_ENV/ODOO_<ENV>_*) et API_KEY/KEYS
+# relèvent de #439/#438 — pas encore retirés ici.
+_NOMS_RETIRES = ("TELEGRAM_", "DUCKDB_PATH", "API_TITLE", "API_VERSION", "API_DESCRIPTION")
+
+
+def _charger_dotenv(path: pathlib.Path) -> dict[str, str]:
+    env: dict[str, str] = {}
+    for ligne in path.read_text().splitlines():
+        ligne = ligne.strip()
+        if not ligne or ligne.startswith("#") or "=" not in ligne:
+            continue
+        cle, _, val = ligne.partition("=")
+        env[cle.strip()] = val.strip()
+    return env
+
+
+class TestPariteFrontiereDeploiement:
+    def test_les_exemples_satisfont_les_domaines_a_credentials(self, monkeypatch):
+        """Peuplé depuis les seuls exemples, le runtime valide ses domaines à
+        credentials requis (hors odoo, cf. #439). Un nom mal respellé → manquante."""
+        for path in _EXEMPLES:
+            for cle, val in _charger_dotenv(path).items():
+                monkeypatch.setenv(cle, val)
+        runtime.valider(runtime.sftp, runtime.aes, runtime.bot)
+
+    def test_aucun_ancien_nom_dans_les_exemples(self):
+        for path in _EXEMPLES:
+            texte = path.read_text()
+            for nom in _NOMS_RETIRES:
+                assert nom not in texte, f"nom retiré {nom!r} encore présent dans {path.name}"

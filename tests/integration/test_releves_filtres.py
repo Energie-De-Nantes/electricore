@@ -38,7 +38,7 @@ def base_releves(tmp_path, monkeypatch):
         f"('pdl2', 'flux_R64',  '2025-03-15 00:00:00', {zeros})"
     )
     conn.close()
-    monkeypatch.setenv("DUCKDB_PATH", str(base))
+    monkeypatch.setenv("DUCKDB__PATH", str(base))
     return base
 
 

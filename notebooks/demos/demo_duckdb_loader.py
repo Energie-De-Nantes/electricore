@@ -40,7 +40,7 @@ def _():
     from electricore.config.env import charger_env
 
     charger_env()
-    DATABASE_URL = os.getenv("DUCKDB_PATH", "electricore/ingestion/flux_enedis_pipeline.duckdb")
+    DATABASE_URL = os.getenv("DUCKDB__PATH", "electricore/ingestion/flux_enedis_pipeline.duckdb")
     engine = duckdb.connect(DATABASE_URL, read_only=True)
     return (engine,)
 

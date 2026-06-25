@@ -28,7 +28,7 @@ def base_flux(tmp_path, monkeypatch):
         "('pdl1', 'flux_R151', '2026-01-15 00:00:00'), ('pdl2', 'flux_C15', '2026-02-01 00:00:00')"
     )
     conn.close()
-    monkeypatch.setenv("DUCKDB_PATH", str(base))
+    monkeypatch.setenv("DUCKDB__PATH", str(base))
     return base
 
 

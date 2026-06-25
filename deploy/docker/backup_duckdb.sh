@@ -3,7 +3,7 @@
 # Exécuté par supercronic dans le conteneur ingestion-scheduler.
 #
 # Variables d'environnement attendues :
-#   DUCKDB_PATH    — chemin de la base (par défaut /data/flux_enedis_pipeline.duckdb)
+#   DUCKDB__PATH   — chemin de la base (par défaut /data/flux_enedis_pipeline.duckdb, ADR-0046)
 #   BACKUP_DIR     — répertoire des snapshots (par défaut /backups)
 #   RETAIN_DAYS    — nombre de snapshots à conserver (par défaut 14)
 #   INSTANCE_SLUG  — identifiant de l'instance (ADR-0015). Si défini, les snapshots
@@ -13,7 +13,7 @@
 
 set -eu
 
-DUCKDB_PATH="${DUCKDB_PATH:-/data/flux_enedis_pipeline.duckdb}"
+DUCKDB_PATH="${DUCKDB__PATH:-/data/flux_enedis_pipeline.duckdb}"
 BACKUP_DIR="${BACKUP_DIR:-/backups}"
 RETAIN_DAYS="${RETAIN_DAYS:-14}"
 INSTANCE_SLUG="${INSTANCE_SLUG:-}"

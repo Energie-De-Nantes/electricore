@@ -83,8 +83,8 @@ def _taches_creees_par_demarrer(monkeypatch, chat_id: str) -> int:
 
     # `demarrer` ne tourne qu'après le démarrage du bot, donc avec un token présent
     # (le domaine bot l'exige) : on le pose pour un test hermétique, sans .env de dépôt.
-    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "123:abc")
-    monkeypatch.setenv("TELEGRAM_NOTIFY_CHAT_ID", chat_id)
+    monkeypatch.setenv("BOT__TOKEN", "123:abc")
+    monkeypatch.setenv("BOT__NOTIFY_CHAT_ID", chat_id)
     monkeypatch.setattr(type(settings), "is_odoo_configured", property(lambda self: True))
 
     class FakeBot:

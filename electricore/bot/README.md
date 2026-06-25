@@ -37,7 +37,7 @@ Comportements notables :
 
 ## Alertes proactives
 
-Si `TELEGRAM_NOTIFY_CHAT_ID` est défini, le bot surveille les jobs d'ingestion via l'API
+Si `BOT__NOTIFY_CHAT_ID` est défini, le bot surveille les jobs d'ingestion via l'API
 et pousse une alerte 🚨 quand un job passe à `failed` — **y compris ceux lancés
 par le scheduler** (supercronic). Pas d'alerte sur l'historique antérieur au
 démarrage, pas de doublon. Vide = désactivé.
@@ -53,9 +53,9 @@ jamais d'auto-correction. Un changement hors calendrier passe sous le radar
 
 | variable | rôle |
 |---|---|
-| `TELEGRAM_BOT_TOKEN` | token BotFather ; vide = bot non démarré |
-| `TELEGRAM_ALLOWED_USERS` | allowlist d'IDs Telegram (virgules) — obligatoire |
-| `TELEGRAM_NOTIFY_CHAT_ID` | chat des alertes proactives ; vide = désactivé |
+| `BOT__TOKEN` | token BotFather ; vide = bot non démarré |
+| `BOT__ALLOWED_USERS` | allowlist d'IDs Telegram (virgules) — obligatoire |
+| `BOT__NOTIFY_CHAT_ID` | chat des alertes proactives ; vide = désactivé |
 | `API_BASE_URL` | URL de l'API appelée par le bot (défaut `http://localhost:8001`) |
 | `INSTANCE_SLUG` | slug de l'instance, annoncé par `/start` (ADR-0015) |
 
@@ -63,7 +63,7 @@ Convention de nommage : un bot par instance, `@<slug>_electricore_bot`
 (ex. `@edn_electricore_bot`).
 
 Le bot démarre dans le **process de l'API** (lifespan FastAPI) dès que
-`TELEGRAM_BOT_TOKEN` est défini — en local :
+`BOT__TOKEN` est défini — en local :
 
 ```bash
 uv run uvicorn electricore.api.main:app --port 8001

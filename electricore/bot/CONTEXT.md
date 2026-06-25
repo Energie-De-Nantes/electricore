@@ -24,7 +24,7 @@ Liste des commandes publiée à Telegram au démarrage du bot, adaptée à l'ins
 Chat Telegram destinataire des alertes proactives du bot (échec d'un job d'ingestion, y compris ceux lancés par le scheduler ; taux régulé présumé périmé, #186), distinct des réponses aux commandes.
 
 **Allowlist Telegram** :
-Liste d'identifiants numériques Telegram autorisés à utiliser le bot, configurée via `TELEGRAM_ALLOWED_USERS`. Tout autre utilisateur reçoit `⛔ Accès refusé`. Pas de rôles ni de granularité.
+Liste d'identifiants numériques Telegram autorisés à utiliser le bot, configurée via `BOT__ALLOWED_USERS`. Tout autre utilisateur reçoit `⛔ Accès refusé`. Pas de rôles ni de granularité.
 
 **Client API** :
 Wrapper `httpx.AsyncClient` ([client.py](client.py)) qui factorise les appels HTTP vers l'API : injection automatique de la clé `X-API-Key`, gestion des timeouts (10 s pour les requêtes courtes, 120 s pour les exports de tables, 300 s pour les livrables calculés). Le squelette httpx vit dans les primitives `_get_json` / `_get_bytes` / `_post_json` ; les méthodes publiques ne déclarent que chemin et budget de timeout.
