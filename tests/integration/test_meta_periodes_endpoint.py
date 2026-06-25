@@ -149,6 +149,29 @@ def test_meta_periodes_lignes_valident_le_modele(monkeypatch, meta_periodes_synt
     assert periodes[1].releves_utilises == []
 
 
+def test_meta_periodes_ligne_hors_contrat_500_atomique(monkeypatch, meta_periodes_synthetiques):
+    """Une ligne hors-contrat (champ requis retiré) fait un **500 propre** *avant* tout octet —
+    pas un 200 tronqué en cours de flux (validate-then-stream, #426). Le consommateur n'applique
+    alors aucune ligne et re-rejoue le mois."""
+    app.dependency_overrides[get_current_api_key] = lambda: "test-key"
+    # On retire un champ requis du contrat (`source_hash`) → la validation échoue en amont.
+    df_casse = meta_periodes_synthetiques.drop("source_hash")
+    monkeypatch.setattr(
+        "electricore.api.routers.meta_periodes.meta_periodes",
+        lambda mois=None, rsc=None: ("2026-05-01", df_casse),
+    )
+    try:
+        client = TestClient(app, raise_server_exceptions=False)
+        response = client.get("/facturation/meta-periodes")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 500
+    # Le flux n'a pas commencé : aucune ligne JSONL (pas de données de contrat) n'a fuité.
+    assert not response.headers["content-type"].startswith("application/jsonl")
+    assert "ref_situation_contractuelle" not in response.text
+
+
 def test_meta_periodes_refuse_sans_api_key():
     """Endpoint sécurisé : 401 sans clé."""
     response = TestClient(app).get("/facturation/meta-periodes")
