@@ -357,6 +357,11 @@ tmp_cfg=$(mktemp)
 printf 'INSTANCE_SLUG=edn\nELECTRICORE_VERSION=1.7.0\nBACKUPS_PATH=/srv/edn/backups\nAPI_KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n' > "$tmp_cfg"
 assert_fail "validate_config_env refuse un secret en clair (API_KEY)" validate_config_env "$tmp_cfg" "edn"
 rm -f "$tmp_cfg"
+# Idem pour un credential Odoo (ODOO_<ENV>_PASSWORD, le vrai nom lu par runtime.odoo)
+tmp_cfg=$(mktemp)
+printf 'INSTANCE_SLUG=edn\nELECTRICORE_VERSION=1.7.0\nBACKUPS_PATH=/srv/edn/backups\nODOO_PROD_PASSWORD=secret_factice\n' > "$tmp_cfg"
+assert_fail "validate_config_env refuse un secret en clair (ODOO_PROD_PASSWORD)" validate_config_env "$tmp_cfg" "edn"
+rm -f "$tmp_cfg"
 # config.env manquant version → échec
 tmp_cfg=$(mktemp); printf 'INSTANCE_SLUG=edn\nBACKUPS_PATH=/srv/edn/backups\n' > "$tmp_cfg"
 assert_fail "validate_config_env exige ELECTRICORE_VERSION" validate_config_env "$tmp_cfg" "edn"

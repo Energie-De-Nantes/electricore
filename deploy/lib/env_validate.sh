@@ -112,7 +112,7 @@ validate_config_env() {
 
     # Garde-fou anti-fuite : un credential n'a RIEN à faire dans config.env (clair).
     local leaked
-    leaked=$(grep -oE '^[[:space:]]*(API_KEY|API_KEYS|SFTP__URL|TELEGRAM_BOT_TOKEN|AES__TROUSSEAU__|ODOO__(PASSWORD|API_KEY))' "$file" 2>/dev/null | head -1)
+    leaked=$(grep -oE '^[[:space:]]*(API_KEY|API_KEYS|SFTP__URL|TELEGRAM_BOT_TOKEN|AES__TROUSSEAU__|ODOO_(TEST|PROD)_PASSWORD)' "$file" 2>/dev/null | head -1)
     [[ -z "$leaked" ]] || \
         errors+=("secret en clair détecté dans config.env (« ${leaked} ») — il doit vivre dans secrets.env chiffré")
 
