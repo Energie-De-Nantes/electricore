@@ -345,7 +345,7 @@ La box ne peut **pas déchiffrer** tant que sa clé age publique n'est pas desti
 ssh ops@<vps>
 sudo bash /srv/<slug>/deploy/install.sh \
     --slug <slug> --domain <slug>.electricore.fr \
-    --deploy-repo git@github.com:org/electricore-deploy-prive.git
+    --deploy-repo git@github.com:Energie-De-Nantes/electricore-secrets.git
 # → AGE_PUBLIC_KEY=age1…   (à enregistrer comme destinataire .sops.yaml)
 # → SSH_DEPLOY_PUBKEY=ssh-ed25519 …   (à enregistrer comme deploy key RO du dépôt)
 ```
@@ -361,7 +361,7 @@ Côté **machine admin**, dans le dépôt de déploiement privé :
 # 2e temps — reconfigure : la box pull le ciphertext, déchiffre, démarre la stack.
 sudo bash /srv/<slug>/deploy/install.sh \
     --slug <slug> --domain <slug>.electricore.fr \
-    --deploy-repo git@github.com:org/electricore-deploy-prive.git
+    --deploy-repo git@github.com:Energie-De-Nantes/electricore-secrets.git
 ```
 
 À ce 2e temps, le script : pull `providers/<slug>/{config.env,secrets.env}` via la
@@ -655,7 +655,7 @@ se fait donc **sur la machine admin**, par édition chiffrée in-place :
    ```bash
    ssh ops@<vps>
    sudo bash /srv/<slug>/deploy/install.sh --slug <slug> --domain <slug>.electricore.fr \
-       --deploy-repo git@github.com:org/electricore-deploy-prive.git
+       --deploy-repo git@github.com:Energie-De-Nantes/electricore-secrets.git
    ```
 
 Les logs `[<label>]` indiquent quelle clé a déchiffré quel fichier. Si un flux a des
