@@ -10,17 +10,13 @@
 run_ingestion_test() {
     local slug="$1"
     local home="/srv/${slug}"
-    # On lit l'API_KEY depuis le .env pour authentifier l'appel.
-    local api_key
-    api_key=$(read_env_var "${home}/.env" API_KEY)
-    [[ -n "$api_key" ]] || { log_err "API_KEY introuvable dans ${home}/.env"; return 1; }
-
+    # L'appel s'authentifie avec la clé du consommateur "scheduler" du trousseau API
+    # (ADR-0046 §4), lue DANS le conteneur (injectée par l'entrypoint depuis secrets.env) —
+    # plus de lecture d'un .env en clair côté hôte. Le `sh -c` interne tourne dans le
+    # conteneur ; $API__TROUSSEAU__scheduler__KEY y est donc résolu, pas côté hôte.
+    local appel='curl -fsS --max-time 120 -X POST -H "X-API-Key:$API__TROUSSEAU__scheduler__KEY" -H "Content-Type: application/json" -d "{\"mode\":\"test\"}" http://api:8001/ingestion/run'
     sudo -u "$slug" -- bash -c \
-        "cd '${home}/deploy/docker' && \
-         docker compose exec -T ingestion-scheduler curl -fsS \
-             --max-time 120 \
-             -X POST -H 'X-API-Key:${api_key}' -H 'Content-Type: application/json' \
-             -d '{\"mode\":\"test\"}' http://api:8001/ingestion/run" \
+        "cd '${home}/deploy/docker' && docker compose exec -T ingestion-scheduler sh -c '${appel}'" \
         >/dev/null 2>&1
 }
 
@@ -41,7 +37,8 @@ show_ingestion_failure_hints() {
     log_info ""
     log_info "Pour réessayer après correction :"
     log_info "  sudo -u $slug docker compose -f ${home}/deploy/docker/docker-compose.yml \\"
-    log_info "      exec ingestion-scheduler curl -X POST -H \"X-API-Key:\$API_KEY\" \\"
-    log_info "      -H 'Content-Type: application/json' -d '{\"mode\":\"test\"}' \\"
-    log_info "      http://api:8001/ingestion/run"
+    log_info "      exec -T ingestion-scheduler sh -c \\"
+    log_info "      'curl -fsS -X POST -H \"X-API-Key:\$API__TROUSSEAU__scheduler__KEY\" \\"
+    log_info "       -H \"Content-Type: application/json\" -d \"{\\\"mode\\\":\\\"test\\\"}\" \\"
+    log_info "       http://api:8001/ingestion/run'"
 }
