@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Fake `age-keygen` pour les tests de secrets.sh (ADR-0044, design outils-hôte).
+#   age-keygen          → clé privée factice sur stdout (format age, pub en commentaire)
+#   age-keygen -y FILE  → imprime une clé publique factice déterministe
+if [[ "${1:-}" == "-y" ]]; then
+    echo "age1faketestpublickeyxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxq9"
+else
+    echo "# created: fake"
+    echo "# public key: age1faketestpublickeyxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxq9"
+    echo "AGE-SECRET-KEY-1FAKETESTPRIVATEKEYXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+fi
