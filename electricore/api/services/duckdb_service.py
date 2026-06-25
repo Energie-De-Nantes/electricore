@@ -23,7 +23,7 @@ SCHEMA = "flux_enedis"
 _IDENTIFIANT_SQL = re.compile(r"^[a-z0-9_]+$")
 
 
-def _garde_identifiant(identifiant: str) -> str:
+def _valider_identifiant_sql(identifiant: str) -> str:
     """Rejette tout identifiant SQL hors `^[a-z0-9_]+$` (interpolé, donc non-bindable)."""
     if not _IDENTIFIANT_SQL.match(identifiant):
         raise ValueError(f"Identifiant SQL non autorisé : {identifiant!r}")
@@ -98,7 +98,7 @@ def get_table_info(table_name: str, *, prefix: str = "flux_", date_column: str |
     """
     # Nom physique interpolé dans `COUNT(*)`/`max()` (positions d'identifiant non-bindables) :
     # gardé en amont, avant toute connexion (l'injection ne touche jamais le moteur).
-    physical = _garde_identifiant(f"{prefix}{table_name}")
+    physical = _valider_identifiant_sql(f"{prefix}{table_name}")
     colonne_date = date_column or COLONNE_DATE_METIER.get(table_name)
     with duckdb_readonly_conn(runtime.duckdb().chemin) as conn:
         # Nombre de lignes
@@ -120,7 +120,7 @@ def get_table_info(table_name: str, *, prefix: str = "flux_", date_column: str |
         if colonne_date and any(c["name"] == colonne_date for c in columns):
             # `colonne_date` est un identifiant (interpolé dans `max()`) : il vient déjà d'une
             # colonne réelle de la table, on le garde quand même par cohérence (non-bindable).
-            colonne_date = _garde_identifiant(colonne_date)
+            colonne_date = _valider_identifiant_sql(colonne_date)
             max_val = conn.execute(f"SELECT max({colonne_date}) FROM {SCHEMA}.{physical}").fetchone()[0]
             if max_val is not None:
                 derniere_date = str(max_val)[:10]
