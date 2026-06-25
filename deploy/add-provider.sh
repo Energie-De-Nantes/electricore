@@ -10,8 +10,16 @@
 # Isolation cryptographique (ADR-0044 §6) : une box n'est destinataire que de SON
 # provider → elle ne déchiffre que les siens. La CI n'est JAMAIS destinataire.
 #
+# Clé admin d'escrow (ADR-0046 §8) : chaque .sops.yaml porte DEUX destinataires admin
+# distincts — opérationnel + escrow hors-ligne — destinataires PERMANENTS de chaque règle.
+# Ne JAMAIS les retirer : c'est `updatekeys` re-keyé vers eux + la box qui garde les
+# secrets récupérables. L'escrow est le filet si la clé admin opérationnelle est perdue
+# (sans destinataire admin vivant, plus aucun re-keying possible). Cet outil n'ajoute
+# qu'une box ; il ne touche pas aux destinataires admin déjà en place.
+#
 # ⚠️ Distinction cruciale (ADR-0044) : `updatekeys` ne rote que l'ENVELOPPE. Si un
 #    secret a pu fuiter, le changer AUSSI à la source — updatekeys ne le protège pas.
+#    (L'escrow non plus n'est pas un remède à une fuite — il préserve le re-keying.)
 #
 # Usage :
 #   deploy/add-provider.sh --provider-dir providers/<slug> --age-pubkey age1xxxx…
