@@ -72,89 +72,46 @@ jobs:
             ${PRERELEASE_FLAG} \
             dist/*.tar.gz dist/*.whl
 
-      # ---------------------------------------------------------------
-      # Image Docker → ghcr.io (en parallèle de la publication PyPI)
-      #
-      # Gate « build → scan → push » en deux temps (cf. les deux étapes
-      # build-push-action plus bas) :
-      #   1. build local (load: true, push: false) → image dans le démon
-      #      Docker, scannée (TruffleHog) puis fumée (import) AVANT tout push ;
-      #   2. push vers ghcr.io seulement si le gate passe, en réhydratant le
-      #      cache GHA du build n°1 (donc quasi gratuit).
-      # On ne fait pas load + push dans le même step : load = image locale,
-      # push = export direct vers le registre, les deux ne cohabitent pas de
-      # façon fiable sur un seul builder. La séquence garantit l'invariant :
-      # rien n'est poussé tant que l'image n'a pas été scannée et fumée.
-      # ---------------------------------------------------------------
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Login to GHCR
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Compute Docker tags
-        id: docker_tags
+  # ---------------------------------------------------------------
+  # Image Docker → ghcr.io (en parallèle de la publication PyPI)
+  #
+  # Le gate « build → scan → smoke → push » vit désormais dans le workflow
+  # réutilisable docker-image.yml (#435), partagé avec ci.yml — qui le fait
+  # tourner sur CHAQUE PR (push=false). Ici on calcule les tags du release puis
+  # on appelle ce même workflow avec push=true.
+  # ---------------------------------------------------------------
+  docker_meta:
+    name: Compute Docker tags
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      tags: ${{ steps.compute.outputs.tags }}
+    steps:
+      - name: Compute tags (pré-release ne touche ni :latest ni :MAJOR.MINOR)
+        id: compute
         run: |
+          set -euo pipefail
           OWNER="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
           V="${GITHUB_REF_NAME#v}"
           MAJOR_MINOR="${V%.*}"
-          if [[ "${{ steps.release_type.outputs.is_prerelease }}" == "true" ]]; then
-            # Pré-release : on ne touche ni `:latest` ni `:MAJOR.MINOR` pour ne pas
-            # rediriger les déploiements stables vers la rc/dev.
-            TAGS="ghcr.io/${OWNER}/electricore:${V}"
-          else
+          if [[ "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            # Stable : :latest + :MAJOR.MINOR + :version exacte.
             TAGS="ghcr.io/${OWNER}/electricore:${V},ghcr.io/${OWNER}/electricore:${MAJOR_MINOR},ghcr.io/${OWNER}/electricore:latest"
+          else
+            # Pré-release : seulement :version exacte (ne pas rediriger les déploiements
+            # stables vers la rc/dev).
+            TAGS="ghcr.io/${OWNER}/electricore:${V}"
           fi
-          {
-            echo "tags=${TAGS}"
-            echo "smoke_tag=ghcr.io/${OWNER}/electricore:${V}"
-          } >> "$GITHUB_OUTPUT"
+          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
 
-      # Build n°1 : le vrai build (0% cache, lent). Charge l'image en local
-      # pour le gate ci-dessous et alimente le cache GHA (cache-to) que le
-      # push réutilisera.
-      - name: Build image (n°1 — local, sans push, pour le gate scan + smoke)
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: deploy/docker/Dockerfile
-          push: false
-          load: true
-          platforms: linux/amd64
-          tags: ${{ steps.docker_tags.outputs.smoke_tag }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Scan image for verified secrets (TruffleHog)
-        run: |
-          docker run --rm \
-            -v /var/run/docker.sock:/var/run/docker.sock \
-            trufflesecurity/trufflehog:latest \
-            docker --image ${{ steps.docker_tags.outputs.smoke_tag }} \
-            --only-verified \
-            --fail
-
-      # ELECTRICORE_DECRYPT=off : ce smoke vérifie l'IMPORTABILITÉ de l'image, pas le
-      # déchiffrement. Sans bypass, l'entrypoint SOPS+age (ADR-0044) fail-fast car aucun
-      # secrets.env/clé age n'est monté → exit 1. Le déchiffrement réel est couvert par
-      # tests/integration/test_entrypoint_dechiffrement.py.
-      - name: Smoke-test image
-        run: |
-          docker run --rm -e ELECTRICORE_DECRYPT=off "${{ steps.docker_tags.outputs.smoke_tag }}" \
-            python -c "import electricore; import electricore.ingestion.runner; import electricore.api.main; import dbt.cli.main; print('image OK')"
-
-      # Build n°2 : réhydrate le cache GHA du build n°1 (cache-from) → quasi
-      # rien à reconstruire, l'essentiel du temps est l'export + le push.
-      - name: Push image vers GHCR (n°2 — cache du n°1 réhydraté, quasi gratuit)
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: deploy/docker/Dockerfile
-          push: true
-          platforms: linux/amd64
-          tags: ${{ steps.docker_tags.outputs.tags }}
-          cache-from: type=gha
+  image:
+    name: Build, scan, smoke & push image
+    needs: docker_meta
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/docker-image.yml
+    with:
+      push: true
+      push_tags: ${{ needs.docker_meta.outputs.tags }}

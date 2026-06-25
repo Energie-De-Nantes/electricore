@@ -15,7 +15,7 @@ mount_src=""
 while [[ $i -lt ${#args[@]} ]]; do
     case "${args[$i]}" in
         -v) mount_src="${args[$((i+1))]%%:*}"; i=$((i+2)); continue ;;
-        age-keygen|ssh-keygen) tool="${args[$i]}"; break ;;
+        age-keygen|ssh-keygen|python|python3|sh) tool="${args[$i]}"; break ;;
     esac
     i=$((i+1))
 done
@@ -37,6 +37,19 @@ case "$tool" in
         out="${mount_src}/ssh_deploy_key"
         echo "FAKE-OPENSSH-PRIVATE-KEY" > "$out"
         echo "ssh-ed25519 AAAAFAKEDEPLOYKEY deploy-key" > "${out}.pub"
+        ;;
+    python|python3)
+        # smoke d'importabilité (smoke.sh) : l'image importe les modules de tête.
+        # FAKE_SMOKE_IMPORT_FAIL=1 simule une image cassée (import KO).
+        [[ "${FAKE_SMOKE_IMPORT_FAIL:-0}" == "1" ]] && { echo "fake docker: import KO" >&2; exit 1; }
+        echo "fake docker: import OK"
+        ;;
+    sh)
+        # smoke de déchiffrement (smoke.sh) : simule l'entrypoint SOPS qui injecte le
+        # label AES puis exec la commande de test. FAKE_SMOKE_DECRYPT_FAIL=1 simule le
+        # fail-fast de l'entrypoint (pas de secrets déchiffrés → label absent).
+        [[ "${FAKE_SMOKE_DECRYPT_FAIL:-0}" == "1" ]] && { echo "fake docker: entrypoint fail-fast" >&2; exit 1; }
+        exit 0
         ;;
     *)
         echo "fake docker: commande non simulée ($*)" >&2; exit 1 ;;
