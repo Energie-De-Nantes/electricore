@@ -1,7 +1,7 @@
 -- Chronologie des relevés — VUE (ADR-0045, #431) : ré-attache le payload d'index au mart
 -- MINCE `chronologie_releves_situation` par **star-join** sur `releve_id`, faisant de
 -- `releves` la **source de vérité unique** des valeurs d'index (ADR-0029/0038). C'est le
--- modèle consommé par le cœur (loader `chronologie()` / `pipeline_energie`) ; son contrat
+-- modèle consommé par le cœur (loader `chronologie_releves()` / `pipeline_energie`) ; son contrat
 -- `ChronologieReleves` est inchangé (mêmes colonnes qu'avant la normalisation).
 --
 -- Matérialisée en VUE : un join de plus à la lecture (~10 ms à 442k lignes, immatériel — le
