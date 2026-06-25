@@ -11,8 +11,11 @@ with app.setup:
 def _():
     mo.md(
         "## Notebooks opérateur\n\n"
-        "- [Facturation mensuelle](/apps/facturation)\n"
-        "- [Injection RSC](/apps/injection_rsc)\n"
+        "Suis l'ordre d'usage :\n\n"
+        "1. [Injection RSC](/apps/injection_rsc) — réconcilie les RSC du mois\n"
+        "2. [Facturation mensuelle](/apps/facturation)\n\n"
+        "La facturation **dépend** de la réconciliation RSC du mois : lance d'abord "
+        "l'injection RSC, puis la facturation.\n"
     )
     return
 
