@@ -133,17 +133,23 @@ main() {
     CADDYFILE="${DOCKER_DIR}/Caddyfile"
 
     # ─── Détection mode reconfigure ─────────────────────────────────────────
-    # En secrets-as-code (ADR-0044), la box ne porte pas de secret en clair mais une clé
-    # age : sa présence atteste un install antérieur (2e temps de l'onboarding = reconfigure).
+    # En secrets-as-code (ADR-0044), la box porte une clé age (pas de secret en clair) :
+    # sa présence atteste un install antérieur (2e temps de l'onboarding = reconfigure).
     AGE_KEY_FILE="${HOME_DIR}/age.key"
+    # .env legacy : une instance déployée AVANT secrets-as-code en porte un (sans clé age).
+    # Le 1er temps de la bascule l'onboarde (génère la clé age) SANS le supprimer — c'est
+    # l'opérateur qui retire le .env à la fin, une fois la stack validée sur l'image chiffrée.
+    LEGACY_ENV_FILE="${HOME_DIR}/.env"
     MODE_RECONFIGURE=0
     if [[ -f "$AGE_KEY_FILE" ]]; then
         MODE_RECONFIGURE=1
     fi
-    # Garde-fou ADR-0017 : si /srv/<slug> existe sans clé age, on est dans un état inconnu
-    # (peut-être un user système qui s'appelle aussi <slug>). Refus poli.
-    if [[ -d "$HOME_DIR" && "$MODE_RECONFIGURE" -eq 0 ]]; then
-        die "Le dossier ${HOME_DIR} existe mais ne contient pas de clé age (age.key)." \
+    # Garde-fou ADR-0017 : /srv/<slug> existe mais NI clé age NI .env legacy → état inconnu
+    # (peut-être un user système qui s'appelle aussi <slug>). Refus poli. Un .env legacy seul
+    # (sans clé age) = instance pré-secrets-as-code en cours de bascule → AUTORISÉ : le 1er
+    # temps de l'onboarding doit pouvoir tourner sur une box déjà déployée en legacy.
+    if [[ -d "$HOME_DIR" && "$MODE_RECONFIGURE" -eq 0 && ! -f "$LEGACY_ENV_FILE" ]]; then
+        die "Le dossier ${HOME_DIR} existe mais ne contient ni clé age (age.key) ni .env." \
             "État ambigu — choisir un autre slug ou supprimer ${HOME_DIR} à la main."
     fi
 
