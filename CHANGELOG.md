@@ -9,6 +9,15 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+### 🗑️ Suppressions (Breaking Changes)
+
+#### Modules supprimés
+- `electricore.core.loaders.parquet` (`charger_releves` / `charger_historique`) → derniers
+  chargeurs Parquet pré-DuckDB, sans appelant (moteur, tests, notebooks). Le chargement passe
+  désormais par les query builders DuckDB et les loaders Polars qui lisent les marts dbt. Le
+  contrat Pandera `RelevéIndex` est conservé (toujours utilisé par les validateurs de flux
+  DuckDB et `pipeline_energie`). #429
+
 ## [3.4.0rc4] - 2026-06-23
 
 Extraction du **client léger `electricore-client`** (paquet distribué séparément) et bascule

@@ -21,12 +21,8 @@ from .duckdb import (
     releves,
     spine,
 )
-from .parquet import charger_historique, charger_releves
 
 __all__ = [
-    # Loaders Parquet existants
-    "charger_releves",
-    "charger_historique",
     # API fluide DuckDB (recommandée)
     "c15",
     "r151",
