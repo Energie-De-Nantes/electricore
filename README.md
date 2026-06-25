@@ -276,7 +276,7 @@ uv sync --extra notebooks
 uv run electricore-notebooks   # valide l'env, sert les apps sur localhost, ouvre le navigateur
 ```
 
-Variables requises : creds Odoo (`ODOO_<ENV>_*`) + `ELECTRICORE_API_URL` + `ELECTRICORE_API_KEY`
+Variables requises : creds Odoo (`ODOO__*`) + `ELECTRICORE_API_URL` + `ELECTRICORE_API_KEY`
 (voir [`.env.example`](.env.example)). Les notebooks qui écrivent dans Odoo gardent un **mode
 simulation activé par défaut** et un bouton « Injecter dans Odoo » explicite. Ce lanceur est voué à
 disparaître à l'arrivée de `souscriptions_odoo`.
@@ -322,7 +322,7 @@ vivante à la prochaine release). Le `.env` se scinde en deux fichiers versionn�
 déploiement **privé**, et chaque box génère sa propre identité **age** :
 
 - **`config.env`** — config CLAIRE (substitutions compose `ELECTRICORE_VERSION`/`BACKUPS_PATH`,
-  `INSTANCE_SLUG`, `ODOO_ENV`) ;
+  `INSTANCE_SLUG`, `BOT__NOTIFY_CHAT_ID`) ;
 - **`secrets.env`** — credentials **chiffrés SOPS + age**, déchiffrés à l'**entrypoint de l'image**
   (`sops exec-env` — jamais de fichier en clair). Le layout `providers/<slug>/` isole chaque
   fournisseur cryptographiquement (une box ne déchiffre que les siens).
@@ -332,13 +332,13 @@ déploiement **privé**, et chaque box génère sa propre identité **age** :
 INSTANCE_SLUG=monfournisseur
 ELECTRICORE_VERSION=latest
 BACKUPS_PATH=/srv/monfournisseur/backups
-ODOO_ENV=prod
+BOT__NOTIFY_CHAT_ID=-1001234567890                # canal d'alerte du bot (optionnel)
 
 # secrets.env — CHIFFRÉ (SOPS + age) : uniquement des credentials
 API__TROUSSEAU__librewatt__KEY=cle_consommateur_32_caracteres   # 1 clé/consommateur, label dynamique
 SFTP__URL=sftp://utilisateur:mot_de_passe@hote:22/chemin
 BOT__TOKEN=token_botfather                        # bot = process de l'API
-ODOO_PROD_URL=https://votre-instance.odoo.com     # + _DB / _USERNAME / _PASSWORD
+ODOO__URL=https://votre-instance.odoo.com         # + __DB / __USERNAME / __PASSWORD
 # Trousseau de clés AES (ADR-0037/0040) : un <label> parlant par clé, sélection par essai.
 # __IV optionnel : absent ⇒ schéma IV-préfixé (AES-256) ; présent ⇒ IV-fixe (AES-128).
 AES__TROUSSEAU__aes256_2026__KEY=cle_hex_64        # AES-256 : pas de __IV

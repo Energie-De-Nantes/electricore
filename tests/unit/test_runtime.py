@@ -92,43 +92,67 @@ class TestDomaineAes:
 
 
 class TestDomaineOdoo:
-    """Sélecteur ODOO_ENV (test/prod), préfixe ODOO_{ENV}_ injecté à l'init.
+    """Bloc unique ODOO__{URL,DB,USERNAME,PASSWORD} (#439, ADR-0046 §5).
 
-    Mécanique gelée dans l'attente de #190 — mêmes vars, mêmes valeurs.
+    Plus de sélecteur test/prod : #190 clos completed, Odoo reste read-only (ADR-0012).
     """
 
     @pytest.fixture(autouse=True)
     def _env_odoo(self, monkeypatch):
-        monkeypatch.setenv("ODOO_TEST_URL", "https://test.odoo.example")
-        monkeypatch.setenv("ODOO_TEST_DB", "edn-test")
-        monkeypatch.setenv("ODOO_TEST_USERNAME", "bot")
-        monkeypatch.setenv("ODOO_TEST_PASSWORD", "secret")
-        for var in ("ODOO_PROD_URL", "ODOO_PROD_DB", "ODOO_PROD_USERNAME", "ODOO_PROD_PASSWORD"):
+        monkeypatch.setenv("ODOO__URL", "https://odoo.example")
+        monkeypatch.setenv("ODOO__DB", "edn")
+        monkeypatch.setenv("ODOO__USERNAME", "bot")
+        monkeypatch.setenv("ODOO__PASSWORD", "secret")
+        # Les anciens noms test/prod ne doivent plus rien piloter.
+        for var in (
+            "ODOO_ENV",
+            "ODOO_TEST_URL",
+            "ODOO_TEST_DB",
+            "ODOO_TEST_USERNAME",
+            "ODOO_TEST_PASSWORD",
+            "ODOO_PROD_URL",
+            "ODOO_PROD_DB",
+            "ODOO_PROD_USERNAME",
+            "ODOO_PROD_PASSWORD",
+        ):
             monkeypatch.delenv(var, raising=False)
 
-    def test_selecteur_par_defaut_test(self, monkeypatch):
-        monkeypatch.delenv("ODOO_ENV", raising=False)
-        config = runtime.odoo()
-        assert config.url == "https://test.odoo.example"
-        assert config.db == "edn-test"
+    def test_bloc_unique_sans_selecteur(self):
+        """Le dict attendu par OdooReader : url, db, username, password."""
+        assert runtime.odoo().model_dump() == {
+            "url": "https://odoo.example",
+            "db": "edn",
+            "username": "bot",
+            "password": "secret",
+        }
 
-    def test_env_explicite_prime_sur_le_selecteur(self, monkeypatch):
-        monkeypatch.setenv("ODOO_ENV", "prod")
-        assert runtime.odoo("test").db == "edn-test"
-
-    def test_prod_incomplete_liste_les_vraies_vars(self, monkeypatch):
-        """Le footgun ADR-0025 : ODOO_ENV=prod sans vars prod doit échouer fort."""
-        monkeypatch.setenv("ODOO_ENV", "prod")
+    def test_no_erp_bloc_absent(self, monkeypatch):
+        """Odoo absent (no-ERP, ADR-0022) : non configuré + manquantes listées en ODOO__*."""
+        for champ in ("URL", "DB", "USERNAME", "PASSWORD"):
+            monkeypatch.delenv(f"ODOO__{champ}", raising=False)
+        assert runtime.odoo_est_configure() is False
         with pytest.raises(runtime.ConfigurationManquante) as exc:
             runtime.odoo()
-        assert "ODOO_PROD_URL" in str(exc.value)
-        assert "ODOO_PROD_PASSWORD" in str(exc.value)
+        assert "ODOO__URL" in str(exc.value)
+        assert "ODOO__PASSWORD" in str(exc.value)
 
-    def test_model_dump_compatible_odoo_reader(self):
-        """Le dict attendu par OdooReader : url, db, username, password."""
-        assert runtime.odoo("test").model_dump() == {
-            "url": "https://test.odoo.example",
-            "db": "edn-test",
+    def test_selecteur_supprime(self, monkeypatch):
+        """#439 : le sélecteur ODOO_ENV et ses symboles disparaissent ; legacy ignoré."""
+        assert not hasattr(runtime, "_SelecteurOdoo")
+        assert not hasattr(runtime, "odoo_env_actif")
+        # Des ODOO_TEST_*/ODOO_ENV résiduels ne doivent plus rien piloter.
+        monkeypatch.setenv("ODOO_ENV", "prod")
+        monkeypatch.setenv("ODOO_TEST_URL", "https://legacy.example")
+        monkeypatch.setenv("ODOO_PROD_URL", "https://legacy-prod.example")
+        assert runtime.odoo().url == "https://odoo.example"
+
+    def test_facade_charger_config_odoo_sans_argument(self):
+        """La façade `charger_config_odoo()` (notebooks) lit le bloc unique, sans env."""
+        from electricore.config import charger_config_odoo
+
+        assert charger_config_odoo() == {
+            "url": "https://odoo.example",
+            "db": "edn",
             "username": "bot",
             "password": "secret",
         }
@@ -262,14 +286,13 @@ class TestAccessors:
         assert runtime.sftp() is runtime.sftp()
 
     def test_odoo_est_configure(self, monkeypatch):
-        for var in ("ODOO_TEST_URL", "ODOO_TEST_DB", "ODOO_TEST_USERNAME", "ODOO_TEST_PASSWORD"):
+        for var in ("ODOO__URL", "ODOO__DB", "ODOO__USERNAME", "ODOO__PASSWORD"):
             monkeypatch.delenv(var, raising=False)
-        monkeypatch.delenv("ODOO_ENV", raising=False)
         assert not runtime.odoo_est_configure()
-        monkeypatch.setenv("ODOO_TEST_URL", "https://x")
-        monkeypatch.setenv("ODOO_TEST_DB", "d")
-        monkeypatch.setenv("ODOO_TEST_USERNAME", "u")
-        monkeypatch.setenv("ODOO_TEST_PASSWORD", "p")
+        monkeypatch.setenv("ODOO__URL", "https://x")
+        monkeypatch.setenv("ODOO__DB", "d")
+        monkeypatch.setenv("ODOO__USERNAME", "u")
+        monkeypatch.setenv("ODOO__PASSWORD", "p")
         runtime.vider_cache()
         assert runtime.odoo_est_configure()
 
@@ -287,9 +310,19 @@ _EXEMPLES = (
     _RACINE / "deploy/providers/example/config.env.example",
     _RACINE / "deploy/providers/example/secrets.env.example",
 )
-# Noms retirés par ADR-0046 (#436). Odoo (ODOO_ENV/ODOO_<ENV>_*) et API_KEY/KEYS
-# relèvent de #439/#438 — pas encore retirés ici.
-_NOMS_RETIRES = ("TELEGRAM_", "DUCKDB_PATH", "API_TITLE", "API_VERSION", "API_DESCRIPTION", "API_KEY")
+# Noms retirés par ADR-0046 : #436 (TELEGRAM_/DUCKDB_PATH/API_*), #438 (API_KEY)
+# et #439 (sélecteur Odoo ODOO_ENV + blocs ODOO_TEST_/ODOO_PROD_ → bloc unique ODOO__*).
+_NOMS_RETIRES = (
+    "TELEGRAM_",
+    "DUCKDB_PATH",
+    "API_TITLE",
+    "API_VERSION",
+    "API_DESCRIPTION",
+    "API_KEY",
+    "ODOO_ENV",
+    "ODOO_TEST_",
+    "ODOO_PROD_",
+)
 
 
 def _charger_dotenv(path: pathlib.Path) -> dict[str, str]:
@@ -306,11 +339,11 @@ def _charger_dotenv(path: pathlib.Path) -> dict[str, str]:
 class TestPariteFrontiereDeploiement:
     def test_les_exemples_satisfont_les_domaines_a_credentials(self, monkeypatch):
         """Peuplé depuis les seuls exemples, le runtime valide ses domaines à
-        credentials requis (hors odoo, cf. #439). Un nom mal respellé → manquante."""
+        credentials requis (odoo inclus depuis #439). Un nom mal respellé → manquante."""
         for path in _EXEMPLES:
             for cle, val in _charger_dotenv(path).items():
                 monkeypatch.setenv(cle, val)
-        runtime.valider(runtime.sftp, runtime.aes, runtime.bot)
+        runtime.valider(runtime.sftp, runtime.aes, runtime.bot, runtime.odoo)
 
     def test_aucun_ancien_nom_dans_les_exemples(self):
         for path in _EXEMPLES:

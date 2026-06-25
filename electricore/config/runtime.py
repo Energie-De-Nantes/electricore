@@ -115,24 +115,18 @@ class Aes(BaseSettings):
 
 
 class Odoo(BaseSettings):
-    """Domaine odoo : connexion XML-RPC (préfixe ODOO_{ENV}_ injecté à l'init).
+    """Domaine odoo : connexion XML-RPC read-only (ADR-0012), bloc unique ODOO__*.
 
-    Mécanique ODOO_ENV/ODOO_TEST_* gelée dans l'attente de #190 — le sélecteur
-    est un outillage d'opérateur, pas une dimension du déploiement.
+    Plus de sélecteur test/prod (#439, #190 clos completed) : une seule base Odoo
+    configurée, lue sous le préfixe `ODOO__` (convention ADR-0046 §5).
     """
 
-    model_config = SettingsConfigDict(populate_by_name=True, extra="ignore")
+    model_config = SettingsConfigDict(env_prefix="ODOO__", populate_by_name=True, extra="ignore")
 
     url: str
     db: str
     username: str
     password: str
-
-
-class _SelecteurOdoo(BaseSettings):
-    model_config = SettingsConfigDict(populate_by_name=True, extra="ignore")
-
-    odoo_env: str = "test"
 
 
 def _version_package() -> str:
@@ -225,15 +219,9 @@ def aes() -> Aes:
 
 
 @lru_cache
-def odoo(env: str | None = None) -> Odoo:
-    """Connexion Odoo de l'environnement demandé (sinon sélecteur ODOO_ENV).
-
-    Seul l'environnement demandé est validé : ODOO_ENV=prod sans variables
-    ODOO_PROD_* lève ConfigurationManquante au lieu de retomber sur la base test.
-    """
-    env = env or _instancier("odoo", _SelecteurOdoo, "").odoo_env
-    prefixe = f"ODOO_{env.upper()}_"
-    return _instancier("odoo", Odoo, prefixe, _env_prefix=prefixe)
+def odoo() -> Odoo:
+    """Connexion Odoo (bloc unique ODOO__*, read-only). Absente ⇒ ConfigurationManquante."""
+    return _instancier("odoo", Odoo, "ODOO__")
 
 
 @lru_cache
@@ -266,18 +254,13 @@ def valider(*accessors) -> None:
         raise ConfigurationManquante(manquantes)
 
 
-def odoo_est_configure(env: str | None = None) -> bool:
+def odoo_est_configure() -> bool:
     """L'instance a-t-elle un ERP ? (no-ERP servi, ADR-0022)."""
     try:
-        odoo(env)
+        odoo()
     except ConfigurationManquante:
         return False
     return True
-
-
-def odoo_env_actif() -> str:
-    """Valeur du sélecteur ODOO_ENV (test/prod), sans valider la config Odoo."""
-    return _instancier("odoo", _SelecteurOdoo, "").odoo_env
 
 
 def bot_est_configure() -> bool:

@@ -348,7 +348,7 @@ echo
 echo "→ env_validate.sh / split config/secret (ADR-0044)"
 # config.env valide (slug + version + backups, AUCUN secret)
 tmp_cfg=$(mktemp)
-printf 'INSTANCE_SLUG=edn\nELECTRICORE_VERSION=1.7.0\nBACKUPS_PATH=/srv/edn/backups\nODOO_ENV=prod\n' > "$tmp_cfg"
+printf 'INSTANCE_SLUG=edn\nELECTRICORE_VERSION=1.7.0\nBACKUPS_PATH=/srv/edn/backups\nBOT__NOTIFY_CHAT_ID=-100123\n' > "$tmp_cfg"
 assert_ok   "validate_config_env (config claire valide)"   validate_config_env "$tmp_cfg" "edn"
 assert_fail "validate_config_env (slug mismatch)"          validate_config_env "$tmp_cfg" "autre"
 rm -f "$tmp_cfg"
@@ -357,10 +357,10 @@ tmp_cfg=$(mktemp)
 printf 'INSTANCE_SLUG=edn\nELECTRICORE_VERSION=1.7.0\nBACKUPS_PATH=/srv/edn/backups\nAPI_KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n' > "$tmp_cfg"
 assert_fail "validate_config_env refuse un secret en clair (API_KEY)" validate_config_env "$tmp_cfg" "edn"
 rm -f "$tmp_cfg"
-# Idem pour un credential Odoo (ODOO_<ENV>_PASSWORD, le vrai nom lu par runtime.odoo)
+# Idem pour un credential Odoo (ODOO__PASSWORD, le bloc unique lu par runtime.odoo, #439)
 tmp_cfg=$(mktemp)
-printf 'INSTANCE_SLUG=edn\nELECTRICORE_VERSION=1.7.0\nBACKUPS_PATH=/srv/edn/backups\nODOO_PROD_PASSWORD=secret_factice\n' > "$tmp_cfg"
-assert_fail "validate_config_env refuse un secret en clair (ODOO_PROD_PASSWORD)" validate_config_env "$tmp_cfg" "edn"
+printf 'INSTANCE_SLUG=edn\nELECTRICORE_VERSION=1.7.0\nBACKUPS_PATH=/srv/edn/backups\nODOO__PASSWORD=secret_factice\n' > "$tmp_cfg"
+assert_fail "validate_config_env refuse un secret en clair (ODOO__PASSWORD)" validate_config_env "$tmp_cfg" "edn"
 rm -f "$tmp_cfg"
 # Token bot : BOT__TOKEN confère une capacité ⇒ secret (ADR-0046 §7)
 tmp_cfg=$(mktemp)

@@ -26,11 +26,11 @@ with app.setup:
     from electricore.config import charger_config_odoo
 
     try:
-        config = charger_config_odoo("test")
-        _msg = mo.md(f"**Configuration Odoo TEST chargée** — `{config['url']}`")
+        config = charger_config_odoo()
+        _msg = mo.md(f"**Configuration Odoo chargée** — `{config['url']}`")
     except ValueError as e:
         config = {}
-        _msg = mo.md(f"⚠️ **Configuration Odoo manquante**\n\n{e}\n\nDéfinissez `ODOO_TEST_*` dans `.env`.")
+        _msg = mo.md(f"⚠️ **Configuration Odoo manquante**\n\n{e}\n\nDéfinissez `ODOO__*` dans `.env`.")
 
     # Client HTTP vers l'API electricore (cf. ADR-0009 : notebooks consomment l'API,
     # pas la base DuckDB locale).

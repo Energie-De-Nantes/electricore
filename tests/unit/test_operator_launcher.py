@@ -30,13 +30,12 @@ def _isoler_cache_config():
     runtime.vider_cache()
 
 
-# Jeu d'env minimal complet : creds Odoo TEST + clés API opérateur.
+# Jeu d'env minimal complet : creds Odoo (bloc unique ODOO__*) + clés API opérateur.
 _ENV_COMPLET = {
-    "ODOO_ENV": "test",
-    "ODOO_TEST_URL": "https://test.odoo.example",
-    "ODOO_TEST_DB": "base_test",
-    "ODOO_TEST_USERNAME": "operateur@example.com",
-    "ODOO_TEST_PASSWORD": "secret",
+    "ODOO__URL": "https://odoo.example",
+    "ODOO__DB": "edn",
+    "ODOO__USERNAME": "operateur@example.com",
+    "ODOO__PASSWORD": "secret",
     "ELECTRICORE_API_URL": "https://electricore.localhost",
     "ELECTRICORE_API_KEY": "cle-api-operateur",
 }
@@ -61,8 +60,8 @@ def test_environnement_complet_ne_leve_pas(monkeypatch):
 @pytest.mark.parametrize(
     "var_manquante",
     [
-        "ODOO_TEST_URL",
-        "ODOO_TEST_PASSWORD",
+        "ODOO__URL",
+        "ODOO__PASSWORD",
         "ELECTRICORE_API_URL",
         "ELECTRICORE_API_KEY",
     ],

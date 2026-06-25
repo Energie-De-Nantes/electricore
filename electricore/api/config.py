@@ -58,10 +58,6 @@ class APISettings:
         return runtime.bot().utilisateurs_autorises() if runtime.bot_est_configure() else set()
 
     # --- odoo (souple : no-ERP servi) ---
-    @property
-    def odoo_env(self) -> str:
-        return runtime.odoo_env_actif()
-
     def get_odoo_config(self) -> dict[str, str]:
         return runtime.odoo().model_dump()
 

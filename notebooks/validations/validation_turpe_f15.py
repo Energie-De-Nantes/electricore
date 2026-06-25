@@ -34,18 +34,16 @@ with app.setup:
 @app.cell(hide_code=True)
 def _():
     """Configuration Odoo depuis .env"""
-    import os
     from electricore.config import charger_config_odoo
 
     try:
         config = charger_config_odoo()
-        _env = os.getenv("ODOO_ENV", "test")
         _msg = mo.md(
-            f"**Configuration Odoo chargée** (env: `{_env}`)\n\n- URL: `{config['url']}`\n- Base: `{config['db']}`\n- Utilisateur: `{config['username']}`\n- Mot de passe: `***`"
+            f"**Configuration Odoo chargée**\n\n- URL: `{config['url']}`\n- Base: `{config['db']}`\n- Utilisateur: `{config['username']}`\n- Mot de passe: `***`"
         )
     except ValueError as e:
         config = {}
-        _msg = mo.md(f"⚠️ **Configuration Odoo manquante**\n\n{e}\n\nDéfinissez les variables `ODOO_*` dans `.env`.")
+        _msg = mo.md(f"⚠️ **Configuration Odoo manquante**\n\n{e}\n\nDéfinissez les variables `ODOO__*` dans `.env`.")
     _msg
     return (config,)
 

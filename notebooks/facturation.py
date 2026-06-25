@@ -31,16 +31,15 @@ with app.setup:
 
     try:
         config = charger_config_odoo()
-        _env = os.getenv("ODOO_ENV", "test")
         config_msg = mo.md(
-            f"**Configuration Odoo chargée** (env: `{_env}`)\n\n"
+            "**Configuration Odoo chargée**\n\n"
             f"- URL: `{config['url']}`\n- Base: `{config['db']}`\n"
             f"- Utilisateur: `{config['username']}`\n- Mot de passe: `***`"
         )
     except ValueError as e:
         config = {}
         config_msg = mo.md(
-            f"⚠️ **Configuration Odoo manquante**\n\n{e}\n\nDéfinissez les variables `ODOO_*` dans `.env`."
+            f"⚠️ **Configuration Odoo manquante**\n\n{e}\n\nDéfinissez les variables `ODOO__*` dans `.env`."
         )
 
     # Client API electricore (cf. ADR-0009 + ADR-0012)

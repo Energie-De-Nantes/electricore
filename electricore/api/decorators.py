@@ -79,8 +79,7 @@ def binary_endpoint(
             if requires_odoo and not settings.is_odoo_configured:
                 raise HTTPException(
                     501,
-                    f"Odoo [{settings.odoo_env}] non configuré. Définissez "
-                    f"ODOO_{settings.odoo_env.upper()}_URL/DB/USERNAME/PASSWORD dans .env",
+                    "Odoo non configuré. Définissez ODOO__URL/DB/USERNAME/PASSWORD.",
                 )
             try:
                 if asyncio.iscoroutinefunction(handler):

@@ -128,8 +128,7 @@ marquées `# TODO:`. Voici la table de référence (cf. aussi
 
 | Variable | Notes |
 |---|---|
-| `ODOO_ENV` | `prod` ou `test`. |
-| `ODOO_PROD_URL` / `ODOO_PROD_DB` / `ODOO_PROD_USERNAME` / `ODOO_PROD_PASSWORD` | Coordonnées Odoo du fournisseur. |
+| `ODOO__URL` / `ODOO__DB` / `ODOO__USERNAME` / `ODOO__PASSWORD` | Coordonnées Odoo du fournisseur (bloc unique read-only, #439). |
 
 Le script valide chaque champ après la fermeture de l'éditeur (regex hex pour
 AES, longueur API_KEY, URL parseable, slug). Si invalide, il ré-ouvre l'éditeur
@@ -309,8 +308,8 @@ Le `.env` se scinde en deux :
 
 | Fichier | Contenu | Versionné | Chiffré |
 |---|---|---|---|
-| `config.env` | config NON secrète + substitutions compose (`INSTANCE_SLUG`, `ELECTRICORE_VERSION`, `BACKUPS_PATH`, `ODOO_ENV`…) | oui | non (clair) |
-| `secrets.env` | **uniquement** des credentials (`SFTP__URL`, trousseau `AES__TROUSSEAU__*`, `API_KEY`/`API_KEYS`, `BOT__TOKEN`, bloc `ODOO_*`) | oui | **oui** (SOPS + age) |
+| `config.env` | config NON secrète + substitutions compose (`INSTANCE_SLUG`, `ELECTRICORE_VERSION`, `BACKUPS_PATH`, `BOT__NOTIFY_CHAT_ID`…) | oui | non (clair) |
+| `secrets.env` | **uniquement** des credentials (`SFTP__URL`, trousseau `AES__TROUSSEAU__*`, trousseau `API__TROUSSEAU__*`, `BOT__TOKEN`, bloc `ODOO__*`) | oui | **oui** (SOPS + age) |
 
 `docker compose` résout ses substitutions `${...}` **côté hôte avant tout conteneur**
 → il lui faut du clair, d'où `config.env` séparé. Les credentials, eux, sont déchiffrés
