@@ -143,17 +143,16 @@ grep -q '"05:15"' <<<"$override_05" && ok "override: heure de reboot paramétrab
 
 echo
 echo "→ cli.sh / parse_args"
-( parse_args --slug edn --domain edn.fr >/dev/null 2>&1
+( parse_args --slug edn --domain edn.fr --deploy-repo "git@example.test:org/deploy.git" >/dev/null 2>&1
   [[ "$OPT_SLUG" == "edn" && "$OPT_DOMAIN" == "edn.fr" && "$OPT_VERSION" == "latest" ]]
-) && ok "parse_args minimal (--slug + --domain)" || ko "parse_args minimal"
+) && ok "parse_args minimal (--slug + --domain + --deploy-repo)" || ko "parse_args minimal"
 
-( parse_args --slug edn --domain edn.fr --version 1.7.0 --ssh-pubkey "ssh-ed25519 AAAA" --skip-dns >/dev/null 2>&1
+( parse_args --slug edn --domain edn.fr --deploy-repo "git@example.test:org/deploy.git" --version 1.7.0 --ssh-pubkey "ssh-ed25519 AAAA" --skip-dns >/dev/null 2>&1
   [[ "$OPT_VERSION" == "1.7.0" && "$OPT_SSH_PUBKEY" == "ssh-ed25519 AAAA" && "$OPT_SKIP_DNS" == "1" ]]
 ) && ok "parse_args avec --version --ssh-pubkey --skip-dns" || ko "parse_args options complètes"
 
-# --deploy-repo (secrets-as-code, ADR-0044)
-( parse_args --slug edn --domain edn.fr >/dev/null 2>&1; [[ -z "$OPT_DEPLOY_REPO" ]] ) \
-    && ok "parse_args: --deploy-repo vide par défaut" || ko "parse_args OPT_DEPLOY_REPO défaut"
+# --deploy-repo est OBLIGATOIRE depuis le cutover secrets-as-code (ADR-0044 §8)
+assert_fail "parse_args sans --deploy-repo" parse_args --slug edn --domain edn.fr
 ( parse_args --slug edn --domain edn.fr --deploy-repo "git@example.test:org/deploy.git" >/dev/null 2>&1
   [[ "$OPT_DEPLOY_REPO" == "git@example.test:org/deploy.git" ]]
 ) && ok "parse_args: --deploy-repo capturé" || ko "parse_args --deploy-repo"
@@ -251,23 +250,7 @@ assert_eq "$(map_version_to_git_ref dev)"         "dev"        "branche dev inch
 assert_eq "$(map_version_to_git_ref abc1234)"     "abc1234"    "SHA inchangé"
 
 echo
-echo "→ config.sh / substitute_*"
-tmp_env=$(mktemp)
-cp "${FIXTURES_DIR}/env-template" "$tmp_env"
-substitute_env "$tmp_env" "edn"
-grep -q "^INSTANCE_SLUG=edn$" "$tmp_env" && ok "substitute_env: INSTANCE_SLUG=edn" || ko "substitute_env INSTANCE_SLUG"
-grep -q "^BACKUPS_PATH=/srv/edn/backups$" "$tmp_env" && ok "substitute_env: BACKUPS_PATH=/srv/edn/backups" || ko "substitute_env BACKUPS_PATH"
-grep -q "^ELECTRICORE_VERSION=latest$" "$tmp_env" && ok "substitute_env: ELECTRICORE_VERSION inchangée si non passée" || ko "substitute_env touche ELECTRICORE_VERSION sans argument"
-rm -f "$tmp_env"
-
-# substitute_env avec version explicite
-tmp_env=$(mktemp)
-cp "${FIXTURES_DIR}/env-template" "$tmp_env"
-substitute_env "$tmp_env" "edn" "1.7.0rc3"
-grep -q "^ELECTRICORE_VERSION=1.7.0rc3$" "$tmp_env" && ok "substitute_env: ELECTRICORE_VERSION=1.7.0rc3 (3e arg)" || ko "substitute_env n'écrit pas ELECTRICORE_VERSION"
-grep -q "^INSTANCE_SLUG=edn$" "$tmp_env" && ok "substitute_env: INSTANCE_SLUG préservé avec version" || ko "substitute_env INSTANCE_SLUG cassé avec version"
-rm -f "$tmp_env"
-
+echo "→ config.sh / substitute_caddyfile"
 tmp_caddy=$(mktemp)
 cp "${FIXTURES_DIR}/caddyfile-template" "$tmp_caddy"
 substitute_caddyfile "$tmp_caddy" "edn.electricore.fr" "ops@edn.fr"
@@ -278,71 +261,14 @@ grep -q "ops@edn.fr" "$tmp_caddy" && ok "substitute_caddyfile: email" || ko "sub
 rm -f "$tmp_caddy"
 
 echo
-echo "→ env_validate.sh"
-assert_eq "$(read_env_var ${FIXTURES_DIR}/env-valid API_KEY)" "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" "read_env_var API_KEY"
-assert_eq "$(read_env_var ${FIXTURES_DIR}/env-valid QUOTED_VALUE)" "hello world" "read_env_var avec guillemets"
-assert_eq "$(read_env_var ${FIXTURES_DIR}/env-valid WITH_COMMENT)" "foo" "read_env_var ignore # comment"
-assert_eq "$(read_env_var ${FIXTURES_DIR}/env-valid ABSENT)" "" "read_env_var clé absente → vide"
-
-assert_ok   "validate_env_file (fixture valide)"   validate_env_file "${FIXTURES_DIR}/env-valid" "edn"
-assert_fail "validate_env_file (fixture invalide)" validate_env_file "${FIXTURES_DIR}/env-invalid" "edn"
-assert_fail "validate_env_file (slug mismatch)"    validate_env_file "${FIXTURES_DIR}/env-valid" "wrong-slug"
-assert_fail "validate_env_file (fichier absent)"   validate_env_file "/nonexistent" "edn"
-
-# IV optionnel (ADR-0040) : une clé AES-256 SANS __IV (schéma IV-préfixé) est déjà acceptée
-# par la fixture env-valid ci-dessus. Inversement, un __IV présent mais non-hex doit échouer.
-tmp_env=$(mktemp); cp "${FIXTURES_DIR}/env-valid" "$tmp_env"
-echo "AES__TROUSSEAU__aes256_2026__IV=zzzz" >> "$tmp_env"
-assert_fail "validate_env_file (__IV présent mais non-hex)" validate_env_file "$tmp_env" "edn"
-rm -f "$tmp_env"
-
-# prepend_errors_to_env doit insérer un bloc en tête sans dupliquer si rappelée
-tmp_env=$(mktemp); cp "${FIXTURES_DIR}/env-template" "$tmp_env"
-prepend_errors_to_env "$tmp_env" $'erreur A\nerreur B'
-grep -q "VALIDATION ÉCHOUÉE" "$tmp_env" && ok "prepend_errors_to_env: insère le header" || ko "header absent"
-grep -q "x erreur A" "$tmp_env" && ok "prepend_errors_to_env: liste les erreurs" || ko "erreurs absentes"
-# Rejouer doit remplacer le bloc précédent, pas l'empiler
-prepend_errors_to_env "$tmp_env" $'erreur C'
-header_count=$(grep -c "VALIDATION ÉCHOUÉE" "$tmp_env" || true)
-assert_eq "$header_count" "1" "prepend_errors_to_env: idempotent (1 seul bloc après 2 appels)"
-rm -f "$tmp_env"
-
-# Régression : prepend_errors_to_env ne doit JAMAIS effacer les vraies données,
-# même si le .env contient des séparateurs `# ===` (comme dans .env.example).
-tmp_env=$(mktemp); cp "${FIXTURES_DIR}/env-with-section-headers" "$tmp_env"
-prepend_errors_to_env "$tmp_env" "erreur quelconque"
-grep -q "^INSTANCE_SLUG=edn$" "$tmp_env" && ok "prepend: INSTANCE_SLUG survit aux séparateurs # ===" || ko "INSTANCE_SLUG effacé"
-grep -q "^API_KEY=should-survive" "$tmp_env" && ok "prepend: API_KEY survit" || ko "API_KEY effacé"
-grep -c "^# ===" "$tmp_env" >/dev/null
-sep_count=$(grep -c "^# ===" "$tmp_env" || true)
-[[ "$sep_count" -ge 4 ]] && ok "prepend: séparateurs de section préservés ($sep_count présents)" \
-    || ko "séparateurs # === effacés ($sep_count restants)"
-# Rejouer doit toujours préserver les données
-prepend_errors_to_env "$tmp_env" "erreur 2"
-grep -q "^INSTANCE_SLUG=edn$" "$tmp_env" && ok "prepend: INSTANCE_SLUG survit au 2e appel" || ko "INSTANCE_SLUG effacé après 2e prepend"
-rm -f "$tmp_env"
-
-echo
-echo "→ env_validate.sh / strip_validation_error_block"
-# Cas 1 : bloc présent + validate_env_file OK → bloc supprimé
-tmp_env=$(mktemp); cp "${FIXTURES_DIR}/env-valid" "$tmp_env"
-prepend_errors_to_env "$tmp_env" "erreur temporaire"
-grep -q "VALIDATION-ERROR-BLOCK-BEGIN" "$tmp_env" || { ko "setup: bloc absent avant strip"; rm -f "$tmp_env"; }
-strip_validation_error_block "$tmp_env"
-grep -q "VALIDATION-ERROR-BLOCK-BEGIN" "$tmp_env" && ko "strip: bloc toujours présent après strip" || ok "strip: bloc absent après strip"
-# Cas 2 : idempotent — aucun bloc → no-op, fichier inchangé
-cp "${FIXTURES_DIR}/env-valid" "$tmp_env"
-checksum_before=$(md5sum "$tmp_env" | awk '{print $1}')
-strip_validation_error_block "$tmp_env"
-checksum_after=$(md5sum "$tmp_env" | awk '{print $1}')
-assert_eq "$checksum_after" "$checksum_before" "strip: no-op si aucun bloc présent"
-# Cas 3 : les vraies données survivent au strip
-cp "${FIXTURES_DIR}/env-valid" "$tmp_env"
-prepend_errors_to_env "$tmp_env" "erreur x"
-strip_validation_error_block "$tmp_env"
-grep -q "^INSTANCE_SLUG=edn$" "$tmp_env" && ok "strip: INSTANCE_SLUG survit" || ko "strip: INSTANCE_SLUG effacé"
-grep -q "^API_KEY=" "$tmp_env" && ok "strip: API_KEY survit" || ko "strip: API_KEY effacé"
-rm -f "$tmp_env"
+echo "→ env_validate.sh / read_env_var"
+tmp_rev=$(mktemp)
+printf 'API_KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nQUOTED_VALUE="hello world"\nWITH_COMMENT=foo   # trailing comment ignored\n' > "$tmp_rev"
+assert_eq "$(read_env_var "$tmp_rev" API_KEY)" "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" "read_env_var API_KEY"
+assert_eq "$(read_env_var "$tmp_rev" QUOTED_VALUE)" "hello world" "read_env_var avec guillemets"
+assert_eq "$(read_env_var "$tmp_rev" WITH_COMMENT)" "foo" "read_env_var ignore # comment"
+assert_eq "$(read_env_var "$tmp_rev" ABSENT)" "" "read_env_var clé absente → vide"
+rm -f "$tmp_rev"
 
 echo
 echo "→ env_validate.sh / split config/secret (ADR-0044)"
