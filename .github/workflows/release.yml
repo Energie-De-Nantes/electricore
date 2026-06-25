@@ -138,9 +138,13 @@ jobs:
             --only-verified \
             --fail
 
+      # ELECTRICORE_DECRYPT=off : ce smoke vérifie l'IMPORTABILITÉ de l'image, pas le
+      # déchiffrement. Sans bypass, l'entrypoint SOPS+age (ADR-0044) fail-fast car aucun
+      # secrets.env/clé age n'est monté → exit 1. Le déchiffrement réel est couvert par
+      # tests/integration/test_entrypoint_dechiffrement.py.
       - name: Smoke-test image
         run: |
-          docker run --rm "${{ steps.docker_tags.outputs.smoke_tag }}" \
+          docker run --rm -e ELECTRICORE_DECRYPT=off "${{ steps.docker_tags.outputs.smoke_tag }}" \
             python -c "import electricore; import electricore.ingestion.runner; import electricore.api.main; import dbt.cli.main; print('image OK')"
 
       # Build n°2 : réhydrate le cache GHA du build n°1 (cache-from) → quasi
