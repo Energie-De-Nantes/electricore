@@ -90,6 +90,57 @@ def test_facturation_ne_reference_pas_de_colonne_pre_rename(colonne_retiree):
     )
 
 
+# --- Accueil : ordre d'usage explicite (réconciliation RSC → facturation, #423) ---
+# Garde purement statique sur la source de `accueil.py` (page de liens, sans
+# exécution ni Odoo). Un opérateur qui lance `facturation` AVANT d'avoir réconcilié
+# les RSC du mois obtient un 503 « ingestion en cours » trompeur (la vraie cause :
+# `ref_situation_contractuelle` NULL refusé par `LignesFacture`). L'accueil doit
+# désamorcer le piège en présentant l'ordre d'usage.
+_LIEN_RECONCILIATION_RSC = "/apps/injection_rsc"
+_LIEN_FACTURATION = "/apps/facturation"
+
+
+def test_accueil_presente_reconciliation_rsc_avant_facturation():
+    """`accueil.py` liste la réconciliation RSC AVANT la facturation (ordre d'usage, #423)."""
+    source = (_RACINE / "notebooks" / "accueil.py").read_text()
+    assert _LIEN_RECONCILIATION_RSC in source and _LIEN_FACTURATION in source
+    assert source.index(_LIEN_RECONCILIATION_RSC) < source.index(_LIEN_FACTURATION), (
+        "L'accueil doit présenter la réconciliation RSC (injection_rsc) avant la "
+        "facturation : la facturation dépend des RSC réconciliées (#423)."
+    )
+
+
+def test_accueil_explique_la_dependance_facturation_rsc():
+    """`accueil.py` énonce que la facturation DÉPEND de la réconciliation RSC (#423).
+
+    Sans cette phrase, l'opérateur qui voit le 503 « ingestion en cours » attend une
+    ingestion sans rapport au lieu de lancer la réconciliation. La garde vérifie la
+    présence d'un énoncé de dépendance, pas une formulation exacte (survie au reword).
+    """
+    source = (_RACINE / "notebooks" / "accueil.py").read_text().lower()
+    assert "dépend" in source, (
+        "L'accueil doit énoncer explicitement que la facturation dépend de la réconciliation RSC préalable (#423)."
+    )
+
+
+def test_accueil_numerote_les_etapes_dans_l_ordre():
+    """`accueil.py` numérote les deux étapes : 1. réconciliation RSC, 2. facturation (#423).
+
+    La numérotation rend la séquence d'usage non-ambiguë. Les marqueurs `"N. "`
+    (chiffre-point-espace) évitent toute collision avec la chaîne de version
+    (`"0.21.1"`) ; les positions sont ancrées sur les URLs des liens (survie au
+    renommage des libellés).
+    """
+    source = (_RACINE / "notebooks" / "accueil.py").read_text()
+    assert "1. " in source and "2. " in source, "L'accueil doit numéroter les étapes (#423)."
+    assert (
+        source.index("1. ")
+        < source.index(_LIEN_RECONCILIATION_RSC)
+        < source.index("2. ")
+        < source.index(_LIEN_FACTURATION)
+    ), "Étape 1 = réconciliation RSC, étape 2 = facturation, dans cet ordre (#423)."
+
+
 @pytest.mark.slow
 def test_wheel_contient_les_notebooks_operateur(tmp_path: Path):
     """`uv build --wheel` produit un wheel electricore contenant les 3 notebooks."""
