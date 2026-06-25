@@ -25,7 +25,7 @@ from .helpers import (
     # API fluide
     affaires,
     c15,
-    chronologie,
+    chronologie_releves,
     execute_custom_query,
     f15,
     flux,
@@ -35,7 +35,7 @@ from .helpers import (
     r64,
     r151,
     releves,
-    spine,
+    spine_contrat,
 )
 from .query import DuckDBQuery
 from .registry import ENTREES_C15, SORTIES_C15, FluxInconnu
@@ -59,8 +59,8 @@ __all__ = [
     "f15",
     "r64",
     "releves",
-    "spine",
-    "chronologie",
+    "spine_contrat",
+    "chronologie_releves",
     "affaires",
     "FluxInconnu",
     # Groupings C15 canoniques (cf. CONTEXT.md)

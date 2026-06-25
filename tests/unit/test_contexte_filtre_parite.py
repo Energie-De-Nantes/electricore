@@ -17,7 +17,7 @@ Deux familles de tests :
    parité — c'est la garde explicite de l'invariant « horizon = paramètre ».
 
 2. **Poussée du prédicat** (`contexte_du_mois_filtre`) : on espionne les loaders pour
-   vérifier que `pdl`/`rsc` atteignent `spine().filter(...)` / `chronologie().filter(...)`
+   vérifier que `pdl`/`rsc` atteignent `spine_contrat().filter(...)` / `chronologie_releves().filter(...)`
    (symétrique sur les deux entrées, deux grains), donc que la base ne sert que le
    périmètre demandé (pas de scan parc).
 """
@@ -267,7 +267,7 @@ class TestPredicatPousseDansDuckDB:
         assert q.filters == [{"pdl": "PDL_A"}, {"ref_situation_contractuelle": "REF_A"}]
 
     def test_contexte_filtre_pousse_le_predicat_sur_les_deux_entrees(self, monkeypatch):
-        """`contexte_du_mois_filtre` pousse pdl+rsc dans spine() ET chronologie() — pas de scan
+        """`contexte_du_mois_filtre` pousse pdl+rsc dans spine_contrat() ET chronologie_releves() — pas de scan
         parc puis filtre aval (les frames servies ne portent que le périmètre demandé)."""
         import electricore.core.builds.contexte_mensuel as cm
 
@@ -288,8 +288,8 @@ class TestPredicatPousseDansDuckDB:
             def lazy(self):
                 return self._lf
 
-        monkeypatch.setattr(cm, "spine", lambda: _SpyQuery("spine", _spine_parc()))
-        monkeypatch.setattr(cm, "chronologie", lambda: _SpyQuery("chronologie", _chronologie_parc()))
+        monkeypatch.setattr(cm, "spine_contrat", lambda: _SpyQuery("spine", _spine_parc()))
+        monkeypatch.setattr(cm, "chronologie_releves", lambda: _SpyQuery("chronologie", _chronologie_parc()))
 
         ctx = cm.contexte_du_mois_filtre(pdl="PDL_A", rsc="REF_A", mois="2024-02-01", horizon=HORIZON)
 

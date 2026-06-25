@@ -28,7 +28,7 @@ import pandera.polars as pa
 import polars as pl
 from pandera.typing.polars import DataFrame
 
-from electricore.core.loaders import chronologie, spine
+from electricore.core.loaders import chronologie_releves, spine_contrat
 from electricore.core.loaders.duckdb import DuckDBQuery
 from electricore.core.models.cadrans import col_energie
 from electricore.core.models.lignes_facture import LignesFacture
@@ -135,10 +135,10 @@ def charger(
     """Compose les pipelines de facturation et résout le mois cible.
 
     Args:
-        spine: spine de la *Chronologie du contrat* (mart dbt, sortie de `spine().lazy()`),
+        spine: spine de la *Chronologie du contrat* (mart dbt, sortie de `spine_contrat().lazy()`),
             horizon-indépendante — `pipeline_historique` la borne à l'horizon. Alimente la
             branche abonnement (ADR-0041 #378).
-        chronologie: *Chronologie des relevés* (mart dbt, sortie de `chronologie().lazy()`),
+        chronologie: *Chronologie des relevés* (vue dbt, sortie de `chronologie_releves().lazy()`),
             horizon-indépendante — `_composer` la borne à l'horizon. Alimente l'énergie ET
             `releves_utilises` (même source, ADR-0041 #377).
         mois: format `YYYY-MM-DD` (premier jour du mois). `None` → dernier mois
@@ -177,8 +177,8 @@ def charger(
 def contexte_du_mois(mois: str | None = None, horizon: dt.datetime | None = None) -> ContexteMensuel:
     """Entrée I/O du contexte mensuel : sources par défaut puis `charger()` (#145).
 
-    Résout les deux marts canoniques (loaders DuckDB `spine` et `chronologie` — spine de la
-    *Chronologie du contrat* et *Chronologie des relevés* dbt, ADR-0041) et délègue la
+    Résout les deux modèles canoniques (loaders DuckDB `spine_contrat` et `chronologie_releves`
+    — spine de la *Chronologie du contrat* et *Chronologie des relevés* dbt, ADR-0041) et délègue la
     composition à `charger()`. Qui dispose déjà de frames (tests, notebooks, autre
     source) appelle `charger()` directement.
 
@@ -192,13 +192,13 @@ def contexte_du_mois(mois: str | None = None, horizon: dt.datetime | None = None
         FileNotFoundError: si la base DuckDB est absente (levée par les loaders
             à l'appel — leur `.lazy()` exécute la lecture immédiatement).
     """
-    return charger(spine().lazy(), chronologie().lazy(), mois=mois, horizon=horizon)
+    return charger(spine_contrat().lazy(), chronologie_releves().lazy(), mois=mois, horizon=horizon)
 
 
 def _filtrer_point_ou_contrat(query: DuckDBQuery, pdl: str | None, rsc: str | None) -> DuckDBQuery:
-    """Pousse un filtre `pdl` et/ou `rsc` dans un loader de mart (`spine`/`chronologie`).
+    """Pousse un filtre `pdl` et/ou `rsc` dans un loader (`spine_contrat`/`chronologie_releves`).
 
-    Le prédicat **descend dans DuckDB** : `spine()` et `chronologie()` sont des marts
+    Le prédicat **descend dans DuckDB** : `spine_contrat()` et `chronologie_releves()` sont des
     `SELECT *` (`base_sql`), donc `.filter({...})` ajoute une clause `WHERE` paramétrée
     exécutée côté base — pas un scan parc puis filtre Polars en aval (ADR-0039,
     « Filtrabilité en amont »). Filtre **symétrique** : la même fonction s'applique aux
@@ -221,8 +221,8 @@ def contexte_du_mois_filtre(
     """Reconstruit le *Contexte mensuel* d'un **seul point (PDL) ou contrat (RSC)** (#366).
 
     Variante de `contexte_du_mois()` qui **pousse le filtre `pdl`/`rsc` au boundary de
-    chargement** : il descend dans DuckDB via `spine().filter(...)` /
-    `chronologie().filter(...)` (clause `WHERE` paramétrée), sans charger le parc entier.
+    chargement** : il descend dans DuckDB via `spine_contrat().filter(...)` /
+    `chronologie_releves().filter(...)` (clause `WHERE` paramétrée), sans charger le parc entier.
     La composition reste celle de `charger()` — le pipeline de chronologie ne change pas :
     il est **partition-local** (`group_by`/`over` par RSC et PDL) et l'horizon est un
     **paramètre** (#179, pas un `max()` parc), donc filtrer l'entrée à X donne un résultat
@@ -240,8 +240,8 @@ def contexte_du_mois_filtre(
     Raises:
         FileNotFoundError: si la base DuckDB est absente (levée par les loaders).
     """
-    spine_q = _filtrer_point_ou_contrat(spine(), pdl, rsc)
-    chronologie_q = _filtrer_point_ou_contrat(chronologie(), pdl, rsc)
+    spine_q = _filtrer_point_ou_contrat(spine_contrat(), pdl, rsc)
+    chronologie_q = _filtrer_point_ou_contrat(chronologie_releves(), pdl, rsc)
     return charger(spine_q.lazy(), chronologie_q.lazy(), mois=mois, horizon=horizon)
 
 

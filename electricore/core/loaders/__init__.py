@@ -10,7 +10,7 @@ from .duckdb import (
     # API fluide
     affaires,
     c15,
-    chronologie,
+    chronologie_releves,
     execute_custom_query,
     f15,
     # Utilitaires
@@ -19,7 +19,7 @@ from .duckdb import (
     r64,
     r151,
     releves,
-    spine,
+    spine_contrat,
 )
 
 __all__ = [
@@ -30,8 +30,8 @@ __all__ = [
     "f15",
     "r64",
     "releves",
-    "spine",
-    "chronologie",
+    "spine_contrat",
+    "chronologie_releves",
     "affaires",
     "DuckDBQuery",
     # Utilitaires DuckDB

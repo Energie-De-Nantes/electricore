@@ -9,10 +9,10 @@ Depuis ADR-0045 (#431), le modèle est **normalisé** : le mart MINCE
 `chronologie_releves_situation` (matérialisé) porte l'identité + la situation + `releve_id`
 (référence) + les attributs de slot ; la **vue** `chronologie_releves` ré-attache le payload
 d'index par **star-join** sur `releves` (source de vérité unique, ADR-0029/0038). Le loader
-`chronologie()` lit la vue ; le contrat `ChronologieReleves` est inchangé.
+`chronologie_releves()` lit la vue ; le contrat `ChronologieReleves` est inchangé.
 
 Test de **structure (CI)** : bâtie depuis les fixtures, grain `(rsc, date_releve,
-ordre_index)` unique, contrat `ChronologieReleves` validé par le loader `chronologie()`,
+ordre_index)` unique, contrat `ChronologieReleves` validé par le loader `chronologie_releves()`,
 + mart mince (sans payload), vue (star-join), parité du payload vs `releves[releve_id]`.
 
 Skip si dbt absent (`uv sync --extra dbt`).
@@ -31,7 +31,7 @@ pytest.importorskip("dbt.adapters.duckdb", reason="dbt-duckdb absent — uv sync
 
 from dbt.cli.main import dbtRunner  # noqa: E402
 
-from electricore.core.loaders import chronologie, releves  # noqa: E402
+from electricore.core.loaders import chronologie_releves, releves  # noqa: E402
 from electricore.core.models.cadrans import CADRANS, col_index  # noqa: E402
 from electricore.ingestion.parsing.xml import xml_vers_dict  # noqa: E402
 
@@ -148,7 +148,7 @@ def _colonnes(db_path: Path, relation: str) -> set[str]:
 
 def test_chronologie_grain_et_contrat(base_fixtures):
     """Le loader valide `ChronologieReleves` ; grain unique ; sources dans l'énum."""
-    df = chronologie(base_fixtures).collect()  # lève si le contrat Pandera échoue
+    df = chronologie_releves(base_fixtures).collect()  # lève si le contrat Pandera échoue
     assert df.height > 0
     cle = ["ref_situation_contractuelle", "date_releve", "ordre_index"]
     assert df.select(cle).n_unique() == df.height  # grain 1 ligne / (rsc, date, ordre)
@@ -199,7 +199,7 @@ def test_index_proviennent_de_releves(base_fixtures):
     `releves[releve_id]` ; pour une borne sans relevé apparié (`releve_manquant`), elles sont
     nulles (left join). C'est la parité qui garantit que la sortie énergie est inchangée.
     """
-    chrono = chronologie(base_fixtures).collect()
+    chrono = chronologie_releves(base_fixtures).collect()
     payload = [c for c in PAYLOAD_INDEX]
 
     # La vue porte bien le payload ré-attaché (contrat ChronologieReleves inchangé).

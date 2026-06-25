@@ -7,7 +7,7 @@ qui peuvent être composées entre elles pour générer les périodes d'énergie
 
 Depuis ADR-0041 (#377), l'assemblage de la *Chronologie des relevés* (relevés C15
 aux événements énergie + bornes FACTURATION appariées aux périodiques, dédoublonnage
-priorité) vit **en dbt** (mart `chronologie_releves`, loader `chronologie()`). L'énergie
+priorité) vit **en dbt** (vue `chronologie_releves`, loader `chronologie_releves()`). L'énergie
 ne garde que son **découpage** : `calculer_periodes_energie` (shift/diff par cadran,
 verdicts qualité/communication) + TURPE variable. L'ex-`_assembler_chronologie` (et son
 `join_asof` à tolérance) a disparu du cœur — l'appariement relevé↔borne est un equi-join
@@ -343,7 +343,7 @@ def pipeline_energie(chronologie: LazyFrame[ChronologieReleves]) -> LazyFrame[Pe
     Pipeline principal pour générer les périodes d'énergie avec TURPE variable.
 
     Depuis ADR-0041 (#377), l'énergie consomme la *Chronologie des relevés* déjà
-    assemblée en dbt (mart `chronologie_releves`, loader `chronologie()`) : elle ne fait
+    assemblée en dbt (vue `chronologie_releves`, loader `chronologie_releves()`) : elle ne fait
     plus que son **découpage** :
     1. Le calcul des périodes d'énergie (shift/diff par cadran, verdicts qualité/communication) ;
     2. L'enrichissement avec calcul TURPE variable.
@@ -354,15 +354,15 @@ def pipeline_energie(chronologie: LazyFrame[ChronologieReleves]) -> LazyFrame[Pe
     avant l'appel — pas ici (pureté #179).
 
     Args:
-        chronologie: LazyFrame de la *Chronologie des relevés* (mart dbt, déjà bornée à
+        chronologie: LazyFrame de la *Chronologie des relevés* (vue dbt, déjà bornée à
             l'horizon par l'appelant).
 
     Returns:
         LazyFrame avec les périodes d'énergie et TURPE variable
 
     Example:
-        >>> from electricore.core.loaders import chronologie
-        >>> periodes_energie = pipeline_energie(chronologie().lazy())
+        >>> from electricore.core.loaders import chronologie_releves
+        >>> periodes_energie = pipeline_energie(chronologie_releves().lazy())
         >>> df = periodes_energie.collect()
     """
     return (

@@ -11,7 +11,7 @@ Ce harnais (mécanique, sur fixtures contrôlées) vérifie :
 - la génération de la grille FACTURATION (1ᵉʳ du mois, entrée+1mois → résiliation) ;
 - l'héritage de situation par forward-fill (FACTURATION ← dernier événement) ;
 - la correction du bug `month_start` de bord de mois (ADR-0041) ;
-- le contrat Pandera de la spine via le loader `spine()`.
+- le contrat Pandera de la spine via le loader `spine_contrat()`.
 
 La parité vs l'ancien `pipeline_historique` (qui ré-assemblait depuis C15) a été prouvée à
 l'introduction de la spine (#375) ; depuis #378 `pipeline_historique` **consomme** la spine
@@ -32,7 +32,7 @@ pytest.importorskip("dbt.adapters.duckdb", reason="dbt-duckdb absent — uv sync
 
 from dbt.cli.main import dbtRunner  # noqa: E402
 
-from electricore.core.loaders import spine  # noqa: E402
+from electricore.core.loaders import spine_contrat  # noqa: E402
 from electricore.ingestion.parsing.xml import xml_vers_dict  # noqa: E402
 
 RACINE = Path(__file__).parents[2]
@@ -75,7 +75,7 @@ def _construire_spine(tmp, documents_c15: list[dict]) -> Path:
     """Lande des documents C15 (parsés), bâtit `+spine_contrat`, retourne une **copie**.
 
     dbt (adapter in-process) garde une connexion read-write ouverte sur la base bâtie ;
-    le loader `spine()` ouvre en read-only → conflit de configuration DuckDB. On rend donc
+    le loader `spine_contrat()` ouvre en read-only → conflit de configuration DuckDB. On rend donc
     une copie sans connexion ouverte (checkpoint d'abord pour fusionner le WAL).
     """
     import shutil
@@ -217,7 +217,7 @@ def base_un_evenement(tmp_path_factory):
 
 def test_spine_projette_evenement_c15_sur_epine(base_un_evenement):
     """Un événement C15 devient une ligne de spine, épine renseignée (source/type_fait)."""
-    df = spine(base_un_evenement).collect()
+    df = spine_contrat(base_un_evenement).collect()
     evt = df.filter(pl.col("type_fait") == "evenement")
     assert evt.height == 1
     ligne = evt.row(0, named=True)
@@ -233,7 +233,7 @@ def test_grille_facturation_premier_de_chaque_mois(tmp_path):
         tmp_path,
         [_evt("2024-01-15 00:01:00", "MES"), _evt("2024-04-20 00:01:00", "RES")],
     )
-    df = spine(db).collect()
+    df = spine_contrat(db).collect()
     fact = df.filter((pl.col("ref_situation_contractuelle") == "R1") & (pl.col("type_fait") == "facturation"))
     dates = sorted(fact["date_evenement"].to_list())
     assert dates == [
@@ -255,7 +255,7 @@ def test_situation_forward_fillee_sur_facturation(tmp_path):
             _evt("2024-04-20 00:01:00", "RES", puissance_souscrite_kva=9.0),
         ],
     )
-    df = spine(db).collect()
+    df = spine_contrat(db).collect()
     fact = df.filter(pl.col("type_fait") == "facturation").sort("date_evenement")
     puiss = dict(zip(fact["date_evenement"].to_list(), fact["puissance_souscrite_kva"].to_list(), strict=True))
     # 02-01 et 03-01 héritent du MES (6) ; le MCT (10/03) ne s'applique qu'à partir du 04-01.
@@ -281,7 +281,7 @@ def test_niveau_forward_fille_sur_mdprm(tmp_path):
             _evt("2024-04-20 00:01:00", "RES", niveau_ouverture_services="2"),
         ],
     )
-    df = spine(db).collect()
+    df = spine_contrat(db).collect()
     fact = df.filter(pl.col("type_fait") == "facturation").sort("date_evenement")
     niv = dict(zip(fact["date_evenement"].to_list(), fact["niveau_ouverture_services"].to_list(), strict=True))
     assert niv[datetime(2024, 2, 1, tzinfo=PARIS)] == "0"  # avant le MDPRM
@@ -307,7 +307,7 @@ def test_spine_corrige_la_facturation_de_bord_de_mois(tmp_path):
     C'est un fix : la période devient facturable. Depuis #378 `pipeline_historique` hérite
     naturellement de cette grille correcte (il consomme la spine)."""
     db = _spine_depuis_evenements(tmp_path, [_evt("2024-08-01 00:01:00", "MES", rsc="Z")])
-    sp = spine(db).collect().filter(pl.col("date_evenement") <= datetime(2024, 9, 1, tzinfo=PARIS))
+    sp = spine_contrat(db).collect().filter(pl.col("date_evenement") <= datetime(2024, 9, 1, tzinfo=PARIS))
 
     sp_fact = sp.filter(pl.col("type_fait") == "facturation")["date_evenement"].to_list()
     assert sp_fact == [datetime(2024, 9, 1, tzinfo=PARIS)]  # borne présente (grille calendaire)

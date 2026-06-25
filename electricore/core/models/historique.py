@@ -7,7 +7,7 @@ situation forward-fillée en dbt, #375) enrichie de la **détection de ruptures 
 
 Depuis la descente d'assemblage d'ADR-0041, ce modèle ne porte plus la branche **énergie** :
 plus de colonnes d'index/calendrier/relevé (`avant_*`/`apres_*`), plus d'`impacte_energie`.
-L'énergie est assemblée en dbt (*Chronologie des relevés*, loader `chronologie()`, #376/#377)
+L'énergie est assemblée en dbt (*Chronologie des relevés*, loader `chronologie_releves()`, #376/#377)
 et ne passe plus par `pipeline_historique`.
 
 Voir `electricore/core/CONTEXT.md` (entrée `Historique`) et ADR-0013/0041.

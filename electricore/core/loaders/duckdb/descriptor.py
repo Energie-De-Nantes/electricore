@@ -9,7 +9,7 @@ son validateur Pandera.
 `QueryConfig` (appariement schéma + transform + validateur), qui re-déclarait
 chaque flux dans **deux registres parallèles** — et que les marts construisaient
 en plus *inline* avec une forme différente. Les flux legacy et les marts
-(`releves`/`spine`/`chronologie`) utilisent désormais ce même type (ADR-0019).
+(`releves`/`spine_contrat`/`chronologie_releves`) utilisent désormais ce même type (ADR-0019).
 """
 
 from collections.abc import Callable

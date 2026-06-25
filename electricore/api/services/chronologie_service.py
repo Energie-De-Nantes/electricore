@@ -12,7 +12,7 @@ l'extrait mensuel valorisé.
 `/meta-periodes`. La frise porte l'énergie **physique** (kWh), pas son prix.
 
 S'appuie sur la reconstruction **filtrée** du `ContexteMensuel` (#366) : le périmètre est
-poussé dans DuckDB (`spine().filter(...)` / `chronologie().filter(...)`), pas de scan parc.
+poussé dans DuckDB (`spine_contrat().filter(...)` / `chronologie_releves().filter(...)`), pas de scan parc.
 
 Grain :
 - **point** (`pdl`) — toute l'histoire du PDL : RSC successives + charnières

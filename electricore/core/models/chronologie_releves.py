@@ -34,7 +34,7 @@ SOURCES_CHRONOLOGIE: tuple[str, ...] = ("flux_C15", "flux_R64", "flux_R151", "fl
 class ChronologieReleves(pa.DataFrameModel):
     """📌 Chronologie des relevés d'un contrat : ligne de temps énergie dédoublonnée.
 
-    Contrat du mart dbt `chronologie_releves` (loader `chronologie()`, ADR-0041), entrée
+    Contrat de la vue dbt `chronologie_releves` (loader `chronologie_releves()`, ADR-0041/0045), entrée
     de `pipeline_energie` / `calculer_periodes_energie` et source de `releves_utilises`.
     Grain garanti : 1 ligne par `(ref_situation_contractuelle, date_releve, ordre_index)`.
     """

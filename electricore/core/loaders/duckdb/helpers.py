@@ -205,7 +205,7 @@ def releves(database_path: str | Path | None = None) -> DuckDBQuery:
     return DuckDBQuery(config=config, database_path=database_path)
 
 
-def spine(database_path: str | Path | None = None) -> DuckDBQuery:
+def spine_contrat(database_path: str | Path | None = None) -> DuckDBQuery:
     """Crée un DuckDBQuery pour le mart *spine* de la Chronologie du contrat (ADR-0041).
 
     Spine relationnelle assemblée en dbt (Class-Table Inheritance) : épine commune
@@ -229,8 +229,8 @@ def spine(database_path: str | Path | None = None) -> DuckDBQuery:
         DuckDBQuery configuré pour le mart `spine_contrat`
 
     Example:
-        >>> df = spine().collect()
-        >>> facturation = spine().filter({"type_fait": "facturation"}).collect()
+        >>> df = spine_contrat().collect()
+        >>> facturation = spine_contrat().filter({"type_fait": "facturation"}).collect()
     """
     from electricore.core.models.spine_contrat import SpineContrat
 
@@ -245,8 +245,8 @@ def spine(database_path: str | Path | None = None) -> DuckDBQuery:
     return DuckDBQuery(config=config, database_path=database_path)
 
 
-def chronologie(database_path: str | Path | None = None) -> DuckDBQuery:
-    """Crée un DuckDBQuery pour le mart *Chronologie des relevés* (ADR-0041, #376).
+def chronologie_releves(database_path: str | Path | None = None) -> DuckDBQuery:
+    """Crée un DuckDBQuery pour la *Chronologie des relevés* (ADR-0041, #376 ; ADR-0045, #431).
 
     Projection ÉNERGIE de la spine, assemblée entièrement en dbt : relevés contractuels
     C15 aux événements qui impactent l'énergie + bornes FACTURATION mensuelles appariées
@@ -254,6 +254,11 @@ def chronologie(database_path: str | Path | None = None) -> DuckDBQuery:
     remplace l'asof « nearest 4h » du cœur), dédoublonnées par priorité de source
     (C15 > R64 > R151, ADR-0028) via `QUALIFY`. Grain : 1 ligne par
     `(ref_situation_contractuelle, date_releve, ordre_index)`.
+
+    Depuis ADR-0045 (#431), `chronologie_releves` est une **vue** (star-join) qui ré-attache
+    le payload d'index (`index_*`/`nature_index`/`id_calendrier_distributeur`) au mart mince
+    `chronologie_releves_situation` depuis `releves` (source de vérité unique, ADR-0029/0038).
+    Le loader lit la vue ; le contrat `ChronologieReleves` est inchangé.
 
     Read fin (ADR-0019) : `SELECT *`, `date_releve` harmonisé Europe/Paris (instant
     préservé). Contrat `ChronologieReleves` (validation activée). Remplace l'assemblage
@@ -263,10 +268,10 @@ def chronologie(database_path: str | Path | None = None) -> DuckDBQuery:
         database_path: Chemin vers la base DuckDB (optionnel)
 
     Returns:
-        DuckDBQuery configuré pour le mart `chronologie_releves`
+        DuckDBQuery configuré pour la vue `chronologie_releves`
 
     Example:
-        >>> df = chronologie().collect()
+        >>> df = chronologie_releves().collect()
     """
     from electricore.core.models.chronologie_releves import ChronologieReleves
 
