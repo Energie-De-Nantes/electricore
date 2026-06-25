@@ -44,6 +44,9 @@ fi
 # `sops exec-env FILE CMD` exécute CMD via `sh -c` (un seul argument-commande, pas
 # de positionnels). On re-sérialise donc l'argv d'origine en une chaîne shell sûre
 # (quoting POSIX) pour la `exec` telle quelle, sans jamais écrire de fichier clair.
+# Le `exec` EN TÊTE de la chaîne-commande est essentiel : il remplace le `sh -c` de
+# sops par le process de service, pour que tini propage SIGTERM jusqu'à lui — sinon le
+# signal s'arrêterait au wrapper `sh` et `compose down` traînerait jusqu'au timeout.
 _quote_argv() {
     for a in "$@"; do
         printf "'%s' " "$(printf '%s' "$a" | sed "s/'/'\\\\''/g")"

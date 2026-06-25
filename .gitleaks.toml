@@ -25,14 +25,16 @@ paths = [
     # Fixtures .env de tests deploy/ (déjà annotées `# gitleaks:allow` en ligne,
     # listées ici pour robustesse si l'annotation en ligne ne couvre pas tout).
     '''deploy/tests/fixtures/env-valid''',
-    # Fake-binaries des tests deploy-shell (secrets-as-code) — le fake `sops` émet un
-    # dotenv clair FACTICE (valeurs de test, ne protègent rien).
-    '''deploy/tests/fixtures/fake_bin/sops''',
+    # Fake-binaries des tests deploy-shell (secrets-as-code) : le fake `sops` émet un
+    # dotenv FACTICE et le fake `docker` émet une paire age FACTICE (age-keygen stub) —
+    # valeurs de test, ne protègent rien.
+    '''deploy/tests/fixtures/fake_bin/.*''',
     # Scaffolding d'exemple providers/ (#420) : destinataires + secrets FACTICES,
     # clairement marqués (.example).
     '''deploy/providers/example/.*''',
 ]
-# Clé age privée de test (la regex couvre la valeur exacte committée).
-regexes = [
-    '''AGE-SECRET-KEY-1[0-9A-Z]+''',
-]
+# Pas de `regexes` d'allowlist : les `paths` ci-dessus couvrent déjà toutes les clés age
+# de TEST committées. Une regex `AGE-SECRET-KEY-…` globale OU-erait avec les `paths`
+# (gitleaks v8) et désactiverait la détection des clés age privées dans TOUT le dépôt —
+# précisément la classe de secret que cette feature introduit (ADR-0044). La détection
+# reste donc active partout ailleurs ; n'ajoute pas de `regexes` ici.

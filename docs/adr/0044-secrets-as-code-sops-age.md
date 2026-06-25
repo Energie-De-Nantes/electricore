@@ -3,8 +3,8 @@
 ## Statut
 
 Accepté (grill 25/06/2026, `/grill-with-docs`). S'appuie sur [ADR-0011](0011-deploiement-vps-docker.md)
-(stack docker compose), [ADR-0017](0017-layout-srv-slug.md) (layout `/srv/<slug>/`),
-[ADR-0031](0031-durcissement-vps.md) (durcissement), [ADR-0015](0015-deploiement-multi-instance.md)
+(stack docker compose), [ADR-0017](0017-layout-deploiement-srv-slug.md) (layout `/srv/<slug>/`),
+[ADR-0031](0031-durcissement-ssh-vps-utilisateur-ops.md) (durcissement), [ADR-0015](0015-deploiement-multi-instance.md)
 (multi-instance), [ADR-0024](0024-trois-registres-de-savoir.md)/[ADR-0025](0025-registre-runtime-pydantic-settings.md)
 (registre runtime). **Révise la procédure de rotation** d'[ADR-0037](0037-trousseau-cles-aes-n-cles-selection-par-essai.md)
 et [ADR-0040](0040-schema-dechiffrement-aes-iv-prefixe.md) (« éditer le `.env` » → éditer le `secrets.env`
@@ -12,7 +12,7 @@ chiffré). Porté par la chaîne d'issues *secrets-as-code* (à créer via `/to-
 
 ## Contexte
 
-Aujourd'hui les secrets vivent en clair dans `/srv/<slug>/.env` ([ADR-0017](0017-layout-srv-slug.md)) :
+Aujourd'hui les secrets vivent en clair dans `/srv/<slug>/.env` ([ADR-0017](0017-layout-deploiement-srv-slug.md)) :
 source unique, montée dans les conteneurs (`env_file:`) et lue par `docker compose --env-file` pour ses
 substitutions `${...}`. Ce fichier est **édité à la main** à l'install, **jamais versionné**, et n'existe
 **que** sur le VPS — perdre la box, c'est perdre les secrets ; aucun historique, aucune revue, aucune
