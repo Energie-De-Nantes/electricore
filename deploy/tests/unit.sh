@@ -329,6 +329,34 @@ grep -q "^API_KEY=" "$tmp_env" && ok "strip: API_KEY survit" || ko "strip: API_K
 rm -f "$tmp_env"
 
 echo
+echo "→ user.sh / ensure_backups_dir (contrat uid 1000, #459)"
+# Le conteneur tourne en uid 1000 → /srv/<slug>/backups doit lui appartenir, sinon
+# backup_duckdb.sh plante au mkdir (« Permission denied »). On vérifie sur un home
+# jetable, en chownant vers SOI-MÊME (CONTAINER_UID=$(id -u)) pour tourner sans root.
+bk_root=$(mktemp -d)
+( CONTAINER_UID="$(id -u)" CONTAINER_GID="$(id -g)" SRV_BASE="$bk_root" ensure_backups_dir edn >/dev/null 2>&1 )
+[[ -d "${bk_root}/edn/backups" ]] && ok "ensure_backups_dir: crée /srv/<slug>/backups" || ko "backups non créé"
+assert_eq "$(stat -c '%u' "${bk_root}/edn/backups" 2>/dev/null)" "$(id -u)" \
+    "ensure_backups_dir: backups owned par CONTAINER_UID (pas <slug>)"
+assert_eq "$(stat -c '%a' "${bk_root}/edn/backups" 2>/dev/null)" "2750" \
+    "ensure_backups_dir: setgid 2750 (snapshots héritent du groupe → lecture <slug>)"
+# Idempotent + ré-assertion après un chown -R clobber (cas reconfigure : chown_instance_home
+# redonne backups à <slug>, ensure_backups_dir doit le reprendre).
+chmod 0700 "${bk_root}/edn/backups"
+( CONTAINER_UID="$(id -u)" CONTAINER_GID="$(id -g)" SRV_BASE="$bk_root" ensure_backups_dir edn >/dev/null 2>&1 ) \
+    && ok "ensure_backups_dir: idempotent (2e appel ré-asserte sans erreur)" || ko "ensure_backups_dir 2e appel échoue"
+assert_eq "$(stat -c '%a' "${bk_root}/edn/backups" 2>/dev/null)" "2750" \
+    "ensure_backups_dir: ré-asserte le mode après clobber (reconfigure)"
+rm -rf "$bk_root"
+
+# ensure_slug_in_container_group : no-op si <slug> est déjà membre du groupe cible.
+# On joue le user courant + son gid primaire → branche skip atteignable sans root.
+me=$(id -un)
+( CONTAINER_GID="$(id -g)" ensure_slug_in_container_group "$me" >/dev/null 2>&1 ) \
+    && ok "ensure_slug_in_container_group: no-op si déjà membre (pas de usermod)" \
+    || ko "ensure_slug_in_container_group a échoué sur un membre existant"
+
+echo
 if [[ "$FAIL" -eq 0 ]]; then
     printf "\033[32m%d passed, %d failed\033[0m\n" "$PASS" "$FAIL"
     exit 0
