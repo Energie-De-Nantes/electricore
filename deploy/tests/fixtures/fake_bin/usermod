@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Fake usermod — no-op success
+exit 0

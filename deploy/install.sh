@@ -204,6 +204,7 @@ main() {
     # (config.env) et secrets (secrets.env chiffré) arrivent par le dépôt privé.
     download_config_files "$OPT_VERSION" "$HOME_DIR"
     chown_instance_home "$OPT_SLUG"
+    setup_backup_dir "$OPT_SLUG" "$HOME_DIR"
 
     # ─── Étape 8 : substitutions ────────────────────────────────────────────
     log_step "Patch des templates (domaine + email)"

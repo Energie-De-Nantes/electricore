@@ -22,6 +22,8 @@ source "${LIB_DIR}/env_validate.sh"
 source "${LIB_DIR}/secrets.sh"
 # shellcheck source=../lib/harden.sh
 source "${LIB_DIR}/harden.sh"
+# shellcheck source=../lib/user.sh
+source "${LIB_DIR}/user.sh"
 
 # `install.sh` est protégé par un guard `main` ; le sourcer expose
 # `fetch_lib_files` sans déclencher l'exécution du script.
@@ -464,6 +466,19 @@ grep -Eq -- '-v [^ ]*/test_age\.key:/run/secrets/age\.key:ro' "$SMOKE_LOG" \
 rm -f "$SMOKE_LOG"
 
 rm -rf "$SMOKE_FIX"
+
+echo
+echo
+echo
+echo "→ user.sh / setup_backup_dir"
+_src_dir="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)/lib"
+slug_test_dir=$(mktemp -d)
+assert_ok "setup_backup_dir: cree le dossier" bash -c 'PATH="'"${FIXTURES_DIR}"'/fake_bin:$PATH" . "'"${_src_dir}"'/log.sh" && . "'"${_src_dir}"'/user.sh" && setup_backup_dir "testuser" "'"${slug_test_dir}"'"'
+[[ -d "${slug_test_dir}/backups" ]] && ok "setup_backup_dir: backups/ present" || ko "setup_backup_dir: backups/ absent"
+assert_fail "setup_backup_dir: slug vide" bash -c 'PATH="'"${FIXTURES_DIR}"'/fake_bin:$PATH" . "'"${_src_dir}"'/log.sh" && . "'"${_src_dir}"'/user.sh" && setup_backup_dir "" "'"${slug_test_dir}"'"'
+assert_fail "setup_backup_dir: home_dir vide" bash -c 'PATH="'"${FIXTURES_DIR}"'/fake_bin:$PATH" . "'"${_src_dir}"'/log.sh" && . "'"${_src_dir}"'/user.sh" && setup_backup_dir "testuser" ""'
+unset _src_dir
+rm -rf "$slug_test_dir"
 
 echo
 if [[ "$FAIL" -eq 0 ]]; then

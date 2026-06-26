@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Fake chown — no-op success (can't chown without root in CI/local)
+exit 0

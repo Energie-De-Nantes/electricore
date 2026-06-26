@@ -59,3 +59,39 @@ chown_instance_home() {
     local slug="$1"
     chown -R "$slug:$slug" "/srv/${slug}"
 }
+
+# CONTAINER_UID
+# UID du user `electricore` dans le conteneur Docker. Le bind-mount host des
+# backups (/srv/<slug>/backups) doit etre writable par cet uid.
+# Cf. deploy/docker/docker-compose.yml:96-99, ADR-0017.
+readonly CONTAINER_UID=1000
+
+# setup_backup_dir <slug> <home_dir>
+# Apres chown_instance_home, retablit l'ownership du dossier backups/ vers
+# CONTAINER_UID pour que le conteneur Docker puisse y ecrire ses snapshots.
+# Ajoute <slug> au groupe CONTAINER_UID pour permettre ls/rclone offsite.
+# Cf. deploy/docker/docker-compose.yml:96-99, ADR-0017.
+setup_backup_dir() {
+    local slug="$1"
+    local home="$2"
+    local backup_dir="${home}/backups"
+
+    if [[ -z "$slug" || -z "$home" ]]; then
+        die "usage: setup_backup_dir <slug> <home_dir>"
+    fi
+
+    # Creer le dossier s'il n'existe pas deja.
+    install -d -m 755 "$backup_dir"
+
+    # Chowner vers CONTAINER_UID (le user electricore du conteneur).
+    chown "${CONTAINER_UID}:${CONTAINER_UID}" "$backup_dir"
+    log_ok "backups/ (${backup_dir}) chowné a uid ${CONTAINER_UID}"
+
+    # Ajouter le slug au groupe du conteneur pour ls/rclone.
+    if ! id -nG "$slug" | tr ' ' '\n' | grep -qx "${CONTAINER_UID}"; then
+        usermod -aG "${CONTAINER_UID}" "$slug"
+        log_ok "user $slug ajoute au groupe ${CONTAINER_UID}"
+    else
+        log_skip "user $slug deja dans le groupe ${CONTAINER_UID}"
+    fi
+}

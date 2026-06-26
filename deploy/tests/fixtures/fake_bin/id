@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Fake id — simule un user non-root appartenant au groupe 'docker'
+if [[ "$*" == *-nG* ]]; then
+  # Extract the last argument as username
+  for arg; do :; done
+  echo "docker"
+fi
+exit 0
