@@ -18,6 +18,8 @@ source "${LIB_DIR}/cli.sh"
 source "${LIB_DIR}/config.sh"
 # shellcheck source=../lib/env_validate.sh
 source "${LIB_DIR}/env_validate.sh"
+# shellcheck source=../lib/ingestion.sh
+source "${LIB_DIR}/ingestion.sh"
 # shellcheck source=../lib/secrets.sh
 source "${LIB_DIR}/secrets.sh"
 # shellcheck source=../lib/harden.sh
@@ -541,6 +543,52 @@ chmod +x "${stub_dir}/getent" "${stub_dir}/id" "${stub_dir}/usermod"
 assert_eq "$(cat "$usermod_log" 2>/dev/null)" "-aG edn-data edn" \
     "ensure_slug_in_container_group: usermod -aG <grp> <slug> quand <slug> non-membre"
 rm -rf "$stub_dir"
+
+echo
+echo "→ ingestion.sh / _ingestion_parse_job_id"
+assert_eq "$(_ingestion_parse_job_id '{"job_id":"abc-123","status":"running"}')" \
+    "abc-123" "_ingestion_parse_job_id: extrait le job_id"
+assert_eq "$(_ingestion_parse_job_id '{"job_id": "spaced-id","status":"running"}')" \
+    "spaced-id" "_ingestion_parse_job_id: tolère l'espace après :"
+assert_eq "$(_ingestion_parse_job_id '{}')" \
+    "" "_ingestion_parse_job_id: champ absent → vide"
+
+echo
+echo "→ ingestion.sh / _ingestion_parse_status"
+assert_eq "$(_ingestion_parse_status '{"status":"completed"}')"  "completed" "_ingestion_parse_status: completed"
+assert_eq "$(_ingestion_parse_status '{"status":"failed"}')"     "failed"    "_ingestion_parse_status: failed"
+assert_eq "$(_ingestion_parse_status '{"status":"running"}')"    "running"   "_ingestion_parse_status: running"
+assert_eq "$(_ingestion_parse_status '{"status": "completed"}')" "completed" "_ingestion_parse_status: tolère l'espace"
+assert_eq "$(_ingestion_parse_status '{}')"                      ""          "_ingestion_parse_status: champ absent → vide"
+
+echo
+echo "→ ingestion.sh / poll_ingestion_job"
+# Cas 1 : completed immédiatement → 0
+_ingestion_call_get_job() { echo '{"status":"completed"}'; }
+assert_ok   "poll_ingestion_job: completed → 0" \
+    poll_ingestion_job testslug testkey abc-123 3 0
+
+# Cas 2 : failed immédiatement → 1
+_ingestion_call_get_job() { echo '{"status":"failed"}'; }
+assert_fail "poll_ingestion_job: failed → 1" \
+    poll_ingestion_job testslug testkey abc-123 3 0
+
+# Cas 3 : timeout (toujours running après max_retries) → 1
+_ingestion_call_get_job() { echo '{"status":"running"}'; }
+assert_fail "poll_ingestion_job: timeout → 1" \
+    poll_ingestion_job testslug testkey abc-123 3 0
+
+# Cas 4 : running × 2 puis completed → 0 (état via fichier, survit aux subshells)
+_poll_seq=$(mktemp)
+printf 'running\nrunning\ncompleted\n' > "$_poll_seq"
+_ingestion_call_get_job() {
+    local s; s=$(head -1 "$_poll_seq")
+    { tail -n +2 "$_poll_seq" > "${_poll_seq}.tmp" && mv "${_poll_seq}.tmp" "$_poll_seq"; } 2>/dev/null || true
+    printf '{"status":"%s"}\n' "${s:-running}"
+}
+assert_ok   "poll_ingestion_job: running×2 puis completed → 0" \
+    poll_ingestion_job testslug testkey abc-123 5 0
+rm -f "$_poll_seq" "${_poll_seq}.tmp"
 
 echo
 if [[ "$FAIL" -eq 0 ]]; then
