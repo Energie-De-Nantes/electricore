@@ -9,6 +9,29 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.4.0rc6] - 2026-06-26
+
+Corrections issues du test de rc5 sur l'instance EDN : connexion Odoo, découvrabilité du flux
+facturiste, et onboarding secrets-as-code de la box.
+
+### 🐛 Corrections
+
+- **`ODOO__URL` normalisée au chargement** (#454) : `runtime.Odoo` retire l'espace et les
+  guillemets appariés puis exige un schéma http(s). En prod, `sops exec-env` exporte les valeurs
+  dotenv **verbatim** (guillemets compris) — un `ODOO__URL="https://…"` cité atteignait
+  `ServerProxy` tel quel → `503 « unsupported XML-RPC protocol »` sur `/facturation/check/odoo`.
+  `ConfigurationManquante` remonte désormais aussi les valeurs présentes-mais-malformées.
+- **Flux JSONL facturiste découvrable** (#455) : `/facturation/chronologie` et
+  `/facturation/meta-periodes` documentent leur réponse `application/jsonl` avec un `itemSchema`
+  OpenAPI **3.2.0** typé par ligne (union discriminée `LigneChronologie` / `PeriodeMeta`), au lieu
+  d'un `application/json` implicite que Swagger UI affichait en « [object Blob] ». Le
+  *validate-then-stream* atomique (#426/#427) est conservé — pas de bascule vers la génération
+  native FastAPI ; le document passe en `openapi_version` 3.2.0.
+- **Onboarding box : crypto sur l'hôte** (sops+age) : la box installe et utilise ses propres
+  outils (`age-keygen`, `ssh-keygen`, `sops`) au lieu de les lancer via l'image runtime (qui
+  fail-fast sans secrets montés et n'embarque ni `age` ni `openssh`) ; `SECRETS_IMAGE`/`DOCKER_BIN`
+  retirés de `secrets.sh` — corrige 4 bugs d'onboarding révélés par la bascule EDN.
+
 ## [3.4.0rc5] - 2026-06-25
 
 **Secrets-as-code** : les secrets de déploiement quittent le `.env` en clair pour un
