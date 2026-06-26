@@ -6,7 +6,7 @@ compris hors-comptage* + relevés) tissés avec les verdicts dérivés (qualité
 énergie). Drill-down/explication du **pourquoi**, là où `/meta-periodes` est l'extrait mensuel
 valorisé — **pas de montants tarifaires** ici (différenciateur explicite).
 
-Réponse en **JSONL streamé** (`application/jsonl`, ADR-0043) : une ligne = un
+Réponse en **JSONL streamé** (`application/x-ndjson`, ADR-0043) : une ligne = un
 `LigneChronologie` (union discriminée sur `type_ligne`), validé par construction. Les
 métadonnées (`contract_version`, `grain`) remontent dans les en-têtes. Le modèle d'union est
 **single-sourcé** dans `electricore_client`.
@@ -55,9 +55,10 @@ async def get_chronologie(
     sans montant tarifaire (turpe/cta/accise). Métadonnées en en-têtes (`X-Contract-Version`,
     `X-Grain`). Fournir exactement un grain (`pdl` XOR `rsc`).
 
-    **Réponse JSONL streamé** (`application/jsonl`, NDJSON) : à consommer **ligne par ligne**,
-    ce n'est pas un document JSON unique. Swagger UI affiche « [object Blob] » car il ne
-    prévisualise que `application/json` — pour inspecter à la main : `curl … | jq -c .`.
+    **Réponse JSONL streamé** (`application/x-ndjson`, NDJSON) : à consommer **ligne par ligne**,
+    ce n'est pas un document JSON unique. Swagger UI ne prévisualise pas le NDJSON (il le passe à
+    `JSON.parse` et affiche une note « can't parse JSON » avant les lignes brutes) — pour
+    inspecter à la main : `curl … | jq -c .`.
     """
     if pdl is None and rsc is None:
         raise HTTPException(422, "Fournir un grain : `pdl` (point) ou `rsc` (contrat).")

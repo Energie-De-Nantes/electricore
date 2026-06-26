@@ -1,7 +1,7 @@
 """Tests d'intégration de `GET /facturation/meta-periodes` (ADR-0027/0043, #227/#407).
 
 Endpoint de lecture des méta-périodes mensuelles : Odoo tire d'electricore. Depuis #407,
-la réponse est un **flux JSONL** (`application/jsonl`, une ligne = un `PeriodeMeta`) — plus
+la réponse est un **flux JSONL** (`application/x-ndjson`, une ligne = un `PeriodeMeta`) — plus
 d'enveloppe paginée. Les métadonnées (`X-Contract-Version`, `X-Mois`) sont en en-têtes, et
 chaque ligne est **validée par construction d'un modèle** côté serveur. Le seam de test est
 la fonction de service `meta_periodes` référencée dans le router — on court-circuite l'I/O
@@ -86,7 +86,7 @@ def _lignes(response) -> list[dict]:
 
 
 def test_meta_periodes_streame_du_jsonl(monkeypatch, meta_periodes_synthetiques):
-    """Tracer bullet : GET sert les méta-périodes en JSONL (`application/jsonl`)."""
+    """Tracer bullet : GET sert les méta-périodes en JSONL (`application/x-ndjson`)."""
     app.dependency_overrides[get_current_api_key] = lambda: "test-key"
     monkeypatch.setattr(
         "electricore.api.routers.meta_periodes.meta_periodes",
@@ -98,7 +98,7 @@ def test_meta_periodes_streame_du_jsonl(monkeypatch, meta_periodes_synthetiques)
         app.dependency_overrides.clear()
 
     assert response.status_code == 200
-    assert response.headers["content-type"].startswith("application/jsonl")
+    assert response.headers["content-type"].startswith("application/x-ndjson")
 
     lignes = _lignes(response)
     assert len(lignes) == 2
@@ -169,21 +169,21 @@ def test_meta_periodes_ligne_hors_contrat_500_atomique(monkeypatch, meta_periode
 
     assert response.status_code == 500
     # Le flux n'a pas commencé : aucune ligne JSONL (pas de données de contrat) n'a fuité.
-    assert not response.headers["content-type"].startswith("application/jsonl")
+    assert not response.headers["content-type"].startswith("application/x-ndjson")
     assert "ref_situation_contractuelle" not in response.text
 
 
 def test_meta_periodes_openapi_itemschema_3_2():
-    """Découvrabilité (#455) : OpenAPI 3.2.0 documente la 200 en `application/jsonl` avec un
+    """Découvrabilité (#455) : OpenAPI 3.2.0 documente la 200 en `application/x-ndjson` avec un
     `itemSchema` (schéma d'**une ligne** `PeriodeMeta`), au lieu d'un `application/json` implicite
-    (que Swagger prend pour un JSON unique → « [object Blob] »).
+    (que Swagger prend pour un JSON unique).
     """
     openapi_doc = app.openapi()
     assert openapi_doc["openapi"] == "3.2.0"
     reponse_200 = openapi_doc["paths"]["/facturation/meta-periodes"]["get"]["responses"]["200"]
-    assert list(reponse_200["content"].keys()) == ["application/jsonl"]
+    assert list(reponse_200["content"].keys()) == ["application/x-ndjson"]
     assert "ligne par ligne" in reponse_200["description"]
-    item = reponse_200["content"]["application/jsonl"]["itemSchema"]
+    item = reponse_200["content"]["application/x-ndjson"]["itemSchema"]
     # Une ligne = un objet PeriodeMeta (schéma d'objet, pas une string opaque).
     assert item["type"] == "object" and "properties" in item
     # Le modèle imbriqué `ObjetReleve` a été remonté en composant et son $ref résout.

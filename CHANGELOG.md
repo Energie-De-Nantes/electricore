@@ -9,6 +9,18 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+### 🐛 Corrections
+
+- **Flux JSONL facturiste servi en `application/x-ndjson`** (#455) : le rc6 documentait la 200
+  (itemSchema OpenAPI 3.2.0) mais gardait le `Content-Type: application/jsonl` runtime — d'où,
+  dans le panneau *Execute* de Swagger UI, le « can't parse JSON. Raw result: [object Blob] »
+  inchangé. swagger-js ne lit en **texte** que les types matchant `/(json|xml|yaml|text)\b/` :
+  `application/jsonl` échoue (pas de frontière de mot après « json ») → corps lu en `Blob` →
+  `JSON.parse(blob)` → `[object Blob]`. `/facturation/{chronologie,meta-periodes}` répondent
+  désormais en `application/x-ndjson` : Swagger affiche les **lignes brutes** (avec une note
+  « can't parse JSON » bénigne — du NDJSON n'est pas un JSON unique). Le client `electricore-client`
+  (lecture `iter_lines`) est insensible au `Content-Type`.
+
 ## [3.4.0rc6] - 2026-06-26
 
 Corrections issues du test de rc5 sur l'instance EDN : connexion Odoo, découvrabilité du flux

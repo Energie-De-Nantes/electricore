@@ -71,7 +71,7 @@ def _handler(*, lignes=_LIGNES, version="1", grain="point"):
         return httpx.Response(
             200,
             content=_jsonl(lignes),
-            headers={"Content-Type": "application/jsonl", "X-Contract-Version": version, "X-Grain": grain},
+            headers={"Content-Type": "application/x-ndjson", "X-Contract-Version": version, "X-Grain": grain},
         )
 
     return handler
