@@ -9,24 +9,41 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
-### 🗑️ Suppressions (purge code mort)
+## [3.4.0rc8] - 2026-06-26
 
-- **14 notebooks de démo/validation obsolètes supprimés** (+ `README_validation_turpe.md`) :
+Nettoyage avant sortie stable : suppression des notebooks morts et de la surface loaders
+qu'ils maintenaient, plus hygiène dépôt et correctif déploiement backups.
+
+### 🗑️ Suppressions (Breaking Changes)
+
+- **14 notebooks de démo/validation obsolètes supprimés** (+ `README_validation_turpe.md`) (#466) :
   cassés à l'import depuis les refactors ADR-0013 (`pipeline_*` → `pipelines.*`) et ADR-0019
   (orchestration → `builds.contexte_mensuel`), tous orphelins — aucun n'était testé, empaqueté,
   ni référencé. Seul subsiste le **trio lanceur** opérateur (`accueil.py`, `facturation.py`,
   `injection_rsc.py`, seuls force-inclus et testés). La boucle de vérif des calculs **TURPE ↔ F15**
   que portaient les `validations/*` sera relogée en harnais CI (issue #468 ; cf. #215 pour
   l'oracle énergie R65).
-- **API publique loaders : `execute_custom_query` retiré** (déf + ré-exports + `__all__` dans
-  `core/loaders` et `core/loaders/duckdb`). Son seul usage était les notebooks supprimés ; le
+- **API publique loaders : `execute_custom_query` retiré** (#466) : déf + ré-exports + `__all__` dans
+  `core/loaders` et `core/loaders/duckdb`. Son seul usage était les notebooks supprimés ; le
   chemin canonique reste les query builders (`c15()`, `releves()`…) ou `.collect()`. Garde
   anti-réintroduction ajoutée au test `#181`.
-- **`DuckDBQuery.exec()` retiré** : méthode dépréciée qui ne faisait que déléguer à `.collect()`,
+- **`DuckDBQuery.exec()` retiré** (#466) : méthode dépréciée qui ne faisait que déléguer à `.collect()`,
   zéro appelant.
-- **Modèle Pandera `RequêteRelevé` retiré** : jamais référencé. `RelevéIndex` (contrat vivant)
+- **Modèle Pandera `RequêteRelevé` retiré** (#466) : jamais référencé. `RelevéIndex` (contrat vivant)
   est inchangé.
-- **Doc** : `docs/qualite-donnees-r151.md` ne pointe plus vers les notebooks de validation supprimés.
+
+### 🐛 Corrections
+
+- **Backups inaccessibles sous Docker** (#459) : `chown_instance_home` écrasait silencieusement le
+  propriétaire du répertoire `backups/` (uid 1000 au lieu du slug) → `Permission denied` à l'écriture.
+  `ensure_backups_dir` (setgid 2750) + `ensure_slug_in_container_group` créent la structure avant le
+  `chown` général ; `install.sh` ré-asserte l'ownership après.
+
+### 🔧 Hygiène dépôt
+
+- Fichier `--context` (0 octet, nom parsé comme option par ripgrep) retiré du suivi (#467).
+- `.gitignore` étendu : `dist-client/`, `.ruff_cache/`, `node_modules/` (#467).
+- **Doc** : `docs/qualite-donnees-r151.md` ne pointe plus vers les notebooks de validation supprimés (#466).
 
 ## [3.4.0rc7] - 2026-06-26
 
