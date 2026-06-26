@@ -9,6 +9,11 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.4.0rc7] - 2026-06-26
+
+Correction issue du test de rc6 sur l'instance EDN : le flux JSONL facturiste reste affiché
+« [object Blob] » dans Swagger UI malgré la doc rc6.
+
 ### 🐛 Corrections
 
 - **Flux JSONL facturiste servi en `application/x-ndjson`** (#455) : le rc6 documentait la 200
