@@ -27,7 +27,7 @@ router = APIRouter(tags=["facturation"])
 @router.get(
     "/facturation/meta-periodes",
     response_class=StreamingResponse,
-    responses=reponses_openapi_jsonl("Méta-périodes mensuelles (`PeriodeMeta`, contrat v3)."),
+    responses=reponses_openapi_jsonl(PeriodeMeta, "Méta-périodes mensuelles (`PeriodeMeta`, contrat v3)."),
 )
 async def get_meta_periodes(
     mois: str | None = Query(

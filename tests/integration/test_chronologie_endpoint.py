@@ -13,6 +13,7 @@ service depuis un `ContexteMensuel` synthétique.
 """
 
 import json
+import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -172,13 +173,23 @@ def test_chronologie_ligne_hors_contrat_500_atomique(monkeypatch):
     assert "type_ligne" not in response.text
 
 
-def test_chronologie_openapi_annonce_le_flux_jsonl():
-    """Découvrabilité (#455) : OpenAPI documente la 200 en `application/jsonl` (NDJSON), pas
-    en `application/json` implicite — sinon Swagger tente un parse JSON unique (« [object Blob] »).
+def test_chronologie_openapi_itemschema_3_2():
+    """Découvrabilité (#455) : OpenAPI 3.2.0 documente la 200 en `application/jsonl` avec un
+    `itemSchema` (schéma d'**une ligne**) — l'union discriminée `LigneChronologie` — au lieu d'un
+    `application/json` implicite (que Swagger prend pour un JSON unique → « [object Blob] »).
     """
-    reponse_200 = app.openapi()["paths"]["/facturation/chronologie"]["get"]["responses"]["200"]
+    openapi_doc = app.openapi()
+    assert openapi_doc["openapi"] == "3.2.0"
+    reponse_200 = openapi_doc["paths"]["/facturation/chronologie"]["get"]["responses"]["200"]
     assert list(reponse_200["content"].keys()) == ["application/jsonl"]
     assert "ligne par ligne" in reponse_200["description"]
+    item = reponse_200["content"]["application/jsonl"]["itemSchema"]
+    # Une ligne = un membre de l'union discriminée (oneOf + discriminator sur `type_ligne`).
+    assert "oneOf" in item and "discriminator" in item
+    # Les $defs ont été remontés : chaque $ref de l'itemSchema résout dans components/schemas.
+    composants = set(openapi_doc["components"]["schemas"])
+    refs = set(re.findall(r"#/components/schemas/([^\"']+)", json.dumps(item)))
+    assert refs and refs <= composants
 
 
 def test_chronologie_refuse_sans_api_key():

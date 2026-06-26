@@ -12,7 +12,7 @@ métadonnées (`contract_version`, `grain`) remontent dans les en-têtes. Le mod
 **single-sourcé** dans `electricore_client`.
 """
 
-from electricore_client.models import valider_ligne_chronologie
+from electricore_client.models import LigneChronologie, valider_ligne_chronologie
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
@@ -26,7 +26,7 @@ router = APIRouter(tags=["facturation"])
 @router.get(
     "/facturation/chronologie",
     response_class=StreamingResponse,
-    responses=reponses_openapi_jsonl("Frise complète (`LigneChronologie`, union sur `type_ligne`)."),
+    responses=reponses_openapi_jsonl(LigneChronologie, "Frise complète (`LigneChronologie`, union sur `type_ligne`)."),
 )
 async def get_chronologie(
     pdl: str | None = Query(
