@@ -14,21 +14,27 @@ from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _pkg_version
 from pathlib import Path
 
-from pydantic import Field, ValidationError
+from pydantic import Field, ValidationError, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class ConfigurationManquante(ValueError):
-    """Variables d'environnement manquantes, groupées par domaine.
+    """Variables d'environnement manquantes — ou présentes mais malformées —, groupées par domaine.
 
     Sous-classe `ValueError` pour rester compatible avec les `except ValueError`
-    historiques (façade `charger_config_odoo`).
+    historiques (façade `charger_config_odoo`). `invalides` porte les messages des
+    valeurs présentes mais rejetées par un validateur (ex. `ODOO__URL` mal formé,
+    #454) — sinon le motif précis se perdrait derrière un simple « manquante ».
     """
 
-    def __init__(self, manquantes: dict[str, list[str]]):
+    def __init__(self, manquantes: dict[str, list[str]], invalides: list[str] | None = None):
         self.manquantes = manquantes
+        self.invalides = invalides or []
         details = " ; ".join(f"[{domaine}] {', '.join(noms)}" for domaine, noms in manquantes.items())
-        super().__init__(f"Configuration manquante : {details}")
+        message = f"Configuration manquante : {details}"
+        if self.invalides:
+            message += " | invalides : " + " ; ".join(self.invalides)
+        super().__init__(message)
 
 
 def _nom_var(prefixe: str, loc: tuple) -> str:
@@ -42,7 +48,8 @@ def _instancier(domaine: str, classe: type[BaseSettings], prefixe: str, **kwargs
         return classe(_env_file=FICHIER_ENV, **kwargs)
     except ValidationError as exc:
         noms = [_nom_var(prefixe, err["loc"]) for err in exc.errors()]
-        raise ConfigurationManquante({domaine: noms}) from exc
+        invalides = [err["msg"] for err in exc.errors() if err["type"] != "missing"]
+        raise ConfigurationManquante({domaine: noms}, invalides=invalides) from exc
 
 
 # Fichier .env ancré sur la racine du dépôt (None = désactivé, seam de test).
@@ -114,6 +121,24 @@ class Aes(BaseSettings):
         return [(label, *paire.octets(label)) for label, paire in self.trousseau.items()]
 
 
+def _normaliser_url(valeur: str, *, var: str) -> str:
+    """Trim + dé-quote + exige un schéma http(s) (#454).
+
+    En prod, `sops exec-env` exporte les valeurs dotenv **verbatim**, guillemets
+    compris — là où le `.env` lu en dev passe par python-dotenv qui les retire. Un
+    `ODOO__URL="https://…"` (guillemets dans le secret) atteint alors `ServerProxy`
+    tel quel : `urlsplit` lit le schéma `"https` ≠ `http`/`https` et lève
+    « unsupported XML-RPC protocol » (503 cryptique). On retire l'espace et les
+    guillemets appariés, et on rejette tôt un schéma absent avec un message clair.
+    """
+    url = valeur.strip()
+    if len(url) >= 2 and url[0] == url[-1] and url[0] in "\"'":
+        url = url[1:-1].strip()
+    if not url.startswith(("http://", "https://")):
+        raise ValueError(f"{var} doit commencer par http:// ou https:// (reçu : {valeur!r})")
+    return url
+
+
 class Odoo(BaseSettings):
     """Domaine odoo : connexion XML-RPC read-only (ADR-0012), bloc unique ODOO__*.
 
@@ -127,6 +152,11 @@ class Odoo(BaseSettings):
     db: str
     username: str
     password: str
+
+    @field_validator("url")
+    @classmethod
+    def _url_normalisee(cls, valeur: str) -> str:
+        return _normaliser_url(valeur, var="ODOO__URL")
 
 
 def _version_package() -> str:

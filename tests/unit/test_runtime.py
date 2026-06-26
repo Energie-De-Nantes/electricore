@@ -126,6 +126,27 @@ class TestDomaineOdoo:
             "password": "secret",
         }
 
+    @pytest.mark.parametrize(
+        "brut",
+        [
+            '"https://odoo.example"',  # guillemets doubles (sops exec-env les passe verbatim, #454)
+            "'https://odoo.example'",  # guillemets simples
+            "  https://odoo.example  ",  # espaces parasites
+            '  "https://odoo.example"  ',  # espaces + guillemets
+        ],
+    )
+    def test_url_normalisee_trim_et_dequote(self, monkeypatch, brut):
+        """Une `ODOO__URL` entre guillemets / avec espaces est nettoyée au chargement (#454)."""
+        monkeypatch.setenv("ODOO__URL", brut)
+        assert runtime.odoo().url == "https://odoo.example"
+
+    def test_url_sans_schema_signalee_clairement(self, monkeypatch):
+        """Un schéma absent ne tombe plus en 503 cryptique : message explicite nommant ODOO__URL."""
+        monkeypatch.setenv("ODOO__URL", "odoo.example")
+        with pytest.raises(runtime.ConfigurationManquante) as exc:
+            runtime.odoo()
+        assert "ODOO__URL doit commencer par http:// ou https://" in str(exc.value)
+
     def test_no_erp_bloc_absent(self, monkeypatch):
         """Odoo absent (no-ERP, ADR-0022) : non configuré + manquantes listées en ODOO__*."""
         for champ in ("URL", "DB", "USERNAME", "PASSWORD"):
