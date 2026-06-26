@@ -1,13 +1,18 @@
 # shellcheck shell=bash
 # Création du user système <slug>, home /srv/<slug>/, groupe docker, SSH key.
 # Cf. ADR-0017.
+#
+# Toutes les fonctions dérivent le home d'instance via ${SRV_BASE:-/srv} : défaut
+# /srv en prod, surchargeable par les tests pour opérer sur un home jetable sans
+# root. chown_instance_home et ensure_backups_dir doivent ainsi viser le MÊME
+# chemin (l'un écrase l'exception backups/ de l'autre, #459).
 
 # create_instance_user <slug>
 # Crée le user s'il n'existe pas, met son home à /srv/<slug>/, l'ajoute à docker.
 # Garde-fou : refuse si le user existe mais avec un home différent (cas tordu).
 create_instance_user() {
     local slug="$1"
-    local home="/srv/${slug}"
+    local home="${SRV_BASE:-/srv}/${slug}"
     if id "$slug" >/dev/null 2>&1; then
         local existing_home
         existing_home=$(getent passwd "$slug" | cut -d: -f6)
@@ -34,7 +39,7 @@ create_instance_user() {
 setup_ssh_authorized_keys() {
     local slug="$1"
     local pubkey="${2:-}"
-    local home="/srv/${slug}"
+    local home="${SRV_BASE:-/srv}/${slug}"
     local ssh_dir="${home}/.ssh"
     local auth_file="${ssh_dir}/authorized_keys"
     install -d -m 700 -o "$slug" -g "$slug" "$ssh_dir"
@@ -60,7 +65,8 @@ setup_ssh_authorized_keys() {
 # safe.directory du deploy-repo).
 chown_instance_home() {
     local slug="$1"
-    chown -R "$slug:$slug" "/srv/${slug}"
+    local home="${SRV_BASE:-/srv}/${slug}"
+    chown -R "$slug:$slug" "$home"
 }
 
 # Identité du user du conteneur (Dockerfile : `USER electricore`, uid:gid 1000:1000).
