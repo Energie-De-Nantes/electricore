@@ -49,19 +49,6 @@ def get_api_key(api_key: str | None = Security(api_key_header)) -> str:
 get_current_api_key = get_api_key
 
 
-def is_public_endpoint(path: str) -> bool:
-    """
-    Vérifie si un endpoint est public (sans authentification requise).
-
-    Args:
-        path: Chemin de l'endpoint
-
-    Returns:
-        bool: True si l'endpoint est public
-    """
-    return path in PUBLIC_ENDPOINTS
-
-
 @dataclass(frozen=True, slots=True)
 class APIKeyInfo:
     """Informations sur une clé API utilisée (pour logging/monitoring)."""
