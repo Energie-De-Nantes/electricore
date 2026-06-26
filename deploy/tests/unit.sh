@@ -562,6 +562,22 @@ assert_eq "$(_ingestion_parse_status '{"status": "completed"}')" "completed" "_i
 assert_eq "$(_ingestion_parse_status '{}')"                      ""          "_ingestion_parse_status: champ absent → vide"
 
 echo
+echo "→ ingestion.sh / _ingestion_read_scheduler_key (fake sops déchiffre secrets.env)"
+# Sandbox jetable : SRV_BASE pointe un tmp avec age.key + providers/<slug>/secrets.env.
+# Le fake sops émet un dotenv clair contenant la clé du label "scheduler" → on l'extrait.
+ik_root=$(mktemp -d)
+install -d "${ik_root}/edn/providers/edn"
+: > "${ik_root}/edn/age.key"
+printf '#ENC[fake-ciphertext]\n' > "${ik_root}/edn/providers/edn/secrets.env"
+assert_eq "$(PATH="${FAKE_BIN}:$PATH" SRV_BASE="$ik_root" _ingestion_read_scheduler_key edn)" \
+    "ssssssssssssssssssssssssssssssss" \
+    "_ingestion_read_scheduler_key: extrait API__TROUSSEAU__scheduler__KEY (pas un API_KEY inexistant)"
+assert_eq "$(PATH="${FAKE_BIN}:$PATH" SRV_BASE="$ik_root" FAKE_SOPS_FAIL=1 _ingestion_read_scheduler_key edn)" \
+    "" \
+    "_ingestion_read_scheduler_key: vide si sops échoue (clé age non destinataire)"
+rm -rf "$ik_root"
+
+echo
 echo "→ ingestion.sh / poll_ingestion_job"
 # Cas 1 : completed immédiatement → 0
 _ingestion_call_get_job() { echo '{"status":"completed"}'; }

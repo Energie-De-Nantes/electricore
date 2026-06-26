@@ -16,9 +16,11 @@ case "$sub" in
             echo "fake sops: échec déchiffrement (clé non destinataire)" >&2
             exit 1
         fi
-        # Émet un clair factice cohérent (utilisé par validate_secrets_env).
+        # Émet un clair factice cohérent (utilisé par validate_secrets_env +
+        # _ingestion_read_scheduler_key, qui extrait le label "scheduler").
         cat <<'EOF'
 API__TROUSSEAU__librewatt__KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+API__TROUSSEAU__scheduler__KEY=ssssssssssssssssssssssssssssssss
 SFTP__URL=sftp://user:pass@host.fr:22/exports
 AES__TROUSSEAU__demo__KEY=00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
 EOF
