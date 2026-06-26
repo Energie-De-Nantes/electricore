@@ -15,7 +15,7 @@
 #   9. Édition .env + validation (loop)
 #  10. DNS check bloquant
 #  11. docker compose up + wait_for_health
-#  12. ETL test (mode test, ~3s)
+#  12. Test ingestion (mode test, ~3s)
 #  13. Récap final
 #
 # Mode reconfigure : si /srv/<slug>/.env existe déjà, on backup le .env,
@@ -319,14 +319,14 @@ main() {
         "API non healthy après 60s." \
         "Voir les logs : sudo -u $OPT_SLUG docker compose -f $DOCKER_DIR/docker-compose.yml logs"
 
-    # ─── Étape 12 : ETL test ────────────────────────────────────────────────
-    log_step "ETL test (mode test, ~3s)"
+    # ─── Étape 12 : test ingestion ──────────────────────────────────────────
+    log_step "Test ingestion (mode test, ~3s)"
     if run_ingestion_test "$OPT_SLUG"; then
         log_warn "Échantillon non daté → ne garantit PAS la couverture du trousseau AES ; lancer un resync pour valider la clé courante."
     else
-        log_err "ETL test échoué — la stack tourne mais la chaîne ETL ne valide pas."
+        log_err "Test ingestion échoué — la stack tourne mais la chaîne ingestion ne valide pas."
         show_ingestion_failure_hints "$OPT_SLUG"
-        log_warn "Stack laissée en place. Corrige .env et réessaye (commande ci-dessus)."
+        log_warn "Stack laissée en place. Corrige secrets.env et réessaye (commande ci-dessus)."
     fi
 
     # ─── Étape 13 : récap ───────────────────────────────────────────────────
@@ -349,7 +349,7 @@ ${ssh_recap}
   Logs             sudo -u ${OPT_SLUG} docker compose -f ${DOCKER_DIR}/docker-compose.yml logs -f
   Stop/Start       sudo -u ${OPT_SLUG} docker compose -f ${DOCKER_DIR}/docker-compose.yml {down,up -d}
   Backups          ${HOME_DIR}/backups/ (rotation 14 snapshots, cron 03:30 Europe/Paris)
-  ETL nocturne     02:00 Europe/Paris (cf. ${DOCKER_DIR}/crontab)
+  Ingestion nocturne  02:00 Europe/Paris (cf. ${DOCKER_DIR}/crontab)
 
   Étapes suivantes recommandées :
     - Configurer un offsite des backups (rclone vers un cloud — cf. docs/deploiement.md)
