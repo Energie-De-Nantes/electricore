@@ -44,6 +44,21 @@ _ingestion_call_get_job() {
         2>/dev/null
 }
 
+# _ingestion_read_scheduler_key <slug>
+# Imprime la clé du consommateur "scheduler" du trousseau API (ADR-0046 §4) en déchiffrant
+# secrets.env sur le HOST (sops + clé age — même motif que box_can_decrypt dans secrets.sh).
+# `docker compose exec` ne convient PAS : il hérite de l'env de BASE du conteneur, pas des
+# secrets injectés par `sops exec-env` dans uvicorn (entrypoint, ADR-0044). C'est la MÊME
+# clé que le cron nocturne (crontab : API__TROUSSEAU__scheduler__KEY).
+# Surchargeable dans les tests ; SRV_BASE = racine des homes d'instance (/srv en prod).
+_ingestion_read_scheduler_key() {
+    local slug="$1" home="${SRV_BASE:-/srv}/${1}"
+    local secrets="${home}/providers/${slug}/secrets.env"
+    SOPS_AGE_KEY_FILE="${home}/age.key" \
+        sops decrypt --input-type dotenv --output-type dotenv "$secrets" 2>/dev/null \
+        | sed -n 's/^API__TROUSSEAU__scheduler__KEY=//p' | head -1
+}
+
 # poll_ingestion_job <slug> <api_key> <job_id> [<max_retries>] [<delay_seconds>]
 # Poll GET /ingestion/jobs/<job_id> jusqu'à status=completed (→0) ou failed/timeout (→1).
 # Défauts : 30 retries × 4s = 2 min max.
@@ -70,14 +85,11 @@ poll_ingestion_job() {
 # et logue le résultat. Retourne 0 si le job est completed, 1 sinon.
 run_ingestion_test() {
     local slug="$1"
-    local home="/srv/${slug}"
     local api_key
-    # Depuis ADR-0044, les secrets vivent dans secrets.env chiffré (plus de .env en clair).
-    # API_KEY est injecté dans le conteneur api par l'entrypoint SOPS — on le lit depuis là.
-    api_key=$(sudo -u "$slug" -- bash -c \
-        "cd '${home}/deploy/docker' && \
-         docker compose exec -T api printenv API_KEY" 2>/dev/null)
-    [[ -n "$api_key" ]] || { log_err "API_KEY introuvable dans le conteneur api (stack démarrée ? secrets déchiffrés ?)"; return 1; }
+    # La clé d'appel vit dans secrets.env CHIFFRÉ (ADR-0044) sous le label "scheduler"
+    # (ADR-0046 §4) — on la déchiffre sur le host (cf. _ingestion_read_scheduler_key).
+    api_key=$(_ingestion_read_scheduler_key "$slug")
+    [[ -n "$api_key" ]] || { log_err "Clé scheduler introuvable (API__TROUSSEAU__scheduler__KEY ; sops decrypt a échoué ? secrets.env/age.key absents ?)"; return 1; }
 
     local resp job_id
     resp=$(_ingestion_call_post "$slug" "$api_key") || {
@@ -115,8 +127,8 @@ show_ingestion_failure_hints() {
         2>&1 | sed 's/^/     | /'
     log_info ""
     log_info "Pour réessayer après correction :"
-    log_info "  # La clé API est dans le conteneur (secrets SOPS) :"
-    log_info "  API_KEY=\$(sudo -u $slug -- bash -c 'cd ${home}/deploy/docker && docker compose exec -T api printenv API_KEY')"
+    log_info "  # La clé du scheduler vit dans secrets.env chiffré — la déchiffrer sur le host (sops) :"
+    log_info "  API_KEY=\$(SOPS_AGE_KEY_FILE=${home}/age.key sops decrypt --input-type dotenv --output-type dotenv ${home}/providers/${slug}/secrets.env | sed -n 's/^API__TROUSSEAU__scheduler__KEY=//p' | head -1)"
     log_info "  sudo -u $slug docker compose -f ${home}/deploy/docker/docker-compose.yml \\"
     log_info "      exec -T ingestion-scheduler curl -X POST -H \"X-API-Key:\$API_KEY\" \\"
     log_info "      -H 'Content-Type: application/json' -d '{\"mode\":\"test\"}' \\"
