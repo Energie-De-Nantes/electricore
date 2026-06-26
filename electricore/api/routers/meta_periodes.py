@@ -3,7 +3,7 @@
 Endpoint **ERP-agnostique** (zéro `integrations/odoo`, ADR-0016) : il expose un modèle
 electricore-natif (la *méta-période mensuelle*), pas un miroir des modèles `souscription.*`.
 
-Réponse en **JSONL streamé** (`application/jsonl`, une ligne = un `PeriodeMeta`) plutôt
+Réponse en **JSONL streamé** (`application/x-ndjson`, une ligne = un `PeriodeMeta`) plutôt
 qu'en enveloppe paginée (ADR-0043) : pas de pagination, le serveur streame toutes les
 lignes, et les métadonnées (`contract_version`, `mois` résolu) remontent dans les en-têtes
 de réponse. Les modèles de ligne (`PeriodeMeta`/`ObjetReleve`) sont **single-sourcés** dans
@@ -55,9 +55,10 @@ async def get_meta_periodes(
     Charge utile non valorisée aux prix fournisseur : quantités physiques + montants réseau.
     Odoo construit/upsert ses `souscription.periode` à partir de ce flux.
 
-    **Réponse JSONL streamé** (`application/jsonl`, NDJSON) : à consommer **ligne par ligne**,
-    ce n'est pas un document JSON unique. Swagger UI affiche « [object Blob] » car il ne
-    prévisualise que `application/json` — pour inspecter à la main : `curl … | jq -c .`.
+    **Réponse JSONL streamé** (`application/x-ndjson`, NDJSON) : à consommer **ligne par ligne**,
+    ce n'est pas un document JSON unique. Swagger UI ne prévisualise pas le NDJSON (il le passe à
+    `JSON.parse` et affiche une note « can't parse JSON » avant les lignes brutes) — pour
+    inspecter à la main : `curl … | jq -c .`.
     """
     mois_resolu, df = meta_periodes(mois=mois, rsc=rsc)
     headers = {

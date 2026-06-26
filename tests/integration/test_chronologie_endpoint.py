@@ -1,7 +1,7 @@
 """Tests d'intégration de `GET /facturation/chronologie` (vue facturiste, #367/#408).
 
 Endpoint de lecture (ADR-0027/0012) : frise complète d'un point/contrat + verdicts, **sans
-montant tarifaire**. Depuis #408, la réponse est un **flux JSONL** (`application/jsonl`, une
+montant tarifaire**. Depuis #408, la réponse est un **flux JSONL** (`application/x-ndjson`, une
 ligne = un `LigneChronologie` — union discriminée sur `type_ligne`) avec métadonnées en
 en-têtes (`X-Contract-Version`, `X-Grain`). Le seam de test est la fonction
 `chronologie_point_ou_contrat` référencée par le router — on court-circuite la reconstruction
@@ -77,7 +77,7 @@ def test_chronologie_streame_du_jsonl(monkeypatch, frise_synthetique):
         app.dependency_overrides.clear()
 
     assert response.status_code == 200
-    assert response.headers["content-type"].startswith("application/jsonl")
+    assert response.headers["content-type"].startswith("application/x-ndjson")
     assert response.headers["X-Grain"] == "point"
     assert response.headers["X-Contract-Version"] == "1"
 
@@ -169,21 +169,21 @@ def test_chronologie_ligne_hors_contrat_500_atomique(monkeypatch):
 
     assert response.status_code == 500
     # Le flux n'a pas commencé : pas de données de frise dans le corps.
-    assert not response.headers["content-type"].startswith("application/jsonl")
+    assert not response.headers["content-type"].startswith("application/x-ndjson")
     assert "type_ligne" not in response.text
 
 
 def test_chronologie_openapi_itemschema_3_2():
-    """Découvrabilité (#455) : OpenAPI 3.2.0 documente la 200 en `application/jsonl` avec un
+    """Découvrabilité (#455) : OpenAPI 3.2.0 documente la 200 en `application/x-ndjson` avec un
     `itemSchema` (schéma d'**une ligne**) — l'union discriminée `LigneChronologie` — au lieu d'un
-    `application/json` implicite (que Swagger prend pour un JSON unique → « [object Blob] »).
+    `application/json` implicite (que Swagger prend pour un JSON unique).
     """
     openapi_doc = app.openapi()
     assert openapi_doc["openapi"] == "3.2.0"
     reponse_200 = openapi_doc["paths"]["/facturation/chronologie"]["get"]["responses"]["200"]
-    assert list(reponse_200["content"].keys()) == ["application/jsonl"]
+    assert list(reponse_200["content"].keys()) == ["application/x-ndjson"]
     assert "ligne par ligne" in reponse_200["description"]
-    item = reponse_200["content"]["application/jsonl"]["itemSchema"]
+    item = reponse_200["content"]["application/x-ndjson"]["itemSchema"]
     # Une ligne = un membre de l'union discriminée (oneOf + discriminator sur `type_ligne`).
     assert "oneOf" in item and "discriminator" in item
     # Les $defs ont été remontés : chaque $ref de l'itemSchema résout dans components/schemas.

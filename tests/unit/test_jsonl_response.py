@@ -2,7 +2,7 @@
 
 Construit et **valide toutes les lignes JSONL en amont** : une ligne hors-contrat lève
 *avant* que le premier octet ne parte (500 atomique, zéro ligne appliquée côté consommateur)
-plutôt qu'en cassant un flux déjà committé en 200. Le format de fil (`application/jsonl`,
+plutôt qu'en cassant un flux déjà committé en 200. Le format de fil (`application/x-ndjson`,
 une ligne = un modèle sérialisé) et la stringification des dates sont possédés par le helper ;
 les deux endpoints JSONL (méta-périodes, chronologie) lui passent leur validateur de ligne.
 """

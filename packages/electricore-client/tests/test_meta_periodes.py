@@ -100,7 +100,7 @@ def _handler(*, lignes=_LIGNES, version="3", mois="2026-05-01"):
             200,
             content=_jsonl(lignes),
             headers={
-                "Content-Type": "application/jsonl",
+                "Content-Type": "application/x-ndjson",
                 "X-Contract-Version": version,
                 "X-Mois": mois,
             },

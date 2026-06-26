@@ -48,7 +48,7 @@ est en retard (champs attendus absents).
 
 ### 3. Les deux lectures en **JSONL streamé** (pas d'enveloppe, pas de pagination)
 
-`meta-periodes` et `chronologie` répondent en `application/jsonl` (une ligne = un objet),
+`meta-periodes` et `chronologie` répondent en `application/x-ndjson` (une ligne = un objet),
 construit **par modèle** côté serveur (chaque ligne est validée à l'émission). Pas de
 pagination : le serveur streame **toutes** les lignes. Les métadonnées (`contract_version`,
 `mois` résolu / `grain`) remontent dans les **en-têtes** de réponse. Côté client, un

@@ -1,6 +1,6 @@
 """Sérialiseur JSONL partagé `jsonl_response` (validate-then-stream, ADR-0043, #426).
 
-Possède le format de fil des endpoints JSONL (`application/jsonl`, une ligne = un modèle
+Possède le format de fil des endpoints JSONL (`application/x-ndjson`, une ligne = un modèle
 de contrat sérialisé) **et** la garantie d'atomicité : toutes les lignes sont construites
 et **validées en amont**, donc une ligne hors-contrat lève *avant* que le premier octet ne
 parte. Le consommateur (`electricore-client` → Odoo, ADR-0027) reçoit alors un **500 propre,
@@ -23,7 +23,13 @@ from pydantic import BaseModel, TypeAdapter
 
 logger = logging.getLogger(__name__)
 
-MEDIA_TYPE_JSONL = "application/jsonl"
+# NDJSON. `application/x-ndjson` (et non `application/jsonl`) car c'est le seul que swagger-js
+# télécharge en *texte* (sa regex `/(json|xml|yaml|text)\b/` veut une frontière de mot après
+# « json » : « jsonl » échoue, « x-ndjson » passe). Sous `application/jsonl`, le corps était lu
+# en `Blob` puis Swagger UI tentait `JSON.parse(blob)` → « can't parse JSON. Raw result:
+# [object Blob] » (#455). En `x-ndjson`, Swagger affiche les lignes brutes (la note « can't parse
+# JSON » subsiste — du NDJSON n'est pas un JSON unique — mais la donnée est visible).
+MEDIA_TYPE_JSONL = "application/x-ndjson"
 
 
 def reponses_openapi_jsonl(modele: Any, description: str) -> dict:
@@ -32,8 +38,8 @@ def reponses_openapi_jsonl(modele: Any, description: str) -> dict:
     OpenAPI 3.2.0 décrit les *sequential media types* (NDJSON…) via **`itemSchema`** : le schéma
     de **chaque ligne**, validé indépendamment (https://spec.openapis.org/oas/v3.2.0.html
     #sequential-media-types). On le dérive du modèle de ligne (`LigneChronologie` — union
-    discriminée — ou `PeriodeMeta`) pour que Swagger UI rende la forme d'une ligne, au lieu du
-    « [object Blob] » qu'il affiche quand il prend le NDJSON pour un `application/json` unique (#455).
+    discriminée — ou `PeriodeMeta`) pour que Swagger UI rende la forme d'une ligne dans la doc,
+    et non plus le NDJSON pris pour un `application/json` unique (#455 ; cf. `MEDIA_TYPE_JSONL`).
 
     On **n'utilise pas** la génération native d'`itemSchema` de FastAPI (endpoints générateurs)
     car elle valide/streame ligne par ligne : ça sacrifierait le *validate-then-stream* atomique
@@ -91,7 +97,7 @@ def jsonl_response(
     headers: dict[str, str],
     omettre_les_nuls: bool = False,
 ) -> StreamingResponse:
-    """Construit, valide et streame un DataFrame en JSONL (`application/jsonl`).
+    """Construit, valide et streame un DataFrame en JSONL (`application/x-ndjson`).
 
     Validate-then-stream : toutes les lignes sont matérialisées en `list[bytes]` avant la
     réponse, donc une ligne hors-contrat lève (et l'appel échoue) *avant* tout octet émis.

@@ -30,7 +30,7 @@ URL de base + `X-API-Key` + timeout `httpx.Client`, **503 → `IngestionEnCours`
 ## 3. Les deux lectures — JSONL streamé
 
 `GET /facturation/meta-periodes` et `GET /facturation/chronologie` répondent en
-`application/jsonl` (une ligne = un objet), **sans enveloppe ni pagination**. Métadonnées
+`application/x-ndjson` (une ligne = un objet), **sans enveloppe ni pagination**. Métadonnées
 (`contract_version`, `mois` / `grain`) dans les **en-têtes** (`X-Contract-Version`,
 `X-Mois`, `X-Grain`). Chaque ligne est **validée par construction d'un modèle** côté serveur.
 
