@@ -20,8 +20,10 @@ curl "http://localhost:8000/flux/r151?api_key=votre_cle_api"
 
 ### 1. Créer le fichier .env
 
+Copier le modèle depuis les exemples de déploiement :
+
 ```bash
-cp .env.example .env
+cp deploy/providers/example/secrets.env.example .env
 ```
 
 ### 2. Générer une clé API sécurisée

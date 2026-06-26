@@ -86,7 +86,8 @@ du layout `/srv/<slug>/` + user dédié.
 
 Le script ouvre `.env` dans ton éditeur pour que tu remplisses les valeurs
 marquées `# TODO:`. Voici la table de référence (cf. aussi
-[`deploy/docker/.env.example`](../deploy/docker/.env.example)) :
+[`deploy/providers/example/secrets.env.example`](../deploy/providers/example/secrets.env.example)
+et [`config.env.example`](../deploy/providers/example/config.env.example)) :
 
 **Identité de l'instance**
 
@@ -297,6 +298,103 @@ Couvre les cas :
 > dans `/tmp`** plutôt que de réutiliser/laisser pourrir un `lib/` à côté du script.
 > En mode reconfigure, un `lib/` co-localisé complet est en plus re-téléchargé.
 > Override possible via `INSTALL_BASE_URL` pour pinner sur un tag spécifique en dev.
+
+## Secrets-as-code (SOPS + age, ADR-0044)
+
+Depuis [ADR-0044](adr/0044-secrets-as-code-sops-age.md), les secrets ne vivent plus
+en clair dans `/srv/<slug>/.env` : ils sont **versionnés chiffrés** (SOPS + age) dans
+un **dépôt de déploiement privé**, et **déchiffrés dans le process** par l'entrypoint
+de l'image (`electricore-entrypoint`) au démarrage — jamais de fichier clair sur disque.
+
+Le `.env` se scinde en deux :
+
+| Fichier | Contenu | Versionné | Chiffré |
+|---|---|---|---|
+| `config.env` | config NON secrète + substitutions compose (`INSTANCE_SLUG`, `ELECTRICORE_VERSION`, `BACKUPS_PATH`, `ODOO_ENV`…) | oui | non (clair) |
+| `secrets.env` | **uniquement** des credentials (`SFTP__URL`, trousseau `AES__TROUSSEAU__*`, `API_KEY`/`API_KEYS`, `TELEGRAM_BOT_TOKEN`, bloc `ODOO_*`) | oui | **oui** (SOPS + age) |
+
+`docker compose` résout ses substitutions `${...}` **côté hôte avant tout conteneur**
+→ il lui faut du clair, d'où `config.env` séparé. Les credentials, eux, sont déchiffrés
+**dans** le conteneur par l'entrypoint.
+
+### Deux identités, générées sur la box
+
+Chaque box génère **deux** paires de clés à l'install, **via l'image** (zéro dépendance
+hôte : `age` et `ssh-keygen` sont embarqués) :
+
+- une paire **age** (déchiffrement des secrets) — privée dans `/srv/<slug>/age.key` ;
+- une paire **SSH** (lecture du dépôt de déploiement) — privée dans `/srv/<slug>/ssh_deploy_key`.
+
+Les **clés privées naissent sur la box et ne la quittent jamais** (`600`, montées RO
+dans les conteneurs). L'opérateur enregistre les deux **publiques** : la age pub comme
+**destinataire `.sops.yaml`**, la SSH pub comme **deploy key en lecture seule** du dépôt.
+
+La deploy key SSH est de **faible valeur** : elle ne donne accès qu'à du **ciphertext**,
+inutile sans la clé age. Toute la sécurité repose sur la clé age, jamais sur le transport.
+
+> **Mort de la box** ⇒ on **forge une identité neuve** (`add-provider.sh` + `sops updatekeys`),
+> pas de récupération de clé (forger est déjà bon marché). La clé privée d'une box ne
+> transite jamais.
+
+### Onboarding en deux temps
+
+La box ne peut **pas déchiffrer** tant que sa clé age publique n'est pas destinataire
+`.sops.yaml`. L'install se fait donc **en deux temps** :
+
+```bash
+# 1er temps — la box génère ses identités et IMPRIME les deux clés publiques, puis s'arrête.
+ssh ops@<vps>
+sudo bash /srv/<slug>/deploy/install.sh \
+    --slug <slug> --domain <slug>.electricore.fr \
+    --deploy-repo git@github.com:Energie-De-Nantes/electricore-secrets.git
+# → AGE_PUBLIC_KEY=age1…   (à enregistrer comme destinataire .sops.yaml)
+# → SSH_DEPLOY_PUBKEY=ssh-ed25519 …   (à enregistrer comme deploy key RO du dépôt)
+```
+
+Côté **machine admin**, dans le dépôt de déploiement privé :
+
+1. ajouter la **age pub** aux destinataires de `providers/<slug>/.sops.yaml` (cf.
+   [`add-provider.sh`](../deploy/add-provider.sh)), puis `sops updatekeys providers/<slug>/secrets.env` ;
+2. enregistrer la **SSH pub** comme **deploy key RO** du dépôt (réglages GitHub/GitLab) ;
+3. commit + push.
+
+```bash
+# 2e temps — reconfigure : la box pull le ciphertext, déchiffre, démarre la stack.
+sudo bash /srv/<slug>/deploy/install.sh \
+    --slug <slug> --domain <slug>.electricore.fr \
+    --deploy-repo git@github.com:Energie-De-Nantes/electricore-secrets.git
+```
+
+À ce 2e temps, le script : pull `providers/<slug>/{config.env,secrets.env}` via la
+deploy key, **valide le split** (config claire sans secret ; secrets déchiffrables et
+valides), puis démarre la stack. Si la box ne déchiffre pas encore (age pub pas encore
+destinataire), il **réaffiche** les pubs et **échoue proprement** sans rien démarrer.
+
+### Runbook de migration EDN (bascule forcée)
+
+Migration de l'instance vivante (EDN) du `.env` en clair vers secrets-as-code, dans une
+**fenêtre planifiée** (pas de double chemin maintenu, ADR-0044 §8). L'unique manipulation
+de secrets en clair se fait **sur la machine admin** et **n'est jamais committée**.
+
+1. **Box** — générer les identités (1er temps ci-dessus) avec `--deploy-repo`. Noter les
+   deux pubs. (La box garde son `.env` vivant intact pour l'instant.)
+2. **Machine admin** — scinder le `.env` vivant récupéré de la box en deux :
+   - `config.env` ← `INSTANCE_SLUG`, `ELECTRICORE_VERSION`, `BACKUPS_PATH`, config non-secrète ;
+   - `secrets.env.clair` ← `SFTP__URL`, `AES__TROUSSEAU__*`, `API_KEY`/`API_KEYS`,
+     `TELEGRAM_BOT_TOKEN`, `ODOO_*`.
+3. **Machine admin** — chiffrer **sur place**, jamais committer le clair :
+   ```bash
+   sops encrypt --input-type dotenv --output-type dotenv \
+       secrets.env.clair > providers/<slug>/secrets.env
+   shred -u secrets.env.clair    # détruire le clair
+   ```
+   (`.sops.yaml` du provider porte déjà l'admin + la box comme destinataires.)
+4. **Machine admin** — committer `providers/<slug>/{config.env,secrets.env}` + pousser ;
+   enregistrer la SSH pub comme deploy key RO.
+5. **Box** — `reconfigure` (2e temps) : pull + déchiffre + démarre.
+6. **Vérifier** : `curl https://<slug>.electricore.fr/health` OK, une ingestion test OK.
+7. **Puis seulement** : supprimer le `.env` en clair de la box (`shred -u /srv/<slug>/.env`).
+   La bascule est **forcée** : tant que `.env` traîne, on n'a pas fini.
 
 ## Durcissement du VPS
 
@@ -527,12 +625,21 @@ Enedis rote périodiquement ses clés (et en change la longueur : AES-128 → AE
 Le **trousseau** porte un nombre arbitraire de clés labellisées ; la bonne est
 sélectionnée par essai (aucune date, aucun protocole).
 
-### Procédure (via le mode reconfigure)
+### Procédure (secrets-as-code, ADR-0044)
+
+Depuis [ADR-0044](adr/0044-secrets-as-code-sops-age.md), le trousseau AES vit dans le
+`secrets.env` **chiffré** du provider — plus dans un `.env` édité sur la box. La rotation
+se fait donc **sur la machine admin**, par édition chiffrée in-place :
 
 1. Recevoir la nouvelle clé Enedis.
-2. Relancer le script : `sudo bash /srv/<slug>/deploy/install.sh --slug <slug> --domain <slug>.electricore.fr`.
-3. L'éditeur s'ouvre sur `.env`. **Ajouter** la nouvelle clé au trousseau sous un
-   nouveau label, sans retirer les anciennes :
+2. Sur la machine admin (dépôt de déploiement privé), éditer **in-place** le secrets
+   chiffré (SOPS ouvre l'éditeur sur le clair, re-chiffre à la fermeture) :
+
+   ```bash
+   sops providers/<slug>/secrets.env
+   ```
+
+   **Ajouter** la nouvelle clé au trousseau sous un nouveau label, sans retirer les anciennes :
 
    ```
    # AES-256 (depuis juin 2026) : Enedis ne fournit QUE la clé, sans IV → pas de __IV.
@@ -543,8 +650,14 @@ sélectionnée par essai (aucune date, aucun protocole).
    AES__TROUSSEAU__aes128_2024__IV=ancien_iv_hex
    ```
 
-4. Sauvegarder, fermer l'éditeur. Le script valide, restart la stack, lance
-   une ingestion test pour confirmer que le trousseau déchiffre tout.
+3. Commit + push le `secrets.env` (re-chiffré).
+4. Sur la box, `reconfigure` (pull + déchiffre + restart) :
+
+   ```bash
+   ssh ops@<vps>
+   sudo bash /srv/<slug>/deploy/install.sh --slug <slug> --domain <slug>.electricore.fr \
+       --deploy-repo git@github.com:Energie-De-Nantes/electricore-secrets.git
+   ```
 
 Les logs `[<label>]` indiquent quelle clé a déchiffré quel fichier. Si un flux a des
 fichiers mais **0** déchiffrement réussi, le job passe à `failed` et le bot alerte
@@ -552,6 +665,11 @@ fichiers mais **0** déchiffrement réussi, le job passe à `failed` et le bot a
 
 Retirer une vieille clé seulement quand plus aucune archive chiffrée avec elle
 n'est (re)téléchargeable depuis le SFTP.
+
+> **`sops updatekeys` ≠ rotation de secret** (ADR-0044) : `updatekeys` ne rote que
+> l'**enveloppe** (re-wrap vers le jeu de destinataires, ex. ajout d'une box via
+> [`add-provider.sh`](../deploy/add-provider.sh)). Si une **clé AES a pu fuiter**, il
+> faut la changer **à la source** (nouvelle clé Enedis) — `updatekeys` ne la protège pas.
 
 ## Sauvegarde et restauration
 
@@ -792,7 +910,6 @@ for f in docker-compose.yml Caddyfile.example crontab.example backup_duckdb.sh; 
 done
 mv ${DEST}/Caddyfile.example ${DEST}/Caddyfile
 mv ${DEST}/crontab.example   ${DEST}/crontab
-curl -fsSL -o /srv/${SLUG}/.env "${BASE}/.env.example"
 chmod +x ${DEST}/backup_duckdb.sh
 ```
 
