@@ -5,9 +5,12 @@
 # courante manquante peut passer inaperçue). Validation réelle = resync (cf. install.sh).
 
 # _ingestion_parse_job_id <json>
-# Extrait le job_id d'une réponse JSON /ingestion/run.
+# Extrait l'identifiant de job de la réponse POST /ingestion/run. L'API le sérialise sous
+# la clé "id" (IngestionJobResponse.id) — PAS "job_id", qui n'est qu'un nom de paramètre de
+# route et de prose. Au POST (202), "output" est null → aucune autre occurrence de "id" ne
+# parasite l'extraction.
 _ingestion_parse_job_id() {
-    printf '%s\n' "$1" | sed -n 's/.*"job_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1
+    printf '%s\n' "$1" | sed -n 's/.*"id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1
 }
 
 # _ingestion_parse_status <json>

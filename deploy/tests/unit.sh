@@ -545,11 +545,14 @@ assert_eq "$(cat "$usermod_log" 2>/dev/null)" "-aG edn-data edn" \
 rm -rf "$stub_dir"
 
 echo
-echo "→ ingestion.sh / _ingestion_parse_job_id"
-assert_eq "$(_ingestion_parse_job_id '{"job_id":"abc-123","status":"running"}')" \
-    "abc-123" "_ingestion_parse_job_id: extrait le job_id"
-assert_eq "$(_ingestion_parse_job_id '{"job_id": "spaced-id","status":"running"}')" \
+echo "→ ingestion.sh / _ingestion_parse_job_id (clé réelle de l'API = id, pas job_id)"
+# Forme RÉELLE de la réponse POST /ingestion/run (202, IngestionJobResponse, output=null).
+assert_eq "$(_ingestion_parse_job_id '{"id":"abc-123","mode":"test","status":"running","started_at":"2026-06-26T16:56:16","finished_at":null,"error":null,"output":null}')" \
+    "abc-123" "_ingestion_parse_job_id: extrait id sur la réponse POST réelle"
+assert_eq "$(_ingestion_parse_job_id '{"id": "spaced-id","status":"running"}')" \
     "spaced-id" "_ingestion_parse_job_id: tolère l'espace après :"
+assert_eq "$(_ingestion_parse_job_id '{"job_id":"old-shape"}')" \
+    "" "_ingestion_parse_job_id: ignore l'ancienne clé fictive job_id (régression)"
 assert_eq "$(_ingestion_parse_job_id '{}')" \
     "" "_ingestion_parse_job_id: champ absent → vide"
 
