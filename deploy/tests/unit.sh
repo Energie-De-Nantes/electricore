@@ -356,6 +356,32 @@ me=$(id -un)
     && ok "ensure_slug_in_container_group: no-op si déjà membre (pas de usermod)" \
     || ko "ensure_slug_in_container_group a échoué sur un membre existant"
 
+# La branche `usermod -aG` EST le correctif (#459) : sans root, on la rend atteignable
+# via des stubs getent/id/usermod sur le PATH. Groupe gid 1000 « existant » (getent
+# stubé) + <slug> pas encore membre (id stubé) → on vérifie que usermod est invoqué
+# avec le bon groupe (résolu depuis le gid) et le bon slug.
+stub_dir=$(mktemp -d); usermod_log="${stub_dir}/usermod.args"
+cat > "${stub_dir}/getent" <<'STUB'
+#!/usr/bin/env bash
+[[ "$1" == group ]] && { printf 'edn-data:x:%s:\n' "$2"; exit 0; }
+exit 2
+STUB
+cat > "${stub_dir}/id" <<'STUB'
+#!/usr/bin/env bash
+[[ "$1" == -nG ]] && { echo users; exit 0; }
+exit 0
+STUB
+cat > "${stub_dir}/usermod" <<'STUB'
+#!/usr/bin/env bash
+printf '%s\n' "$*" > "$USERMOD_ARGS_FILE"
+STUB
+chmod +x "${stub_dir}/getent" "${stub_dir}/id" "${stub_dir}/usermod"
+( PATH="${stub_dir}:$PATH" USERMOD_ARGS_FILE="$usermod_log" \
+    ensure_slug_in_container_group edn >/dev/null 2>&1 )
+assert_eq "$(cat "$usermod_log" 2>/dev/null)" "-aG edn-data edn" \
+    "ensure_slug_in_container_group: usermod -aG <grp> <slug> quand <slug> non-membre"
+rm -rf "$stub_dir"
+
 echo
 if [[ "$FAIL" -eq 0 ]]; then
     printf "\033[32m%d passed, %d failed\033[0m\n" "$PASS" "$FAIL"
