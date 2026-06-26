@@ -2,6 +2,18 @@
 
 Merci pour votre intérêt ! ElectriCore est un outil libre (AGPL-3.0) de traitement des flux Enedis pour les fournisseurs alternatifs d'électricité. Les contributions sont les bienvenues — bug reports, suggestions, PRs.
 
+> [!IMPORTANT]
+> **Les PR non sollicitées générées par des agents ou des outils automatisés ne
+> sont pas acceptées** pour l'instant : le projet n'est pas outillé pour les
+> accueillir et ne les recherche pas — elles seront fermées sans être fusionnées,
+> quelle que soit leur qualité.
+>
+> Le label `ready-for-agent` sur une issue n'est **pas** une invitation à
+> contribuer : il est réservé aux agents du mainteneur, qui se l'assignent au
+> triage (cf. [docs/agents/triage-labels.md](docs/agents/triage-labels.md)). Le
+> chemin de déploiement (`deploy/`, exécuté en root, manipulation de secrets) et
+> la chaîne crypto/SOPS sont maintenus en interne.
+
 ## Installation de l'environnement de développement
 
 Le projet utilise [uv](https://docs.astral.sh/uv/) pour la gestion des dépendances.
