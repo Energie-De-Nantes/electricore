@@ -25,6 +25,27 @@ logger = logging.getLogger(__name__)
 MEDIA_TYPE_JSONL = "application/jsonl"
 
 
+def reponses_openapi_jsonl(description: str) -> dict:
+    """Fragment OpenAPI annonçant la réponse 200 comme un **flux JSONL** (NDJSON), pas un JSON unique.
+
+    Sans ça, FastAPI documente un `application/json` implicite : Swagger UI tente alors un parse
+    JSON unique du NDJSON et affiche « [object Blob] » (il ne prévisualise que `application/json`),
+    ce qui déroute qui teste l'endpoint à la main (#455). Le flux se consomme **ligne par ligne**
+    (`electricore-client` le lit en `iter_lines` ; à la main : `curl … | jq -c .`).
+
+    `description` précise le modèle d'une ligne (`LigneChronologie`, `PeriodeMeta`…).
+    """
+    return {
+        200: {
+            "description": (
+                f"{description} Flux **JSONL streamé** (`{MEDIA_TYPE_JSONL}`, NDJSON) : une ligne = "
+                "un objet JSON. À consommer ligne par ligne — ce n'est pas un document JSON unique."
+            ),
+            "content": {MEDIA_TYPE_JSONL: {"schema": {"type": "string", "format": "ndjson"}}},
+        }
+    }
+
+
 def _stringifier_dates(ligne: dict) -> dict:
     """Rend les `datetime`/`date` de la ligne en ISO8601 (le contrat porte des `str`)."""
     return {

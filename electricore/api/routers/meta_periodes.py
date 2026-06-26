@@ -15,15 +15,20 @@ from typing import Annotated
 # Modèles single-sourcés dans le paquet client (ADR-0043).
 from electricore_client.models import PeriodeMeta
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 
 from electricore.api.security import get_current_api_key
-from electricore.api.serializers.jsonl import jsonl_response
+from electricore.api.serializers.jsonl import jsonl_response, reponses_openapi_jsonl
 from electricore.api.services.meta_periodes_service import CONTRAT_VERSION, meta_periodes
 
 router = APIRouter(tags=["facturation"])
 
 
-@router.get("/facturation/meta-periodes")
+@router.get(
+    "/facturation/meta-periodes",
+    response_class=StreamingResponse,
+    responses=reponses_openapi_jsonl("Méta-périodes mensuelles (`PeriodeMeta`, contrat v3)."),
+)
 async def get_meta_periodes(
     mois: str | None = Query(
         None,
@@ -49,6 +54,10 @@ async def get_meta_periodes(
     métadonnées sont dans les en-têtes : `X-Contract-Version` et `X-Mois` (mois résolu).
     Charge utile non valorisée aux prix fournisseur : quantités physiques + montants réseau.
     Odoo construit/upsert ses `souscription.periode` à partir de ce flux.
+
+    **Réponse JSONL streamé** (`application/jsonl`, NDJSON) : à consommer **ligne par ligne**,
+    ce n'est pas un document JSON unique. Swagger UI affiche « [object Blob] » car il ne
+    prévisualise que `application/json` — pour inspecter à la main : `curl … | jq -c .`.
     """
     mois_resolu, df = meta_periodes(mois=mois, rsc=rsc)
     headers = {
