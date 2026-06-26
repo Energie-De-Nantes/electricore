@@ -285,18 +285,6 @@ class DuckDBQuery:
         """
         return self.lazy().collect()
 
-    def exec(self) -> pl.DataFrame:
-        """
-        Exécute la requête et retourne un DataFrame Polars concret.
-
-        .. deprecated::
-            Utilisez `.collect()` à la place pour cohérence avec Polars.
-
-        Returns:
-            DataFrame Polars collecté avec les transformations appliquées
-        """
-        return self.collect()
-
 
 # =============================================================================
 # FACTORY GÉNÉRIQUE (Fonction pure)

@@ -9,6 +9,25 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+### 🗑️ Suppressions (purge code mort)
+
+- **14 notebooks de démo/validation obsolètes supprimés** (+ `README_validation_turpe.md`) :
+  cassés à l'import depuis les refactors ADR-0013 (`pipeline_*` → `pipelines.*`) et ADR-0019
+  (orchestration → `builds.contexte_mensuel`), tous orphelins — aucun n'était testé, empaqueté,
+  ni référencé. Seul subsiste le **trio lanceur** opérateur (`accueil.py`, `facturation.py`,
+  `injection_rsc.py`, seuls force-inclus et testés). La boucle de vérif des calculs **TURPE ↔ F15**
+  que portaient les `validations/*` sera relogée en harnais CI (issue #468 ; cf. #215 pour
+  l'oracle énergie R65).
+- **API publique loaders : `execute_custom_query` retiré** (déf + ré-exports + `__all__` dans
+  `core/loaders` et `core/loaders/duckdb`). Son seul usage était les notebooks supprimés ; le
+  chemin canonique reste les query builders (`c15()`, `releves()`…) ou `.collect()`. Garde
+  anti-réintroduction ajoutée au test `#181`.
+- **`DuckDBQuery.exec()` retiré** : méthode dépréciée qui ne faisait que déléguer à `.collect()`,
+  zéro appelant.
+- **Modèle Pandera `RequêteRelevé` retiré** : jamais référencé. `RelevéIndex` (contrat vivant)
+  est inchangé.
+- **Doc** : `docs/qualite-donnees-r151.md` ne pointe plus vers les notebooks de validation supprimés.
+
 ## [3.4.0rc7] - 2026-06-26
 
 Correction issue du test de rc6 sur l'instance EDN : le flux JSONL facturiste reste affiché

@@ -158,8 +158,6 @@ Liste des PDL à exclure de la validation :
 
 - `electricore/core/loaders/duckdb/sql.py` - Filtrage R151 (lignes 234, 383)
 - `electricore/core/pipelines/energie.py` - Calcul des énergies
-- `notebooks/validation_turpe_variable.py` - Validation TURPE
-- `notebooks/debug_pdl_anomalie.py` - Notebook d'investigation
 
 ## Références
 

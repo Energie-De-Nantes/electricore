@@ -16,7 +16,7 @@ API publique :
 - c15(), r151(), r15(), f15(), r64() : Query builders par flux individuel
 - releves() : modèle de relevés canonique dbt (C15 + R64 + R151, ADR-0029)
 - DuckDBQuery : Builder immutable avec méthodes chainables
-- Utilitaires : get_available_tables(), execute_custom_query()
+- Utilitaires : get_available_tables()
 """
 
 # Imports internes
@@ -26,7 +26,6 @@ from .helpers import (
     affaires,
     c15,
     chronologie_releves,
-    execute_custom_query,
     f15,
     flux,
     # Utilitaires
@@ -68,5 +67,4 @@ __all__ = [
     "SORTIES_C15",
     # Utilitaires
     "get_available_tables",
-    "execute_custom_query",
 ]
