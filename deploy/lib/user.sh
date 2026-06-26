@@ -86,6 +86,11 @@ CONTAINER_GID="${CONTAINER_GID:-1000}"
 # (2750) : les snapshots créés par le conteneur héritent du groupe 1000, donc
 # <slug> — ajouté à ce groupe par ensure_slug_in_container_group — peut les lire
 # et les pousser en offsite (rclone). Idempotent (ré-asserte à chaque reconfigure).
+#
+# Le groupe n'a PAS le write (2750 = rwxr-s---), et c'est suffisant : backup_duckdb.sh
+# — écriture du snapshot ET purge de rétention — tourne DANS le conteneur (uid 1000 =
+# owner), pas en <slug> ; <slug> ne fait que LIRE (ls + `rclone copy`). Ne passer à 2770
+# que si un offsite host-side fait un `rclone move --delete` en tant que <slug>.
 ensure_backups_dir() {
     local slug="$1"
     local backups="${SRV_BASE:-/srv}/${slug}/backups"
