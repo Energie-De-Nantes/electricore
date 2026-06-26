@@ -15,7 +15,7 @@
 #   9. Édition .env + validation (loop)
 #  10. DNS check bloquant
 #  11. docker compose up + wait_for_health
-#  12. ETL test (mode test, ~3s)
+#  12. Test ingestion (mode test, ~3s)
 #  13. Récap final
 #
 # Mode reconfigure : si /srv/<slug>/.env existe déjà, on backup le .env,
@@ -29,7 +29,7 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_BASE_URL_DEFAULT="${INSTALL_BASE_URL:-https://raw.githubusercontent.com/Energie-De-Nantes/electricore/main/deploy}"
-LIB_FILES=(log cli validate os system user harden config env_validate dns stack ingestion)
+LIB_FILES=(log cli validate os system user harden config env_validate secrets dns stack ingestion)
 
 # fetch_lib_files <base_url> <target_dir>
 # Télécharge les helpers `${LIB_FILES[@]}` depuis <base_url> vers <target_dir>.
@@ -120,6 +120,10 @@ main() {
 
     parse_args "$@" || { usage; exit 2; }
 
+    # Secrets-as-code (ADR-0044) ajoute 2 étapes (identité box + pull) à la place de
+    # l'édition .env → le compteur d'étapes s'ajuste pour rester juste.
+    [[ -n "${OPT_DEPLOY_REPO:-}" ]] && LOG_TOTAL_STEPS=15
+
     validate_slug "$OPT_SLUG" || die "slug invalide : '$OPT_SLUG' (attendu [a-z0-9-]+, 2-32 chars)"
     validate_domain "$OPT_DOMAIN" || die "domaine invalide : '$OPT_DOMAIN'"
     [[ -z "$OPT_EMAIL" || "$OPT_EMAIL" =~ ^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$ ]] \
@@ -131,14 +135,17 @@ main() {
     CADDYFILE="${DOCKER_DIR}/Caddyfile"
 
     # ─── Détection mode reconfigure ─────────────────────────────────────────
+    # En secrets-as-code (ADR-0044), la box ne porte plus de .env mais une clé age :
+    # sa présence atteste un install antérieur (2e temps de l'onboarding = reconfigure).
+    AGE_KEY_FILE="${HOME_DIR}/age.key"
     MODE_RECONFIGURE=0
-    if [[ -f "$ENV_FILE" ]]; then
+    if [[ -f "$ENV_FILE" || -f "$AGE_KEY_FILE" ]]; then
         MODE_RECONFIGURE=1
     fi
-    # Garde-fou ADR-0017 : si /srv/<slug> existe sans .env, on est dans un état
-    # inconnu (peut-être un user système qui s'appelle aussi <slug>). Refus poli.
+    # Garde-fou ADR-0017 : si /srv/<slug> existe sans .env NI clé age, on est dans un
+    # état inconnu (peut-être un user système qui s'appelle aussi <slug>). Refus poli.
     if [[ -d "$HOME_DIR" && "$MODE_RECONFIGURE" -eq 0 ]]; then
-        die "Le dossier ${HOME_DIR} existe mais ne contient pas de .env." \
+        die "Le dossier ${HOME_DIR} existe mais ne contient ni .env ni clé age (age.key)." \
             "État ambigu — choisir un autre slug ou supprimer ${HOME_DIR} à la main."
     fi
 
@@ -195,54 +202,101 @@ main() {
 
     # ─── Étape 7 : config files ─────────────────────────────────────────────
     log_step "Téléchargement config (tag ${OPT_VERSION})"
-    download_config_files "$OPT_VERSION" "$HOME_DIR"
+    # En secrets-as-code (--deploy-repo) : pas de .env téléchargé, la config claire
+    # arrive par le dépôt (providers/<slug>/config.env, ADR-0044).
+    skip_env=0; [[ -n "$OPT_DEPLOY_REPO" ]] && skip_env=1
+    download_config_files "$OPT_VERSION" "$HOME_DIR" "$skip_env"
     chown_instance_home "$OPT_SLUG"
 
     # ─── Étape 8 : substitutions ────────────────────────────────────────────
     log_step "Patch des templates (slug + domaine + email)"
-    substitute_env "$ENV_FILE" "$OPT_SLUG" "$OPT_VERSION"
     substitute_caddyfile "$CADDYFILE" "$OPT_DOMAIN" "$OPT_EMAIL"
     if [[ -z "$OPT_EMAIL" ]]; then
         log_warn "email Let's Encrypt non fourni — placeholder conservé dans ${CADDYFILE}." \
                  "Éditer à la main avant de mettre en prod."
     fi
 
-    # ─── Étape 9 : édition .env + validation ────────────────────────────────
-    log_step "Configuration .env (édition + validation)"
-    if [[ "$MODE_RECONFIGURE" -eq 1 ]]; then
-        backup="${ENV_FILE}.bak.$(date +%Y%m%dT%H%M%SZ)"
-        cp -p "$ENV_FILE" "$backup"
-        chown "$OPT_SLUG:$OPT_SLUG" "$backup"
-        log_info "backup du .env existant → ${backup}"
-    fi
-    if [[ -n "$OPT_ENV_FROM" ]]; then
-        [[ -r "$OPT_ENV_FROM" ]] || die "--env-from : fichier illisible : $OPT_ENV_FROM"
-        cp "$OPT_ENV_FROM" "$ENV_FILE"
-        chown "$OPT_SLUG:$OPT_SLUG" "$ENV_FILE"
-        chmod 600 "$ENV_FILE"
-        log_info "chargement depuis $OPT_ENV_FROM"
+    # ─── Étape 9 : secrets-as-code (ADR-0044) OU legacy .env ────────────────
+    if [[ -n "$OPT_DEPLOY_REPO" ]]; then
+        # ── Secrets-as-code : identité de la box + auto-pull + déchiffrement ──
+        log_step "Identité de la box (age + SSH deploy key)"
+        if pubs=$(generate_box_identities "$OPT_SLUG"); then
+            age_pub=$(printf '%s\n' "$pubs" | sed -n 's/^AGE_PUBLIC_KEY=//p')
+            ssh_pub=$(printf '%s\n' "$pubs" | sed -n 's/^SSH_DEPLOY_PUBKEY=//p')
+        else
+            die "Génération des identités de la box échouée (image ${SECRETS_IMAGE} indisponible ?)."
+        fi
+
+        log_step "Pull du dépôt de déploiement privé"
+        if ! pull_deploy_repo "$OPT_DEPLOY_REPO" "$OPT_SLUG"; then
+            # Onboarding EN DEUX TEMPS (ADR-0044 §4) : la deploy key SSH doit être
+            # enregistrée comme deploy key RO avant que le pull réussisse.
+            print_onboarding_pending "$OPT_SLUG" "$OPT_DOMAIN" "$age_pub" "$ssh_pub"
+            _CLEAN_EXIT=1
+            return 0
+        fi
+
+        log_step "Validation du split config/secret + déchiffrement"
+        config_env="${HOME_DIR}/config.env"
+        secrets_env="${HOME_DIR}/providers/${OPT_SLUG}/secrets.env"
+        age_key="${HOME_DIR}/age.key"
+        if errs=$(validate_config_env "$config_env" "$OPT_SLUG"); then
+            log_ok "config.env valide"
+        else
+            log_err "config.env invalide :"; printf '%s\n' "$errs" | sed 's/^/     - /'
+            die "Corrige providers/${OPT_SLUG}/config.env dans le dépôt, pousse, puis relance reconfigure."
+        fi
+        if ! box_can_decrypt "$OPT_SLUG"; then
+            # La box a sa clé + le ciphertext, mais ne déchiffre pas → sa clé age publique
+            # n'est pas (encore) destinataire dans .sops.yaml. 2e temps de l'onboarding.
+            print_onboarding_pending "$OPT_SLUG" "$OPT_DOMAIN" "$age_pub" "$ssh_pub"
+            die "La box ne déchiffre pas encore : enregistre sa clé age comme destinataire (.sops.yaml + sops updatekeys), pousse, puis relance reconfigure."
+        fi
+        if errs=$(validate_secrets_env "$secrets_env" "$age_key"); then
+            log_ok "secrets.env déchiffré et valide"
+        else
+            log_err "secrets.env invalide (après déchiffrement) :"; printf '%s\n' "$errs" | sed 's/^/     - /'
+            die "Corrige les secrets dans le dépôt (sops providers/${OPT_SLUG}/secrets.env), pousse, puis relance reconfigure."
+        fi
     else
-        log_info "ouverture de $ENV_FILE dans \${EDITOR:-nano}…"
-    fi
-    while true; do
-        if [[ -z "$OPT_ENV_FROM" ]]; then
-            sudo -u "$OPT_SLUG" "${EDITOR:-nano}" "$ENV_FILE"
+        # ── Legacy .env (migration / tests) : édition + validation monolithique ──
+        substitute_env "$ENV_FILE" "$OPT_SLUG" "$OPT_VERSION"
+        log_step "Configuration .env (édition + validation)"
+        if [[ "$MODE_RECONFIGURE" -eq 1 ]]; then
+            backup="${ENV_FILE}.bak.$(date +%Y%m%dT%H%M%SZ)"
+            cp -p "$ENV_FILE" "$backup"
+            chown "$OPT_SLUG:$OPT_SLUG" "$backup"
+            log_info "backup du .env existant → ${backup}"
         fi
-        if errs=$(validate_env_file "$ENV_FILE" "$OPT_SLUG"); then
-            log_ok ".env valide"
-            strip_validation_error_block "$ENV_FILE"
-            chmod 600 "$ENV_FILE"
-            break
-        fi
-        log_err ".env invalide :"
-        printf '%s\n' "$errs" | sed 's/^/     - /'
         if [[ -n "$OPT_ENV_FROM" ]]; then
-            die ".env fourni invalide, abandon."
+            [[ -r "$OPT_ENV_FROM" ]] || die "--env-from : fichier illisible : $OPT_ENV_FROM"
+            cp "$OPT_ENV_FROM" "$ENV_FILE"
+            chown "$OPT_SLUG:$OPT_SLUG" "$ENV_FILE"
+            chmod 600 "$ENV_FILE"
+            log_info "chargement depuis $OPT_ENV_FROM"
+        else
+            log_info "ouverture de $ENV_FILE dans \${EDITOR:-nano}…"
         fi
-        prepend_errors_to_env "$ENV_FILE" "$errs"
-        log_warn "ré-ouverture de l'éditeur dans 2s…"
-        sleep 2
-    done
+        while true; do
+            if [[ -z "$OPT_ENV_FROM" ]]; then
+                sudo -u "$OPT_SLUG" "${EDITOR:-nano}" "$ENV_FILE"
+            fi
+            if errs=$(validate_env_file "$ENV_FILE" "$OPT_SLUG"); then
+                log_ok ".env valide"
+                strip_validation_error_block "$ENV_FILE"
+                chmod 600 "$ENV_FILE"
+                break
+            fi
+            log_err ".env invalide :"
+            printf '%s\n' "$errs" | sed 's/^/     - /'
+            if [[ -n "$OPT_ENV_FROM" ]]; then
+                die ".env fourni invalide, abandon."
+            fi
+            prepend_errors_to_env "$ENV_FILE" "$errs"
+            log_warn "ré-ouverture de l'éditeur dans 2s…"
+            sleep 2
+        done
+    fi
 
     # ─── Étape 10 : DNS ─────────────────────────────────────────────────────
     log_step "Vérification DNS"
@@ -265,15 +319,14 @@ main() {
         "API non healthy après 60s." \
         "Voir les logs : sudo -u $OPT_SLUG docker compose -f $DOCKER_DIR/docker-compose.yml logs"
 
-    # ─── Étape 12 : ETL test ────────────────────────────────────────────────
-    log_step "ETL test (mode test, ~3s)"
+    # ─── Étape 12 : test ingestion ──────────────────────────────────────────
+    log_step "Test ingestion (mode test, ~3s)"
     if run_ingestion_test "$OPT_SLUG"; then
-        log_ok "ETL test réussi — chaîne SFTP→déchiffrement→DuckDB OK sur un échantillon (2 fichiers)."
         log_warn "Échantillon non daté → ne garantit PAS la couverture du trousseau AES ; lancer un resync pour valider la clé courante."
     else
-        log_err "ETL test échoué — la stack tourne mais la chaîne ETL ne valide pas."
+        log_err "Test ingestion échoué — la stack tourne mais la chaîne ingestion ne valide pas."
         show_ingestion_failure_hints "$OPT_SLUG"
-        log_warn "Stack laissée en place. Corrige .env et réessaye (commande ci-dessus)."
+        log_warn "Stack laissée en place. Corrige secrets.env et réessaye (commande ci-dessus)."
     fi
 
     # ─── Étape 13 : récap ───────────────────────────────────────────────────
@@ -296,7 +349,7 @@ ${ssh_recap}
   Logs             sudo -u ${OPT_SLUG} docker compose -f ${DOCKER_DIR}/docker-compose.yml logs -f
   Stop/Start       sudo -u ${OPT_SLUG} docker compose -f ${DOCKER_DIR}/docker-compose.yml {down,up -d}
   Backups          ${HOME_DIR}/backups/ (rotation 14 snapshots, cron 03:30 Europe/Paris)
-  ETL nocturne     02:00 Europe/Paris (cf. ${DOCKER_DIR}/crontab)
+  Ingestion nocturne  02:00 Europe/Paris (cf. ${DOCKER_DIR}/crontab)
 
   Étapes suivantes recommandées :
     - Configurer un offsite des backups (rclone vers un cloud — cf. docs/deploiement.md)

@@ -81,6 +81,123 @@ validate_env_file() {
     return 0
 }
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Split config/secret (ADR-0044) : le `.env` monolithique se scinde en deux.
+#   config.env  (clair, versionné)  — config NON secrète + substitutions compose
+#   secrets.env (chiffré SOPS+age)  — UNIQUEMENT des credentials
+# Le validateur ci-dessus (`validate_env_file`) reste pour la migration ; les deux
+# fonctions ci-dessous valident chaque moitié.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# validate_config_env <config_file> <expected_slug>
+# Valide la moitié CLAIRE : INSTANCE_SLUG (matche), ELECTRICORE_VERSION et
+# BACKUPS_PATH présents. AUCUN secret ici (sinon erreur — un secret en clair dans
+# config.env est une fuite). Imprime les erreurs sur stdout ; 0 si OK, 1 sinon.
+validate_config_env() {
+    local file="$1"
+    local expected_slug="$2"
+    local errors=()
+
+    [[ -r "$file" ]] || { echo "config.env introuvable : $file"; return 1; }
+
+    local slug version backups
+    slug=$(read_env_var "$file" INSTANCE_SLUG)
+    version=$(read_env_var "$file" ELECTRICORE_VERSION)
+    backups=$(read_env_var "$file" BACKUPS_PATH)
+
+    [[ "$slug" == "$expected_slug" ]] || \
+        errors+=("INSTANCE_SLUG='${slug}' ne matche pas le slug attendu '${expected_slug}'")
+    [[ -n "$version" ]] || errors+=("ELECTRICORE_VERSION manquant (substitution compose)")
+    [[ -n "$backups" ]] || errors+=("BACKUPS_PATH manquant (substitution compose)")
+
+    # Garde-fou anti-fuite : un credential n'a RIEN à faire dans config.env (clair).
+    local leaked
+    leaked=$(grep -oE '^[[:space:]]*(API_KEY|API_KEYS|SFTP__URL|TELEGRAM_BOT_TOKEN|AES__TROUSSEAU__|ODOO_(TEST|PROD)_PASSWORD)' "$file" 2>/dev/null | head -1)
+    [[ -z "$leaked" ]] || \
+        errors+=("secret en clair détecté dans config.env (« ${leaked} ») — il doit vivre dans secrets.env chiffré")
+
+    if [[ ${#errors[@]} -gt 0 ]]; then
+        printf '%s\n' "${errors[@]}"
+        return 1
+    fi
+    return 0
+}
+
+# validate_secrets_plaintext <plaintext_file>
+# Valide la moitié SECRÈTE déjà DÉCHIFFRÉE (dotenv en clair, jamais sur disque en prod) :
+# API_KEY, SFTP__URL, trousseau AES présents et valides. Réutilise les règles AES de
+# `validate_env_file`. Imprime les erreurs sur stdout ; 0 si OK, 1 sinon.
+validate_secrets_plaintext() {
+    local file="$1"
+    local errors=()
+
+    [[ -r "$file" ]] || { echo "secrets (clair) introuvable : $file"; return 1; }
+
+    local api_key sftp
+    api_key=$(read_env_var "$file" API_KEY)
+    sftp=$(read_env_var "$file" SFTP__URL)
+
+    validate_api_key "$api_key" || \
+        errors+=("API_KEY manquant ou trop court (≥ 32 caractères requis)")
+    validate_url "$sftp" || \
+        errors+=("SFTP__URL invalide (attendu sftp://… ou file://…) : '${sftp}'")
+
+    local labels label key iv
+    mapfile -t labels < <(
+        grep -oE '^[[:space:]]*AES__TROUSSEAU__.+__KEY[[:space:]]*=' "$file" 2>/dev/null \
+            | sed -E 's/^[[:space:]]*AES__TROUSSEAU__(.+)__KEY[[:space:]]*=.*/\1/' | sort -u
+    )
+    if [[ ${#labels[@]} -eq 0 ]]; then
+        errors+=("trousseau AES vide : ajoutez au moins une clé AES__TROUSSEAU__<label>__KEY (hex 32 ou 64)")
+    else
+        for label in "${labels[@]}"; do
+            key=$(read_env_var "$file" "AES__TROUSSEAU__${label}__KEY")
+            iv=$(read_env_var "$file" "AES__TROUSSEAU__${label}__IV")
+            if ! validate_aes_key "$key"; then
+                errors+=("AES__TROUSSEAU__${label}__KEY absent ou pas en hex 32/64 chars")
+            elif [[ -n "$iv" ]] && ! validate_aes_iv "$iv"; then
+                errors+=("AES__TROUSSEAU__${label}__IV présent mais pas en hex 32/64 (retire-le pour le schéma IV-préfixé AES-256)")
+            fi
+        done
+    fi
+
+    if [[ ${#errors[@]} -gt 0 ]]; then
+        printf '%s\n' "${errors[@]}"
+        return 1
+    fi
+    return 0
+}
+
+# validate_secrets_env <secrets_file> <age_keyfile>
+# Déchiffre <secrets_file> (SOPS+age) avec <age_keyfile> et valide le clair via
+# `validate_secrets_plaintext`. 0 si OK, 1 sinon (erreurs stdout). NB : chemin de
+# validation côté MACHINE ADMIN à la (re)config — PAS le runtime (l'entrypoint
+# `sops exec-env` n'écrit, lui, jamais de clair). Ici le clair transite par un tmp 0600
+# shreddé immédiatement (cf. plus bas pourquoi un fichier et pas un pipe).
+validate_secrets_env() {
+    local file="$1"
+    local keyfile="$2"
+    [[ -r "$file" ]]    || { echo "secrets.env introuvable : $file"; return 1; }
+    [[ -r "$keyfile" ]] || { echo "clé age introuvable : $keyfile"; return 1; }
+    local plaintext
+    if ! plaintext=$(SOPS_AGE_KEY_FILE="$keyfile" sops decrypt --input-type dotenv --output-type dotenv "$file" 2>/dev/null); then
+        echo "déchiffrement SOPS échoué (clé age non destinataire ? fichier corrompu ?)"
+        return 1
+    fi
+    # validate_secrets_plaintext relit son argument plusieurs fois (un read_env_var/grep
+    # par variable) → une substitution de process (pipe à lecture unique) ne convient pas.
+    # Le clair touche donc un tmp 0600 (mktemp), shreddé immédiatement après validation.
+    # (Pas de trap de nettoyage ici : install.sh possède déjà un `trap … INT TERM` au
+    #  niveau process qu'on ne doit pas écraser depuis une fonction de lib.)
+    local tmp; tmp=$(mktemp)
+    printf '%s\n' "$plaintext" > "$tmp"
+    local rc=0 out
+    out=$(validate_secrets_plaintext "$tmp") || rc=1
+    shred -u "$tmp" 2>/dev/null || rm -f "$tmp"
+    [[ -n "$out" ]] && printf '%s\n' "$out"
+    return "$rc"
+}
+
 # strip_validation_error_block <env_file>
 # Supprime le bloc d'erreurs (marqueurs VALIDATION-ERROR-BLOCK-BEGIN/END et
 # son contenu) du .env, quand la validation vient de réussir. Idempotent :

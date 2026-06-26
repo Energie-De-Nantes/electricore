@@ -33,6 +33,10 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 # Couche projet : on copie le code et on l'installe dans le venv
 COPY electricore/ ./electricore/
+# Les notebooks opérateur sont force-inclus dans le wheel electricore (pont #414,
+# → electricore/_operator_notebooks/) : hatchling exige leur source présente à l'install
+# de la racine. Sans eux, `uv sync` casse (FileNotFoundError: Forced include not found).
+COPY notebooks/accueil.py notebooks/facturation.py notebooks/injection_rsc.py ./notebooks/
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --extra ingestion --extra dbt --no-dev
 
@@ -75,6 +79,25 @@ RUN curl -fsSL -o /tmp/duckdb.zip \
  && chmod +x /usr/local/bin/duckdb \
  && rm /tmp/duckdb.zip
 
+# sops + age : déchiffrement des secrets à l'entrypoint (ADR-0044). Binaires statiques
+# pinnés + vérifiés par checksum, même motif que supercronic/duckdb ci-dessus.
+ARG SOPS_VERSION=3.9.4
+ARG SOPS_SHA256=5488e32bc471de7982ad895dd054bbab3ab91c417a118426134551e9626e4e85
+RUN curl -fsSL -o /usr/local/bin/sops \
+        "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.amd64" \
+ && echo "${SOPS_SHA256}  /usr/local/bin/sops" | sha256sum -c - \
+ && chmod +x /usr/local/bin/sops
+
+ARG AGE_VERSION=1.2.1
+ARG AGE_SHA256=7df45a6cc87d4da11cc03a539a7470c15b1041ab2b396af088fe9990f7c79d50
+RUN curl -fsSL -o /tmp/age.tgz \
+        "https://github.com/FiloSottile/age/releases/download/v${AGE_VERSION}/age-v${AGE_VERSION}-linux-amd64.tar.gz" \
+ && echo "${AGE_SHA256}  /tmp/age.tgz" | sha256sum -c - \
+ && tar -xzf /tmp/age.tgz -C /tmp \
+ && mv /tmp/age/age /tmp/age/age-keygen /usr/local/bin/ \
+ && chmod +x /usr/local/bin/age /usr/local/bin/age-keygen \
+ && rm -rf /tmp/age /tmp/age.tgz
+
 # Utilisateur non-root
 RUN groupadd --system --gid 1000 electricore \
  && useradd --system --uid 1000 --gid electricore --home-dir /app --shell /usr/sbin/nologin electricore
@@ -86,6 +109,11 @@ COPY --from=builder --chown=electricore:electricore /app/.venv /app/.venv
 COPY --chown=electricore:electricore electricore/ ./electricore/
 COPY --chown=electricore:electricore deploy/docker/backup_duckdb.sh /app/deploy/docker/backup_duckdb.sh
 RUN chmod +x /app/deploy/docker/backup_duckdb.sh
+
+# Entrypoint de déchiffrement SOPS+age (ADR-0044) — installé sur le PATH comme
+# `electricore-entrypoint`. Il s'intercale après tini : `tini -- electricore-entrypoint <cmd…>`.
+COPY deploy/docker/entrypoint.sh /usr/local/bin/electricore-entrypoint
+RUN chmod +x /usr/local/bin/electricore-entrypoint
 
 # Volumes pour les données (DuckDB et backups)
 RUN mkdir -p /data /backups \
@@ -99,10 +127,12 @@ ENV PATH="/app/.venv/bin:${PATH}" \
 
 USER electricore
 
-# tini comme PID 1 — propagation correcte des signaux (SIGTERM lors d'un compose down)
-ENTRYPOINT ["/usr/bin/tini", "--"]
+# tini comme PID 1 — propagation correcte des signaux (SIGTERM lors d'un compose down).
+# Puis electricore-entrypoint déchiffre les secrets SOPS+age (ADR-0044) avant d'exec
+# la commande du service. Échappatoire dev/test : ELECTRICORE_DECRYPT=off.
+ENTRYPOINT ["/usr/bin/tini", "--", "electricore-entrypoint"]
 
 # Pas de CMD : chaque service docker-compose définit son propre `command`.
-# Exemples :
+# Exemples (la commande est exec'd APRÈS déchiffrement par electricore-entrypoint) :
 #   - API : ["uvicorn", "electricore.api.main:app", "--host", "0.0.0.0", "--port", "8001"]
-#   - ETL : ["supercronic", "/etc/cron/crontab"]
+#   - ingestion : ["supercronic", "/etc/cron/crontab"]

@@ -6,6 +6,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB_DIR="${SCRIPT_DIR}/../lib"
 FIXTURES_DIR="${SCRIPT_DIR}/fixtures"
 
+# shellcheck source=../lib/log.sh
+source "${LIB_DIR}/log.sh"
 # shellcheck source=../lib/validate.sh
 source "${LIB_DIR}/validate.sh"
 # shellcheck source=../lib/os.sh
@@ -16,6 +18,10 @@ source "${LIB_DIR}/cli.sh"
 source "${LIB_DIR}/config.sh"
 # shellcheck source=../lib/env_validate.sh
 source "${LIB_DIR}/env_validate.sh"
+# shellcheck source=../lib/ingestion.sh
+source "${LIB_DIR}/ingestion.sh"
+# shellcheck source=../lib/secrets.sh
+source "${LIB_DIR}/secrets.sh"
 # shellcheck source=../lib/harden.sh
 source "${LIB_DIR}/harden.sh"
 
@@ -34,6 +40,11 @@ source "${LIB_DIR}/../harden.sh"
 # parse_unharden_args + les fonctions de réversion (déjà dans lib/harden.sh).
 # shellcheck source=../unharden.sh
 source "${LIB_DIR}/../unharden.sh"
+
+# `add-provider.sh` (outil admin secrets-as-code, ADR-0044) — guard
+# `main_add_provider` ; expose parse_add_provider_args + add_recipient_to_sops + add_provider.
+# shellcheck source=../add-provider.sh
+source "${LIB_DIR}/../add-provider.sh"
 
 PASS=0; FAIL=0
 ok() { printf '  \033[32m✓\033[0m %s\n' "$1"; PASS=$((PASS+1)); }
@@ -142,6 +153,13 @@ echo "→ cli.sh / parse_args"
   [[ "$OPT_VERSION" == "1.7.0" && "$OPT_SSH_PUBKEY" == "ssh-ed25519 AAAA" && "$OPT_SKIP_DNS" == "1" ]]
 ) && ok "parse_args avec --version --ssh-pubkey --skip-dns" || ko "parse_args options complètes"
 
+# --deploy-repo (secrets-as-code, ADR-0044)
+( parse_args --slug edn --domain edn.fr >/dev/null 2>&1; [[ -z "$OPT_DEPLOY_REPO" ]] ) \
+    && ok "parse_args: --deploy-repo vide par défaut" || ko "parse_args OPT_DEPLOY_REPO défaut"
+( parse_args --slug edn --domain edn.fr --deploy-repo "git@example.test:org/deploy.git" >/dev/null 2>&1
+  [[ "$OPT_DEPLOY_REPO" == "git@example.test:org/deploy.git" ]]
+) && ok "parse_args: --deploy-repo capturé" || ko "parse_args --deploy-repo"
+
 assert_fail "parse_args sans --slug"      parse_args --domain edn.fr
 assert_fail "parse_args sans --domain"    parse_args --slug edn
 assert_fail "parse_args flag inconnu"     parse_args --slug edn --domain edn.fr --foo
@@ -211,8 +229,8 @@ echo
 echo "→ install.sh / fetch_lib_files"
 tmp_target=$(mktemp -d)
 fetch_lib_files "file://${FIXTURES_DIR}/fake_lib" "$tmp_target"
-[[ -f "${tmp_target}/log.sh" && -f "${tmp_target}/cli.sh" && -f "${tmp_target}/config.sh" && -f "${tmp_target}/harden.sh" ]] \
-    && ok "fetch_lib_files: les 12 helpers sont téléchargés au 1er appel" \
+[[ -f "${tmp_target}/log.sh" && -f "${tmp_target}/cli.sh" && -f "${tmp_target}/config.sh" && -f "${tmp_target}/secrets.sh" && -f "${tmp_target}/harden.sh" ]] \
+    && ok "fetch_lib_files: les 13 helpers sont téléchargés au 1er appel" \
     || ko "fetch_lib_files: helpers manquants après 1er appel"
 # 2e appel idempotent (les fichiers existent déjà, doit re-télécharger sans erreur)
 fetch_lib_files "file://${FIXTURES_DIR}/fake_lib" "$tmp_target"
@@ -327,6 +345,168 @@ strip_validation_error_block "$tmp_env"
 grep -q "^INSTANCE_SLUG=edn$" "$tmp_env" && ok "strip: INSTANCE_SLUG survit" || ko "strip: INSTANCE_SLUG effacé"
 grep -q "^API_KEY=" "$tmp_env" && ok "strip: API_KEY survit" || ko "strip: API_KEY effacé"
 rm -f "$tmp_env"
+
+echo
+echo "→ env_validate.sh / split config/secret (ADR-0044)"
+# config.env valide (slug + version + backups, AUCUN secret)
+tmp_cfg=$(mktemp)
+printf 'INSTANCE_SLUG=edn\nELECTRICORE_VERSION=1.7.0\nBACKUPS_PATH=/srv/edn/backups\nODOO_ENV=prod\n' > "$tmp_cfg"
+assert_ok   "validate_config_env (config claire valide)"   validate_config_env "$tmp_cfg" "edn"
+assert_fail "validate_config_env (slug mismatch)"          validate_config_env "$tmp_cfg" "autre"
+rm -f "$tmp_cfg"
+# Garde-fou anti-fuite : un secret dans config.env doit faire échouer
+tmp_cfg=$(mktemp)
+printf 'INSTANCE_SLUG=edn\nELECTRICORE_VERSION=1.7.0\nBACKUPS_PATH=/srv/edn/backups\nAPI_KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n' > "$tmp_cfg"
+assert_fail "validate_config_env refuse un secret en clair (API_KEY)" validate_config_env "$tmp_cfg" "edn"
+rm -f "$tmp_cfg"
+# Idem pour un credential Odoo (ODOO_<ENV>_PASSWORD, le vrai nom lu par runtime.odoo)
+tmp_cfg=$(mktemp)
+printf 'INSTANCE_SLUG=edn\nELECTRICORE_VERSION=1.7.0\nBACKUPS_PATH=/srv/edn/backups\nODOO_PROD_PASSWORD=secret_factice\n' > "$tmp_cfg"
+assert_fail "validate_config_env refuse un secret en clair (ODOO_PROD_PASSWORD)" validate_config_env "$tmp_cfg" "edn"
+rm -f "$tmp_cfg"
+# config.env manquant version → échec
+tmp_cfg=$(mktemp); printf 'INSTANCE_SLUG=edn\nBACKUPS_PATH=/srv/edn/backups\n' > "$tmp_cfg"
+assert_fail "validate_config_env exige ELECTRICORE_VERSION" validate_config_env "$tmp_cfg" "edn"
+rm -f "$tmp_cfg"
+
+# Secrets (clair) : API_KEY + SFTP + trousseau AES
+tmp_sec=$(mktemp)
+printf 'API_KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nSFTP__URL=sftp://u:p@h.fr:22/x\nAES__TROUSSEAU__demo__KEY=00112233445566778899aabbccddeeff\n' > "$tmp_sec"
+assert_ok   "validate_secrets_plaintext (secrets clairs valides)" validate_secrets_plaintext "$tmp_sec"
+rm -f "$tmp_sec"
+# Trousseau vide → échec
+tmp_sec=$(mktemp); printf 'API_KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nSFTP__URL=sftp://u:p@h.fr:22/x\n' > "$tmp_sec"
+assert_fail "validate_secrets_plaintext refuse trousseau AES vide" validate_secrets_plaintext "$tmp_sec"
+rm -f "$tmp_sec"
+
+echo
+echo "→ secrets.sh (fake-binaries docker/git/sops)"
+FAKE_BIN="${FIXTURES_DIR}/fake_bin"
+# Sandbox d'instance jetable : SRV_BASE pointe sur un tmp, fake docker/git/sops sur PATH.
+secrets_root=$(mktemp -d)
+export SRV_BASE="$secrets_root"
+install -d "${secrets_root}/edn"
+
+# generate_box_identities : génère age.key + ssh_deploy_key (600) + imprime les 2 pubs.
+out=$(PATH="${FAKE_BIN}:$PATH" DOCKER_BIN=docker generate_box_identities edn 2>/dev/null)
+grep -q "^AGE_PUBLIC_KEY=age1" <<<"$out" && ok "generate_box_identities: imprime la clé age publique" || ko "pas de AGE_PUBLIC_KEY"
+grep -q "^SSH_DEPLOY_PUBKEY=ssh-ed25519" <<<"$out" && ok "generate_box_identities: imprime la deploy key SSH publique" || ko "pas de SSH_DEPLOY_PUBKEY"
+[[ -f "${secrets_root}/edn/age.key" ]] && ok "generate_box_identities: clé age privée écrite" || ko "age.key absent"
+[[ -f "${secrets_root}/edn/ssh_deploy_key" ]] && ok "generate_box_identities: deploy key privée écrite" || ko "ssh_deploy_key absent"
+perm=$(stat -c '%a' "${secrets_root}/edn/age.key" 2>/dev/null)
+assert_eq "$perm" "600" "generate_box_identities: age.key en 600 (clé privée, ne sort jamais)"
+# Idempotent : 2e appel ne régénère pas (clé conservée)
+key_before=$(cat "${secrets_root}/edn/age.key")
+PATH="${FAKE_BIN}:$PATH" generate_box_identities edn >/dev/null 2>&1
+key_after=$(cat "${secrets_root}/edn/age.key")
+assert_eq "$key_after" "$key_before" "generate_box_identities: idempotent (clé privée conservée au 2e run)"
+
+# pull_deploy_repo : clone le dépôt privé simulé, relie providers/, tire config.env.
+git_src=$(mktemp -d)
+install -d "${git_src}/providers/edn"
+printf 'INSTANCE_SLUG=edn\nELECTRICORE_VERSION=1.7.0\nBACKUPS_PATH=/srv/edn/backups\n' > "${git_src}/providers/edn/config.env"
+printf '#ENC[fake-ciphertext]\n' > "${git_src}/providers/edn/secrets.env"
+PATH="${FAKE_BIN}:$PATH" FAKE_GIT_SRC="$git_src" GIT_BIN=git \
+    pull_deploy_repo "git@example.test:org/deploy.git" edn >/dev/null 2>&1
+[[ -L "${secrets_root}/edn/providers" ]] && ok "pull_deploy_repo: providers/ relié (symlink)" || ko "providers/ non relié"
+[[ -f "${secrets_root}/edn/providers/edn/secrets.env" ]] && ok "pull_deploy_repo: secrets.env accessible via providers/<slug>/" || ko "secrets.env inaccessible"
+[[ -f "${secrets_root}/edn/config.env" ]] && ok "pull_deploy_repo: config.env clair tiré à la racine du home" || ko "config.env non tiré"
+rm -rf "$git_src"
+
+# box_can_decrypt : vrai si clé + secrets présents ET sops réussit ; faux si sops échoue.
+PATH="${FAKE_BIN}:$PATH" FAKE_SOPS_FAIL=0 box_can_decrypt edn \
+    && ok "box_can_decrypt: vrai quand sops déchiffre (clé destinataire)" || ko "box_can_decrypt devait réussir"
+PATH="${FAKE_BIN}:$PATH" FAKE_SOPS_FAIL=1 box_can_decrypt edn \
+    && ko "box_can_decrypt: devait échouer si sops échoue (clé non destinataire)" \
+    || ok "box_can_decrypt: faux quand sops échoue (deux temps — pas encore destinataire)"
+
+# validate_secrets_env : déchiffre via (fake) sops puis valide le clair.
+PATH="${FAKE_BIN}:$PATH" validate_secrets_env "${secrets_root}/edn/providers/edn/secrets.env" "${secrets_root}/edn/age.key" >/dev/null 2>&1 \
+    && ok "validate_secrets_env: déchiffre + valide le clair (fake sops)" || ko "validate_secrets_env a échoué"
+PATH="${FAKE_BIN}:$PATH" FAKE_SOPS_FAIL=1 validate_secrets_env "${secrets_root}/edn/providers/edn/secrets.env" "${secrets_root}/edn/age.key" >/dev/null 2>&1 \
+    && ko "validate_secrets_env: devait échouer si déchiffrement KO" \
+    || ok "validate_secrets_env: échec propre si le déchiffrement KO"
+
+unset SRV_BASE
+rm -rf "$secrets_root"
+
+echo
+echo "→ add-provider.sh (parse + add_recipient + add_provider, fake sops)"
+# parse_add_provider_args : exige --provider-dir + --age-pubkey (format age1…)
+( parse_add_provider_args --provider-dir providers/edn --age-pubkey age1abcdef >/dev/null 2>&1
+  [[ "$OPT_PROVIDER_DIR" == "providers/edn" && "$OPT_AGE_PUBKEY" == "age1abcdef" && "$OPT_NO_UPDATEKEYS" == "0" ]]
+) && ok "parse_add_provider_args: --provider-dir + --age-pubkey" || ko "parse_add_provider_args minimal"
+assert_fail "parse_add_provider_args: --age-pubkey manquant" parse_add_provider_args --provider-dir providers/edn
+assert_fail "parse_add_provider_args: clé non-age rejetée"   parse_add_provider_args --provider-dir p --age-pubkey "ssh-ed25519 AAAA"
+( parse_add_provider_args --provider-dir p --age-pubkey age1zzz --no-updatekeys >/dev/null 2>&1
+  [[ "$OPT_NO_UPDATEKEYS" == "1" ]]
+) && ok "parse_add_provider_args: --no-updatekeys" || ko "parse_add_provider_args --no-updatekeys"
+
+# add_recipient_to_sops : insère un destinataire, idempotent au 2e appel.
+prov=$(mktemp -d)
+cp "${LIB_DIR}/../providers/example/.sops.yaml.example" "${prov}/.sops.yaml"
+add_recipient_to_sops "${prov}/.sops.yaml" "age1nouvelleboxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" >/dev/null 2>&1
+grep -q "age1nouvelleboxxx" "${prov}/.sops.yaml" && ok "add_recipient_to_sops: destinataire inséré" || ko "destinataire non inséré"
+add_recipient_to_sops "${prov}/.sops.yaml" "age1nouvelleboxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" >/dev/null 2>&1
+n=$(grep -c "age1nouvelleboxxx" "${prov}/.sops.yaml")
+assert_eq "$n" "1" "add_recipient_to_sops: idempotent (1 seule occurrence après 2 appels)"
+# L'admin (destinataire FACTICE toujours présent) survit à l'ajout.
+grep -q "age1adminFACTICE" "${prov}/.sops.yaml" && ok "add_recipient_to_sops: admin (toujours destinataire) préservé" || ko "admin effacé"
+
+# add_provider : ajoute + updatekeys (fake sops) ; --no-updatekeys saute le re-chiffrement.
+printf '#ENC[fake]\n' > "${prov}/secrets.env"
+PATH="${FAKE_BIN}:$PATH" SOPS_BIN=sops add_provider "$prov" "age1autreboxyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy" 1 >/dev/null 2>&1 \
+    && ok "add_provider: ajoute destinataire + updatekeys (fake sops réussit)" || ko "add_provider a échoué"
+grep -q "age1autreboxyyy" "${prov}/.sops.yaml" && ok "add_provider: 2e destinataire bien ajouté" || ko "2e destinataire absent"
+PATH="${FAKE_BIN}:$PATH" SOPS_BIN=sops add_provider "$prov" "age1encoreunboxzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz" 0 >/dev/null 2>&1 \
+    && ok "add_provider: --no-updatekeys ajoute sans re-chiffrer" || ko "add_provider --no-updatekeys"
+rm -rf "$prov"
+
+echo
+echo "→ ingestion.sh / _ingestion_parse_job_id"
+assert_eq "$(_ingestion_parse_job_id '{"job_id":"abc-123","status":"running"}')" \
+    "abc-123" "_ingestion_parse_job_id: extrait le job_id"
+assert_eq "$(_ingestion_parse_job_id '{"job_id": "spaced-id","status":"running"}')" \
+    "spaced-id" "_ingestion_parse_job_id: tolère l'espace après :"
+assert_eq "$(_ingestion_parse_job_id '{}')" \
+    "" "_ingestion_parse_job_id: champ absent → vide"
+
+echo
+echo "→ ingestion.sh / _ingestion_parse_status"
+assert_eq "$(_ingestion_parse_status '{"status":"completed"}')"  "completed" "_ingestion_parse_status: completed"
+assert_eq "$(_ingestion_parse_status '{"status":"failed"}')"     "failed"    "_ingestion_parse_status: failed"
+assert_eq "$(_ingestion_parse_status '{"status":"running"}')"    "running"   "_ingestion_parse_status: running"
+assert_eq "$(_ingestion_parse_status '{"status": "completed"}')" "completed" "_ingestion_parse_status: tolère l'espace"
+assert_eq "$(_ingestion_parse_status '{}')"                      ""          "_ingestion_parse_status: champ absent → vide"
+
+echo
+echo "→ ingestion.sh / poll_ingestion_job"
+# Cas 1 : completed immédiatement → 0
+_ingestion_call_get_job() { echo '{"status":"completed"}'; }
+assert_ok   "poll_ingestion_job: completed → 0" \
+    poll_ingestion_job testslug testkey abc-123 3 0
+
+# Cas 2 : failed immédiatement → 1
+_ingestion_call_get_job() { echo '{"status":"failed"}'; }
+assert_fail "poll_ingestion_job: failed → 1" \
+    poll_ingestion_job testslug testkey abc-123 3 0
+
+# Cas 3 : timeout (toujours running après max_retries) → 1
+_ingestion_call_get_job() { echo '{"status":"running"}'; }
+assert_fail "poll_ingestion_job: timeout → 1" \
+    poll_ingestion_job testslug testkey abc-123 3 0
+
+# Cas 4 : running × 2 puis completed → 0 (état via fichier, survit aux subshells)
+_poll_seq=$(mktemp)
+printf 'running\nrunning\ncompleted\n' > "$_poll_seq"
+_ingestion_call_get_job() {
+    local s; s=$(head -1 "$_poll_seq")
+    { tail -n +2 "$_poll_seq" > "${_poll_seq}.tmp" && mv "${_poll_seq}.tmp" "$_poll_seq"; } 2>/dev/null || true
+    printf '{"status":"%s"}\n' "${s:-running}"
+}
+assert_ok   "poll_ingestion_job: running×2 puis completed → 0" \
+    poll_ingestion_job testslug testkey abc-123 5 0
+rm -f "$_poll_seq" "${_poll_seq}.tmp"
 
 echo
 if [[ "$FAIL" -eq 0 ]]; then
