@@ -204,6 +204,11 @@ main() {
     # (config.env) et secrets (secrets.env chiffré) arrivent par le dépôt privé.
     download_config_files "$OPT_VERSION" "$HOME_DIR"
     chown_instance_home "$OPT_SLUG"
+    # Exception au chown global (#459) : /srv/<slug>/backups doit rester writable par
+    # le conteneur (uid 1000), pas par <slug>. À (ré)appliquer APRÈS le `chown -R`,
+    # sinon backup_duckdb.sh plante au mkdir du snapshot et la box tourne sans backup.
+    ensure_backups_dir "$OPT_SLUG"
+    ensure_slug_in_container_group "$OPT_SLUG"
 
     # ─── Étape 8 : substitutions ────────────────────────────────────────────
     log_step "Patch des templates (domaine + email)"
