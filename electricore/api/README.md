@@ -20,9 +20,8 @@ curl "http://localhost:8000/flux/r151?api_key=votre_cle_api"
 
 ### 1. Créer le fichier .env
 
-```bash
-cp .env.example .env
-```
+Créer un fichier `.env` à la racine du projet avec les variables nécessaires
+(voir [docs/configuration.md](../../docs/configuration.md)).
 
 ### 2. Générer une clé API sécurisée
 

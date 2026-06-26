@@ -44,7 +44,6 @@ perimetre_manquants/
 # Secrets et environnements locaux
 .env
 .env.*
-!.env.example
 secrets.toml
 
 # Docs au format source (réduisent juste l'image)
