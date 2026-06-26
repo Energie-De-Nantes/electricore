@@ -257,9 +257,12 @@ sudo bash install.sh \
 Options notables :
 - `--deploy-repo <url>` — **obligatoire**. Dépôt de déploiement privé d'où la box pull
   `providers/<slug>/{config.env,secrets.env}` via sa deploy key SSH RO.
-- `--version <tag>` — pin le tag GHCR à déployer (recommandé en prod, défaut `latest`).
-  Accepte `1.7.0`, `1.8.0rc1`, etc. (`ELECTRICORE_VERSION` vit dans `config.env` côté
-  dépôt ; `--version` épingle le tag effectivement déployé.)
+- `--version <tag>` — **override LOCAL** du tag GHCR déployé (accepte `1.7.0`, `1.8.0rc1`,
+  `3.4.0rc6`, etc.). `ELECTRICORE_VERSION` vit dans le `config.env` du dépôt (baseline pinée) ;
+  `--version` **réécrit cette valeur localement après le pull**, sur la box, **sans toucher au
+  dépôt secrets** ([#460](https://github.com/Energie-De-Nantes/electricore/issues/460)) — la
+  version est un paramètre de déploiement, pas un secret. Sans `--version`, la box redéploie la
+  version pinée du dépôt. Le tag effectivement lancé est affiché dans le récap (`Image: …`).
 - `--ssh-pubkey "ssh-ed25519 ..."` — clé SSH dédiée pour `<slug>`. Sans cette
   option, le script copie `~root/.ssh/authorized_keys`.
 - `--skip-dns` — saute la vérification DNS (test local).
@@ -786,8 +789,12 @@ sudo -u <slug> docker compose -f deploy/docker/docker-compose.yml --env-file con
 
 ### Mise à jour standard
 
-Via le mode reconfigure du script, avec `--version` (qui épingle le tag GHCR déployé) ou
-en éditant `ELECTRICORE_VERSION` dans `providers/<slug>/config.env` du dépôt de déploiement :
+Deux voies, selon que le bump doit être versionné ou non ([#460](https://github.com/Energie-De-Nantes/electricore/issues/460)) :
+
+- **Override local** (rapide, dev intense) — `--version <tag>` réécrit `ELECTRICORE_VERSION`
+  sur la box après le pull, **sans toucher au dépôt secrets**. Idéal pour itérer.
+- **Baseline GitOps** (durable) — éditer `ELECTRICORE_VERSION` dans `providers/<slug>/config.env`
+  du dépôt, commit + push, puis reconfigure **sans** `--version` (la box redéploie la version pinée).
 
 ```bash
 sudo bash /srv/<slug>/deploy/install.sh \
@@ -801,7 +808,8 @@ Le script :
 2. Re-télécharge `docker-compose.yml`, `Caddyfile`, `crontab` au tag demandé
    (utile si la stack a évolué).
 3. Re-pull `providers/<slug>/{config.env,secrets.env}` du dépôt, valide le split +
-   déchiffre (le tag déployé est épinglé par `--version`).
+   déchiffre. Si `--version` est fourni, **override local** de `ELECTRICORE_VERSION` dans le
+   `config.env` tiré (sinon : version pinée du dépôt). Le tag effectif est affiché au récap.
 4. `docker compose pull` puis `up -d` (recrée les conteneurs avec la nouvelle image).
 5. ingestion test.
 

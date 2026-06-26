@@ -244,6 +244,16 @@ main() {
         log_err "config.env invalide :"; printf '%s\n' "$errs" | sed 's/^/     - /'
         die "Corrige providers/${OPT_SLUG}/config.env dans le dépôt, pousse, puis relance reconfigure."
     fi
+    # Override LOCAL de la version (#460) : `--version` pilote le tag d'image déployé même
+    # en secrets-as-code, SANS toucher au dépôt secrets (la version n'est pas un secret,
+    # c'est un paramètre de déploiement — ADR-0044). Appliqué APRÈS le pull : le config.env
+    # du dépôt reste la baseline GitOps (reconfigure sans --version = version pinée). Le pull
+    # ré-écrit config.env à chaque reconfigure → l'override est ré-appliqué à chaque fois.
+    if [[ "${OPT_VERSION_EXPLICIT:-0}" -eq 1 ]]; then
+        repo_version=$(read_env_var "$config_env" ELECTRICORE_VERSION)
+        override_config_version "$config_env" "$OPT_VERSION"
+        log_warn "ELECTRICORE_VERSION overridé localement : ${OPT_VERSION} (dépôt : ${repo_version}) — non versionné, propre à cette box."
+    fi
     if ! box_can_decrypt "$OPT_SLUG"; then
         # La box a sa clé + le ciphertext, mais ne déchiffre pas → sa clé age publique
         # n'est pas (encore) destinataire dans .sops.yaml. 2e temps de l'onboarding.
@@ -299,12 +309,18 @@ main() {
         ssh_recap="  SSH (admin)      ssh ops@${OPT_DOMAIN}   ← root SSH désactivé
   SSH (service)    ssh ${OPT_SLUG}@${OPT_DOMAIN}"
     fi
+    # Tag d'image effectivement déployé : lu dans le config.env que compose utilise pour
+    # ses substitutions (et qui a pu être overridé localement par --version, #460). On le
+    # surface pour lever toute ambiguïté entre version pinée du dépôt et override de box.
+    effective_version=$(read_env_var "${HOME_DIR}/config.env" ELECTRICORE_VERSION)
+    [[ -n "$effective_version" ]] || effective_version="$OPT_VERSION"
     cat <<EOF
 
   ${_C_GREEN}${_C_BOLD}✓ Instance ${OPT_SLUG} opérationnelle.${_C_RESET}
 
   URL              https://${OPT_DOMAIN}
   /health          curl https://${OPT_DOMAIN}/health
+  Image            ghcr.io/energie-de-nantes/electricore:${effective_version}
 ${ssh_recap}
   Logs             sudo -u ${OPT_SLUG} docker compose -f ${DOCKER_DIR}/docker-compose.yml logs -f
   Stop/Start       sudo -u ${OPT_SLUG} docker compose -f ${DOCKER_DIR}/docker-compose.yml {down,up -d}
@@ -317,8 +333,11 @@ ${ssh_recap}
     - Secrets versionnés chiffrés dans le dépôt de déploiement — rien de sensible à
       sauvegarder côté box (la clé age ${AGE_KEY_FILE} se régénère, cf. clé d'escrow)
 
-  Pour reconfigurer plus tard (rotation clés AES, bump version, etc.) :
+  Pour reconfigurer plus tard (rotation clés AES, pull baseline du dépôt, etc.) :
     sudo bash $0 --slug ${OPT_SLUG} --domain ${OPT_DOMAIN} --deploy-repo ${OPT_DEPLOY_REPO}
+
+  Pour déployer un autre tag d'image sans toucher au dépôt secrets (#460) :
+    sudo bash $0 --slug ${OPT_SLUG} --domain ${OPT_DOMAIN} --deploy-repo ${OPT_DEPLOY_REPO} --version <tag>
 
 EOF
 

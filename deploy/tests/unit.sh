@@ -156,6 +156,14 @@ echo "→ cli.sh / parse_args"
   [[ "$OPT_VERSION" == "1.7.0" && "$OPT_SSH_PUBKEY" == "ssh-ed25519 AAAA" && "$OPT_SKIP_DNS" == "1" ]]
 ) && ok "parse_args avec --version --ssh-pubkey --skip-dns" || ko "parse_args options complètes"
 
+# Override local du tag (#460) : OPT_VERSION_EXPLICIT distingue --version passé du défaut.
+( parse_args --slug edn --domain edn.fr --deploy-repo "git@example.test:org/deploy.git" >/dev/null 2>&1
+  [[ "$OPT_VERSION_EXPLICIT" == "0" ]]
+) && ok "parse_args: OPT_VERSION_EXPLICIT=0 sans --version (baseline GitOps)" || ko "parse_args OPT_VERSION_EXPLICIT défaut"
+( parse_args --slug edn --domain edn.fr --deploy-repo "git@example.test:org/deploy.git" --version 3.4.0rc6 >/dev/null 2>&1
+  [[ "$OPT_VERSION_EXPLICIT" == "1" && "$OPT_VERSION" == "3.4.0rc6" ]]
+) && ok "parse_args: OPT_VERSION_EXPLICIT=1 avec --version (override local)" || ko "parse_args OPT_VERSION_EXPLICIT avec --version"
+
 # --deploy-repo est OBLIGATOIRE depuis le cutover secrets-as-code (ADR-0044 §8)
 assert_fail "parse_args sans --deploy-repo" parse_args --slug edn --domain edn.fr
 ( parse_args --slug edn --domain edn.fr --deploy-repo "git@example.test:org/deploy.git" >/dev/null 2>&1
@@ -264,6 +272,21 @@ grep -q "ops@edn.fr" "$tmp_caddy" && ok "substitute_caddyfile: email" || ko "sub
 ! grep -q "electricore.exemple.fr" "$tmp_caddy" && ok "substitute_caddyfile: pas de placeholder résiduel" \
     || ko "substitute_caddyfile placeholder résiduel"
 rm -f "$tmp_caddy"
+
+echo
+echo "→ config.sh / override_config_version (override local du tag, #460)"
+# Simule un config.env pinné par le dépôt (rc5) + une clé non-version à préserver.
+tmp_cfg=$(mktemp)
+printf 'INSTANCE_SLUG=edn\nELECTRICORE_VERSION=3.4.0rc5\nBACKUPS_PATH=/srv/edn/backups\nODOO_ENV=prod\n' > "$tmp_cfg"
+override_config_version "$tmp_cfg" "3.4.0rc6"
+grep -q "^ELECTRICORE_VERSION=3.4.0rc6$" "$tmp_cfg" && ok "override_config_version: ELECTRICORE_VERSION overridé (rc5 → rc6)" || ko "override_config_version n'écrit pas la version"
+grep -q "^INSTANCE_SLUG=edn$" "$tmp_cfg" && ok "override_config_version: INSTANCE_SLUG préservé (baseline GitOps intacte)" || ko "override_config_version a touché INSTANCE_SLUG"
+grep -q "^BACKUPS_PATH=/srv/edn/backups$" "$tmp_cfg" && ok "override_config_version: BACKUPS_PATH préservé" || ko "override_config_version a touché BACKUPS_PATH"
+grep -q "^ODOO_ENV=prod$" "$tmp_cfg" && ok "override_config_version: autres clés préservées (ODOO_ENV)" || ko "override_config_version a touché ODOO_ENV"
+# Une seule ligne ELECTRICORE_VERSION (pas de duplication)
+vcount=$(grep -c "^ELECTRICORE_VERSION=" "$tmp_cfg" || true)
+assert_eq "$vcount" "1" "override_config_version: une seule ligne ELECTRICORE_VERSION après override"
+rm -f "$tmp_cfg"
 
 echo
 echo "→ env_validate.sh / read_env_var"

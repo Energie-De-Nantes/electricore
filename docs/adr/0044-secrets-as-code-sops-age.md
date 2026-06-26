@@ -50,6 +50,14 @@ chemins de volume) **côté hôte, avant tout conteneur** — il ne peut pas lir
   trousseau `AES__TROUSSEAU__*`, `API_KEY` / `API_KEYS`, `TELEGRAM_BOT_TOKEN`, bloc de connexion `ODOO_*`.
   SOPS chiffre les **valeurs** et laisse les **noms de champs** en clair → diffs Git lisibles.
 
+> **`ELECTRICORE_VERSION` est un *paramètre de déploiement*, pas un secret ni un état GitOps strict**
+> ([#460](https://github.com/Energie-De-Nantes/electricore/issues/460)). La valeur pinée dans le `config.env`
+> du dépôt est une **baseline optionnelle** : `install.sh --version <tag>` l'**override localement** sur la box
+> (réécrit `ELECTRICORE_VERSION` dans le `config.env` tiré, après le pull, sans toucher au dépôt). Motivation :
+> en dev intense, bumper l'image ne doit pas exiger une PR sur le dépôt secrets pour quelque chose qui n'est
+> pas un secret. Sans `--version`, la box redéploie la version pinée du dépôt (comportement GitOps par défaut).
+> Le tag effectivement lancé est surfacé dans le récap d'install (`Image: ghcr.io/.../electricore:<tag>`).
+
 ### 2. Déchiffrement en image, à l'entrypoint (`sops exec-env`)
 
 L'image electricore embarque `sops` + `age` (binaires statiques, ~15 Mo). Un entrypoint déchiffre
