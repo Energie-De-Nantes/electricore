@@ -44,6 +44,23 @@ download_config_files() {
     log_ok "fichiers compose téléchargés dans ${docker_dir}/"
 }
 
+# override_config_version <config_file> <version>
+# Réécrit UNIQUEMENT ELECTRICORE_VERSION dans <config_file> (config.env), en laissant
+# tout le reste intact (INSTANCE_SLUG, BACKUPS_PATH, ODOO_ENV…). C'est l'override LOCAL
+# du tag d'image en secrets-as-code (#460) : `--version` pilote l'image effectivement
+# déployée sans muter la baseline GitOps tirée du dépôt — la version est un PARAMÈTRE
+# de déploiement, pas un secret (ADR-0044). À distinguer du `substitute_caddyfile`
+# (patch de templates) : ici on réécrit une seule clé d'un fichier déjà validé.
+# Préserve l'ownership du fichier (sed -i peut le casser).
+# Pré-condition : ELECTRICORE_VERSION est présent (garanti par validate_config_env).
+override_config_version() {
+    local config_file="$1"
+    local version="$2"
+    local owner; owner=$(stat -c '%u:%g' "$config_file" 2>/dev/null || echo "")
+    sed -i "s|^ELECTRICORE_VERSION=.*|ELECTRICORE_VERSION=${version}|" "$config_file"
+    [[ -n "$owner" ]] && chown "$owner" "$config_file" 2>/dev/null || true
+}
+
 # substitute_caddyfile <file> <domain> [<email>]
 # Remplace le placeholder de domaine et optionnellement l'email.
 substitute_caddyfile() {

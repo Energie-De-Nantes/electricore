@@ -20,7 +20,11 @@ Options :
                          (défaut: copie depuis ~root/.ssh/authorized_keys)
   --email <addr>         Email pour les notifications Let's Encrypt
                          (défaut: laisse le placeholder du Caddyfile, à éditer)
-  --version <tag>        Tag GHCR à déployer (défaut: latest)
+  --version <tag>        Tag GHCR à déployer. OVERRIDE LOCAL du tag pinné dans le
+                         config.env du dépôt (#460) : pilote l'image déployée sans
+                         éditer le dépôt secrets (la version est un paramètre de
+                         déploiement, pas un secret). Sans --version → version pinée
+                         du dépôt = baseline GitOps (défaut: latest si non pinée).
   --skip-dns             N'attend pas la propagation DNS (test local)
   --no-harden            Saute tout le durcissement VPS (ADR-0031)
   --no-sshd              Durcit mais ne verrouille pas sshd (garde root SSH actif)
@@ -34,8 +38,9 @@ EOF
 }
 
 # parse_args "$@" — remplit les vars globales OPT_SLUG, OPT_DOMAIN, OPT_DEPLOY_REPO,
-# OPT_SSH_PUBKEY, OPT_ADMIN_PUBKEY, OPT_EMAIL, OPT_VERSION, OPT_SKIP_DNS, OPT_NO_HARDEN,
-# OPT_NO_SSHD, OPT_NO_FAIL2BAN, OPT_NO_UNATTENDED. Renvoie 0 si OK, 1 si erreur.
+# OPT_SSH_PUBKEY, OPT_ADMIN_PUBKEY, OPT_EMAIL, OPT_VERSION, OPT_VERSION_EXPLICIT,
+# OPT_SKIP_DNS, OPT_NO_HARDEN, OPT_NO_SSHD, OPT_NO_FAIL2BAN, OPT_NO_UNATTENDED.
+# Renvoie 0 si OK, 1 si erreur.
 parse_args() {
     OPT_SLUG=""
     OPT_DOMAIN=""
@@ -43,6 +48,10 @@ parse_args() {
     OPT_ADMIN_PUBKEY=""
     OPT_EMAIL=""
     OPT_VERSION="latest"
+    # Distingue « --version passé explicitement » de la valeur par défaut « latest » :
+    # seul un --version explicite déclenche l'override local du tag pinné (#460). Sans
+    # ce flag, on ne pourrait pas savoir s'il faut respecter la baseline GitOps du dépôt.
+    OPT_VERSION_EXPLICIT=0
     OPT_DEPLOY_REPO=""
     OPT_SKIP_DNS=0
     OPT_NO_HARDEN=0
@@ -56,7 +65,7 @@ parse_args() {
             --ssh-pubkey)   OPT_SSH_PUBKEY="${2:-}"; shift 2 ;;
             --admin-pubkey) OPT_ADMIN_PUBKEY="${2:-}"; shift 2 ;;
             --email)        OPT_EMAIL="${2:-}"; shift 2 ;;
-            --version)      OPT_VERSION="${2:-}"; shift 2 ;;
+            --version)      OPT_VERSION="${2:-}"; OPT_VERSION_EXPLICIT=1; shift 2 ;;
             --deploy-repo)  OPT_DEPLOY_REPO="${2:-}"; shift 2 ;;
             --skip-dns)     OPT_SKIP_DNS=1; shift ;;
             --no-harden)    OPT_NO_HARDEN=1; shift ;;
