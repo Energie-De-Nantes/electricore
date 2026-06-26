@@ -172,6 +172,15 @@ def test_meta_periodes_ligne_hors_contrat_500_atomique(monkeypatch, meta_periode
     assert "ref_situation_contractuelle" not in response.text
 
 
+def test_meta_periodes_openapi_annonce_le_flux_jsonl():
+    """Découvrabilité (#455) : OpenAPI documente la 200 en `application/jsonl` (NDJSON), pas
+    en `application/json` implicite — sinon Swagger tente un parse JSON unique (« [object Blob] »).
+    """
+    reponse_200 = app.openapi()["paths"]["/facturation/meta-periodes"]["get"]["responses"]["200"]
+    assert list(reponse_200["content"].keys()) == ["application/jsonl"]
+    assert "ligne par ligne" in reponse_200["description"]
+
+
 def test_meta_periodes_refuse_sans_api_key():
     """Endpoint sécurisé : 401 sans clé."""
     response = TestClient(app).get("/facturation/meta-periodes")

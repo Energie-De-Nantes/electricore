@@ -14,15 +14,20 @@ métadonnées (`contract_version`, `grain`) remontent dans les en-têtes. Le mod
 
 from electricore_client.models import valider_ligne_chronologie
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 
 from electricore.api.security import get_current_api_key
-from electricore.api.serializers.jsonl import jsonl_response
+from electricore.api.serializers.jsonl import jsonl_response, reponses_openapi_jsonl
 from electricore.api.services.chronologie_service import CONTRAT_VERSION, chronologie_point_ou_contrat
 
 router = APIRouter(tags=["facturation"])
 
 
-@router.get("/facturation/chronologie")
+@router.get(
+    "/facturation/chronologie",
+    response_class=StreamingResponse,
+    responses=reponses_openapi_jsonl("Frise complète (`LigneChronologie`, union sur `type_ligne`)."),
+)
 async def get_chronologie(
     pdl: str | None = Query(
         None,
@@ -49,6 +54,10 @@ async def get_chronologie(
     relevé) et, pour les périodes dérivées, les **verdicts** qualité/communication/énergie —
     sans montant tarifaire (turpe/cta/accise). Métadonnées en en-têtes (`X-Contract-Version`,
     `X-Grain`). Fournir exactement un grain (`pdl` XOR `rsc`).
+
+    **Réponse JSONL streamé** (`application/jsonl`, NDJSON) : à consommer **ligne par ligne**,
+    ce n'est pas un document JSON unique. Swagger UI affiche « [object Blob] » car il ne
+    prévisualise que `application/json` — pour inspecter à la main : `curl … | jq -c .`.
     """
     if pdl is None and rsc is None:
         raise HTTPException(422, "Fournir un grain : `pdl` (point) ou `rsc` (contrat).")
