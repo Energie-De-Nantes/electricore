@@ -11,6 +11,7 @@ __pycache__/
 build/
 develop-eggs/
 dist/
+dist-client/
 downloads/
 eggs/
 .eggs/
@@ -151,6 +152,12 @@ venv.bak/
 .mypy_cache/
 .dmypy.json
 dmypy.json
+
+# ruff
+.ruff_cache/
+
+# Node.js (outillage local : node_modules vide créé par certains outils)
+node_modules/
 
 # Pyre type checker
 .pyre/
