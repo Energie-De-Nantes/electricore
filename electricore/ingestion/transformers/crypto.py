@@ -120,24 +120,6 @@ def load_aes_key_chain() -> list[tuple[str, bytes, bytes]]:
     return runtime.aes().chaine()
 
 
-def load_aes_credentials() -> tuple[bytes, bytes | None]:
-    """
-    Charge la clé AES principale (compatibilité ascendante).
-
-    Préférer load_aes_key_chain() pour la gestion de la rotation de clés.
-
-    Returns:
-        Tuple (aes_key, aes_iv) de la première clé disponible — `aes_iv` vaut `None`
-        pour une entrée à schéma IV-préfixé (ADR-0040).
-
-    Raises:
-        ValueError: Si les clés ne peuvent pas être chargées
-    """
-    chain = load_aes_key_chain()
-    _, key, iv = chain[0]
-    return key, iv
-
-
 def decrypt_with_key_chain(
     encrypted_data: bytes,
     key_chain: list[tuple[str, bytes, bytes | None]],

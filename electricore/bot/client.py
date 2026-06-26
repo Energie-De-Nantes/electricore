@@ -125,10 +125,6 @@ class ElectriCoreClient:
         """Avertissements de péremption des taux régulés — #186, ADR-0024."""
         return await self._get_json("/taxes/peremption")
 
-    async def get_facturation_xlsx(self, mois: str | None = None) -> bytes:
-        params = {"mois": mois} if mois else None
-        return await self._get_bytes("/facturation/rapport.xlsx", params=params, timeout=TIMEOUT_LOURD)
-
     async def get_facturation_documents_xlsx(self, mois: str | None = None) -> bytes:
         """Livrable XLSX multi-onglets des documents de campagne facturation (cf. #78)."""
         params = {"mois": mois} if mois else None
