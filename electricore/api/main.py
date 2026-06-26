@@ -22,6 +22,7 @@ from electricore.api.routers import meta_periodes as meta_periodes_router
 from electricore.api.routers import releves as releves_router
 from electricore.api.routers import taxes as taxes_router
 from electricore.api.routers import turpe_variable as turpe_variable_router
+from electricore.api.serializers.jsonl import lever_defs_itemschema_jsonl
 from electricore.api.services import duckdb_service
 from electricore.config import runtime
 from electricore.core.loaders.duckdb import DuckDBLockError
@@ -135,6 +136,26 @@ app.include_router(meta_periodes_router.router)
 app.include_router(chronologie_router.router)
 app.include_router(turpe_variable_router.router)
 app.include_router(affaires_router.router)
+
+
+# OpenAPI 3.2.0 : décrit les *sequential media types* (NDJSON) via `itemSchema` — les flux JSONL
+# `/facturation/{meta-periodes,chronologie}` documentent ainsi le schéma d'une ligne (#455).
+# (FastAPI 0.136 n'expose pas `openapi_version` au constructeur : on le pose en attribut.)
+app.openapi_version = "3.2.0"
+
+# Les `itemSchema` de ces flux embarquent leurs `$defs` localement ; on les remonte vers
+# `components/schemas` après génération pour que les `$ref` se résolvent. FastAPI met le schéma en
+# cache (`app.openapi_schema`) — la remontée, idempotente, s'applique une fois.
+_openapi_base = app.openapi
+
+
+def _openapi_avec_itemschemas_jsonl() -> dict:
+    schema = _openapi_base()
+    lever_defs_itemschema_jsonl(schema)
+    return schema
+
+
+app.openapi = _openapi_avec_itemschemas_jsonl
 
 
 @app.get("/", tags=["public"])

@@ -15,35 +15,65 @@ en-têtes. Le flag `omettre_les_nuls` (défaut **off**) couvre la sémantique ch
 import datetime as dt
 import logging
 from collections.abc import Callable
+from typing import Any
 
 import polars as pl
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, TypeAdapter
 
 logger = logging.getLogger(__name__)
 
 MEDIA_TYPE_JSONL = "application/jsonl"
 
 
-def reponses_openapi_jsonl(description: str) -> dict:
-    """Fragment OpenAPI annonçant la réponse 200 comme un **flux JSONL** (NDJSON), pas un JSON unique.
+def reponses_openapi_jsonl(modele: Any, description: str) -> dict:
+    """Fragment OpenAPI documentant la réponse 200 comme un **flux JSONL** (NDJSON) typé par ligne.
 
-    Sans ça, FastAPI documente un `application/json` implicite : Swagger UI tente alors un parse
-    JSON unique du NDJSON et affiche « [object Blob] » (il ne prévisualise que `application/json`),
-    ce qui déroute qui teste l'endpoint à la main (#455). Le flux se consomme **ligne par ligne**
-    (`electricore-client` le lit en `iter_lines` ; à la main : `curl … | jq -c .`).
+    OpenAPI 3.2.0 décrit les *sequential media types* (NDJSON…) via **`itemSchema`** : le schéma
+    de **chaque ligne**, validé indépendamment (https://spec.openapis.org/oas/v3.2.0.html
+    #sequential-media-types). On le dérive du modèle de ligne (`LigneChronologie` — union
+    discriminée — ou `PeriodeMeta`) pour que Swagger UI rende la forme d'une ligne, au lieu du
+    « [object Blob] » qu'il affiche quand il prend le NDJSON pour un `application/json` unique (#455).
 
-    `description` précise le modèle d'une ligne (`LigneChronologie`, `PeriodeMeta`…).
+    On **n'utilise pas** la génération native d'`itemSchema` de FastAPI (endpoints générateurs)
+    car elle valide/streame ligne par ligne : ça sacrifierait le *validate-then-stream* atomique
+    de `jsonl_response` (ADR-0043, #426/#427) dont dépend le consommateur. On émet donc l'`itemSchema`
+    à la main, le flux restant produit par `jsonl_response`.
+
+    Les `$defs` du schéma (modèles imbriqués, membres de l'union) pointent vers
+    `#/components/schemas/*` et sont remontés au niveau document par `lever_defs_itemschema_jsonl`.
     """
+    item_schema = TypeAdapter(modele).json_schema(ref_template="#/components/schemas/{model}")
     return {
         200: {
             "description": (
                 f"{description} Flux **JSONL streamé** (`{MEDIA_TYPE_JSONL}`, NDJSON) : une ligne = "
-                "un objet JSON. À consommer ligne par ligne — ce n'est pas un document JSON unique."
+                "un objet JSON (cf. `itemSchema`). À consommer ligne par ligne — ce n'est pas un "
+                "document JSON unique."
             ),
-            "content": {MEDIA_TYPE_JSONL: {"schema": {"type": "string", "format": "ndjson"}}},
+            "content": {MEDIA_TYPE_JSONL: {"itemSchema": item_schema}},
         }
     }
+
+
+def lever_defs_itemschema_jsonl(schema: dict) -> None:
+    """Remonte les `$defs` des `itemSchema` JSONL vers `components/schemas` (post-génération OpenAPI).
+
+    `reponses_openapi_jsonl` émet un `itemSchema` auto-suffisant dont les `$ref` ciblent déjà
+    `#/components/schemas/*` ; ce passage déplace les définitions correspondantes (laissées en
+    `$defs` local par pydantic) vers le bloc `components` du document, où les `$ref` se résolvent.
+    Idempotent : un `itemSchema` déjà remonté n'a plus de `$defs`.
+    """
+    composants = schema.setdefault("components", {}).setdefault("schemas", {})
+    for chemin in schema.get("paths", {}).values():
+        for operation in chemin.values():
+            if not isinstance(operation, dict):
+                continue
+            for reponse in operation.get("responses", {}).values():
+                for media in reponse.get("content", {}).values():
+                    item = media.get("itemSchema")
+                    if isinstance(item, dict):
+                        composants.update(item.pop("$defs", {}))
 
 
 def _stringifier_dates(ligne: dict) -> dict:
