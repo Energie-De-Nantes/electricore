@@ -277,7 +277,7 @@ uv run electricore-notebooks   # valide l'env, sert les apps sur localhost, ouvr
 ```
 
 Variables requises : creds Odoo (`ODOO__*`) + `ELECTRICORE_API_URL` + `ELECTRICORE_API_KEY`
-(voir [`.env.example`](.env.example)). Les notebooks qui écrivent dans Odoo gardent un **mode
+(voir [docs/configuration.md](docs/configuration.md)). Les notebooks qui écrivent dans Odoo gardent un **mode
 simulation activé par défaut** et un bouton « Injecter dans Odoo » explicite. Ce lanceur est voué à
 disparaître à l'arrivée de `souscriptions_odoo`.
 
