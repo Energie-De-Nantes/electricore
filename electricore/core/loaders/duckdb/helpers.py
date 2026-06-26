@@ -10,8 +10,6 @@ optionnels et retournent un DuckDBQuery configuré.
 
 from pathlib import Path
 
-import polars as pl
-
 from .config import DuckDBConfig, duckdb_readonly_conn
 from .descriptor import FluxDescriptor
 from .query import DuckDBQuery, make_query
@@ -312,26 +310,3 @@ def get_available_tables(database_path: str | Path | None = None) -> list[str]:
         """).fetchall()
 
         return [f"{schema}.{table}" for schema, table in result]
-
-
-def execute_custom_query(
-    query: str, database_path: str | Path | None = None, lazy: bool = True
-) -> pl.DataFrame | pl.LazyFrame:
-    """
-    Exécute une requête SQL personnalisée sur DuckDB.
-
-    Args:
-        query: Requête SQL à exécuter
-        database_path: Chemin vers la base DuckDB
-        lazy: Si True, retourne un LazyFrame, sinon un DataFrame
-
-    Returns:
-        DataFrame ou LazyFrame selon le paramètre lazy
-    """
-    config = DuckDBConfig.from_path(database_path)
-
-    with duckdb_readonly_conn(config.database_path) as conn:
-        if lazy:
-            return pl.read_database(query=query, connection=conn).lazy()
-        else:
-            return pl.read_database(query=query, connection=conn)

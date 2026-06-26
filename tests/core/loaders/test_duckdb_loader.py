@@ -17,7 +17,6 @@ from electricore.core.loaders.duckdb import (
     DuckDBQuery,
     c15,
     duckdb_readonly_conn,
-    execute_custom_query,
     get_available_tables,
     releves,
 )
@@ -115,7 +114,7 @@ class TestApiLegacySupprimee:
         import electricore.core.loaders.duckdb as loaders_duckdb
 
         for module in (loaders, loaders_duckdb):
-            for nom in ("load_historique", "load_releves"):
+            for nom in ("load_historique", "load_releves", "execute_custom_query"):
                 assert not hasattr(module, nom), f"{nom} encore exposé par {module.__name__}"
                 assert nom not in module.__all__, f"{nom} encore dans __all__ de {module.__name__}"
 
@@ -178,40 +177,6 @@ class TestUtilityFunctions:
             WHERE table_schema != 'information_schema'
             ORDER BY table_schema, table_name
         """)
-
-    @patch("electricore.core.loaders.duckdb.helpers.duckdb_readonly_conn")
-    @patch("electricore.core.loaders.duckdb.helpers.pl.read_database")
-    def test_execute_custom_query_lazy(self, mock_read_db, mock_conn_context):
-        """Test d'exécution de requête personnalisée (lazy)."""
-        # Setup des mocks
-        mock_conn = Mock()
-        mock_conn_context.return_value.__enter__.return_value = mock_conn
-        mock_lazy_frame = Mock(spec=pl.LazyFrame)
-        mock_read_db.return_value.lazy.return_value = mock_lazy_frame
-
-        # Appeler la fonction
-        result = execute_custom_query(query="SELECT * FROM test_table", database_path="test.duckdb", lazy=True)
-
-        # Vérifications
-        assert result == mock_lazy_frame
-        mock_read_db.assert_called_once()
-
-    @patch("electricore.core.loaders.duckdb.helpers.duckdb_readonly_conn")
-    @patch("electricore.core.loaders.duckdb.helpers.pl.read_database")
-    def test_execute_custom_query_eager(self, mock_read_db, mock_conn_context):
-        """Test d'exécution de requête personnalisée (eager)."""
-        # Setup des mocks
-        mock_conn = Mock()
-        mock_conn_context.return_value.__enter__.return_value = mock_conn
-        mock_dataframe = Mock(spec=pl.DataFrame)
-        mock_read_db.return_value = mock_dataframe
-
-        # Appeler la fonction
-        result = execute_custom_query(query="SELECT * FROM test_table", database_path="test.duckdb", lazy=False)
-
-        # Vérifications
-        assert result == mock_dataframe
-        mock_read_db.assert_called_once()
 
 
 class TestIntegrationWithRealData:

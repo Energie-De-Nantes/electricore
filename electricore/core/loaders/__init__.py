@@ -11,7 +11,6 @@ from .duckdb import (
     affaires,
     c15,
     chronologie_releves,
-    execute_custom_query,
     f15,
     # Utilitaires
     get_available_tables,
@@ -36,6 +35,5 @@ __all__ = [
     "DuckDBQuery",
     # Utilitaires DuckDB
     "get_available_tables",
-    "execute_custom_query",
     "DuckDBConfig",
 ]

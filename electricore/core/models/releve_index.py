@@ -119,17 +119,3 @@ class RelevéIndex(pa.DataFrameModel):
         """Configuration du modèle."""
 
         strict = False  # Permet les colonnes supplémentaires durant la migration
-
-
-class RequêteRelevé(pa.DataFrameModel):
-    """
-    📌 Modèle Pandera pour les requêtes d'interrogation des relevés d'index - Version Polars.
-
-    Assure que les requêtes sont bien formatées avant d'interroger le DataFrame `RelevéIndex`.
-    """
-
-    # 📆 Date du relevé demandée
-    date_releve: DateTime = pa.Field(nullable=False, dtype_kwargs={"time_unit": "ns", "time_zone": "Europe/Paris"})
-
-    # 🔹 Identifiant du Point de Livraison (PDL)
-    pdl: pl.Utf8 = pa.Field(nullable=False)
