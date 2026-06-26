@@ -9,6 +9,15 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.4.0rc9] - 2026-06-26
+
+### 🐛 Correctifs
+
+- **ETL test install : poll du statut job au lieu du 202 immédiat** (#299) : `run_ingestion_test`
+  retournait dès réception du HTTP 202, affichant « réussi » avant que le job s'exécute.
+  Désormais poll sur `GET /ingestion/jobs/{id}` jusqu'à `completed`/`failed`/timeout (30 × 4 s).
+  12 tests unitaires couvrent les parseurs et les 4 branches de poll.
+
 ## [3.4.0rc8] - 2026-06-26
 
 Nettoyage avant sortie stable : suppression des notebooks morts et de la surface loaders
