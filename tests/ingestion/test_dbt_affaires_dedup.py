@@ -18,6 +18,8 @@ pytest.importorskip("dbt.adapters.duckdb", reason="dbt-duckdb absent — uv sync
 import duckdb  # noqa: E402
 from dbt.cli.main import dbtRunner  # noqa: E402
 
+from electricore.core.models.affaire_jalon import AffaireJalon  # noqa: E402
+from electricore.core.models.parite_typage import ecarts_de_typage  # noqa: E402
 from electricore.ingestion.parsing.xml import xml_vers_dict  # noqa: E402
 
 RACINE = Path(__file__).parents[2]
@@ -146,3 +148,57 @@ def test_jalon_reemis_dedupe_derniere_livraison_gagne(tmp_path, monkeypatch):
     assert [r[0] for r in rows] == [1, 2]
     # Le jalon 1 ré-émis porte le statut de la livraison la plus récente (TERMN), pas COURS.
     assert all(r[1] == "TERMN" for r in rows)
+
+
+def test_dbt_affaires_respecte_le_contrat_pandera(tmp_path, monkeypatch):
+    """Parité de typage dbt↔cœur au seam `affaires_ouvertes` ← `flux_affaires` (#295,
+    ADR-0035). Le schéma réellement émis par `flux_affaires` doit être type-compatible
+    avec le contrat Pandera `AffaireJalon`, via la table de correspondance SQL↔Polars. On
+    lit le type **réellement émis par dbt** (`DESCRIBE`), pas la sortie post-cast du loader :
+    sinon un re-cast côté loader blanchirait une dérive du modèle dbt (la pièce à conviction
+    d'ADR-0034). Nullabilité hors périmètre (axe par couche). Calque de
+    `test_releves_dbt_respecte_le_contrat_pandera` — c'est le garde-fou de frontière qui
+    manquait sur ce seam (loader `affaires()` portait `validator=None`)."""
+    import dlt
+
+    from electricore.ingestion.raw_landing import lander_documents_bruts
+
+    db_path = tmp_path / "flux.duckdb"
+    pipeline = dlt.pipeline(
+        pipeline_name="test_affaires_parite",
+        destination=dlt.destinations.duckdb(str(db_path)),
+        dataset_name="flux_raw",
+    )
+    lander_documents_bruts(
+        pipeline,
+        "raw_affaires",
+        [
+            {
+                "file_name": "ENEDIS_X12_parite.xml",
+                "modification_date": "2024-11-22T09:30:00",
+                "content": xml_vers_dict(_affaire("COURS", [(0, "DMTR"), (1, "INPL")])),
+            },
+        ],
+    )
+    monkeypatch.setenv("DBT_DUCKDB_PATH", str(db_path))
+    resultat = dbtRunner().invoke(
+        [
+            "build",
+            "--select",
+            "+flux_affaires",
+            "--project-dir",
+            str(PROJET_DBT),
+            "--profiles-dir",
+            str(PROJET_DBT),
+            "--target-path",
+            str(tmp_path / "target"),
+        ]
+    )
+    assert resultat.success, f"dbt build flux_affaires a échoué : {resultat.exception}"
+
+    con = duckdb.connect(str(db_path))
+    schema_sql = {nom: type_sql for nom, type_sql, *_ in con.execute("describe flux_enedis.flux_affaires").fetchall()}
+    con.close()
+
+    ecarts = ecarts_de_typage(schema_sql, AffaireJalon)
+    assert not ecarts, f"divergences de typage dbt↔AffaireJalon (dbt, pandera) : {ecarts}"
