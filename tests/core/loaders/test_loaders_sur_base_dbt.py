@@ -48,21 +48,26 @@ def base_prod_dbt(tmp_path_factory):
         ("r151.xml", "raw_r151"),
         ("r15.xml", "raw_r15"),
         ("r64.json", "raw_r64"),
+        ("r67.json", "raw_r67"),
         ("f15.xml", "raw_f15"),
     ]
     for fixture, source in cas:
         contenu = (FIXTURES / fixture).read_bytes()
         document = json.loads(contenu) if fixture.endswith(".json") else xml_vers_dict(contenu)
+        # Fixture-LISTE (R67, ADR-0047 : un document par PDL) → une ligne brute par document.
+        if isinstance(document, list):
+            documents = [
+                {"file_name": f"{fixture}_{i}", "modification_date": "2026-01-01T00:00:00", "content": doc}
+                for i, doc in enumerate(document)
+            ]
+        else:
+            documents = [{"file_name": fixture, "modification_date": "2026-01-01T00:00:00", "content": document}]
         pipeline = dlt.pipeline(
             pipeline_name=f"test_loaders_{source}",
             destination=dlt.destinations.duckdb(str(db_path)),
             dataset_name="flux_raw",
         )
-        lander_documents_bruts(
-            pipeline,
-            source,
-            [{"file_name": fixture, "modification_date": "2026-01-01T00:00:00", "content": document}],
-        )
+        lander_documents_bruts(pipeline, source, documents)
     # dbt en sous-processus : ses connexions DuckDB ne survivent pas, les loaders
     # peuvent ensuite ouvrir la base en read_only (configs incompatibles sinon).
     env = {**os.environ, "DBT_DUCKDB_PATH": str(db_path)}
@@ -75,6 +80,7 @@ def base_prod_dbt(tmp_path_factory):
             "+flux_r151",
             "+flux_r15",
             "+flux_r64",
+            "+flux_r67",
             "+flux_f15_detail",
             "--project-dir",
             str(PROJET_DBT),
@@ -199,7 +205,7 @@ def test_filtre_offset_respecte_la_semantique_europe_paris(base_prod_dbt):
     assert exclus.height == 0
 
 
-@pytest.mark.parametrize("flux", ["c15", "r151", "r15", "r64"])
+@pytest.mark.parametrize("flux", ["c15", "r151", "r15", "r64", "r67"])
 def test_aucune_derive_loader_mart(base_prod_dbt, flux):
     """Garde anti-dérive loader↔mart (#333) : chaque colonne déclarée par un `FluxDescriptor`
     doit exister dans le mart correspondant. On exécute le SELECT du loader avec `LIMIT 0` —

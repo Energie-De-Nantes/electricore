@@ -142,6 +142,32 @@ def r64(database_path: str | Path | None = None) -> DuckDBQuery:
     return flux("r64", database_path)
 
 
+def r67(database_path: str | Path | None = None) -> DuckDBQuery:
+    """
+    Crée un DuckDBQuery pour le flux R67 (mesures facturantes, énergie par période).
+
+    R67 (« mesures facturantes », prestation M023, ADR-0047) porte de l'énergie de
+    consommation déjà différenciée par cadran, sur une période [debut, fin) — pas un
+    index cumulé à un instant. C'est un ASSET PARALLÈLE : il n'est jamais unioné dans
+    les relevés index (`releves`/`chronologie_releves`), il se lit directement ici. Son
+    débouché tranché (#214) : amorcer (cold-start) la provision d'un mensualisé (#191).
+
+    Args:
+        database_path: Chemin vers la base DuckDB (optionnel)
+
+    Returns:
+        DuckDBQuery configuré pour flux_r67
+
+    Example:
+        >>> # Mesures facturantes d'un PDL
+        >>> df = r67().filter({"pdl": "PDL123"}).collect()
+        >>>
+        >>> # Périodes sur un horizon
+        >>> df = r67().filter({"debut": ">= '2024-01-01'"}).collect()
+    """
+    return flux("r67", database_path)
+
+
 def affaires(database_path: str | Path | None = None) -> DuckDBQuery:
     """
     Crée un DuckDBQuery pour les affaires SGE (flux X12/X13, suivi opérationnel).

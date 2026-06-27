@@ -47,6 +47,9 @@ CAS_GOLDEN: list[tuple[str, str, str, str | None]] = [
     ("f15_xsd.xml", "raw_f15", "flux_f15_detail", "flux_f15_detail_xsd"),
     # R64 : document JSON natif, même landing.
     ("r64.json", "raw_r64", "flux_r64", None),
+    # R67 (mesures facturantes, ADR-0047) : fixture = LISTE de documents JSON (un par PDL),
+    # landés en plusieurs lignes (un document par fichier) — cf. lignes_via_dbt.
+    ("r67.json", "raw_r67", "flux_r67", None),
     # X12/X13 (affaires SGE) : même source raw_affaires, origine dérivée du file_name.
     ("affaires_X12.xml", "raw_affaires", "flux_affaires", None),
     ("affaires_X13.xml", "raw_affaires", "flux_affaires", "flux_affaires_x13"),
@@ -75,6 +78,17 @@ def lignes_via_dbt(fixture: Path, source: str, model: str) -> list[dict]:
     contenu = fixture.read_bytes()
     document = json.loads(contenu) if fixture.suffix == ".json" else xml_vers_dict(contenu)
 
+    # Fixture-LISTE (R67, ADR-0047 : un document JSON par PDL) → une ligne brute par
+    # document, comme dlt en production (le grain prod est « un fichier = un PDL »). Les
+    # fixtures mono-document (tous les autres flux) restent une seule ligne.
+    if isinstance(document, list):
+        documents = [
+            {"file_name": f"{fixture.stem}_{i}.json", "modification_date": "2026-01-01T00:00:00", "content": doc}
+            for i, doc in enumerate(document)
+        ]
+    else:
+        documents = [{"file_name": fixture.name, "modification_date": "2026-01-01T00:00:00", "content": document}]
+
     dossier = tempfile.mkdtemp(prefix="golden_dbt_")
     db_path = os.path.join(dossier, "flux.duckdb")
     pipeline = dlt.pipeline(
@@ -82,11 +96,7 @@ def lignes_via_dbt(fixture: Path, source: str, model: str) -> list[dict]:
         destination=dlt.destinations.duckdb(db_path),
         dataset_name="flux_raw",
     )
-    lander_documents_bruts(
-        pipeline,
-        source,
-        [{"file_name": fixture.name, "modification_date": "2026-01-01T00:00:00", "content": document}],
-    )
+    lander_documents_bruts(pipeline, source, documents)
     os.environ["DBT_DUCKDB_PATH"] = db_path
     resultat = dbtRunner().invoke(
         [
