@@ -1,0 +1,2974 @@
+[
+  {
+    "header": {
+      "siDemandeur": "239",
+      "typeDestinataire": "ACM",
+      "idDestinataire": "GRD-F139",
+      "codeFlux": "R67",
+      "idDemande": "45554533",
+      "modePublication": "P",
+      "idCanalContact": "Interne",
+      "format": "JSON",
+      "publicationCrp": "oui"
+    },
+    "mesures": [
+      {
+        "idPrm": "99553516538148",
+        "periode": {
+          "dateDebut": "2023-06-27 00:00:00",
+          "dateFin": "2026-06-27 00:00:00"
+        },
+        "contexte": [
+          {
+            "etapeMetier": "FACT",
+            "idMotifReleve": "CFNS",
+            "libelleMotifReleve": "Changement de fournisseur sortant",
+            "grandeur": [
+              {
+                "grandeurMetier": "CONS",
+                "grandeurPhysique": "EA",
+                "unite": "Wh",
+                "calendrier": [
+                  {
+                    "codeGrille": "D",
+                    "libelleGrille": "Distributeur",
+                    "codeCalendrier": "DI000003",
+                    "libelleCalendrier": "Avec diffÃ©renciation temporelle et saisonniÃ¤re",
+                    "classeTemporelle": [
+                      {
+                        "idClasseTemporelle": "HPB",
+                        "libelleClasseTemporelle": "Heures Pleines Saison Basse",
+                        "quantite": [
+                          {
+                            "dateCreation": "2024-04-04 05:05:21",
+                            "dbtMesure": "2024-04-02",
+                            "finMesure": "2024-04-03",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 4000
+                          }
+                        ]
+                      },
+                      {
+                        "idClasseTemporelle": "HPH",
+                        "libelleClasseTemporelle": "Heures Pleines Hiver / Saison Haute",
+                        "quantite": [
+                          {
+                            "dateCreation": "2024-04-04 05:05:21",
+                            "dbtMesure": "2024-04-02",
+                            "finMesure": "2024-04-03",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          }
+                        ]
+                      },
+                      {
+                        "idClasseTemporelle": "HCB",
+                        "libelleClasseTemporelle": "Heures Creuses Saison Basse",
+                        "quantite": [
+                          {
+                            "dateCreation": "2024-04-04 05:05:21",
+                            "dbtMesure": "2024-04-02",
+                            "finMesure": "2024-04-03",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 1000
+                          }
+                        ]
+                      },
+                      {
+                        "idClasseTemporelle": "HCH",
+                        "libelleClasseTemporelle": "Heures Creuses Hiver / Saison Haute",
+                        "quantite": [
+                          {
+                            "dateCreation": "2024-04-04 05:05:21",
+                            "dbtMesure": "2024-04-02",
+                            "finMesure": "2024-04-03",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "codeGrille": "F",
+                    "libelleGrille": "Fournisseur",
+                    "codeCalendrier": "FC000010",
+                    "libelleCalendrier": "Base",
+                    "classeTemporelle": [
+                      {
+                        "idClasseTemporelle": "BASE",
+                        "libelleClasseTemporelle": "Base",
+                        "quantite": [
+                          {
+                            "dateCreation": "2024-04-04 05:05:21",
+                            "dbtMesure": "2024-04-02",
+                            "finMesure": "2024-04-03",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 5000
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "etapeMetier": "FACT",
+            "idMotifReleve": "CYCL",
+            "libelleMotifReleve": "Relevé Cyclique",
+            "grandeur": [
+              {
+                "grandeurMetier": "CONS",
+                "grandeurPhysique": "EA",
+                "unite": "Wh",
+                "calendrier": [
+                  {
+                    "codeGrille": "D",
+                    "libelleGrille": "Distributeur",
+                    "codeCalendrier": "DI000003",
+                    "libelleCalendrier": "Avec diffÃ©renciation temporelle et saisonniÃ¤re",
+                    "classeTemporelle": [
+                      {
+                        "idClasseTemporelle": "HPB",
+                        "libelleClasseTemporelle": "Heures Pleines Saison Basse",
+                        "quantite": [
+                          {
+                            "dateCreation": "2023-08-03 05:03:10",
+                            "dbtMesure": "2023-07-02",
+                            "finMesure": "2023-08-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 93000
+                          },
+                          {
+                            "dateCreation": "2023-09-03 05:02:53",
+                            "dbtMesure": "2023-08-02",
+                            "finMesure": "2023-09-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 100000
+                          },
+                          {
+                            "dateCreation": "2023-10-03 05:03:06",
+                            "dbtMesure": "2023-09-02",
+                            "finMesure": "2023-10-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 121000
+                          },
+                          {
+                            "dateCreation": "2023-11-03 05:03:12",
+                            "dbtMesure": "2023-10-02",
+                            "finMesure": "2023-11-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 123000
+                          },
+                          {
+                            "dateCreation": "2023-12-03 05:02:45",
+                            "dbtMesure": "2023-11-02",
+                            "finMesure": "2023-12-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2024-01-03 05:02:54",
+                            "dbtMesure": "2023-12-02",
+                            "finMesure": "2024-01-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2024-02-03 05:02:39",
+                            "dbtMesure": "2024-01-02",
+                            "finMesure": "2024-02-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2024-03-03 05:02:32",
+                            "dbtMesure": "2024-02-02",
+                            "finMesure": "2024-03-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2024-04-03 05:03:38",
+                            "dbtMesure": "2024-03-02",
+                            "finMesure": "2024-04-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 4000
+                          },
+                          {
+                            "dateCreation": "2024-05-03 05:05:56",
+                            "dbtMesure": "2024-04-03",
+                            "finMesure": "2024-05-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 139000
+                          },
+                          {
+                            "dateCreation": "2024-06-03 05:06:11",
+                            "dbtMesure": "2024-05-02",
+                            "finMesure": "2024-06-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 132000
+                          },
+                          {
+                            "dateCreation": "2024-07-03 05:06:03",
+                            "dbtMesure": "2024-06-02",
+                            "finMesure": "2024-07-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 114000
+                          },
+                          {
+                            "dateCreation": "2024-08-03 05:05:41",
+                            "dbtMesure": "2024-07-02",
+                            "finMesure": "2024-08-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 131000
+                          },
+                          {
+                            "dateCreation": "2024-09-03 05:10:16",
+                            "dbtMesure": "2024-08-02",
+                            "finMesure": "2024-09-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 100000
+                          },
+                          {
+                            "dateCreation": "2024-10-03 05:03:48",
+                            "dbtMesure": "2024-09-02",
+                            "finMesure": "2024-10-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 140000
+                          },
+                          {
+                            "dateCreation": "2024-11-03 05:03:39",
+                            "dbtMesure": "2024-10-02",
+                            "finMesure": "2024-11-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 144000
+                          },
+                          {
+                            "dateCreation": "2024-12-03 05:03:46",
+                            "dbtMesure": "2024-11-02",
+                            "finMesure": "2024-12-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2025-01-03 05:04:38",
+                            "dbtMesure": "2024-12-02",
+                            "finMesure": "2025-01-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2025-02-03 05:03:49",
+                            "dbtMesure": "2025-01-02",
+                            "finMesure": "2025-02-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2025-03-03 05:03:43",
+                            "dbtMesure": "2025-02-02",
+                            "finMesure": "2025-03-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2025-04-03 05:03:54",
+                            "dbtMesure": "2025-03-02",
+                            "finMesure": "2025-04-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 3000
+                          },
+                          {
+                            "dateCreation": "2025-05-03 05:03:53",
+                            "dbtMesure": "2025-04-02",
+                            "finMesure": "2025-05-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 153000
+                          },
+                          {
+                            "dateCreation": "2025-06-03 05:03:50",
+                            "dbtMesure": "2025-05-02",
+                            "finMesure": "2025-06-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 119000
+                          },
+                          {
+                            "dateCreation": "2025-07-03 05:03:58",
+                            "dbtMesure": "2025-06-02",
+                            "finMesure": "2025-07-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 102000
+                          },
+                          {
+                            "dateCreation": "2025-08-03 05:04:04",
+                            "dbtMesure": "2025-07-02",
+                            "finMesure": "2025-08-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 88000
+                          },
+                          {
+                            "dateCreation": "2025-09-03 05:04:13",
+                            "dbtMesure": "2025-08-02",
+                            "finMesure": "2025-09-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 93000
+                          },
+                          {
+                            "dateCreation": "2025-10-03 05:04:01",
+                            "dbtMesure": "2025-09-02",
+                            "finMesure": "2025-10-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 136000
+                          },
+                          {
+                            "dateCreation": "2025-11-03 05:03:51",
+                            "dbtMesure": "2025-10-02",
+                            "finMesure": "2025-11-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 151000
+                          },
+                          {
+                            "dateCreation": "2025-12-03 05:04:29",
+                            "dbtMesure": "2025-11-02",
+                            "finMesure": "2025-12-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2026-01-03 05:05:26",
+                            "dbtMesure": "2025-12-02",
+                            "finMesure": "2026-01-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2026-02-03 05:04:11",
+                            "dbtMesure": "2026-01-02",
+                            "finMesure": "2026-02-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2026-03-03 05:04:50",
+                            "dbtMesure": "2026-02-02",
+                            "finMesure": "2026-03-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2026-04-03 05:04:37",
+                            "dbtMesure": "2026-03-02",
+                            "finMesure": "2026-04-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 6000
+                          },
+                          {
+                            "dateCreation": "2026-05-03 05:04:38",
+                            "dbtMesure": "2026-04-02",
+                            "finMesure": "2026-05-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 125000
+                          },
+                          {
+                            "dateCreation": "2026-06-03 05:04:13",
+                            "dbtMesure": "2026-05-02",
+                            "finMesure": "2026-06-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 378000
+                          }
+                        ]
+                      },
+                      {
+                        "idClasseTemporelle": "HPH",
+                        "libelleClasseTemporelle": "Heures Pleines Hiver / Saison Haute",
+                        "quantite": [
+                          {
+                            "dateCreation": "2023-08-03 05:03:10",
+                            "dbtMesure": "2023-07-02",
+                            "finMesure": "2023-08-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2023-09-03 05:02:53",
+                            "dbtMesure": "2023-08-02",
+                            "finMesure": "2023-09-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2023-10-03 05:03:06",
+                            "dbtMesure": "2023-09-02",
+                            "finMesure": "2023-10-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2023-11-03 05:03:12",
+                            "dbtMesure": "2023-10-02",
+                            "finMesure": "2023-11-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 8000
+                          },
+                          {
+                            "dateCreation": "2023-12-03 05:02:45",
+                            "dbtMesure": "2023-11-02",
+                            "finMesure": "2023-12-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 134000
+                          },
+                          {
+                            "dateCreation": "2024-01-03 05:02:54",
+                            "dbtMesure": "2023-12-02",
+                            "finMesure": "2024-01-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 131000
+                          },
+                          {
+                            "dateCreation": "2024-02-03 05:02:39",
+                            "dbtMesure": "2024-01-02",
+                            "finMesure": "2024-02-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 164000
+                          },
+                          {
+                            "dateCreation": "2024-03-03 05:02:32",
+                            "dbtMesure": "2024-02-02",
+                            "finMesure": "2024-03-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 146000
+                          },
+                          {
+                            "dateCreation": "2024-04-03 05:03:38",
+                            "dbtMesure": "2024-03-02",
+                            "finMesure": "2024-04-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 149000
+                          },
+                          {
+                            "dateCreation": "2024-05-03 05:05:56",
+                            "dbtMesure": "2024-04-03",
+                            "finMesure": "2024-05-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2024-06-03 05:06:11",
+                            "dbtMesure": "2024-05-02",
+                            "finMesure": "2024-06-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2024-07-03 05:06:03",
+                            "dbtMesure": "2024-06-02",
+                            "finMesure": "2024-07-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2024-08-03 05:05:41",
+                            "dbtMesure": "2024-07-02",
+                            "finMesure": "2024-08-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2024-09-03 05:10:16",
+                            "dbtMesure": "2024-08-02",
+                            "finMesure": "2024-09-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2024-10-03 05:03:48",
+                            "dbtMesure": "2024-09-02",
+                            "finMesure": "2024-10-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2024-11-03 05:03:39",
+                            "dbtMesure": "2024-10-02",
+                            "finMesure": "2024-11-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 3000
+                          },
+                          {
+                            "dateCreation": "2024-12-03 05:03:46",
+                            "dbtMesure": "2024-11-02",
+                            "finMesure": "2024-12-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 139000
+                          },
+                          {
+                            "dateCreation": "2025-01-03 05:04:38",
+                            "dbtMesure": "2024-12-02",
+                            "finMesure": "2025-01-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 182000
+                          },
+                          {
+                            "dateCreation": "2025-02-03 05:03:49",
+                            "dbtMesure": "2025-01-02",
+                            "finMesure": "2025-02-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 162000
+                          },
+                          {
+                            "dateCreation": "2025-03-03 05:03:43",
+                            "dbtMesure": "2025-02-02",
+                            "finMesure": "2025-03-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 194000
+                          },
+                          {
+                            "dateCreation": "2025-04-03 05:03:54",
+                            "dbtMesure": "2025-03-02",
+                            "finMesure": "2025-04-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 158000
+                          },
+                          {
+                            "dateCreation": "2025-05-03 05:03:53",
+                            "dbtMesure": "2025-04-02",
+                            "finMesure": "2025-05-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2025-06-03 05:03:50",
+                            "dbtMesure": "2025-05-02",
+                            "finMesure": "2025-06-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2025-07-03 05:03:58",
+                            "dbtMesure": "2025-06-02",
+                            "finMesure": "2025-07-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2025-08-03 05:04:04",
+                            "dbtMesure": "2025-07-02",
+                            "finMesure": "2025-08-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2025-09-03 05:04:13",
+                            "dbtMesure": "2025-08-02",
+                            "finMesure": "2025-09-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2025-10-03 05:04:01",
+                            "dbtMesure": "2025-09-02",
+                            "finMesure": "2025-10-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2025-11-03 05:03:51",
+                            "dbtMesure": "2025-10-02",
+                            "finMesure": "2025-11-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 3000
+                          },
+                          {
+                            "dateCreation": "2025-12-03 05:04:29",
+                            "dbtMesure": "2025-11-02",
+                            "finMesure": "2025-12-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 231000
+                          },
+                          {
+                            "dateCreation": "2026-01-03 05:05:26",
+                            "dbtMesure": "2025-12-02",
+                            "finMesure": "2026-01-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 215000
+                          },
+                          {
+                            "dateCreation": "2026-02-03 05:04:11",
+                            "dbtMesure": "2026-01-02",
+                            "finMesure": "2026-02-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 185000
+                          },
+                          {
+                            "dateCreation": "2026-03-03 05:04:50",
+                            "dbtMesure": "2026-02-02",
+                            "finMesure": "2026-03-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 183000
+                          },
+                          {
+                            "dateCreation": "2026-04-03 05:04:37",
+                            "dbtMesure": "2026-03-02",
+                            "finMesure": "2026-04-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 215000
+                          },
+                          {
+                            "dateCreation": "2026-05-03 05:04:38",
+                            "dbtMesure": "2026-04-02",
+                            "finMesure": "2026-05-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2026-06-03 05:04:13",
+                            "dbtMesure": "2026-05-02",
+                            "finMesure": "2026-06-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          }
+                        ]
+                      },
+                      {
+                        "idClasseTemporelle": "HCB",
+                        "libelleClasseTemporelle": "Heures Creuses Saison Basse",
+                        "quantite": [
+                          {
+                            "dateCreation": "2023-08-03 05:03:10",
+                            "dbtMesure": "2023-07-02",
+                            "finMesure": "2023-08-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 26000
+                          },
+                          {
+                            "dateCreation": "2023-09-03 05:02:53",
+                            "dbtMesure": "2023-08-02",
+                            "finMesure": "2023-09-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 26000
+                          },
+                          {
+                            "dateCreation": "2023-10-03 05:03:06",
+                            "dbtMesure": "2023-09-02",
+                            "finMesure": "2023-10-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 29000
+                          },
+                          {
+                            "dateCreation": "2023-11-03 05:03:12",
+                            "dbtMesure": "2023-10-02",
+                            "finMesure": "2023-11-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 23000
+                          },
+                          {
+                            "dateCreation": "2023-12-03 05:02:45",
+                            "dbtMesure": "2023-11-02",
+                            "finMesure": "2023-12-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2024-01-03 05:02:54",
+                            "dbtMesure": "2023-12-02",
+                            "finMesure": "2024-01-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2024-02-03 05:02:39",
+                            "dbtMesure": "2024-01-02",
+                            "finMesure": "2024-02-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2024-03-03 05:02:32",
+                            "dbtMesure": "2024-02-02",
+                            "finMesure": "2024-03-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2024-04-03 05:03:38",
+                            "dbtMesure": "2024-03-02",
+                            "finMesure": "2024-04-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 1000
+                          },
+                          {
+                            "dateCreation": "2024-05-03 05:05:56",
+                            "dbtMesure": "2024-04-03",
+                            "finMesure": "2024-05-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 24000
+                          },
+                          {
+                            "dateCreation": "2024-06-03 05:06:11",
+                            "dbtMesure": "2024-05-02",
+                            "finMesure": "2024-06-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 27000
+                          },
+                          {
+                            "dateCreation": "2024-07-03 05:06:03",
+                            "dbtMesure": "2024-06-02",
+                            "finMesure": "2024-07-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 26000
+                          },
+                          {
+                            "dateCreation": "2024-08-03 05:05:41",
+                            "dbtMesure": "2024-07-02",
+                            "finMesure": "2024-08-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 29000
+                          },
+                          {
+                            "dateCreation": "2024-09-03 05:10:16",
+                            "dbtMesure": "2024-08-02",
+                            "finMesure": "2024-09-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 28000
+                          },
+                          {
+                            "dateCreation": "2024-10-03 05:03:48",
+                            "dbtMesure": "2024-09-02",
+                            "finMesure": "2024-10-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 25000
+                          },
+                          {
+                            "dateCreation": "2024-11-03 05:03:39",
+                            "dbtMesure": "2024-10-02",
+                            "finMesure": "2024-11-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 26000
+                          },
+                          {
+                            "dateCreation": "2024-12-03 05:03:46",
+                            "dbtMesure": "2024-11-02",
+                            "finMesure": "2024-12-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2025-01-03 05:04:38",
+                            "dbtMesure": "2024-12-02",
+                            "finMesure": "2025-01-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2025-02-03 05:03:49",
+                            "dbtMesure": "2025-01-02",
+                            "finMesure": "2025-02-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2025-03-03 05:03:43",
+                            "dbtMesure": "2025-02-02",
+                            "finMesure": "2025-03-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2025-04-03 05:03:54",
+                            "dbtMesure": "2025-03-02",
+                            "finMesure": "2025-04-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 1000
+                          },
+                          {
+                            "dateCreation": "2025-05-03 05:03:53",
+                            "dbtMesure": "2025-04-02",
+                            "finMesure": "2025-05-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 27000
+                          },
+                          {
+                            "dateCreation": "2025-06-03 05:03:50",
+                            "dbtMesure": "2025-05-02",
+                            "finMesure": "2025-06-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 26000
+                          },
+                          {
+                            "dateCreation": "2025-07-03 05:03:58",
+                            "dbtMesure": "2025-06-02",
+                            "finMesure": "2025-07-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 29000
+                          },
+                          {
+                            "dateCreation": "2025-08-03 05:04:04",
+                            "dbtMesure": "2025-07-02",
+                            "finMesure": "2025-08-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 29000
+                          },
+                          {
+                            "dateCreation": "2025-09-03 05:04:13",
+                            "dbtMesure": "2025-08-02",
+                            "finMesure": "2025-09-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 26000
+                          },
+                          {
+                            "dateCreation": "2025-10-03 05:04:01",
+                            "dbtMesure": "2025-09-02",
+                            "finMesure": "2025-10-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 25000
+                          },
+                          {
+                            "dateCreation": "2025-11-03 05:03:51",
+                            "dbtMesure": "2025-10-02",
+                            "finMesure": "2025-11-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 25000
+                          },
+                          {
+                            "dateCreation": "2025-12-03 05:04:29",
+                            "dbtMesure": "2025-11-02",
+                            "finMesure": "2025-12-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2026-01-03 05:05:26",
+                            "dbtMesure": "2025-12-02",
+                            "finMesure": "2026-01-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2026-02-03 05:04:11",
+                            "dbtMesure": "2026-01-02",
+                            "finMesure": "2026-02-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2026-03-03 05:04:50",
+                            "dbtMesure": "2026-02-02",
+                            "finMesure": "2026-03-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2026-04-03 05:04:37",
+                            "dbtMesure": "2026-03-02",
+                            "finMesure": "2026-04-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 1000
+                          },
+                          {
+                            "dateCreation": "2026-05-03 05:04:38",
+                            "dbtMesure": "2026-04-02",
+                            "finMesure": "2026-05-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 27000
+                          },
+                          {
+                            "dateCreation": "2026-06-03 05:04:13",
+                            "dbtMesure": "2026-05-02",
+                            "finMesure": "2026-06-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 94000
+                          }
+                        ]
+                      },
+                      {
+                        "idClasseTemporelle": "HCH",
+                        "libelleClasseTemporelle": "Heures Creuses Hiver / Saison Haute",
+                        "quantite": [
+                          {
+                            "dateCreation": "2023-08-03 05:03:10",
+                            "dbtMesure": "2023-07-02",
+                            "finMesure": "2023-08-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2023-09-03 05:02:53",
+                            "dbtMesure": "2023-08-02",
+                            "finMesure": "2023-09-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2023-10-03 05:03:06",
+                            "dbtMesure": "2023-09-02",
+                            "finMesure": "2023-10-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2023-11-03 05:03:12",
+                            "dbtMesure": "2023-10-02",
+                            "finMesure": "2023-11-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 1000
+                          },
+                          {
+                            "dateCreation": "2023-12-03 05:02:45",
+                            "dbtMesure": "2023-11-02",
+                            "finMesure": "2023-12-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 23000
+                          },
+                          {
+                            "dateCreation": "2024-01-03 05:02:54",
+                            "dbtMesure": "2023-12-02",
+                            "finMesure": "2024-01-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 22000
+                          },
+                          {
+                            "dateCreation": "2024-02-03 05:02:39",
+                            "dbtMesure": "2024-01-02",
+                            "finMesure": "2024-02-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 26000
+                          },
+                          {
+                            "dateCreation": "2024-03-03 05:02:32",
+                            "dbtMesure": "2024-02-02",
+                            "finMesure": "2024-03-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 23000
+                          },
+                          {
+                            "dateCreation": "2024-04-03 05:03:38",
+                            "dbtMesure": "2024-03-02",
+                            "finMesure": "2024-04-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 25000
+                          },
+                          {
+                            "dateCreation": "2024-05-03 05:05:56",
+                            "dbtMesure": "2024-04-03",
+                            "finMesure": "2024-05-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2024-06-03 05:06:11",
+                            "dbtMesure": "2024-05-02",
+                            "finMesure": "2024-06-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2024-07-03 05:06:03",
+                            "dbtMesure": "2024-06-02",
+                            "finMesure": "2024-07-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2024-08-03 05:05:41",
+                            "dbtMesure": "2024-07-02",
+                            "finMesure": "2024-08-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2024-09-03 05:10:16",
+                            "dbtMesure": "2024-08-02",
+                            "finMesure": "2024-09-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2024-10-03 05:03:48",
+                            "dbtMesure": "2024-09-02",
+                            "finMesure": "2024-10-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2024-11-03 05:03:39",
+                            "dbtMesure": "2024-10-02",
+                            "finMesure": "2024-11-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 1000
+                          },
+                          {
+                            "dateCreation": "2024-12-03 05:03:46",
+                            "dbtMesure": "2024-11-02",
+                            "finMesure": "2024-12-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 24000
+                          },
+                          {
+                            "dateCreation": "2025-01-03 05:04:38",
+                            "dbtMesure": "2024-12-02",
+                            "finMesure": "2025-01-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 28000
+                          },
+                          {
+                            "dateCreation": "2025-02-03 05:03:49",
+                            "dbtMesure": "2025-01-02",
+                            "finMesure": "2025-02-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 27000
+                          },
+                          {
+                            "dateCreation": "2025-03-03 05:03:43",
+                            "dbtMesure": "2025-02-02",
+                            "finMesure": "2025-03-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 30000
+                          },
+                          {
+                            "dateCreation": "2025-04-03 05:03:54",
+                            "dbtMesure": "2025-03-02",
+                            "finMesure": "2025-04-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 33000
+                          },
+                          {
+                            "dateCreation": "2025-05-03 05:03:53",
+                            "dbtMesure": "2025-04-02",
+                            "finMesure": "2025-05-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2025-06-03 05:03:50",
+                            "dbtMesure": "2025-05-02",
+                            "finMesure": "2025-06-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2025-07-03 05:03:58",
+                            "dbtMesure": "2025-06-02",
+                            "finMesure": "2025-07-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2025-08-03 05:04:04",
+                            "dbtMesure": "2025-07-02",
+                            "finMesure": "2025-08-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2025-09-03 05:04:13",
+                            "dbtMesure": "2025-08-02",
+                            "finMesure": "2025-09-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2025-10-03 05:04:01",
+                            "dbtMesure": "2025-09-02",
+                            "finMesure": "2025-10-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2025-11-03 05:03:51",
+                            "dbtMesure": "2025-10-02",
+                            "finMesure": "2025-11-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 1000
+                          },
+                          {
+                            "dateCreation": "2025-12-03 05:04:29",
+                            "dbtMesure": "2025-11-02",
+                            "finMesure": "2025-12-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 27000
+                          },
+                          {
+                            "dateCreation": "2026-01-03 05:05:26",
+                            "dbtMesure": "2025-12-02",
+                            "finMesure": "2026-01-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 30000
+                          },
+                          {
+                            "dateCreation": "2026-02-03 05:04:11",
+                            "dbtMesure": "2026-01-02",
+                            "finMesure": "2026-02-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 28000
+                          },
+                          {
+                            "dateCreation": "2026-03-03 05:04:50",
+                            "dbtMesure": "2026-02-02",
+                            "finMesure": "2026-03-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 26000
+                          },
+                          {
+                            "dateCreation": "2026-04-03 05:04:37",
+                            "dbtMesure": "2026-03-02",
+                            "finMesure": "2026-04-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 34000
+                          },
+                          {
+                            "dateCreation": "2026-05-03 05:04:38",
+                            "dbtMesure": "2026-04-02",
+                            "finMesure": "2026-05-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2026-06-03 05:04:13",
+                            "dbtMesure": "2026-05-02",
+                            "finMesure": "2026-06-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "codeGrille": "F",
+                    "libelleGrille": "Fournisseur",
+                    "codeCalendrier": "FC022034",
+                    "libelleCalendrier": "Base",
+                    "classeTemporelle": [
+                      {
+                        "idClasseTemporelle": "BASE",
+                        "libelleClasseTemporelle": "Base",
+                        "quantite": [
+                          {
+                            "dateCreation": "2023-08-03 05:03:10",
+                            "dbtMesure": "2023-07-02",
+                            "finMesure": "2023-08-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 119000
+                          },
+                          {
+                            "dateCreation": "2023-09-03 05:02:53",
+                            "dbtMesure": "2023-08-02",
+                            "finMesure": "2023-09-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 126000
+                          },
+                          {
+                            "dateCreation": "2023-10-03 05:03:06",
+                            "dbtMesure": "2023-09-02",
+                            "finMesure": "2023-10-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 150000
+                          },
+                          {
+                            "dateCreation": "2023-11-03 05:03:12",
+                            "dbtMesure": "2023-10-02",
+                            "finMesure": "2023-11-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 155000
+                          },
+                          {
+                            "dateCreation": "2023-12-03 05:02:45",
+                            "dbtMesure": "2023-11-02",
+                            "finMesure": "2023-12-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 157000
+                          },
+                          {
+                            "dateCreation": "2024-01-03 05:02:54",
+                            "dbtMesure": "2023-12-02",
+                            "finMesure": "2024-01-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 153000
+                          },
+                          {
+                            "dateCreation": "2024-02-03 05:02:39",
+                            "dbtMesure": "2024-01-02",
+                            "finMesure": "2024-02-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 191000
+                          },
+                          {
+                            "dateCreation": "2024-03-03 05:02:32",
+                            "dbtMesure": "2024-02-02",
+                            "finMesure": "2024-03-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 169000
+                          },
+                          {
+                            "dateCreation": "2024-04-03 05:03:38",
+                            "dbtMesure": "2024-03-02",
+                            "finMesure": "2024-04-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 178000
+                          },
+                          {
+                            "dateCreation": "2024-05-03 05:05:56",
+                            "dbtMesure": "2024-04-03",
+                            "finMesure": "2024-05-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 162000
+                          },
+                          {
+                            "dateCreation": "2024-06-03 05:06:11",
+                            "dbtMesure": "2024-05-02",
+                            "finMesure": "2024-06-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 160000
+                          },
+                          {
+                            "dateCreation": "2024-07-03 05:06:03",
+                            "dbtMesure": "2024-06-02",
+                            "finMesure": "2024-07-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 140000
+                          },
+                          {
+                            "dateCreation": "2024-08-03 05:05:41",
+                            "dbtMesure": "2024-07-02",
+                            "finMesure": "2024-08-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 160000
+                          },
+                          {
+                            "dateCreation": "2024-09-03 05:10:16",
+                            "dbtMesure": "2024-08-02",
+                            "finMesure": "2024-09-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 127000
+                          },
+                          {
+                            "dateCreation": "2024-10-03 05:03:48",
+                            "dbtMesure": "2024-09-02",
+                            "finMesure": "2024-10-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 166000
+                          },
+                          {
+                            "dateCreation": "2024-11-03 05:03:39",
+                            "dbtMesure": "2024-10-02",
+                            "finMesure": "2024-11-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 173000
+                          },
+                          {
+                            "dateCreation": "2024-12-03 05:03:46",
+                            "dbtMesure": "2024-11-02",
+                            "finMesure": "2024-12-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 164000
+                          },
+                          {
+                            "dateCreation": "2025-01-03 05:04:38",
+                            "dbtMesure": "2024-12-02",
+                            "finMesure": "2025-01-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 209000
+                          },
+                          {
+                            "dateCreation": "2025-02-03 05:03:49",
+                            "dbtMesure": "2025-01-02",
+                            "finMesure": "2025-02-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 190000
+                          },
+                          {
+                            "dateCreation": "2025-03-03 05:03:43",
+                            "dbtMesure": "2025-02-02",
+                            "finMesure": "2025-03-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 224000
+                          },
+                          {
+                            "dateCreation": "2025-04-03 05:03:54",
+                            "dbtMesure": "2025-03-02",
+                            "finMesure": "2025-04-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 195000
+                          },
+                          {
+                            "dateCreation": "2025-05-03 05:03:53",
+                            "dbtMesure": "2025-04-02",
+                            "finMesure": "2025-05-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 178000
+                          },
+                          {
+                            "dateCreation": "2025-06-03 05:03:50",
+                            "dbtMesure": "2025-05-02",
+                            "finMesure": "2025-06-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 146000
+                          },
+                          {
+                            "dateCreation": "2025-07-03 05:03:58",
+                            "dbtMesure": "2025-06-02",
+                            "finMesure": "2025-07-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 130000
+                          },
+                          {
+                            "dateCreation": "2025-08-03 05:04:04",
+                            "dbtMesure": "2025-07-02",
+                            "finMesure": "2025-08-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 118000
+                          },
+                          {
+                            "dateCreation": "2025-09-03 05:04:13",
+                            "dbtMesure": "2025-08-02",
+                            "finMesure": "2025-09-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 119000
+                          },
+                          {
+                            "dateCreation": "2025-10-03 05:04:01",
+                            "dbtMesure": "2025-09-02",
+                            "finMesure": "2025-10-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 161000
+                          },
+                          {
+                            "dateCreation": "2025-11-03 05:03:51",
+                            "dbtMesure": "2025-10-02",
+                            "finMesure": "2025-11-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 181000
+                          },
+                          {
+                            "dateCreation": "2025-12-03 05:04:29",
+                            "dbtMesure": "2025-11-02",
+                            "finMesure": "2025-12-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 258000
+                          },
+                          {
+                            "dateCreation": "2026-01-03 05:05:26",
+                            "dbtMesure": "2025-12-02",
+                            "finMesure": "2026-01-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 245000
+                          },
+                          {
+                            "dateCreation": "2026-02-03 05:04:11",
+                            "dbtMesure": "2026-01-02",
+                            "finMesure": "2026-02-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 212000
+                          },
+                          {
+                            "dateCreation": "2026-03-03 05:04:50",
+                            "dbtMesure": "2026-02-02",
+                            "finMesure": "2026-03-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 210000
+                          },
+                          {
+                            "dateCreation": "2026-04-03 05:04:37",
+                            "dbtMesure": "2026-03-02",
+                            "finMesure": "2026-04-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 255000
+                          },
+                          {
+                            "dateCreation": "2026-05-03 05:04:38",
+                            "dbtMesure": "2026-04-02",
+                            "finMesure": "2026-05-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 152000
+                          },
+                          {
+                            "dateCreation": "2026-06-03 05:04:13",
+                            "dbtMesure": "2026-05-02",
+                            "finMesure": "2026-06-02",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 472000
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "header": {
+      "siDemandeur": "239",
+      "typeDestinataire": "ACM",
+      "idDestinataire": "GRD-F139",
+      "codeFlux": "R67",
+      "idDemande": "36129241",
+      "modePublication": "P",
+      "idCanalContact": "Interne",
+      "format": "JSON",
+      "publicationCrp": "oui"
+    },
+    "mesures": [
+      {
+        "idPrm": "99224295862625",
+        "periode": {
+          "dateDebut": "2023-06-27 00:00:00",
+          "dateFin": "2026-06-27 00:00:00"
+        },
+        "contexte": [
+          {
+            "etapeMetier": "FACT",
+            "idMotifReleve": "CFNS",
+            "libelleMotifReleve": "Changement de fournisseur sortant",
+            "grandeur": [
+              {
+                "grandeurMetier": "CONS",
+                "grandeurPhysique": "EA",
+                "unite": "Wh",
+                "calendrier": [
+                  {
+                    "codeGrille": "F",
+                    "libelleGrille": "Fournisseur",
+                    "codeCalendrier": "HoroF1",
+                    "libelleCalendrier": "BT < 36KVA Base",
+                    "classeTemporelle": [
+                      {
+                        "idClasseTemporelle": "BASE",
+                        "libelleClasseTemporelle": "Base",
+                        "quantite": [
+                          {
+                            "dateCreation": "2023-07-12 05:04:06",
+                            "dbtMesure": "2023-06-27",
+                            "finMesure": "2023-07-11",
+                            "codeNature": "E",
+                            "libelleNature": "Estimé",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 40000
+                          },
+                          {
+                            "dateCreation": "2024-04-10 05:10:35",
+                            "dbtMesure": "2024-04-08",
+                            "finMesure": "2024-04-09",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "etapeMetier": "FACT",
+            "idMotifReleve": "AUTRE",
+            "libelleMotifReleve": "Autres motifs",
+            "grandeur": [
+              {
+                "grandeurMetier": "CONS",
+                "grandeurPhysique": "EA",
+                "unite": "Wh",
+                "calendrier": [
+                  {
+                    "codeGrille": "F",
+                    "libelleGrille": "Fournisseur",
+                    "codeCalendrier": "HoroF1",
+                    "libelleCalendrier": "BT < 36KVA Base",
+                    "classeTemporelle": [
+                      {
+                        "idClasseTemporelle": "BASE",
+                        "libelleClasseTemporelle": "Base",
+                        "quantite": [
+                          {
+                            "dateCreation": "2023-08-28 05:11:22",
+                            "dbtMesure": "2023-07-11",
+                            "finMesure": "2023-08-27",
+                            "codeNature": "C",
+                            "libelleNature": "Régularisé",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 54000
+                          },
+                          {
+                            "dateCreation": "2024-03-04 05:08:28",
+                            "dbtMesure": "2023-12-27",
+                            "finMesure": "2024-03-03",
+                            "codeNature": "C",
+                            "libelleNature": "Régularisé",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 129000
+                          },
+                          {
+                            "dateCreation": "2024-04-09 05:06:05",
+                            "dbtMesure": "2024-03-03",
+                            "finMesure": "2024-04-08",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 146000
+                          },
+                          {
+                            "dateCreation": "2024-07-19 05:10:04",
+                            "dbtMesure": "2024-06-27",
+                            "finMesure": "2024-07-18",
+                            "codeNature": "C",
+                            "libelleNature": "Régularisé",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 53000
+                          },
+                          {
+                            "dateCreation": "2024-08-22 05:09:18",
+                            "dbtMesure": "2024-07-18",
+                            "finMesure": "2024-08-21",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 118000
+                          },
+                          {
+                            "dateCreation": "2025-05-23 05:03:59",
+                            "dbtMesure": "2025-04-27",
+                            "finMesure": "2025-05-22",
+                            "codeNature": "C",
+                            "libelleNature": "Régularisé",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 191000
+                          },
+                          {
+                            "dateCreation": "2025-11-07 05:07:17",
+                            "dbtMesure": "2025-10-27",
+                            "finMesure": "2025-11-06",
+                            "codeNature": "C",
+                            "libelleNature": "Régularisé",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 218000
+                          },
+                          {
+                            "dateCreation": "2026-05-06 05:05:00",
+                            "dbtMesure": "2026-04-27",
+                            "finMesure": "2026-05-05",
+                            "codeNature": "C",
+                            "libelleNature": "Régularisé",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": -150000
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "etapeMetier": "FACT",
+            "idMotifReleve": "CYCL",
+            "libelleMotifReleve": "Relevé Cyclique",
+            "grandeur": [
+              {
+                "grandeurMetier": "CONS",
+                "grandeurPhysique": "EA",
+                "unite": "Wh",
+                "calendrier": [
+                  {
+                    "codeGrille": "F",
+                    "libelleGrille": "Fournisseur",
+                    "codeCalendrier": "HoroF1",
+                    "libelleCalendrier": "BT < 36KVA Base",
+                    "classeTemporelle": [
+                      {
+                        "idClasseTemporelle": "BASE",
+                        "libelleClasseTemporelle": "Base",
+                        "quantite": [
+                          {
+                            "dateCreation": "2023-10-28 05:12:38",
+                            "dbtMesure": "2023-08-27",
+                            "finMesure": "2023-10-27",
+                            "codeNature": "E",
+                            "libelleNature": "Estimé",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 153000
+                          },
+                          {
+                            "dateCreation": "2023-12-28 05:11:18",
+                            "dbtMesure": "2023-10-27",
+                            "finMesure": "2023-12-27",
+                            "codeNature": "E",
+                            "libelleNature": "Estimé",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 179000
+                          },
+                          {
+                            "dateCreation": "2024-04-28 05:13:00",
+                            "dbtMesure": "2024-04-09",
+                            "finMesure": "2024-04-27",
+                            "codeNature": "E",
+                            "libelleNature": "Estimé",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 50000
+                          },
+                          {
+                            "dateCreation": "2024-06-28 05:14:16",
+                            "dbtMesure": "2024-04-27",
+                            "finMesure": "2024-06-27",
+                            "codeNature": "E",
+                            "libelleNature": "Estimé",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 147000
+                          },
+                          {
+                            "dateCreation": "2024-10-28 05:08:17",
+                            "dbtMesure": "2024-08-21",
+                            "finMesure": "2024-10-27",
+                            "codeNature": "E",
+                            "libelleNature": "Estimé",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 165000
+                          },
+                          {
+                            "dateCreation": "2024-12-28 05:08:41",
+                            "dbtMesure": "2024-10-27",
+                            "finMesure": "2024-12-27",
+                            "codeNature": "E",
+                            "libelleNature": "Estimé",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 178000
+                          },
+                          {
+                            "dateCreation": "2025-03-27 05:03:45",
+                            "dbtMesure": "2024-12-27",
+                            "finMesure": "2025-03-26",
+                            "codeNature": "E",
+                            "libelleNature": "Estimé",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 289000
+                          },
+                          {
+                            "dateCreation": "2025-04-28 05:08:55",
+                            "dbtMesure": "2025-03-26",
+                            "finMesure": "2025-04-27",
+                            "codeNature": "E",
+                            "libelleNature": "Estimé",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 100000
+                          },
+                          {
+                            "dateCreation": "2025-06-28 05:10:55",
+                            "dbtMesure": "2025-05-22",
+                            "finMesure": "2025-06-27",
+                            "codeNature": "E",
+                            "libelleNature": "Estimé",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 107000
+                          },
+                          {
+                            "dateCreation": "2025-09-24 05:03:58",
+                            "dbtMesure": "2025-06-27",
+                            "finMesure": "2025-09-23",
+                            "codeNature": "E",
+                            "libelleNature": "Estimé",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 246000
+                          },
+                          {
+                            "dateCreation": "2025-10-28 05:09:20",
+                            "dbtMesure": "2025-09-23",
+                            "finMesure": "2025-10-27",
+                            "codeNature": "E",
+                            "libelleNature": "Estimé",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 99000
+                          },
+                          {
+                            "dateCreation": "2025-12-28 05:09:23",
+                            "dbtMesure": "2025-11-06",
+                            "finMesure": "2025-12-27",
+                            "codeNature": "E",
+                            "libelleNature": "Estimé",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 202000
+                          },
+                          {
+                            "dateCreation": "2026-03-27 05:04:44",
+                            "dbtMesure": "2025-12-27",
+                            "finMesure": "2026-03-26",
+                            "codeNature": "E",
+                            "libelleNature": "Estimé",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 390000
+                          },
+                          {
+                            "dateCreation": "2026-04-28 05:11:38",
+                            "dbtMesure": "2026-03-26",
+                            "finMesure": "2026-04-27",
+                            "codeNature": "E",
+                            "libelleNature": "Estimé",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 135000
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "header": {
+      "siDemandeur": "239",
+      "typeDestinataire": "ACM",
+      "idDestinataire": "GRD-F139",
+      "codeFlux": "R67",
+      "idDemande": "03313531",
+      "modePublication": "P",
+      "idCanalContact": "Interne",
+      "format": "JSON",
+      "publicationCrp": "oui"
+    },
+    "mesures": [
+      {
+        "idPrm": "99054135750249",
+        "periode": {
+          "dateDebut": "2025-10-29 00:00:00",
+          "dateFin": "2026-06-27 00:00:00"
+        },
+        "contexte": [
+          {
+            "etapeMetier": "FACT",
+            "idMotifReleve": "CYCL",
+            "libelleMotifReleve": "Relevé Cyclique",
+            "grandeur": [
+              {
+                "grandeurMetier": "CONS",
+                "grandeurPhysique": "EA",
+                "unite": "Wh",
+                "calendrier": [
+                  {
+                    "codeGrille": "D",
+                    "libelleGrille": "Distributeur",
+                    "codeCalendrier": "DI000003",
+                    "libelleCalendrier": "Avec diffÃ©renciation temporelle et saisonniÃ¤re",
+                    "classeTemporelle": [
+                      {
+                        "idClasseTemporelle": "HPB",
+                        "libelleClasseTemporelle": "Heures Pleines Saison Basse",
+                        "quantite": [
+                          {
+                            "dateCreation": "2025-12-07 05:07:18",
+                            "dbtMesure": "2025-11-25",
+                            "finMesure": "2025-12-06",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2026-01-07 05:08:26",
+                            "dbtMesure": "2025-12-06",
+                            "finMesure": "2026-01-06",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2026-02-07 05:07:23",
+                            "dbtMesure": "2026-01-06",
+                            "finMesure": "2026-02-06",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2026-03-07 05:08:26",
+                            "dbtMesure": "2026-02-06",
+                            "finMesure": "2026-03-06",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2026-04-07 05:08:13",
+                            "dbtMesure": "2026-03-06",
+                            "finMesure": "2026-04-06",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 18000
+                          },
+                          {
+                            "dateCreation": "2026-05-07 05:08:24",
+                            "dbtMesure": "2026-04-06",
+                            "finMesure": "2026-05-06",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 150000
+                          },
+                          {
+                            "dateCreation": "2026-06-07 05:07:19",
+                            "dbtMesure": "2026-05-06",
+                            "finMesure": "2026-06-06",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 142000
+                          }
+                        ]
+                      },
+                      {
+                        "idClasseTemporelle": "HPH",
+                        "libelleClasseTemporelle": "Heures Pleines Hiver / Saison Haute",
+                        "quantite": [
+                          {
+                            "dateCreation": "2025-12-07 05:07:18",
+                            "dbtMesure": "2025-11-25",
+                            "finMesure": "2025-12-06",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 85000
+                          },
+                          {
+                            "dateCreation": "2026-01-07 05:08:26",
+                            "dbtMesure": "2025-12-06",
+                            "finMesure": "2026-01-06",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 171000
+                          },
+                          {
+                            "dateCreation": "2026-02-07 05:07:23",
+                            "dbtMesure": "2026-01-06",
+                            "finMesure": "2026-02-06",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 231000
+                          },
+                          {
+                            "dateCreation": "2026-03-07 05:08:26",
+                            "dbtMesure": "2026-02-06",
+                            "finMesure": "2026-03-06",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 165000
+                          },
+                          {
+                            "dateCreation": "2026-04-07 05:08:13",
+                            "dbtMesure": "2026-03-06",
+                            "finMesure": "2026-04-06",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 189000
+                          },
+                          {
+                            "dateCreation": "2026-05-07 05:08:24",
+                            "dbtMesure": "2026-04-06",
+                            "finMesure": "2026-05-06",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2026-06-07 05:07:19",
+                            "dbtMesure": "2026-05-06",
+                            "finMesure": "2026-06-06",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          }
+                        ]
+                      },
+                      {
+                        "idClasseTemporelle": "HCH",
+                        "libelleClasseTemporelle": "Heures Creuses Hiver / Saison Haute",
+                        "quantite": [
+                          {
+                            "dateCreation": "2025-12-07 05:07:18",
+                            "dbtMesure": "2025-11-25",
+                            "finMesure": "2025-12-06",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 25000
+                          },
+                          {
+                            "dateCreation": "2026-01-07 05:08:26",
+                            "dbtMesure": "2025-12-06",
+                            "finMesure": "2026-01-06",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 49000
+                          },
+                          {
+                            "dateCreation": "2026-02-07 05:07:23",
+                            "dbtMesure": "2026-01-06",
+                            "finMesure": "2026-02-06",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 78000
+                          },
+                          {
+                            "dateCreation": "2026-03-07 05:08:26",
+                            "dbtMesure": "2026-02-06",
+                            "finMesure": "2026-03-06",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 58000
+                          },
+                          {
+                            "dateCreation": "2026-04-07 05:08:13",
+                            "dbtMesure": "2026-03-06",
+                            "finMesure": "2026-04-06",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 51000
+                          },
+                          {
+                            "dateCreation": "2026-05-07 05:08:24",
+                            "dbtMesure": "2026-04-06",
+                            "finMesure": "2026-05-06",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2026-06-07 05:07:19",
+                            "dbtMesure": "2026-05-06",
+                            "finMesure": "2026-06-06",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          }
+                        ]
+                      },
+                      {
+                        "idClasseTemporelle": "HCB",
+                        "libelleClasseTemporelle": "Heures Creuses Saison Basse",
+                        "quantite": [
+                          {
+                            "dateCreation": "2025-12-07 05:07:18",
+                            "dbtMesure": "2025-11-25",
+                            "finMesure": "2025-12-06",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2026-01-07 05:08:26",
+                            "dbtMesure": "2025-12-06",
+                            "finMesure": "2026-01-06",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2026-02-07 05:07:23",
+                            "dbtMesure": "2026-01-06",
+                            "finMesure": "2026-02-06",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2026-03-07 05:08:26",
+                            "dbtMesure": "2026-02-06",
+                            "finMesure": "2026-03-06",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          },
+                          {
+                            "dateCreation": "2026-04-07 05:08:13",
+                            "dbtMesure": "2026-03-06",
+                            "finMesure": "2026-04-06",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 8000
+                          },
+                          {
+                            "dateCreation": "2026-05-07 05:08:24",
+                            "dbtMesure": "2026-04-06",
+                            "finMesure": "2026-05-06",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 49000
+                          },
+                          {
+                            "dateCreation": "2026-06-07 05:07:19",
+                            "dbtMesure": "2026-05-06",
+                            "finMesure": "2026-06-06",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 44000
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "codeGrille": "F",
+                    "libelleGrille": "Fournisseur",
+                    "codeCalendrier": "FC022034",
+                    "libelleCalendrier": "Base",
+                    "classeTemporelle": [
+                      {
+                        "idClasseTemporelle": "BASE",
+                        "libelleClasseTemporelle": "Base",
+                        "quantite": [
+                          {
+                            "dateCreation": "2025-11-07 05:07:17",
+                            "dbtMesure": "2025-10-29",
+                            "finMesure": "2025-11-06",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 42000
+                          },
+                          {
+                            "dateCreation": "2025-12-07 05:07:18",
+                            "dbtMesure": "2025-11-25",
+                            "finMesure": "2025-12-06",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 111000
+                          },
+                          {
+                            "dateCreation": "2026-01-07 05:08:26",
+                            "dbtMesure": "2025-12-06",
+                            "finMesure": "2026-01-06",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 220000
+                          },
+                          {
+                            "dateCreation": "2026-02-07 05:07:23",
+                            "dbtMesure": "2026-01-06",
+                            "finMesure": "2026-02-06",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 310000
+                          },
+                          {
+                            "dateCreation": "2026-03-07 05:08:26",
+                            "dbtMesure": "2026-02-06",
+                            "finMesure": "2026-03-06",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 222000
+                          },
+                          {
+                            "dateCreation": "2026-04-07 05:08:13",
+                            "dbtMesure": "2026-03-06",
+                            "finMesure": "2026-04-06",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 266000
+                          },
+                          {
+                            "dateCreation": "2026-05-07 05:08:24",
+                            "dbtMesure": "2026-04-06",
+                            "finMesure": "2026-05-06",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 199000
+                          },
+                          {
+                            "dateCreation": "2026-06-07 05:07:19",
+                            "dbtMesure": "2026-05-06",
+                            "finMesure": "2026-06-06",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 186000
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "codeGrille": "D",
+                    "libelleGrille": "Distributeur",
+                    "codeCalendrier": "DI000001",
+                    "libelleCalendrier": "Sans différenciation temporelle",
+                    "classeTemporelle": [
+                      {
+                        "idClasseTemporelle": "BASE",
+                        "libelleClasseTemporelle": "Base",
+                        "quantite": [
+                          {
+                            "dateCreation": "2025-11-07 05:07:17",
+                            "dbtMesure": "2025-10-29",
+                            "finMesure": "2025-11-06",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 42000
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "etapeMetier": "FACT",
+            "idMotifReleve": "MCT",
+            "libelleMotifReleve": "Modification de la formule tarifaire d'acheminement ou de la puissance souscrite",
+            "grandeur": [
+              {
+                "grandeurMetier": "CONS",
+                "grandeurPhysique": "EA",
+                "unite": "Wh",
+                "calendrier": [
+                  {
+                    "codeGrille": "F",
+                    "libelleGrille": "Fournisseur",
+                    "codeCalendrier": "FC022034",
+                    "libelleCalendrier": "Base",
+                    "classeTemporelle": [
+                      {
+                        "idClasseTemporelle": "BASE",
+                        "libelleClasseTemporelle": "Base",
+                        "quantite": [
+                          {
+                            "dateCreation": "2025-11-26 05:04:15",
+                            "dbtMesure": "2025-11-06",
+                            "finMesure": "2025-11-25",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 154000
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "codeGrille": "D",
+                    "libelleGrille": "Distributeur",
+                    "codeCalendrier": "DI000001",
+                    "libelleCalendrier": "Sans différenciation temporelle",
+                    "classeTemporelle": [
+                      {
+                        "idClasseTemporelle": "BASE",
+                        "libelleClasseTemporelle": "Base",
+                        "quantite": [
+                          {
+                            "dateCreation": "2025-11-26 05:04:15",
+                            "dbtMesure": "2025-11-06",
+                            "finMesure": "2025-11-25",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 154000
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "header": {
+      "siDemandeur": "239",
+      "typeDestinataire": "ACM",
+      "idDestinataire": "GRD-F139",
+      "codeFlux": "R67",
+      "idDemande": "05963273",
+      "modePublication": "P",
+      "idCanalContact": "Interne",
+      "format": "JSON",
+      "publicationCrp": "oui"
+    },
+    "mesures": [
+      {
+        "idPrm": "99795245420600",
+        "periode": {
+          "dateDebut": "2026-05-27 00:00:00",
+          "dateFin": "2026-06-27 00:00:00"
+        },
+        "contexte": [
+          {
+            "etapeMetier": "FACT",
+            "idMotifReleve": "CYCL",
+            "libelleMotifReleve": "Relevé Cyclique",
+            "grandeur": [
+              {
+                "grandeurMetier": "CONS",
+                "grandeurPhysique": "EA",
+                "unite": "Wh",
+                "calendrier": [
+                  {
+                    "codeGrille": "F",
+                    "libelleGrille": "Fournisseur",
+                    "codeCalendrier": "FC022035",
+                    "libelleCalendrier": "Heures Pleines/Creuses",
+                    "classeTemporelle": [
+                      {
+                        "idClasseTemporelle": "HC",
+                        "libelleClasseTemporelle": "Heures Creuses",
+                        "quantite": [
+                          {
+                            "dateCreation": "2026-06-04 05:07:36",
+                            "dbtMesure": "2026-05-27",
+                            "finMesure": "2026-06-03",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 16000
+                          }
+                        ]
+                      },
+                      {
+                        "idClasseTemporelle": "HP",
+                        "libelleClasseTemporelle": "Heures Pleines",
+                        "quantite": [
+                          {
+                            "dateCreation": "2026-06-04 05:07:36",
+                            "dbtMesure": "2026-05-27",
+                            "finMesure": "2026-06-03",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 14000
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "codeGrille": "D",
+                    "libelleGrille": "Distributeur",
+                    "codeCalendrier": "DI000003",
+                    "libelleCalendrier": "Avec diffÃ©renciation temporelle et saisonniÃ¤re",
+                    "classeTemporelle": [
+                      {
+                        "idClasseTemporelle": "HPB",
+                        "libelleClasseTemporelle": "Heures Pleines Saison Basse",
+                        "quantite": [
+                          {
+                            "dateCreation": "2026-06-04 05:07:36",
+                            "dbtMesure": "2026-05-27",
+                            "finMesure": "2026-06-03",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 14000
+                          }
+                        ]
+                      },
+                      {
+                        "idClasseTemporelle": "HPH",
+                        "libelleClasseTemporelle": "Heures Pleines Hiver / Saison Haute",
+                        "quantite": [
+                          {
+                            "dateCreation": "2026-06-04 05:07:36",
+                            "dbtMesure": "2026-05-27",
+                            "finMesure": "2026-06-03",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          }
+                        ]
+                      },
+                      {
+                        "idClasseTemporelle": "HCB",
+                        "libelleClasseTemporelle": "Heures Creuses Saison Basse",
+                        "quantite": [
+                          {
+                            "dateCreation": "2026-06-04 05:07:36",
+                            "dbtMesure": "2026-05-27",
+                            "finMesure": "2026-06-03",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 16000
+                          }
+                        ]
+                      },
+                      {
+                        "idClasseTemporelle": "HCH",
+                        "libelleClasseTemporelle": "Heures Creuses Hiver / Saison Haute",
+                        "quantite": [
+                          {
+                            "dateCreation": "2026-06-04 05:07:36",
+                            "dbtMesure": "2026-05-27",
+                            "finMesure": "2026-06-03",
+                            "codeNature": "R",
+                            "libelleNature": "Réel",
+                            "codeStatut": "I",
+                            "libelleStatut": "Initial",
+                            "quantite": 0
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+]

@@ -16,7 +16,7 @@ from electricore.core.loaders.duckdb.registry import FLUX_DESCRIPTORS
 class TestFluxFactory:
     """`flux(nom)` produit un builder pour chaque flux enregistré."""
 
-    @pytest.mark.parametrize("nom", ["c15", "r151", "r15", "f15", "r64"])
+    @pytest.mark.parametrize("nom", ["c15", "r151", "r15", "f15", "r64", "r67"])
     def test_flux_retourne_un_builder(self, nom):
         assert isinstance(flux(nom), DuckDBQuery)
 
@@ -99,9 +99,9 @@ class TestFactoriesNommeesEquivalentesAFlux:
     cible le même flux. Le collapse #273 doit préserver cette équivalence.
     """
 
-    @pytest.mark.parametrize("nom", ["c15", "r151", "r15", "f15", "r64"])
+    @pytest.mark.parametrize("nom", ["c15", "r151", "r15", "f15", "r64", "r67"])
     def test_factory_nommee_batit_la_meme_requete_que_flux(self, nom):
-        from electricore.core.loaders.duckdb import c15, f15, r15, r64, r151
+        from electricore.core.loaders.duckdb import c15, f15, r15, r64, r67, r151
 
-        nommee = {"c15": c15, "r151": r151, "r15": r15, "f15": f15, "r64": r64}[nom]
+        nommee = {"c15": c15, "r151": r151, "r15": r15, "f15": f15, "r64": r64, "r67": r67}[nom]
         assert nommee()._build_final_query() == flux(nom)._build_final_query()

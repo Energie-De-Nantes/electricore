@@ -117,6 +117,19 @@ DESCRIPTOR_R64 = FluxDescriptor(
 )
 
 
+# Flux R67 - Mesures facturantes (énergie par période, ADR-0047). Asset PARALLÈLE :
+# jamais unioné dans `releves`/`chronologie_releves` ; requêtable directement par ce loader.
+# SELECT * (la forme résiduelle vit dans le modèle dbt `flux_r67`) ; debut/fin sont des DATE
+# (jour civil, ADR-0042), periode_debut/periode_fin des TIMESTAMPTZ servis tels quels. Pas
+# encore de modèle Pandera (frontière énergie-par-période différée, ADR-0047 §9) → comme R64.
+DESCRIPTOR_R67 = FluxDescriptor(
+    flux_name="R67",
+    table="flux_enedis.flux_r67",
+    transform=None,
+    validator=None,  # frontière Pandera propre différée (ADR-0047 §9)
+)
+
+
 # Flux X12/X13 - Affaires SGE (suivi opérationnel, grain = un jalon). SELECT * (ADR-0042,
 # #397) : la forme résiduelle (littéral source) vit dans le modèle dbt `flux_affaires`.
 # jalon_date_heure (TIMESTAMPTZ offset) et affaire_date_effet (DATE) sont déjà bien typés ;
@@ -142,5 +155,6 @@ FLUX_DESCRIPTORS: dict[str, FluxDescriptor] = {
     "r15": DESCRIPTOR_R15,
     "f15": DESCRIPTOR_F15,
     "r64": DESCRIPTOR_R64,
+    "r67": DESCRIPTOR_R67,
     "affaires": DESCRIPTOR_AFFAIRES,
 }
