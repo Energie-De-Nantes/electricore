@@ -28,6 +28,13 @@ Facturation distributeur détaillée, utilisée pour valider les calculs TURPE.
 **X12 / X13** :
 Flux quotidiens de suivi des *affaires* SGE (cycle de vie des demandes de prestation). **X12** = affaires initiées par l'instance ; **X13** = affaires initiées par d'autres acteurs sur nos PDL (quasi vide en C5 — 35 affaires en 16 mois sur le corpus EDN, vs 1606 en X12). Même schéma XSD (racine `<affaires>`), distingués par le nom de fichier ; matérialisés **ensemble** dans `flux_affaires` avec une colonne `origine` ∈ {`initiee`, `recue`}. Snapshots cumulatifs : chaque jour reprend toute la liste de jalons d'une affaire qui a bougé → grain `flux_affaires` = un jalon, dédupliqué sur la clé logique `(affaire, num)`. Concepts portés (affaire, prestation, jalon, état) définis dans [`electricore/core/CONTEXT.md`](../core/CONTEXT.md).
 
+**Mesures facturantes (R67)** :
+Index et quantités d'énergie *retenus pour la facturation*, par cadran (`etapeMetier = FACT`), portés en **deux grilles parallèles** qui réconcilient au kWh — *distributeur* (les 4 cadrans saisonniers HPH/HPB/HCH/HCB, pour le TURPE) et *fournisseur* (le tarif de facturation : Base ou HP/HC). Le flux **R67** les publie **à la demande** (prestation **M023**, ponctuelle, JSON). Réservé au **fournisseur titulaire actif** ; profondeur restituée = `max(aujourd'hui − 36 mois, dernière mise en service)` — **deux bornes RGPD distinctes** : le *mur occupant* (jamais la donnée d'un occupant précédent — coupée à la dernière MES) et l'*horizon de rétention glissant* (36 mois). Conséquence : sur un **CFNE** (même foyer, MES ancienne) il remonte *avant* l'entrée chez le fournisseur → sert l'amorçage (*cold-start*) de la *provision d'énergie* d'un mensualisé ; sur un **MES/PMES** (nouvel occupant) il est coupé à l'entrée → sans valeur. Candidat d'ingestion non encore bâti ([#214](https://github.com/Energie-De-Nantes/electricore/issues/214), brique de l'épique [#191](https://github.com/Energie-De-Nantes/electricore/issues/191)).
+_Éviter_ : confondre avec les *mesures fines* (courbe de charge R63/R66, soumises au consentement CDC) ; « 60 mois » (la profondeur effective constatée est 36 mois).
+
+**CAR (Consommation Annuelle de Référence)** :
+Consommation annuelle de référence qu'Enedis recalcule à chaque relève (profilage des points non télérelevés). Alternative *théorique* à R67 pour estimer une provision — un seul nombre annuel, auto-tenu par Enedis — mais **absente de tout flux ingéré** : l'obtenir exigerait l'API SGE web-service (candidat non bâti, [#207](https://github.com/Energie-De-Nantes/electricore/issues/207)). Porte la même borne *mur occupant* que les *mesures facturantes*.
+
 ---
 
 ## Pipeline d'ingestion
