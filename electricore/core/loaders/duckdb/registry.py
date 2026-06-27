@@ -8,6 +8,7 @@ schéma SQL (`FLUX_SCHEMAS`) / config appariée (`FLUX_CONFIGS`).
 """
 
 # Imports de validation
+from electricore.core.models.affaire_jalon import AffaireJalon
 from electricore.core.models.releve_index import RelevéIndex
 
 from .descriptor import FluxDescriptor
@@ -115,7 +116,10 @@ DESCRIPTOR_AFFAIRES = FluxDescriptor(
     flux_name="AFFAIRES",
     table="flux_enedis.flux_affaires",
     transform=None,
-    validator=None,  # opérationnel (suivi des affaires SGE), pas de schéma Pandera
+    # Seam `affaires_ouvertes` ← `flux_affaires` gardé par `AffaireJalon` (#295, ADR-0035) :
+    # c'était la dernière lacune de registre de la discovery #147. La parité dbt↔Pandera est
+    # prouvée par `test_dbt_affaires_respecte_le_contrat_pandera`.
+    validator=AffaireJalon,
 )
 
 
