@@ -13,9 +13,13 @@
 --   condition_prefixe : fragment SQL préfixant le `case when` (ex. "prefixe = 'avant_' and "),
 --                       pour le dépivot avant/après de flux_c15 ; vide par défaut.
 --   alias_prefixe     : préfixe d'alias des colonnes (ex. 'avant_') ; vide par défaut.
-{% macro pivot_cadrans(valeur='valeur', cadran_col='cadran', condition_prefixe='', alias_prefixe='') %}
+--   grandeur          : grandeur portée par les colonnes ('index' par défaut → index cumulé
+--                       des relevés R151/R64/R15/C15 ; 'energie' pour les énergies déjà
+--                       différenciées par le distributeur du flux R67, ADR-0047). Le défaut
+--                       'index' laisse R64/R151/R15/C15 strictement inchangés.
+{% macro pivot_cadrans(valeur='valeur', cadran_col='cadran', condition_prefixe='', alias_prefixe='', grandeur='index') %}
     {%- for cadran in var('cadrans_releve') %}
-    max(case when {{ condition_prefixe }}{{ cadran_col }} = '{{ cadran }}' then {{ valeur }} end) as {{ alias_prefixe }}index_{{ cadran }}_kwh{{ "," if not loop.last }}
+    max(case when {{ condition_prefixe }}{{ cadran_col }} = '{{ cadran }}' then {{ valeur }} end) as {{ alias_prefixe }}{{ grandeur }}_{{ cadran }}_kwh{{ "," if not loop.last }}
     {%- endfor %}
 {% endmacro %}
 
