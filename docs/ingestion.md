@@ -98,6 +98,52 @@ pour les colonnes non testées, étoffer `schema.yml` au fil de l'eau.
 4. `MODELES_PAR_RAW` dans `runner.py` ;
 5. Fixture anonymisée (`anonymiser.py`) et/ou XSD, golden, spec dans `test_dbt_flux_golden.py`.
 
+### Le flux JSON à la demande R67 (« mesures facturantes »)
+
+Le **R67** n'est pas un flux du quotidien : Enedis le publie **à la demande** (prestation
+**M023**, ponctuelle), JSON zippé sur le **même répertoire SFTP que R64**
+(`R63_R64_R65_R66_R67_C68/`). Sa raison d'être : **amorcer (cold-start) la provision** d'un
+mensualisé dès le premier mois, avant qu'EDN ait accumulé ~12 mois de relevés propres
+(brique de [#191](https://github.com/Energie-De-Nantes/electricore/issues/191), sous-tâche
+[#214](https://github.com/Energie-De-Nantes/electricore/issues/214)).
+
+**Spécificité — énergie par période, hors `releves`.** Contrairement à un *relevé d'index*
+(R64/R151/R15/C15 : un **cumul à un instant**, l'énergie se calcule en différenciant deux
+index), R67 porte de l'**énergie de consommation déjà différenciée par le distributeur, sur
+une période `[debut, fin)`** et par cadran. C'est un **asset parallèle** : il réutilise la
+plomberie JSON de R64 (landing → `stg_r67` → `flux_r67`) mais **n'est jamais unioné** dans
+les marts de relevés (`releves`/`chronologie_releves`) — l'y verser ferait calculer une
+« énergie d'énergie » et casserait le grain/la priorité des relevés. Modèle figé en
+[ADR-0047](adr/0047-flux-r67-energie-par-periode-distributeur-hors-releves.md) ; glossaire
+*Mesures facturantes (R67)* dans [`electricore/ingestion/CONTEXT.md`](../electricore/ingestion/CONTEXT.md).
+
+Le modèle `flux_r67` (wide, 1 ligne par `(pdl, debut, fin)`) : union de tous les
+`contexte[]` (les motifs partitionnent le temps sans recouvrement) ; **coalesce d'une
+grille par période** (priorité `D/DI000003 ≻ D/DI000001 ≻ F`, repli `F` forcé quand le
+distributeur manque — non-Linky — ou est dégénéré) ; pivot `energie_<cadran>_kwh` ; Wh→kWh
+par `floor` ; **négatifs préservés** (la régularisation `codeNature=C` est une révision
+physique, parfois négative) ; bornes `debut`/`fin` en jour civil `DATE` ; clé propre
+`periode_id`. Requêtable via le loader `r67()` (jamais via `releves()`).
+
+**Demander un R67 (procédure portail M023).** L'automatisation de la demande est hors scope
+([#216](https://github.com/Energie-De-Nantes/electricore/issues/216) wontfix) — la demande
+se fait à la main sur le **portail SGE** :
+
+1. Se connecter au portail SGE (espace fournisseur titulaire) ;
+2. Ouvrir une **prestation M023** (« Historique des mesures de consommation facturées ») sur
+   le PDL visé — réservé au **fournisseur titulaire actif** ; la profondeur restituée est
+   `max(aujourd'hui − 36 mois, dernière mise en service)` ;
+3. Le R67 (JSON zippé) est déposé sur le SFTP dans `…/R63_R64_R65_R66_R67_C68/` ;
+4. Le pull SFTP de routine le landé (`raw_r67`) ; `flux_r67` se construit au prochain
+   `dbt build` (ou `uv run python -m electricore.ingestion rebuild`). Aucune action
+   supplémentaire : le glob `*_R67_*.zip` et `MODELES_PAR_RAW` font le reste.
+
+À savoir avant un changement d'échelle : sur un **CFNE** (même foyer, MES ancienne) le R67
+remonte *avant* l'entrée chez le fournisseur → sert l'amorçage ; sur un **MES/PMES** (nouvel
+occupant) il est coupé à l'entrée → sans valeur (mur occupant RGPD). La voie M023 batch est
+recevable **aussi** pour les non-communicants, mais le contenu y est grossier (BASE,
+bimestriel, estimé).
+
 ### Les trois pièges DuckDB (appris sur données réelles, encodés dans les modèles)
 
 1. **Pushdown sous unnest** : un `WHERE` sur un chemin JSON d'un élément unnesté peut être poussé
@@ -112,6 +158,9 @@ pour les colonnes non testées, étoffer `schema.yml` au fil de l'eau.
 ## Décisions et histoire
 
 - [ADR-0020](adr/0020-linearisation-en-dbt.md) — la linéarisation vit en dbt (prototype, fork α).
+- [ADR-0047](adr/0047-flux-r67-energie-par-periode-distributeur-hors-releves.md) — R67
+  (« mesures facturantes ») : énergie par période, asset parallèle, **hors** union `releves`
+  (cf. recette « flux JSON à la demande R67 » ci-dessus).
 - [ADR-0021](adr/0021-bascule-production-dbt.md) — bascule production actée : parité totale
   legacy/dbt prouvée 3× (golden, 4 400 XML du cache local, corpus SFTP complet ~700 k lignes),
   5 défauts du legacy corrigés en route (grain PDL, index/conso R15 ~75 % faux, chimères
