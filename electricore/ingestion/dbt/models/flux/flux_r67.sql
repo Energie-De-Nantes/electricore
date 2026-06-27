@@ -15,8 +15,9 @@
 --   DI000001→DI000003 en cours de mesure est gérée car le rang se calcule PAR
 --   intervalle) ; `code_grille`/`code_calendrier` gardés en provenance ;
 -- - PIVOT wide `energie_<cadran>_kwh` via `pivot_cadrans(grandeur='energie')` ;
--- - Wh → kWh par `floor` uniforme (`// 1000`, ADR-0034) ; NÉGATIFS PRÉSERVÉS (la régul
---   `codeNature=C` est une régularisation physique, pas un signe comptable) ;
+-- - Wh → kWh par `floor` explicite (`floor(x / 1000.0)`, ADR-0034 — PAS `// 1000` qui
+--   tronque vers zéro) ; NÉGATIFS PRÉSERVÉS (la régul `codeNature=C` est une
+--   régularisation physique, pas un signe comptable) ;
 -- - bornes `debut`/`fin` en JOUR CIVIL `DATE`, intervalle demi-ouvert (ADR-0042 :
 --   ce sont des bornes de période, pas des instants — aucun +1j) ; la `periode`
 --   (fenêtre d'éligibilité M023) est gardée À PART, jamais une borne d'énergie ;
@@ -252,16 +253,20 @@ select
     en_tete.format,
     mesure_id as occurrence_id,
     'flux_R67' as source,
-    -- Wh → kWh par floor (`// 1000`, ADR-0034). NÉGATIFS PRÉSERVÉS (régul physique
-    -- codeNature=C) : pas de `ge >= 0`. // = division entière DuckDB, NULL-safe, et
-    -- floor sur entiers négatifs en DuckDB suit la division Python (vers −∞).
-    case when pivote.unite = 'Wh' then energie_base_kwh // 1000 else energie_base_kwh end as energie_base_kwh,
-    case when pivote.unite = 'Wh' then energie_hp_kwh   // 1000 else energie_hp_kwh   end as energie_hp_kwh,
-    case when pivote.unite = 'Wh' then energie_hc_kwh   // 1000 else energie_hc_kwh   end as energie_hc_kwh,
-    case when pivote.unite = 'Wh' then energie_hph_kwh  // 1000 else energie_hph_kwh  end as energie_hph_kwh,
-    case when pivote.unite = 'Wh' then energie_hpb_kwh  // 1000 else energie_hpb_kwh  end as energie_hpb_kwh,
-    case when pivote.unite = 'Wh' then energie_hch_kwh  // 1000 else energie_hch_kwh  end as energie_hch_kwh,
-    case when pivote.unite = 'Wh' then energie_hcb_kwh  // 1000 else energie_hcb_kwh  end as energie_hcb_kwh
+    -- Wh → kWh par FLOOR explicite (ADR-0034). NÉGATIFS PRÉSERVÉS (régul physique
+    -- codeNature=C) : pas de `ge >= 0`. ⚠️ On n'utilise PAS `// 1000` : l'opérateur `//`
+    -- de DuckDB TRONQUE VERS ZÉRO (-1999 // 1000 = -1), ce n'est PAS un floor — et R67 est
+    -- précisément le flux qui porte des énergies négatives. D'où `floor(x / 1000.0)` (vers
+    -- −∞), recasté en bigint, NULL-safe. Sur la donnée observée (toutes les quantités =
+    -- multiples de 1000 Wh) les deux donnent le même résultat ; le floor explicite honore
+    -- le contrat pour une éventuelle régul négative non-multiple.
+    case when pivote.unite = 'Wh' then cast(floor(energie_base_kwh / 1000.0) as bigint) else energie_base_kwh end as energie_base_kwh,
+    case when pivote.unite = 'Wh' then cast(floor(energie_hp_kwh  / 1000.0) as bigint) else energie_hp_kwh  end as energie_hp_kwh,
+    case when pivote.unite = 'Wh' then cast(floor(energie_hc_kwh  / 1000.0) as bigint) else energie_hc_kwh  end as energie_hc_kwh,
+    case when pivote.unite = 'Wh' then cast(floor(energie_hph_kwh / 1000.0) as bigint) else energie_hph_kwh end as energie_hph_kwh,
+    case when pivote.unite = 'Wh' then cast(floor(energie_hpb_kwh / 1000.0) as bigint) else energie_hpb_kwh end as energie_hpb_kwh,
+    case when pivote.unite = 'Wh' then cast(floor(energie_hch_kwh / 1000.0) as bigint) else energie_hch_kwh end as energie_hch_kwh,
+    case when pivote.unite = 'Wh' then cast(floor(energie_hcb_kwh / 1000.0) as bigint) else energie_hcb_kwh end as energie_hcb_kwh
 from pivote
 join en_tete using (mesure_id)
 -- Dédup re-livraison (ADR-0047) : une re-publication restatée du même (pdl, debut, fin,
