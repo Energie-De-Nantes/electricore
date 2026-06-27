@@ -177,12 +177,15 @@ def effondrer_profil(profil: pl.LazyFrame, as_of: dt.date) -> pl.LazyFrame:
         LazyFrame WIDE, une ligne par PDL, prêt pour la validation `EstimationProvision`.
     """
     debut_fenetre = _moins_n_mois(as_of, FENETRE_MOIS)
+    jours_fenetre = (as_of - debut_fenetre).days
 
     dans_fenetre = profil.filter(
         (pl.col("debut") >= pl.lit(debut_fenetre)) & (pl.col("debut") < pl.lit(as_of))
     ).with_columns(
         _total_periode_expr().alias("_total_periode"),
-        (pl.col("fin") - pl.col("debut")).dt.total_days().alias("_duree_jours"),
+        # Durée de recouvrement de la fenêtre : `fin` clampée à `as_of` — une période qui
+        # déborde au-delà de l'as-of ne compte que jusqu'à l'as-of.
+        (pl.min_horizontal("fin", pl.lit(as_of)) - pl.col("debut")).dt.total_days().alias("_duree_jours"),
     )
 
     # `base` = somme des TOTAUX par période (reconstruits par repli, décision 5) → toujours
@@ -212,14 +215,17 @@ def effondrer_profil(profil: pl.LazyFrame, as_of: dt.date) -> pl.LazyFrame:
 
     # Mois couverts = SOMME des durées de période (densité réelle de donnée, pas le span
     # global) : les périodes R67 ne se recouvrent pas (ADR-0047), donc Σ durées exclut les
-    # trous — un historique creux (périodes disjointes) lit < span. ≈ 30.44 j/mois.
-    # `couverture_debut/fin` restent l'étendue de la fenêtre (affichage) ; `couverture_mois`
-    # mesure la densité, sur laquelle s'appuie `couverture_suffisante`.
+    # trous — un historique creux (périodes disjointes) lit < span. ≈ 30.44 j/mois, pour
+    # l'affichage uniquement. `couverture_debut/fin` restent l'étendue de la fenêtre.
     couverture_mois = (pl.col("_couverture_jours") / 30.4375).alias("couverture_mois")
 
+    # Suffisance mesurée en JOURS contre la longueur réelle de la fenêtre (`jours_fenetre`),
+    # pas en mois moyens : comparer `couverture_mois (jours/30.4375) >= 12` sous-flaggerait
+    # une année calendaire pleine non bissextile (365 j = 11.99 < 12). Le seuil en jours
+    # épouse l'ancrage calendaire de `_moins_n_mois` et reste exact (comparaison d'entiers).
     avec_couverture = (
         agrege.with_columns(couverture_mois)
-        .with_columns((pl.col("couverture_mois") >= FENETRE_MOIS).alias("couverture_suffisante"))
+        .with_columns((pl.col("_couverture_jours") >= jours_fenetre).alias("couverture_suffisante"))
         .drop("_couverture_jours")
     )
 
@@ -231,13 +237,13 @@ def effondrer_profil(profil: pl.LazyFrame, as_of: dt.date) -> pl.LazyFrame:
     # L'invariant `base = hp+hc = Σ4` tient alors sur une fenêtre cohérente.
     est_4 = pl.col("profondeur_cadran") == "4_cadrans"
     est_hp_hc = pl.col("profondeur_cadran") == "hp_hc"
+    # hp/hc dérivés de leurs sous-cadrans via la relation canonique SOUS_CADRANS (source
+    # unique de la synthèse) quand la fenêtre est 4_cadrans ; sinon repris tels quels.
     rollup = {
-        "hp": pl.when(est_4)
-        .then(pl.col(col_energie("hph")) + pl.col(col_energie("hpb")))
-        .otherwise(pl.col(col_energie("hp"))),
-        "hc": pl.when(est_4)
-        .then(pl.col(col_energie("hch")) + pl.col(col_energie("hcb")))
-        .otherwise(pl.col(col_energie("hc"))),
+        cadran: pl.when(est_4)
+        .then(pl.sum_horizontal([pl.col(col_energie(sc)) for sc in sous]))
+        .otherwise(pl.col(col_energie(cadran)))
+        for cadran, sous in SOUS_CADRANS.items()
     }
     aligne = avec_couverture.with_columns(
         # hp/hc : présents si 4_cadrans (dérivés) ou hp_hc (sommés) ; null sinon.
@@ -292,7 +298,6 @@ def pipeline_estimation_provision_r67(r67: pl.LazyFrame, as_of: dt.date) -> Lazy
 __all__ = [
     "FENETRE_MOIS",
     "CADRANS",
-    "SOUS_CADRANS",
     "horloge_par_defaut",
     "profil_cadran_depuis_r67",
     "effondrer_profil",
