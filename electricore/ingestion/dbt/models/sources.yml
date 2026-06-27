@@ -17,6 +17,19 @@ sources:
             description: Nom du fichier source (traçabilité).
           - name: modification_date
             description: Date de modification SFTP (clé d'incrémental dlt).
+      - name: raw_r67
+        description: >
+          Flux R67 (« mesures facturantes » : énergie facturante par période, à la
+          demande M023, ADR-0047), un document JSON par ligne. Même plomberie de
+          landing que R64, mais énergie déjà différenciée par période — jamais unioné
+          dans les relevés index (releves/chronologie_releves).
+        columns:
+          - name: content
+            description: Document JSON intégral (header + mesures).
+          - name: file_name
+            description: Nom du fichier source (traçabilité).
+          - name: modification_date
+            description: Date de modification SFTP (clé d'incrémental dlt + dédup re-livraison).
       - name: raw_c15
         description: >
           Flux C15 (situation contractuelle), un document par ligne. Le XML est

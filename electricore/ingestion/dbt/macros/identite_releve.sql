@@ -57,3 +57,20 @@
         else 'réel'
     end
 {% endmacro %}
+
+
+-- Nature d'une mesure facturante R67 (ADR-0047) depuis `codeNature` :
+-- - R → réel (mesure relevée) ;
+-- - E → estimé ;
+-- - C → régularisé (révision physique d'une conso souvent estimée — peut être négative).
+-- Défaut PRUDENT `estimé` (jamais `réel` par erreur). À NE PAS confondre avec
+-- `nature_depuis_etape_metier` : l'`etapeMetier` de R67 est toujours `FACT`, la nature
+-- vient du `codeNature` de chaque quantité.
+{% macro nature_depuis_code_nature(code_nature) %}
+    case
+        when {{ code_nature }} = 'R' then 'réel'
+        when {{ code_nature }} = 'E' then 'estimé'
+        when {{ code_nature }} = 'C' then 'régularisé'
+        else 'estimé'
+    end
+{% endmacro %}
