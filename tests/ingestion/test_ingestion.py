@@ -23,6 +23,28 @@ def test_flux_aveugles_ne_retient_que_les_flux_sans_document():
     assert flux_aveugles(stats) == ["R64"]
 
 
+def test_resume_chaine_rend_visibles_documents_et_echecs_par_etage():
+    """Observabilité (ADR-0037 ext.) : le bilan par flux remonte le compteur de documents
+    (entrée du prédicat) et les échecs par étage — capturés dans job.output pour le bot."""
+    from electricore.ingestion.runner import _resume_chaine
+
+    ligne = _resume_chaine(
+        "R64",
+        StatsChaine(fichiers=3, dechiffres=3, extraits=2, documents=1, echecs_extraction=1, echecs_linearisation=1),
+    )
+    assert "R64" in ligne
+    assert "1 document" in ligne
+    assert "extraction=1" in ligne and "linéarisation=1" in ligne
+
+
+def test_resume_chaine_flux_propre_ne_montre_pas_de_section_echecs():
+    """Un flux sans échec n'affiche aucune section d'échecs (bruit minimal)."""
+    from electricore.ingestion.runner import _resume_chaine
+
+    ligne = _resume_chaine("R151", StatsChaine(fichiers=5, dechiffres=5, extraits=5, documents=5))
+    assert "échec" not in ligne.lower()
+
+
 def test_les_modes_de_l_api_sont_interpretables():
     plans = {mode.value: interpreter_flux([mode.value], max_files=None) for mode in ModeIngestion}
     assert plans["all"] == PlanRun(selection=None, max_files=None, refresh=None, rebuild=False)
