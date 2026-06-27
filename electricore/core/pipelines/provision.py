@@ -180,7 +180,10 @@ def effondrer_profil(profil: pl.LazyFrame, as_of: dt.date) -> pl.LazyFrame:
 
     dans_fenetre = profil.filter(
         (pl.col("debut") >= pl.lit(debut_fenetre)) & (pl.col("debut") < pl.lit(as_of))
-    ).with_columns(_total_periode_expr().alias("_total_periode"))
+    ).with_columns(
+        _total_periode_expr().alias("_total_periode"),
+        (pl.col("fin") - pl.col("debut")).dt.total_days().alias("_duree_jours"),
+    )
 
     # `base` = somme des TOTAUX par période (reconstruits par repli, décision 5) → toujours
     # le total, même quand le mart laisse base null sur une grille 4-cadrans. Cadrans fins :
@@ -200,19 +203,24 @@ def effondrer_profil(profil: pl.LazyFrame, as_of: dt.date) -> pl.LazyFrame:
             *sommes,
             pl.col("debut").min().alias("couverture_debut"),
             pl.col("fin").max().alias("couverture_fin"),
+            pl.col("_duree_jours").sum().alias("_couverture_jours"),
             _profondeur_coherente_expr().alias("profondeur_cadran"),
             _qualite_expr().alias("qualite"),
             (pl.col("code_nature") == "C").any().alias("presence_regularisation"),
         ]
     )
 
-    # Mois couverts = span [couverture_debut, couverture_fin) en mois (≈ 30.44 j/mois).
-    couverture_mois = ((pl.col("couverture_fin") - pl.col("couverture_debut")).dt.total_days() / 30.4375).alias(
-        "couverture_mois"
-    )
+    # Mois couverts = SOMME des durées de période (densité réelle de donnée, pas le span
+    # global) : les périodes R67 ne se recouvrent pas (ADR-0047), donc Σ durées exclut les
+    # trous — un historique creux (périodes disjointes) lit < span. ≈ 30.44 j/mois.
+    # `couverture_debut/fin` restent l'étendue de la fenêtre (affichage) ; `couverture_mois`
+    # mesure la densité, sur laquelle s'appuie `couverture_suffisante`.
+    couverture_mois = (pl.col("_couverture_jours") / 30.4375).alias("couverture_mois")
 
-    avec_couverture = agrege.with_columns(couverture_mois).with_columns(
-        (pl.col("couverture_mois") >= FENETRE_MOIS).alias("couverture_suffisante")
+    avec_couverture = (
+        agrege.with_columns(couverture_mois)
+        .with_columns((pl.col("couverture_mois") >= FENETRE_MOIS).alias("couverture_suffisante"))
+        .drop("_couverture_jours")
     )
 
     # Aligne la sortie WIDE sur la profondeur déclarée (décision 5, #488) :

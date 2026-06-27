@@ -52,7 +52,8 @@ def formater_estimation(body: dict) -> str:
     suffisante = est.get("couverture_suffisante")
     drapeau = "✅" if suffisante else "⚠️"
     mois_txt = f"{mois:.1f}" if mois is not None else "?"
-    lignes.append(f"Couverture : {drapeau} {mois_txt} mois ({escape(debut)} → {escape(fin)})")
+    plage = f" ({escape(debut)} → {escape(fin)})" if debut is not None and fin is not None else ""
+    lignes.append(f"Couverture : {drapeau} {mois_txt} mois{plage}")
 
     # Qualité + signal alertable.
     qualite = est.get("qualite", "?")

@@ -124,6 +124,29 @@ def test_metadonnees_couverture_fenetre_et_mois():
     assert row["couverture_suffisante"] is True
 
 
+def test_couverture_mois_mesure_la_densite_pas_le_span():
+    """Note de revue PR #490 : historique creux → couverture = densité, pas l'étendue.
+
+    Deux périodes de ~2 mois aux extrémités d'une fenêtre de 12 mois, séparées par un grand
+    trou. Le span global `[min debut, max fin)` vaut ~12 mois, mais la donnée réelle ne couvre
+    que ~4 mois → `couverture_mois` doit lire la densité (Σ durées de période, sans les trous,
+    périodes non recouvrantes ADR-0047) et signaler l'insuffisance.
+    """
+    lignes = [
+        (date(2024, 1, 1), date(2024, 3, 1), "R", 100),  # 60 j
+        (date(2024, 11, 1), date(2025, 1, 1), "R", 100),  # 61 j ; trou mars→nov
+    ]
+    out = effondrer_profil(_profil_base(lignes=lignes), as_of=date(2025, 1, 1)).collect()
+    row = out.to_dicts()[0]
+    # Étendue de fenêtre inchangée (affichage).
+    assert row["couverture_debut"] == date(2024, 1, 1)
+    assert row["couverture_fin"] == date(2025, 1, 1)
+    # Densité ≈ 4 mois (121 j), PAS les ~12 mois du span global.
+    assert row["couverture_mois"] == pytest.approx(121 / 30.4375, abs=0.1)
+    assert row["couverture_mois"] < 6
+    assert row["couverture_suffisante"] is False
+
+
 # =============================================================================
 # Pipeline + build — golden R67 (base-only)
 # =============================================================================
