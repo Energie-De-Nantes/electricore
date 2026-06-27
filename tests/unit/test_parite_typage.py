@@ -89,3 +89,15 @@ def test_table_de_correspondance_couvre_les_types_du_contrat_releve():
     types_contrat = {"BIGINT", "VARCHAR", "BOOLEAN", "TIMESTAMP WITH TIME ZONE"}
 
     assert types_contrat <= set(SQL_VERS_POLARS)
+
+
+def test_integer_sql_connu_de_la_table():
+    """Le seam `affaires_ouvertes` ← `flux_affaires` consomme `jalon_num`, émis en
+    INTEGER par dbt (cast `as integer`). La table doit le connaître (→ Int32), sinon le
+    test de frontière des affaires (#295) lèverait `TypeSQLInconnu` au lieu de comparer."""
+    assert SQL_VERS_POLARS["INTEGER"].base_type() == pl.Int32
+
+    class ContratInteger(pa.DataFrameModel):
+        jalon_num: pl.Int32
+
+    assert ecarts_de_typage({"jalon_num": "INTEGER"}, ContratInteger) == {}

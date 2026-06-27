@@ -24,6 +24,7 @@ import polars as pl
 # nullabilité, et le fuseau n'est pas porté par le type SQL `timestamptz`.
 SQL_VERS_POLARS: dict[str, pl.DataType] = {
     "BIGINT": pl.Int64,
+    "INTEGER": pl.Int32,
     "VARCHAR": pl.String,
     "BOOLEAN": pl.Boolean,
     "DOUBLE": pl.Float64,
