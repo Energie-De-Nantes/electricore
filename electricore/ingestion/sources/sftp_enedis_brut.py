@@ -82,7 +82,7 @@ def flux_enedis_brut(flux_config: dict, max_files: int = None, stats: dict[str, 
         sftp_resource = create_sftp_resource(flux_type, table, file_pattern, sftp_url, max_files)
         stats_flux = stats.setdefault(flux_type, StatsChaine())
         decrypt_transformer = create_decrypt_transformer(key_chain=key_chain, stats=stats_flux)
-        unzip_transformer = create_unzip_transformer(extension, file_regex)
+        unzip_transformer = create_unzip_transformer(extension, file_regex, stats=stats_flux)
         brut = _create_brut_transformer(flux_type, est_json)
 
         pipeline_brut = (sftp_resource | decrypt_transformer | unzip_transformer | brut).with_name(table)

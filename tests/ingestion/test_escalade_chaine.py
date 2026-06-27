@@ -37,12 +37,22 @@ _CONFIG = {
 _R64_JSON = (Path(__file__).parents[1] / "fixtures" / "flux" / "r64.json").read_bytes()
 
 
-def _zip_chiffre(nom_interne: str, contenu: bytes) -> bytes:
-    """ZIP contenant `nom_interne`, chiffré AES-128-CBC + PKCS7 avec la clé du trousseau."""
+def _zip_clair(nom_interne: str, contenu: bytes) -> bytes:
+    """ZIP en clair (non chiffré) contenant `nom_interne` — pour tester l'étage unzip seul."""
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr(nom_interne, contenu)
-    return AES.new(_KEY, AES.MODE_CBC, _IV).encrypt(pad(buf.getvalue(), AES.block_size))
+    return buf.getvalue()
+
+
+def _zip_chiffre(nom_interne: str, contenu: bytes) -> bytes:
+    """ZIP contenant `nom_interne`, chiffré AES-128-CBC + PKCS7 avec la clé du trousseau."""
+    return AES.new(_KEY, AES.MODE_CBC, _IV).encrypt(pad(_zip_clair(nom_interne, contenu), AES.block_size))
+
+
+def _fichier_dechiffre(nom_zip: str, contenu_zip: bytes) -> dict:
+    """Forme du dict produit par l'étage decrypt, consommé par l'étage unzip."""
+    return {"file_name": nom_zip, "modification_date": None, "decrypted_content": contenu_zip}
 
 
 def _ecrire(chemin: Path, data: bytes, jour: int) -> None:
@@ -103,3 +113,35 @@ def test_escalade_decrypt_compte_par_flux(bucket, tmp_path):
     (n_r64,) = con.execute("select count(*) from flux_raw.raw_r64").fetchone()
     con.close()
     assert n_r64 == 1
+
+
+# =============================================================================
+# Étage unzip : extraits comptés, ZIP corrompu compté sans crash (ADR-0037 ext.)
+# =============================================================================
+
+
+def test_unzip_compte_les_fichiers_extraits():
+    """Chaque fichier interne yieldé incrémente `extraits` (aucun échec sur un ZIP sain)."""
+    from electricore.ingestion.transformers.archive import _unzip_transformer_base
+
+    stats = StatsChaine()
+    fichier = _fichier_dechiffre("a.zip", _zip_clair("mesure.xml", b"<data/>"))
+
+    produits = list(_unzip_transformer_base(fichier, ".xml", "*.xml", stats))
+
+    assert len(produits) == 1
+    assert stats.extraits == 1 and stats.echecs_extraction == 0
+
+
+def test_unzip_compte_un_echec_sur_zip_corrompu_sans_crash():
+    """Fin du silence d'unzip (ADR-0037 ext.) : un ZIP illisible est compté
+    `echecs_extraction`, sans exception propagée (pas de poison-pill)."""
+    from electricore.ingestion.transformers.archive import _unzip_transformer_base
+
+    stats = StatsChaine()
+    fichier = _fichier_dechiffre("corrompu.zip", b"ceci n'est pas un zip")
+
+    produits = list(_unzip_transformer_base(fichier, ".xml", "*.xml", stats))
+
+    assert produits == []
+    assert stats.extraits == 0 and stats.echecs_extraction == 1
