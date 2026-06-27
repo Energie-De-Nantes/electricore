@@ -9,6 +9,23 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.4.0rc10] - 2026-06-27
+
+### ✨ Nouveautés (estimation de provision des lissés — cold-start R67)
+
+- **Estimation de provision des lissés en kWh, amorcée par R67** (#487/#488/#489, ADR-0048) :
+  capacité **cœur-pure** qui amorce (cold-start) la *provision d'énergie* d'un *contrat lissé*
+  depuis `flux_r67` (mesures facturantes M023). Profil cadran → effondrement sur **12 mois
+  glissants** (somme nette R+E+C, négatifs préservés) → `/12` **plate**. Sortie **WIDE** par
+  cadran (profondeur cohérente maximale, invariant `base = hp+hc = Σ4`, repli base sur
+  historique grille-mixé) + métadonnées de **couverture** (densité réelle, seuil de suffisance
+  en jours) et de **qualité** (mix réel/estimé/corrigé) + **signal alertable** (la lib expose,
+  l'aval alerte, ADR-0037). Frontières Pandera typées des deux bords (R67 en entrée — premier
+  consommateur typé). Livré **bout-en-bout** : build autonome `RapportProvision` → API
+  `GET /provision/estimation?pdl=…` → bot `/provision <pdl>`. **kWh uniquement, zéro €** (prix
+  fournisseur = ERP, ADR-0016/0027) ; `core/` reste pur. En amont de la régularisation (#191 ;
+  thermostat, pas solde).
+
 ### ✨ Nouveautés (résolution RSC — api/client)
 
 - **`POST /facturation/rsc` — résolution `id_Affaire` → `ref_situation_contractuelle`** (#282) :
