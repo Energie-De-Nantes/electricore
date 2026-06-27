@@ -41,7 +41,7 @@ La dissection a aussi remonté quatre faits structurants que le modèle doit enc
 
 4. **Format wide `energie_<cadran>_kwh`** via `pivot_cadrans` **paramétré** : la macro gagne un argument `grandeur='index'` (défaut inchangé) ; R67 l'appelle avec `grandeur='energie'` sur `quantite`. Réutilise le SSOT cadrans (`cadrans_releve`/`CADRANS`, ADR-0035) — **pas** de re-triplication de la liste des 7 cadrans.
 
-5. **Wh→kWh par `floor` uniforme** (`quantite // 1000`, expression identique à R64, ADR-0034). Lossless sur la donnée observée (249/249 quantités multiples de 1000 Wh) ; floor par cohérence maison si un non-multiple survient un jour. **Négatif préservé** (régul physique).
+5. **Wh→kWh par `floor` explicite** (`cast(floor(quantite / 1000.0) as bigint)`, ADR-0034) — **pas** `// 1000` : l'opérateur `//` de DuckDB **tronque vers zéro** (≠ floor) et R67 porte des **négatifs**, donc `floor` explicite (vers −∞). Lossless sur la donnée observée (249/249 quantités multiples de 1000 Wh → résultat identique) ; le floor explicite honore le contrat si une régul négative non-multiple survient un jour. **Négatif préservé** (régul physique).
 
 6. **Bornes `debut`/`fin` en jour civil `DATE`, intervalle demi-ouvert `[debut, fin)`** (ADR-0042 : ce sont des bornes de période, pas des instants). **Aucune** harmonisation +1j (R67 est un asset autonome, jamais joint à R151/R64). La `periode` (fenêtre d'éligibilité M023, plus large que la couverture data) est gardée **à part** et n'est **jamais** utilisée comme borne d'énergie.
 
@@ -65,7 +65,7 @@ La dissection a aussi remonté quatre faits structurants que le modèle doit enc
 
 **Pourquoi coalescer plutôt que garder les deux grilles.** `D/DI000003` est un raffinement strict de `F` (re-dérivation vérifiée exacte) : garder `F` en plus serait redondant *et* un footgun (sommer sans filtrer `code_grille` double-compte). L'écart `D`-vs-`F` (~1 kWh/période, arrondi) est du bruit immatériel sur une provision ÷12 (déjà réconcilié au spike : `FC022034` BASE 2513 kWh/an ↔ détail 4 cadrans).
 
-**Pourquoi `floor`.** Cohérence avec la conversion Wh→kWh de tout le boundary dbt (ADR-0034). À noter (et c'est la seule nuance vs ADR-0034) : la preuve « l'erreur de troncature télescope » vaut pour des **index cumulés** ; sur des **énergies par période** chaque ligne tronque indépendamment, l'erreur ne s'annule pas d'une période à l'autre. Sans objet ici (data lossless), mais on ne s'appuie pas sur la preuve de télescopage.
+**Pourquoi `floor` explicite (et pas `// 1000`).** Cohérence avec la conversion Wh→kWh de tout le boundary dbt (ADR-0034). Mais `//` de DuckDB **tronque vers zéro** (≠ floor), et R67 porte des **négatifs** : on écrit donc `floor(x / 1000.0)` (vers −∞), pas `// 1000` comme R64 (qui n'a que des cumuls ≥ 0). À noter (seule nuance vs ADR-0034) : la preuve « l'erreur de troncature télescope » vaut pour des **index cumulés** ; sur des **énergies par période** chaque ligne tronque indépendamment, l'erreur ne s'annule pas d'une période à l'autre. Sans objet ici (data lossless : multiples de 1000 → `//` et `floor` coïncident), mais on ne s'appuie pas sur la preuve de télescopage.
 
 ## Alternatives écartées
 
