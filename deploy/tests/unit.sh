@@ -291,6 +291,21 @@ assert_eq "$vcount" "1" "override_config_version: une seule ligne ELECTRICORE_VE
 rm -f "$tmp_cfg"
 
 echo
+echo "→ install.sh / câblage de l'override --version (garde anti-régression #299)"
+# override_config_version a survécu à #299, mais son APPEL dans install.sh avait été
+# supprimé en même temps que le fix ETL → --version devenait inerte (l'image pinée du
+# dépôt déployée quand même). La fonction + son test unitaire passaient vert pendant que
+# le câblage réel disparaissait. On verrouille le câblage par une garde de présence.
+# SCRIPT_DIR a pu être muté par un helper sourcé plus haut → on recalcule depuis BASH_SOURCE.
+install_sh="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/install.sh"
+grep -q "override_config_version" "$install_sh" \
+    && ok "install.sh appelle override_config_version (--version câblé)" \
+    || ko "install.sh n'appelle PAS override_config_version → --version inerte (régression #299)"
+grep -q "OPT_VERSION_EXPLICIT" "$install_sh" \
+    && ok "install.sh garde l'override derrière OPT_VERSION_EXPLICIT" \
+    || ko "install.sh ne garde pas l'override derrière OPT_VERSION_EXPLICIT"
+
+echo
 echo "→ env_validate.sh / read_env_var"
 tmp_rev=$(mktemp)
 printf 'API_KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nQUOTED_VALUE="hello world"\nWITH_COMMENT=foo   # trailing comment ignored\n' > "$tmp_rev"
