@@ -19,6 +19,7 @@ from electricore.api.routers import facturation as facturation_router
 from electricore.api.routers import flux as flux_router
 from electricore.api.routers import ingestion as ingestion_router
 from electricore.api.routers import meta_periodes as meta_periodes_router
+from electricore.api.routers import provision as provision_router
 from electricore.api.routers import releves as releves_router
 from electricore.api.routers import rsc as rsc_router
 from electricore.api.routers import taxes as taxes_router
@@ -107,6 +108,11 @@ app = FastAPI(
             "description": "Calcul des taxes énergétiques CTA et Accise TICFE (authentification requise)",
         },
         {"name": "facturation", "description": "Réconciliation facturation Odoo ↔ Enedis (authentification requise)"},
+        {
+            "name": "provision",
+            "description": "Estimation de provision des lissés en kWh (cold-start R67, ADR-0048 ; "
+            "authentification requise)",
+        },
     ],
 )
 
@@ -138,6 +144,7 @@ app.include_router(chronologie_router.router)
 app.include_router(turpe_variable_router.router)
 app.include_router(affaires_router.router)
 app.include_router(rsc_router.router)
+app.include_router(provision_router.router)
 
 
 # OpenAPI 3.2.0 : décrit les *sequential media types* (NDJSON) via `itemSchema` — les flux JSONL
