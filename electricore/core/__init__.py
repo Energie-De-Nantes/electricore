@@ -1,6 +1,6 @@
-# Imports supprimés pour éviter l'import circulaire
-# Utilisez plutôt : from electricore.core.services import ...
+"""Cœur de calcul énergétique ElectriCore (ERP-agnostique, ADR-0016).
 
-# import electricore.core.périmètre
-# import electricore.core.relevés
-# import electricore.core.énergies
+Les sous-packages s'importent explicitement pour éviter les imports circulaires :
+``from electricore.core.pipelines.historique import pipeline_historique``,
+``from electricore.core.builds.contexte_mensuel import contexte_du_mois``, etc.
+"""
