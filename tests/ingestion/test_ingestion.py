@@ -7,19 +7,20 @@ complet via drop_sources).
 """
 
 from electricore.api.services.ingestion_service import ModeIngestion
-from electricore.ingestion.runner import PlanRun, flux_sans_dechiffrement, interpreter_flux
-from electricore.ingestion.transformers.crypto import StatsDechiffrement
+from electricore.ingestion.runner import PlanRun, flux_aveugles, interpreter_flux
+from electricore.ingestion.transformers.crypto import StatsChaine
 
 
-def test_flux_sans_dechiffrement_ne_retient_que_les_flux_aveugles():
-    """Escalade per-flux (ADR-0037) : seuls les flux à 0 succès + ≥ 1 échec remontent."""
+def test_flux_aveugles_ne_retient_que_les_flux_sans_document():
+    """Escalade per-flux généralisée à la chaîne (ADR-0037 ext.) : seuls les flux à 0
+    document produit + ≥ 1 échec (quel qu'en soit l'étage) remontent."""
     stats = {
-        "R64": StatsDechiffrement(succes=0, echecs=3),  # aveugle → clé manquante
-        "C15": StatsDechiffrement(succes=10, echecs=1),  # échec isolé toléré
-        "R151": StatsDechiffrement(succes=5, echecs=0),  # tout va bien
-        "F15": StatsDechiffrement(succes=0, echecs=0),  # aucun fichier
+        "R64": StatsChaine(documents=0, echecs_dechiffrement=3),  # aveugle → clé manquante
+        "C15": StatsChaine(documents=10, echecs_extraction=1),  # échec isolé toléré
+        "R151": StatsChaine(documents=5),  # tout va bien
+        "F15": StatsChaine(documents=0),  # aucun document, aucun échec (vide par nature)
     }
-    assert flux_sans_dechiffrement(stats) == ["R64"]
+    assert flux_aveugles(stats) == ["R64"]
 
 
 def test_les_modes_de_l_api_sont_interpretables():
@@ -118,10 +119,12 @@ def test_main_echoue_si_un_flux_est_aveugle(monkeypatch):
     import pytest
 
     from electricore.ingestion import runner
-    from electricore.ingestion.transformers.crypto import StatsDechiffrement
+    from electricore.ingestion.transformers.crypto import StatsChaine
 
     monkeypatch.setattr(runner.runtime, "valider", lambda *a, **k: None)
-    monkeypatch.setattr(runner, "lander_brut", lambda db, plan: {"R64": StatsDechiffrement(succes=0, echecs=3)})
+    monkeypatch.setattr(
+        runner, "lander_brut", lambda db, plan: {"R64": StatsChaine(documents=0, echecs_dechiffrement=3)}
+    )
     monkeypatch.setattr(runner, "construire_dbt", lambda db: True)  # les flux sains ont buildé
     monkeypatch.setattr(runner, "bilan", lambda db: None)
     monkeypatch.setattr(sys, "argv", ["prog", "all", "--db", "/tmp/peu_importe.duckdb"])

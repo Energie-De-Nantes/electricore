@@ -23,9 +23,8 @@ from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
 
 from electricore.config import runtime
-from electricore.ingestion.runner import flux_sans_dechiffrement
 from electricore.ingestion.sources.sftp_enedis_brut import flux_enedis_brut
-from electricore.ingestion.transformers.crypto import StatsDechiffrement
+from electricore.ingestion.transformers.crypto import StatsChaine
 
 _KEY = bytes.fromhex("00112233445566778899aabbccddeeff")  # 16 octets (AES-128)
 _IV = bytes.fromhex("ffeeddccbbaa99887766554433221100")
@@ -79,8 +78,9 @@ def bucket(tmp_path, monkeypatch):
     return b
 
 
-def test_escalade_per_flux_aveugle_vs_echec_isole(bucket, tmp_path):
-    stats: dict[str, StatsDechiffrement] = {}
+def test_escalade_decrypt_compte_par_flux(bucket, tmp_path):
+    """Étage decrypt (ADR-0037) : déchiffrements OK/KO comptés par flux, le bon R64 landé."""
+    stats: dict[str, StatsChaine] = {}
     pipeline = dlt.pipeline(
         pipeline_name="flux_brut_escalade",
         destination=dlt.destinations.duckdb(str(tmp_path / "esc.duckdb")),
@@ -89,13 +89,12 @@ def test_escalade_per_flux_aveugle_vs_echec_isole(bucket, tmp_path):
     )
     pipeline.run(flux_enedis_brut(_CONFIG, stats=stats))
 
-    # Cas « flux entier KO » : C15 aveugle (0 succès, 2 échecs).
-    assert stats["C15"].succes == 0 and stats["C15"].echecs == 2
-    # Cas « fichier isolé KO » : R64 toléré (1 succès, 1 échec) → NON aveugle.
-    assert stats["R64"].succes == 1 and stats["R64"].echecs == 1
-
-    # Seul C15 remonte comme flux à escalader (→ job failed → alerte bot).
-    assert flux_sans_dechiffrement(stats) == ["C15"]
+    # Cas « flux entier KO » : C15 ne déchiffre rien (2 fichiers, 2 échecs de déchiffrement).
+    assert stats["C15"].fichiers == 2
+    assert stats["C15"].dechiffres == 0 and stats["C15"].echecs_dechiffrement == 2
+    # Cas « fichier isolé KO » : R64 déchiffre 1 fichier sur 2 (le corrompu compté, pas bloquant).
+    assert stats["R64"].fichiers == 2
+    assert stats["R64"].dechiffres == 1 and stats["R64"].echecs_dechiffrement == 1
 
     # Pas de poison-pill : le bon R64 a bien été landé malgré le fichier corrompu.
     import duckdb
