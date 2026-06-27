@@ -104,7 +104,7 @@ def interpreter_flux(flux: list[str], max_files: int | None) -> PlanRun:
 def lander_brut(db_path: Path, plan: PlanRun) -> dict[str, StatsChaine]:
     """Étape 1 : SFTP → tables raw_<flux> (colonne JSON) dans flux_raw.
 
-    Retourne les stats de déchiffrement agrégées par flux (escalade per-flux, ADR-0037) :
+    Retourne les stats de chaîne agrégées par flux (escalade per-flux, ADR-0037 étendu) :
     le caller décide ensuite si un flux aveugle doit faire échouer le job.
     """
     config = yaml.safe_load((ICI / "config" / "flux.yaml").read_text())
@@ -304,9 +304,12 @@ def main() -> None:
     _out("🔨 dbt build")
     if not construire_dbt(args.db):
         # Si rien n'a été construit alors que des flux sont aveugles, la vraie cause est
-        # la clé AES manquante, pas dbt — surfacer le bon diagnostic.
+        # en amont (un étage de la chaîne est resté sombre), pas dbt — surfacer le bon diagnostic.
         if aveugles:
-            _out(f"❌ Aucun déchiffrement réussi pour : {', '.join(aveugles)} (clé AES manquante ?)")
+            _out(
+                f"❌ Flux aveugles (0 document produit) : {', '.join(aveugles)} "
+                "— étage(s) sombre(s) au bilan de chaîne ci-dessus"
+            )
         else:
             _out("❌ dbt build a échoué")
         sys.exit(1)
@@ -315,10 +318,14 @@ def main() -> None:
     _out("📊 Bilan")
     bilan(args.db)
 
-    # Escalade per-flux (ADR-0037) : un flux qui a des fichiers mais 0 déchiffrement réussi
-    # fait échouer le job — la surveillance bot alerte alors sur un job `failed`. Placé après
-    # le dbt build pour que les flux sains continuent de couler malgré le flux aveugle.
+    # Escalade per-flux (ADR-0037 étendu) : un flux qui a des fichiers mais 0 document produit
+    # — quel que soit l'étage resté sombre (déchiffrement, extraction ou linéarisation) — fait
+    # échouer le job ; la surveillance bot alerte alors sur un job `failed`. Placé après le dbt
+    # build pour que les flux sains continuent de couler malgré le flux aveugle.
     if aveugles:
-        _out(f"❌ Flux sans aucun déchiffrement réussi (clé AES manquante ?) : {', '.join(aveugles)}")
+        _out(
+            f"❌ Flux aveugles (0 document produit) : {', '.join(aveugles)} "
+            "— étage(s) sombre(s) au bilan de chaîne ci-dessus"
+        )
         sys.exit(1)
     _out("✅ Terminé")
