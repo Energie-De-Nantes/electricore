@@ -26,6 +26,8 @@ from .models import (
     LigneTurpeVariable,
     ObjetReleve,
     PeriodeMeta,
+    ResolutionRscRequest,
+    ResultatResolutionRsc,
     ResultatTurpeVariable,
     TurpeVariableRequest,
 )
@@ -49,5 +51,7 @@ __all__ = [
     "LigneTurpeVariable",
     "TurpeVariableRequest",
     "ResultatTurpeVariable",
+    "ResolutionRscRequest",
+    "ResultatResolutionRsc",
     "__version__",
 ]

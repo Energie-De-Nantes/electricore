@@ -19,6 +19,11 @@ from .models.meta_periodes import (
     CONTRAT_VERSION_META_PERIODES,
     PeriodeMeta,
 )
+from .models.rsc import (
+    CONTRAT_VERSION_RSC,
+    ResolutionRscRequest,
+    ResultatResolutionRsc,
+)
 from .models.turpe_variable import (
     CONTRAT_VERSION_TURPE_VARIABLE,
     LigneTurpeVariable,
@@ -178,3 +183,33 @@ class ElectricoreClient(_BaseClient):
 
         corps = response.json()
         return [ResultatTurpeVariable.model_validate(r) for r in corps["results"]]
+
+    def resoudre_rsc(self, ids: list[str]) -> list[ResultatResolutionRsc]:
+        """Résout un lot d'`id_Affaire` en `ref_situation_contractuelle` — **POST RPC**.
+
+        Petit recoupement stateless (X12 ⨝ C15), batch POST : un round-trip pour tout le
+        lot. Chaque résultat porte `ref_situation_contractuelle` **ou** un `error`,
+        **apparié à l'entrée par l'`id_affaire` opaque** ré-émis (jamais positionnel — un
+        serveur libre de réordonner reste correct). La garde de version s'applique (en-tête).
+
+        Args:
+            ids: lot d'`id_Affaire` (Id_Affaire Enedis) à résoudre.
+
+        Returns:
+            Liste de `ResultatResolutionRsc` (autant que d'entrées). Pour un appariement
+            explicite : `{r.id_affaire: r for r in resultats}`.
+        """
+        requete = ResolutionRscRequest(ids=list(ids))
+        response = self._http.post(
+            f"{self.url}/facturation/rsc",
+            content=requete.model_dump_json(),
+            headers={**self._headers, "Content-Type": "application/json"},
+        )
+        self._raise_for_status(response)
+
+        version_servie = response.headers.get("X-Contract-Version")
+        if version_servie is not None:
+            self._verifier_version(attendue=CONTRAT_VERSION_RSC, servie=int(version_servie))
+
+        corps = response.json()
+        return [ResultatResolutionRsc.model_validate(r) for r in corps["results"]]

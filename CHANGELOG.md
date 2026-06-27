@@ -9,6 +9,19 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+### ✨ Nouveautés (résolution RSC — api/client)
+
+- **`POST /facturation/rsc` — résolution `id_Affaire` → `ref_situation_contractuelle`** (#282) :
+  dernier des 3 livrables d'exposition facturation pour le pull Odoo (après
+  `GET /facturation/meta-periodes` et `POST /facturation/turpe-variable`). Recoupe **X12**
+  (`flux_affaires`) ⨝ **C15** (`flux_c15`) — match **exact** sur l'`id_affaire` natif que
+  portent les événements C15 (= l'`Id_Affaire` de l'affaire X12), X12 recoupant l'existence
+  (distingue *affaire connue sans RSC* d'*affaire inconnue*). Lot + `id_affaire` opaque
+  ré-émis, **succès partiel** par entrée (RSC xor motif d'erreur), enveloppe JSON
+  `{contract_version, results}`, ERP-agnostique (zéro `integrations/odoo`). Modèles
+  single-sourcés dans `electricore_client` (`ResolutionRscRequest` / `ResultatResolutionRsc`,
+  ADR-0043) + méthode client `resoudre_rsc`. Contrat figé : `docs/contrat-rsc.md`.
+
 ## [3.4.0rc9] - 2026-06-26
 
 ### 🐛 Correctifs

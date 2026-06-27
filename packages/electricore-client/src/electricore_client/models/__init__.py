@@ -16,6 +16,11 @@ from .chronologie import (
     valider_ligne_chronologie,
 )
 from .meta_periodes import CONTRAT_VERSION_META_PERIODES, ObjetReleve, PeriodeMeta
+from .rsc import (
+    CONTRAT_VERSION_RSC,
+    ResolutionRscRequest,
+    ResultatResolutionRsc,
+)
 from .turpe_variable import (
     CONTRAT_VERSION_TURPE_VARIABLE,
     LigneTurpeVariable,
@@ -37,4 +42,7 @@ __all__ = [
     "TurpeVariableRequest",
     "ResultatTurpeVariable",
     "CONTRAT_VERSION_TURPE_VARIABLE",
+    "ResolutionRscRequest",
+    "ResultatResolutionRsc",
+    "CONTRAT_VERSION_RSC",
 ]
