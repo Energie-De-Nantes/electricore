@@ -246,6 +246,19 @@ main() {
             log_err "config.env invalide :"; printf '%s\n' "$errs" | sed 's/^/     - /'
             die "Corrige providers/${OPT_SLUG}/config.env dans le dépôt, pousse, puis relance reconfigure."
         fi
+
+        # Override LOCAL de la version (#460) : `--version` pilote le tag d'image déployé même
+        # en secrets-as-code, SANS toucher au dépôt secrets (la version n'est pas un secret,
+        # c'est un paramètre de déploiement — ADR-0044). Appliqué APRÈS le pull : le config.env
+        # du dépôt reste la baseline GitOps (reconfigure sans --version = version pinée). Le pull
+        # ré-écrit config.env à chaque reconfigure → l'override est ré-appliqué à chaque fois.
+        # (Régression #299 corrigée : l'appel avait été supprimé → --version devenait inerte.)
+        if [[ "${OPT_VERSION_EXPLICIT:-0}" -eq 1 ]]; then
+            repo_version=$(read_env_var "$config_env" ELECTRICORE_VERSION)
+            override_config_version "$config_env" "$OPT_VERSION"
+            log_warn "ELECTRICORE_VERSION overridé localement : ${OPT_VERSION} (dépôt : ${repo_version}) — non versionné, propre à cette box."
+        fi
+
         if ! box_can_decrypt "$OPT_SLUG"; then
             # La box a sa clé + le ciphertext, mais ne déchiffre pas → sa clé age publique
             # n'est pas (encore) destinataire dans .sops.yaml. 2e temps de l'onboarding.
@@ -339,12 +352,18 @@ main() {
         ssh_recap="  SSH (admin)      ssh ops@${OPT_DOMAIN}   ← root SSH désactivé
   SSH (service)    ssh ${OPT_SLUG}@${OPT_DOMAIN}"
     fi
+    # Image RÉELLEMENT déployée : valeur effective de ELECTRICORE_VERSION dans config.env (qui
+    # a pu être overridée localement par --version, #460), pas l'option brute. Fallback sur
+    # OPT_VERSION pour le chemin legacy .env (pas de config.env).
+    effective_version=$(read_env_var "${HOME_DIR}/config.env" ELECTRICORE_VERSION 2>/dev/null || true)
+    [[ -n "$effective_version" ]] || effective_version="$OPT_VERSION"
     cat <<EOF
 
   ${_C_GREEN}${_C_BOLD}✓ Instance ${OPT_SLUG} opérationnelle.${_C_RESET}
 
   URL              https://${OPT_DOMAIN}
   /health          curl https://${OPT_DOMAIN}/health
+  Image            ghcr.io/energie-de-nantes/electricore:${effective_version}
 ${ssh_recap}
   Logs             sudo -u ${OPT_SLUG} docker compose -f ${DOCKER_DIR}/docker-compose.yml logs -f
   Stop/Start       sudo -u ${OPT_SLUG} docker compose -f ${DOCKER_DIR}/docker-compose.yml {down,up -d}
