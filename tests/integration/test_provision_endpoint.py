@@ -76,6 +76,56 @@ def test_estimation_renvoie_enveloppe_kwh(client, monkeypatch):
     assert not any(cle.endswith("_eur") or "_eur_" in cle for cle in est)
 
 
+def _rapport_4_cadrans(pdl: str) -> RapportProvision:
+    estimation = pl.DataFrame(
+        {
+            "pdl": [pdl],
+            "energie_base_kwh": [600.0],
+            "energie_hp_kwh": [360.0],
+            "energie_hc_kwh": [240.0],
+            "energie_hph_kwh": [120.0],
+            "energie_hpb_kwh": [240.0],
+            "energie_hch_kwh": [60.0],
+            "energie_hcb_kwh": [180.0],
+            "energie_base_mensuel_kwh": [50.0],
+            "energie_hp_mensuel_kwh": [30.0],
+            "energie_hc_mensuel_kwh": [20.0],
+            "energie_hph_mensuel_kwh": [10.0],
+            "energie_hpb_mensuel_kwh": [20.0],
+            "energie_hch_mensuel_kwh": [5.0],
+            "energie_hcb_mensuel_kwh": [15.0],
+            "couverture_debut": [dt.date(2025, 1, 1)],
+            "couverture_fin": [dt.date(2026, 1, 1)],
+            "couverture_mois": [12.0],
+            "couverture_suffisante": [True],
+            "profondeur_cadran": ["4_cadrans"],
+            "qualite": ["réelle"],
+            "presence_regularisation": [False],
+            "signal_alertable": [False],
+        }
+    )
+    return RapportProvision(pdl=pdl, as_of=dt.date(2026, 6, 27), estimation=estimation)
+
+
+def test_estimation_propage_la_profondeur_wide(client, monkeypatch):
+    """#488 : la profondeur WIDE (hp/hc + 4 cadrans + déclaration) traverse jusqu'à l'API."""
+    monkeypatch.setattr(
+        "electricore.api.routers.provision._estimer",
+        lambda pdl: _rapport_4_cadrans(pdl),
+    )
+    response = client.get("/provision/estimation", params={"pdl": "P4"})
+    assert response.status_code == 200
+    est = response.json()["estimation"]
+    assert est["profondeur_cadran"] == "4_cadrans"
+    # Invariant base = hp+hc = Σ4 visible dans la sortie WIDE annuelle.
+    assert est["energie_base_kwh"] == 600.0
+    assert est["energie_hp_kwh"] + est["energie_hc_kwh"] == 600.0
+    sigma4 = est["energie_hph_kwh"] + est["energie_hpb_kwh"] + est["energie_hch_kwh"] + est["energie_hcb_kwh"]
+    assert sigma4 == 600.0
+    # Provision mensuelle /12 plate par cadran.
+    assert est["energie_hp_mensuel_kwh"] == 30.0
+
+
 def test_estimation_pdl_sans_r67_renvoie_trouve_false(client, monkeypatch):
     monkeypatch.setattr(
         "electricore.api.routers.provision._estimer",
