@@ -78,6 +78,17 @@ class TestValidateursSeams:
 
         assert DESCRIPTOR_AFFAIRES.validator is AffaireJalon
 
+    def test_descriptor_f15_sans_validator_par_audit(self):
+        """F15 n'a **pas** de seam de consommation typé (#295, ADR-0035 §5) : son unique
+        consommateur (`contexte_mensuel.documents()`) le filtre puis le verse tel quel dans
+        des onglets XLSX — pas de calcul sur sa forme. Pas de miroir Pandera là où aucun
+        pipeline cœur ne consomme le flux pour un calcul (≠ R151/R15→énergie). Garde-fou : si
+        un futur calcul typé branche F15 (ex. rapprochement TURPE↔F15, #468), ce test rappelle
+        d'ajouter le contrat au lieu de laisser passer une lacune de registre."""
+        from electricore.core.loaders.duckdb.registry import DESCRIPTOR_F15
+
+        assert DESCRIPTOR_F15.validator is None
+
 
 class TestFactoriesNommeesEquivalentesAFlux:
     """#273 : c15()…r64() produisent la même requête que `flux(nom)`.

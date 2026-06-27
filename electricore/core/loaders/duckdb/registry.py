@@ -90,7 +90,14 @@ DESCRIPTOR_F15 = FluxDescriptor(
     flux_name="F15",
     table="flux_enedis.flux_f15_detail",
     transform=None,
-    validator=None,  # Pas encore de modèle Pandera pour les factures
+    # validator=None **par audit** (#295, ADR-0035 §5) : un contrat appartient à un *seam
+    # de consommation* où le cœur dépend de la FORME du flux pour un calcul. F15 n'a pas un
+    # tel seam — son unique consommateur, `contexte_mensuel.documents()`, le **filtre**
+    # (`date_facture`, `unite`) puis le **verse tel quel** dans des onglets XLSX (« F15
+    # complet » / « F15 prestations »), sans calcul typé. Une passe-plat vers tableur ne
+    # justifie pas un miroir Pandera (≠ R151/R15 qui alimentent l'énergie). Le rapprochement
+    # TURPE↔F15 reste une idée future (#468), non implémentée → pas de seam aujourd'hui.
+    validator=None,
 )
 
 
