@@ -42,9 +42,6 @@ class APISettings:
     def get_valid_api_keys(self) -> list[str]:
         return runtime.api().cles_valides()
 
-    def is_valid_api_key(self, key: str) -> bool:
-        return runtime.api().cle_valide(key)
-
     # --- domaine bot (souple : l'API ne requiert pas le bot) ---
     @property
     def telegram_bot_token(self) -> str:

@@ -1,4 +1,4 @@
-"""Décorateurs pour routes binaires (XLSX / Arrow / ZIP).
+"""Décorateurs pour routes binaires (XLSX / Arrow).
 
 Encapsule le squelette répété autour de chaque endpoint binaire :
 - dépendance d'authentification (`Depends(get_current_api_key)`)
@@ -25,7 +25,6 @@ logger = logging.getLogger(__name__)
 
 XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 ARROW_MEDIA_TYPE = "application/vnd.apache.arrow.stream"
-ZIP_MEDIA_TYPE = "application/zip"
 
 
 def _resoudre_filename(template: str, args: dict[str, object]) -> str:
@@ -143,18 +142,4 @@ def arrow_endpoint(
     """
     return binary_endpoint(
         target, path, media_type=ARROW_MEDIA_TYPE, filename=None, requires_odoo=requires_odoo, tags=tags
-    )
-
-
-def zip_endpoint(
-    target: FastAPI | APIRouter,
-    path: str,
-    *,
-    filename: str,
-    requires_odoo: bool = False,
-    tags: list[str] | None = None,
-):
-    """Wrapper convenance de `binary_endpoint` pour les archives ZIP."""
-    return binary_endpoint(
-        target, path, media_type=ZIP_MEDIA_TYPE, filename=filename, requires_odoo=requires_odoo, tags=tags
     )
