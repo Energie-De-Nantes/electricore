@@ -20,6 +20,32 @@ models:
         description: Nature canonique (réel/estimé/corrigé), dérivée d'etapeMetier.
         data_tests: [not_null]
 
+  - name: flux_r67
+    description: >
+      Mesures facturantes R67 linéarisées au format wide (ADR-0047) : une ligne par
+      (PDL, debut, fin), énergie de consommation par cadran energie_<cadran>_kwh sur la
+      période demi-ouverte [debut, fin). Asset PARALLÈLE, jamais unioné dans les relevés
+      index (releves/chronologie_releves). Grille coalescée (D/DI000003 ≻ DI000001 ≻ F).
+      Parité golden vérifiée (tests/ingestion/test_dbt_r67_golden.py).
+    columns:
+      - name: pdl
+        description: Point de livraison (14 chiffres).
+        data_tests: [not_null]
+      - name: debut
+        description: Borne basse de la période (jour civil DATE, incluse).
+        data_tests: [not_null]
+      - name: fin
+        description: Borne haute de la période (jour civil DATE, exclue — intervalle demi-ouvert).
+        data_tests: [not_null]
+      - name: periode_id
+        description: >
+          Clé propre déterministe md5('flux_R67'|pdl|debut|fin)[:16] (ADR-0047), espace de
+          nommage distinct de releve_id (R67 hors espace des relevés index).
+        data_tests: [not_null, unique]
+      - name: nature
+        description: Nature canonique (réel/estimé/régularisé), dérivée de codeNature.
+        data_tests: [not_null]
+
   - name: flux_c15
     description: >
       Situation contractuelle C15 : une ligne par PRM, relevés avant/après pivotés

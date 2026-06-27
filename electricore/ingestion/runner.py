@@ -169,6 +169,10 @@ MODELES_PAR_RAW = {
     "raw_f12": ["flux_f12_detail"],
     "raw_f15": ["flux_f15_detail"],
     "raw_r64": ["flux_r64"],
+    # R67 (mesures facturantes, ADR-0047) : asset PARALLÈLE, jamais ajouté aux gardes
+    # des marts périodiques (`releves`/`chronologie_releves`) ci-dessous — son énergie
+    # est déjà différenciée par période, hors de l'union des relevés index.
+    "raw_r67": ["flux_r67"],
     "raw_affaires": ["flux_affaires"],
 }
 

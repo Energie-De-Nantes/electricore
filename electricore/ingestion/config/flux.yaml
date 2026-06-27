@@ -37,6 +37,13 @@ R64:
   format: json
   file_regex: "*.JSON"  # JSON en majuscules dans les ZIPs R64
 
+# R67 (« mesures facturantes ») : énergie facturante par période, à la demande (prestation
+# M023, ADR-0047). Même répertoire SFTP que R64, mais JSON minuscules dans les ZIPs R67.
+R67:
+  file_pattern: "**/R63_R64_R65_R66_R67_C68/*_R67_*.zip"
+  format: json
+  file_regex: "*.json"  # JSON en minuscules dans les ZIPs R67
+
 # X12 (affaires initiées par l'instance) + X13 (affaires reçues d'autres acteurs)
 # partagent le même schéma XSD → une seule table brute `raw_affaires` ; l'origine se
 # dérive du nom de fichier dans le modèle dbt. Le glob `[23]` capture X12 et X13 sans
