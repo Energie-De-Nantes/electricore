@@ -9,7 +9,7 @@ Vocabulaire : [CONTEXT.md](CONTEXT.md). Décision de surface : [ADR-0022](../../
 
 ## Surface de commandes
 
-Cinq **domaines** métier + l'aide. Chaque domaine invoqué **sans argument ouvre un
+Six **domaines** métier + l'aide. Chaque domaine invoqué **sans argument ouvre un
 clavier inline** (découvrable, zéro syntaxe) ; **avec arguments, il agit directement**
 (raccourci power-user). Le menu natif Telegram (☰) est publié au démarrage et
 adapté à l'instance.
@@ -21,6 +21,7 @@ adapté à l'instance.
 | `/perimetre` | 📥 Entrées · 📤 Sorties (C15) | `/perimetre entrees`, `/perimetre sorties` |
 | `/taxes` ⁽ᵉʳᵖ⁾ | Accise · CTA → trimestre (4 derniers + toutes périodes) | `/taxes accise 2025-T1`, `/taxes cta` |
 | `/facturation` ⁽ᵉʳᵖ⁾ | Documents (choix du mois) · Check Odoo | `/facturation documents 2026-05-01`, `/facturation check` |
+| `/provision` | estimation de provision d'un lissé par PDL (kWh) | `/provision 12345678901234` |
 | `/start`, `/help` | — | annonce l'instance servie et la surface |
 
 ⁽ᵉʳᵖ⁾ masqué du menu et dégradé proprement quand aucun ERP n'est configuré
