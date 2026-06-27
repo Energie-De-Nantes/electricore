@@ -73,6 +73,8 @@ DESCRIPTOR_R151 = FluxDescriptor(
 # (rename id_calendrier → id_calendrier_distributeur, placeholders null FTA/calendrier
 # fournisseur, littéraux source/ordre_index/unite/precision) vit dans le modèle dbt
 # `flux_r15`. date_releve est déjà un instant TIMESTAMPTZ (offset). Le loader ne projette plus.
+# Audit registre (#295) : seam **déjà gardé** (`validator=RelevéIndex`) ; la question de
+# l'unité native R15 (source d'un bug Wh latent) a été tranchée par #286 — rien à ajouter ici.
 DESCRIPTOR_R15 = FluxDescriptor(
     flux_name="R15",
     table="flux_enedis.flux_r15",
