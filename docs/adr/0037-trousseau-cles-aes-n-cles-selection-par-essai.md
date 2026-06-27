@@ -95,8 +95,44 @@ L'agrégation succès/échec par resource vit au niveau runner (il orchestre dé
 > `reconfigure` (la box pull + déchiffre + restart). **Distinction cruciale** : `sops updatekeys` ne rote
 > que l'**enveloppe** (destinataires) ; une clé AES qui a pu fuiter doit être changée **à la source**.
 
+## Extension (#445) : escalade généralisée du **déchiffrement** à la **chaîne**
+
+L'escalade d'échec (§4) ne visait que l'étage `decrypt`. Un spike (`dlt 1.27.2`) a montré que
+les deux étages aval se comportaient de façon **opposée**, et tous deux mal :
+
+| Étage | Sur un fichier fautif | Observable ? | Rayon de souffle |
+|-------|-----------------------|--------------|------------------|
+| `decrypt` (`crypto.py`) | `except` → compte `echec`, continue | ✅ escalade si flux aveugle | isolé (par fichier/flux) |
+| `unzip` (`archive.py`) | `except: log + return`, **aucun compteur** | ❌ **silencieux** — job reste `completed` | drop les documents du zip |
+| `parse` (`sftp_enedis_brut.py`) | **lève** `PipelineStepFailed` → run crashé | ✅ bruyant | ❌ **catastrophique + non isolé** : aborte **tout** l'`extract` (aucun flux ne land, dbt ne tourne pas) |
+
+Deux problèmes distincts : `unzip` était le vrai trou **silencieux** ; `parse` était **trop
+bruyant et non isolé** — un seul document R64 malformé crashait le landing de **tous** les flux
+du cycle, violant le placement délibéré de l'escalade *après* dbt (« pour que les flux sains
+continuent de couler malgré le flux aveugle »).
+
+**Décision.** Donner aux trois étages la discipline uniforme de `decrypt` : **attraper → compter
+→ continuer**. Un fichier fautif n'est jamais une raison d'interrompre le run. Le comptage vit
+dans **un** objet par flux — `StatsDechiffrement` renommé **`StatsChaine`** (compteurs par étage :
+`fichiers`/`dechiffres`/`extraits`/`documents` + `echecs_dechiffrement`/`echecs_extraction`/
+`echecs_linearisation`) — partagé par les trois factories de transformer. Le prédicat unique
+`flux_aveugle()` est généralisé de « 0 déchiffré » à **« 0 document produit ET ≥ 1 échec »** :
+peu importe l'étage qui a rendu le flux muet, c'est l'`echecs()` **explicite** qui distingue un
+flux *drop-par-erreur* (escalade) d'un flux *vide par nature* (zip sans fichier interne — ère CSV
+R64, smoke `max_files` — `echecs() == 0` ⇒ jamais d'escalade). Le runner `flux_sans_dechiffrement`
+devient **`flux_aveugles`** ; chaque `StatsChaine` est imprimé au bilan (capté dans `job.output`).
+
+**Choix délibéré : ne PAS aborter le landing sur un échec isolé `parse`/`unzip`.** Comme pour
+`decrypt`, un fichier fautif noyé dans des documents sains est toléré (compté, visible), pas
+escaladé. Seul un flux **entièrement** muet malgré des échecs bascule le job en `failed`. Le
+prédicat généralisé **subsume** l'ancienne cécité de déchiffrement.
+
+Porté par [#445](https://github.com/Energie-De-Nantes/electricore/issues/445).
+
 ## Statut
 
-Accepté (grill 18/06/2026). Supersède [ADR-0008](0008-rotation-cles-aes.md). Porté par
-[#221](https://github.com/Energie-De-Nantes/electricore/issues/221) (réécrite). Glossaire :
-[`electricore/ingestion/CONTEXT.md`](../../electricore/ingestion/CONTEXT.md) (« Trousseau de clés AES »).
+Accepté (grill 18/06/2026 ; extension #445 du 27/06/2026). Supersède [ADR-0008](0008-rotation-cles-aes.md).
+Porté par [#221](https://github.com/Energie-De-Nantes/electricore/issues/221) (réécrite) et
+[#445](https://github.com/Energie-De-Nantes/electricore/issues/445) (extension chaîne). Glossaire :
+[`electricore/ingestion/CONTEXT.md`](../../electricore/ingestion/CONTEXT.md) (« Trousseau de clés AES »,
+« escalade d'échec de chaîne »).
