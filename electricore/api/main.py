@@ -20,6 +20,7 @@ from electricore.api.routers import flux as flux_router
 from electricore.api.routers import ingestion as ingestion_router
 from electricore.api.routers import meta_periodes as meta_periodes_router
 from electricore.api.routers import releves as releves_router
+from electricore.api.routers import rsc as rsc_router
 from electricore.api.routers import taxes as taxes_router
 from electricore.api.routers import turpe_variable as turpe_variable_router
 from electricore.api.serializers.jsonl import lever_defs_itemschema_jsonl
@@ -136,6 +137,7 @@ app.include_router(meta_periodes_router.router)
 app.include_router(chronologie_router.router)
 app.include_router(turpe_variable_router.router)
 app.include_router(affaires_router.router)
+app.include_router(rsc_router.router)
 
 
 # OpenAPI 3.2.0 : décrit les *sequential media types* (NDJSON) via `itemSchema` — les flux JSONL
