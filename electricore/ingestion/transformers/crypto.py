@@ -40,24 +40,40 @@ _ZIP_MAGIC = b"PK\x03\x04"
 
 
 @dataclass
-class StatsDechiffrement:
-    """Compteur de déchiffrement d'un flux (resource) — escalade per-flux (ADR-0037).
+class StatsChaine:
+    """Compteur de la **chaîne** de transformation d'un flux — escalade per-flux (ADR-0037, étendu).
 
-    Le transformer incrémente `succes`/`echecs` au fil des fichiers ; le runner
-    agrège ensuite par flux et décide si l'absence totale de succès (`flux_aveugle`)
-    doit faire échouer le job.
+    Un seul objet mutable est partagé par les trois étages de la chaîne
+    (`decrypt | unzip | parse`) d'un même flux (resource). Chaque étage incrémente ses
+    compteurs au fil des fichiers ; le runner agrège ensuite par flux et décide si
+    l'absence totale de documents produits malgré des échecs (`flux_aveugle`) doit faire
+    échouer le job. Discipline uniforme « attraper → compter → continuer » : un fichier
+    fautif est compté, jamais une raison d'interrompre le run.
     """
 
-    succes: int = 0
-    echecs: int = 0
+    fichiers: int = 0  # zips entrants (entrée de decrypt)
+    dechiffres: int = 0  # déchiffrements réussis (decrypt OK)
+    extraits: int = 0  # fichiers internes extraits par unzip
+    documents: int = 0  # documents produits (parse OK) — entrée du prédicat
+    echecs_dechiffrement: int = 0
+    echecs_extraction: int = 0
+    echecs_linearisation: int = 0
+
+    def echecs(self) -> int:
+        """Total des échecs sur les trois étages de la chaîne."""
+        return self.echecs_dechiffrement + self.echecs_extraction + self.echecs_linearisation
 
     def flux_aveugle(self) -> bool:
-        """Flux ayant des fichiers mais aucun déchiffrement réussi (≥ 1 échec) → clé manquante.
+        """Flux ayant des fichiers mais produisant 0 document malgré ≥ 1 échec → étage sombre.
 
-        Un échec isolé noyé dans des succès (fichier corrompu) n'est PAS aveugle : il est
-        toléré. Un flux sans aucun fichier (succès comme échec à 0) ne l'est pas non plus.
+        Prédicat généralisé (ADR-0037 ext.) : « aveugle » = a produit zéro document de bout
+        en bout *et* a compté au moins un échec — quel qu'en soit l'étage (clé manquante,
+        zip corrompu en masse, documents tous malformés). Un échec **isolé** noyé dans des
+        documents (`documents > 0`) est toléré. Un flux **vide par nature** (aucun document
+        mais aucun échec — un zip sans fichier interne) n'est PAS aveugle : c'est l'`echecs()`
+        explicite qui distingue le drop-par-erreur du vide légitime.
         """
-        return self.succes == 0 and self.echecs > 0
+        return self.documents == 0 and self.echecs() > 0
 
 
 # =============================================================================
@@ -178,7 +194,7 @@ def read_sftp_file(encrypted_item: FileItemDict) -> bytes:
 def _decrypt_aes_transformer_base(
     encrypted_file: FileItemDict,
     key_chain: list[tuple[str, bytes, bytes]],
-    stats: StatsDechiffrement,
+    stats: StatsChaine,
 ) -> Iterator[dict]:
     """
     Fonction de base pour déchiffrer les fichiers AES depuis SFTP.
@@ -192,7 +208,7 @@ def _decrypt_aes_transformer_base(
     Args:
         encrypted_file: Fichier chiffré depuis une resource SFTP
         key_chain: Chaîne de clés [(label, clé, iv), ...] à essayer
-        stats: Compteur succès/échec du flux courant (muté en place)
+        stats: Compteur de chaîne du flux courant, muté en place (étage decrypt)
 
     Yields:
         dict: {
@@ -206,15 +222,16 @@ def _decrypt_aes_transformer_base(
     """
     encrypted_data = read_sftp_file(encrypted_file)
     original_size = len(encrypted_data)
+    stats.fichiers += 1
 
     try:
         decrypted_data, key_used = decrypt_with_key_chain(encrypted_data, key_chain)
     except ValueError as e:
-        stats.echecs += 1
+        stats.echecs_dechiffrement += 1
         logger.warning("Échec déchiffrement %s : %s", encrypted_file["file_name"], e)
         return
 
-    stats.succes += 1
+    stats.dechiffres += 1
     if len(key_chain) > 1:
         logger.debug("Déchiffré avec clé '%s' : %s", key_used, encrypted_file["file_name"])
 
@@ -233,7 +250,7 @@ def create_decrypt_transformer(
     aes_iv: bytes = None,
     *,
     key_chain: list[tuple[str, bytes, bytes]] | None = None,
-    stats: StatsDechiffrement | None = None,
+    stats: StatsChaine | None = None,
 ):
     """
     Factory pour créer un transformer de déchiffrement avec trousseau pré-chargé.
@@ -246,7 +263,7 @@ def create_decrypt_transformer(
         aes_key: Clé AES explicite (optionnel, pour les tests)
         aes_iv: IV AES explicite (optionnel, pour les tests)
         key_chain: Trousseau déjà résolu [(label, clé, iv), …] — partagé entre flux par la source
-        stats: Compteur succès/échec du flux courant (escalade per-flux, ADR-0037)
+        stats: Compteur de chaîne du flux courant (escalade per-flux, ADR-0037)
 
     Returns:
         Transformer DLT configuré
@@ -259,7 +276,7 @@ def create_decrypt_transformer(
             names = [name for name, _, _ in key_chain]
             logger.info("%d clé(s) AES chargée(s) : %s", len(key_chain), names)
 
-    stats = stats if stats is not None else StatsDechiffrement()
+    stats = stats if stats is not None else StatsChaine()
 
     @dlt.transformer
     def configured_decrypt_transformer(encrypted_file: FileItemDict) -> Iterator[dict]:

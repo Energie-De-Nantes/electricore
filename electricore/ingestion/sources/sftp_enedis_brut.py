@@ -23,7 +23,7 @@ from electricore.ingestion.parsing.xml import xml_vers_dict
 from electricore.ingestion.sources.sftp_enedis import create_sftp_resource, mask_password_in_url
 from electricore.ingestion.transformers.archive import create_unzip_transformer
 from electricore.ingestion.transformers.crypto import (
-    StatsDechiffrement,
+    StatsChaine,
     create_decrypt_transformer,
     load_aes_key_chain,
 )
@@ -50,16 +50,18 @@ def _create_brut_transformer(flux_type: str, est_json: bool):
 
 
 @dlt.source(name="flux_enedis_brut")
-def flux_enedis_brut(flux_config: dict, max_files: int = None, stats: dict[str, StatsDechiffrement] | None = None):
+def flux_enedis_brut(flux_config: dict, max_files: int = None, stats: dict[str, StatsChaine] | None = None):
     """Source DLT déposant le brut JSON de chaque flux dans `raw_<flux>`.
 
     Args:
         flux_config: Sections de flux.yaml (C15, R15, …) : file_pattern (glob SFTP),
             format (xml/json) et file_regex (fichiers à extraire des zips).
         max_files: Limitation par flux (smoke tests).
-        stats: Dict mutable {flux: StatsDechiffrement} peuplé par flux (escalade per-flux,
-            ADR-0037). Le caller (runner) le crée et le relit après le run pour décider
-            d'un échec de job. None → dict interne jetable (callers indifférents au comptage).
+        stats: Dict mutable {flux: StatsChaine} peuplé par flux (escalade per-flux,
+            ADR-0037). Un seul StatsChaine par flux est partagé par les trois étages de
+            la chaîne (decrypt | unzip | parse). Le caller (runner) le crée et le relit
+            après le run pour décider d'un échec de job. None → dict interne jetable
+            (callers indifférents au comptage).
     """
     sftp_url = runtime.sftp().url
     logger.info("Source URL: %s", mask_password_in_url(sftp_url))
@@ -78,7 +80,7 @@ def flux_enedis_brut(flux_config: dict, max_files: int = None, stats: dict[str, 
         file_regex = config_flux.get("file_regex", f"*{extension}")
 
         sftp_resource = create_sftp_resource(flux_type, table, file_pattern, sftp_url, max_files)
-        stats_flux = stats.setdefault(flux_type, StatsDechiffrement())
+        stats_flux = stats.setdefault(flux_type, StatsChaine())
         decrypt_transformer = create_decrypt_transformer(key_chain=key_chain, stats=stats_flux)
         unzip_transformer = create_unzip_transformer(extension, file_regex)
         brut = _create_brut_transformer(flux_type, est_json)

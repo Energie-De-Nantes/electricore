@@ -21,7 +21,7 @@ from Crypto.Util.Padding import pad
 
 from electricore.config import runtime
 from electricore.ingestion.transformers.crypto import (
-    StatsDechiffrement,
+    StatsChaine,
     _decrypt_aes_transformer_base,
     decrypt_file_aes,
     decrypt_with_key_chain,
@@ -337,13 +337,13 @@ class _FauxFichierSftp(dict):
 
 @pytest.mark.unit
 def test_transformer_compte_un_succes_et_yield(encrypted_zip, aes_key, aes_iv):
-    """Un fichier déchiffrable : compté en succès, document brut produit."""
-    stats = StatsDechiffrement()
+    """Un fichier déchiffrable : compté en fichier entrant + déchiffré, document brut produit."""
+    stats = StatsChaine()
     item = _FauxFichierSftp("a_R64_x.zip", encrypted_zip)
 
     produits = list(_decrypt_aes_transformer_base(item, [("aes128_2024", aes_key, aes_iv)], stats))
 
-    assert stats.succes == 1 and stats.echecs == 0
+    assert stats.fichiers == 1 and stats.dechiffres == 1 and stats.echecs() == 0
     assert len(produits) == 1 and produits[0]["key_used"] == "aes128_2024"
 
 
@@ -351,7 +351,7 @@ def test_transformer_compte_un_succes_et_yield(encrypted_zip, aes_key, aes_iv):
 def test_transformer_compte_un_echec_et_ne_yield_pas(encrypted_zip, aes_iv, caplog):
     """Fin du fail silencieux (ADR-0037) : un échec est compté, warn-loggé, le fichier
     est sauté — pas d'exception propagée (pas de poison-pill)."""
-    stats = StatsDechiffrement()
+    stats = StatsChaine()
     item = _FauxFichierSftp("corrompu.zip", encrypted_zip)
     mauvaise_chaine = [("aes256_2026", bytes(16), aes_iv)]  # clé nulle → échec
 
@@ -359,14 +359,20 @@ def test_transformer_compte_un_echec_et_ne_yield_pas(encrypted_zip, aes_iv, capl
         produits = list(_decrypt_aes_transformer_base(item, mauvaise_chaine, stats))
 
     assert produits == []
-    assert stats.succes == 0 and stats.echecs == 1
+    assert stats.fichiers == 1 and stats.dechiffres == 0 and stats.echecs_dechiffrement == 1
     assert "corrompu.zip" in caplog.text
 
 
 @pytest.mark.unit
-def test_flux_aveugle_seulement_si_zero_succes_et_au_moins_un_echec():
-    """flux_aveugle() : True ssi des échecs existent sans aucun succès (clé manquante)."""
-    assert StatsDechiffrement(succes=0, echecs=2).flux_aveugle() is True
-    assert StatsDechiffrement(succes=3, echecs=1).flux_aveugle() is False  # échec isolé toléré
-    assert StatsDechiffrement(succes=5, echecs=0).flux_aveugle() is False
-    assert StatsDechiffrement(succes=0, echecs=0).flux_aveugle() is False  # flux sans fichier
+def test_flux_aveugle_seulement_si_zero_documents_et_au_moins_un_echec():
+    """flux_aveugle() (généralisé à la chaîne, ADR-0037 ext.) : True ssi 0 documents
+    produits ET au moins un échec quel qu'en soit l'étage (déchiffrement, extraction,
+    linéarisation). Table de vérité : sombre / isolé / propre / vide-par-nature."""
+    # Sombre : aucun document, des échecs → escalade (clé manquante, zip corrompu en masse…).
+    assert StatsChaine(documents=0, echecs_dechiffrement=2).flux_aveugle() is True
+    # Isolé : des documents passent malgré un échec ponctuel → toléré, pas aveugle.
+    assert StatsChaine(documents=3, echecs_extraction=1).flux_aveugle() is False
+    # Propre : que des documents, aucun échec.
+    assert StatsChaine(documents=5).flux_aveugle() is False
+    # Vide-par-nature : aucun document, aucun échec (zip sans fichier interne) → pas aveugle.
+    assert StatsChaine(documents=0).flux_aveugle() is False
