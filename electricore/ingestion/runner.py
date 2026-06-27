@@ -32,7 +32,7 @@ import yaml
 
 from electricore.config import runtime
 from electricore.ingestion.sources.sftp_enedis_brut import flux_enedis_brut
-from electricore.ingestion.transformers.crypto import StatsChaine
+from electricore.ingestion.transformers.chaine import StatsChaine
 
 # DLT écrit sur stderr — on laisse faire, on ne lit que stdout
 logging.disable(logging.CRITICAL)

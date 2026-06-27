@@ -22,8 +22,8 @@ from electricore.config import runtime
 from electricore.ingestion.parsing.xml import xml_vers_dict
 from electricore.ingestion.sources.sftp_enedis import create_sftp_resource, mask_password_in_url
 from electricore.ingestion.transformers.archive import create_unzip_transformer
+from electricore.ingestion.transformers.chaine import StatsChaine, etape_chaine
 from electricore.ingestion.transformers.crypto import (
-    StatsChaine,
     create_decrypt_transformer,
     load_aes_key_chain,
 )
@@ -31,26 +31,22 @@ from electricore.ingestion.transformers.crypto import (
 logger = logging.getLogger(__name__)
 
 
-def _vers_document_brut_base(
-    extracted_file: dict, flux_type: str, est_json: bool, stats: StatsChaine
-) -> Iterator[dict]:
-    """Étage parse : fichier extrait → document brut (colonne JSON), avec comptage.
+@etape_chaine(
+    succes="documents",
+    echec="echecs_linearisation",
+    libelle="linéarisation",
+    cle_item="extracted_file_name",
+)
+def _vers_document_brut(extracted_file: dict, flux_type: str, est_json: bool) -> Iterator[dict]:
+    """Étage parse : fichier extrait → document brut (colonne JSON).
 
-    Discipline « attraper → compter → continuer » (ADR-0037 étendu) : un document
-    malformé (JSON/XML illisible) est compté `echecs_linearisation` et sauté — JAMAIS une
-    exception propagée. C'est le pin du spike : une exception non rattrapée d'un transformer
-    fait lever à dlt un `PipelineStepFailed` qui **aborte tout l'`extract`** (tous les flux
-    du run, pas seulement le fichier fautif). Un document linéarisé incrémente `documents`.
+    Ne déclare que **son travail** (linéariser le contenu) : un JSON/XML illisible **lève**.
+    La discipline « attraper → compter → continuer » (capture, comptage `documents`/
+    `echecs_linearisation`, non-propagation — le pin du spike anti-`PipelineStepFailed`)
+    vit dans `etape_chaine`.
     """
     contenu: bytes = extracted_file["extracted_content"]
-    try:
-        document = json.loads(contenu) if est_json else xml_vers_dict(contenu)
-    except Exception as e:  # noqa: BLE001 — tout échec de linéarisation est compté, jamais propagé
-        stats.echecs_linearisation += 1
-        logger.warning("Échec linéarisation %s : %s", extracted_file["extracted_file_name"], e)
-        return
-
-    stats.documents += 1
+    document = json.loads(contenu) if est_json else xml_vers_dict(contenu)  # lève → échec compté
     yield {
         "file_name": extracted_file["extracted_file_name"],
         "modification_date": extracted_file["modification_date"],
@@ -65,7 +61,7 @@ def _create_brut_transformer(flux_type: str, est_json: bool, stats: StatsChaine)
 
     @dlt.transformer
     def vers_document_brut(extracted_file: dict) -> Iterator[dict]:
-        return _vers_document_brut_base(extracted_file, flux_type, est_json, stats)
+        return _vers_document_brut(extracted_file, flux_type, est_json, stats)  # stats : dernier positionnel
 
     return vers_document_brut
 

@@ -10,7 +10,7 @@ from collections.abc import Iterator
 
 import dlt
 
-from electricore.ingestion.transformers.crypto import StatsChaine
+from electricore.ingestion.transformers.chaine import StatsChaine, etape_chaine
 
 logger = logging.getLogger(__name__)
 
@@ -74,22 +74,22 @@ def match_xml_pattern(nom_fichier: str, pattern: str | None) -> bool:
 # =============================================================================
 
 
-def _unzip_transformer_base(
-    decrypted_file: dict, file_extension: str, file_regex: str | None, stats: StatsChaine
-) -> Iterator[dict]:
-    """
-    Fonction de base pour extraire les fichiers d'archives ZIP déchiffrées.
+@etape_chaine(
+    succes="extraits",
+    echec="echecs_extraction",
+    libelle="extraction",
+    cle_item="file_name",
+    niveau_log=logging.ERROR,
+)
+def _unzip(decrypted_file: dict, file_extension: str, file_regex: str | None) -> Iterator[dict]:
+    """Étage unzip : ZIP déchiffré → fichiers internes (un par yield).
 
-    Discipline « attraper → compter → continuer » (ADR-0037 étendu) : un ZIP illisible
-    (corrompu) est compté `echecs_extraction` et sauté — jamais une exception propagée
-    (pas de poison-pill). Chaque fichier interne yieldé incrémente `extraits`. Un ZIP
-    sans fichier interne correspondant (vide par nature) ne compte aucun échec.
-
-    Args:
-        decrypted_file: Fichier déchiffré du transformer crypto
-        file_extension: Extension des fichiers à extraire (ex: '.xml', '.csv')
-        file_regex: Pattern optionnel pour filtrer les noms de fichiers
-        stats: Compteur de chaîne du flux courant, muté en place (étage unzip)
+    Ne déclare que **son travail** (ouvrir le ZIP, filtrer par regex, émettre chaque fichier
+    interne) : un ZIP illisible **lève** → la discipline le compte `echecs_extraction` au niveau
+    ERROR et le saute (pas de poison-pill). Le combinateur compte **chaque yield** (`extraits`) —
+    un N-yields, contrairement aux étages 1-yield. Un fichier filtré par `file_regex` est sauté
+    AVANT le yield → ni succès ni échec. Un ZIP vide par nature (0 fichier interne, sans lever)
+    ne compte aucun échec : seul le `warning` « Aucun fichier… » le signale.
 
     Yields:
         dict: {
@@ -104,20 +104,15 @@ def _unzip_transformer_base(
     zip_modified = decrypted_file["modification_date"]
     decrypted_content = decrypted_file["decrypted_content"]
 
-    try:
-        # Extraire les fichiers de l'extension souhaitée
-        extracted_files = extract_files_from_zip(decrypted_content, file_extension)
-    except Exception as e:
-        stats.echecs_extraction += 1
-        logger.error("Erreur extraction %s: %s", zip_name, e)
-        return
+    # Extraire les fichiers de l'extension souhaitée — un ZIP corrompu lève → échec compté.
+    extracted_files = extract_files_from_zip(decrypted_content, file_extension)
 
     for file_name, file_content in extracted_files:
-        # Filtrer par regex si spécifié
+        # Filtrer par regex si spécifié : un fichier filtré est sauté avant le yield (ni
+        # succès ni échec, invisible aux stats).
         if file_regex and not match_xml_pattern(file_name, file_regex):
             continue
 
-        stats.extraits += 1
         yield {
             "source_zip": zip_name,
             "modification_date": zip_modified,
@@ -151,6 +146,6 @@ def create_unzip_transformer(
 
     @dlt.transformer
     def configured_unzip_transformer(decrypted_file: dict) -> Iterator[dict]:
-        return _unzip_transformer_base(decrypted_file, file_extension, file_regex, stats)
+        return _unzip(decrypted_file, file_extension, file_regex, stats)  # stats : dernier positionnel
 
     return configured_unzip_transformer
