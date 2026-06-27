@@ -111,7 +111,7 @@ def test_estimation_propage_la_profondeur_wide(client, monkeypatch):
     """#488 : la profondeur WIDE (hp/hc + 4 cadrans + déclaration) traverse jusqu'à l'API."""
     monkeypatch.setattr(
         "electricore.api.routers.provision._estimer",
-        lambda pdl: _rapport_4_cadrans(pdl),
+        _rapport_4_cadrans,
     )
     response = client.get("/provision/estimation", params={"pdl": "P4"})
     assert response.status_code == 200

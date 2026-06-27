@@ -147,6 +147,23 @@ def test_couverture_mois_mesure_la_densite_pas_le_span():
     assert row["couverture_suffisante"] is False
 
 
+def test_annee_pleine_non_bissextile_est_suffisante():
+    """Régression (revue PR #490) : une année calendaire PLEINE non bissextile (365 j) est
+    suffisante. Le seuil en mois moyens (`jours / 30.4375 >= 12`) la lisait 11.99 → faux
+    flag `couverture_suffisante=False` + `signal_alertable=True`. Le seuil en jours (≥ 365)
+    la tient suffisante, alors même que `couverture_mois` affiche ~11.99.
+    """
+    lignes = [
+        (date(2025, m, 1), date(2025, m + 1, 1) if m < 12 else date(2026, 1, 1), "R", 100)
+        for m in range(1, 13)  # 12 mois pleins de 2025 (non bissextile)
+    ]
+    out = effondrer_profil(_profil_base(lignes=lignes), as_of=date(2026, 1, 1)).collect()
+    row = out.to_dicts()[0]
+    assert row["couverture_mois"] < 12.0  # 365/30.4375 = 11.99 en affichage
+    assert row["couverture_suffisante"] is True  # mais bien suffisante (seuil en jours)
+    assert row["signal_alertable"] is False  # réel + suffisant → pas d'alerte
+
+
 # =============================================================================
 # Pipeline + build — golden R67 (base-only)
 # =============================================================================
