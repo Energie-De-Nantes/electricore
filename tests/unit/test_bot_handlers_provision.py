@@ -103,6 +103,33 @@ def test_provision_signal_alertable_remonte(monkeypatch):
     assert "estimée" in texte
 
 
+def test_provision_propage_la_profondeur_hp_hc(monkeypatch):
+    """#488 : profondeur WIDE → le bot affiche HP/HC + la profondeur déclarée."""
+    body = {
+        "pdl": "P4",
+        "trouve": True,
+        "estimation": _estimation(
+            energie_base_kwh=600.0,
+            energie_hp_kwh=360.0,
+            energie_hc_kwh=240.0,
+            energie_base_mensuel_kwh=50.0,
+            energie_hp_mensuel_kwh=30.0,
+            energie_hc_mensuel_kwh=20.0,
+            profondeur_cadran="4_cadrans",
+        ),
+    }
+    _brancher(monkeypatch, body)
+    update = update_commande()
+    bot = FakeBot()
+
+    asyncio.run(handlers_provision.cmd_provision(update, contexte(args=["P4"], bot=bot)))
+
+    _, _, texte, _ = bot.edits[-1]
+    assert "HP : <b>30 kWh/mois</b>" in texte
+    assert "HC : <b>20 kWh/mois</b>" in texte
+    assert "4_cadrans" in texte
+
+
 def test_provision_pdl_sans_r67(monkeypatch):
     body = {"pdl": "PDLX", "trouve": False, "estimation": None}
     _brancher(monkeypatch, body)
