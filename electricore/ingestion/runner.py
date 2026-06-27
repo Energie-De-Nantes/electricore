@@ -122,7 +122,30 @@ def lander_brut(db_path: Path, plan: PlanRun) -> dict[str, StatsChaine]:
     for paquet in info.load_packages:
         for job in paquet.jobs.get("completed_jobs", []):
             _out(f"  landé : {job.job_file_info.table_name}")
+    # Bilan de chaîne par flux (ADR-0037 étendu) : rend le mouvement et les échecs par étage
+    # visibles dans job.output (escalade lisible par l'humain et le bot, sans nouveau canal).
+    for flux, s in stats.items():
+        _out(_resume_chaine(flux, s))
     return stats
+
+
+def _resume_chaine(flux: str, s: StatsChaine) -> str:
+    """Bilan d'une chaîne de flux, une ligne (ADR-0037 étendu).
+
+    Surface d'observabilité : remonte le mouvement étage par étage et, s'il y a des échecs,
+    leur ventilation. Imprimé sur stdout → capturé dans `job.output` par le seam subprocess
+    de l'API → visible au détail de job du bot, sans nouveau canal d'alerte.
+    """
+    ligne = (
+        f"  {flux} : {s.fichiers} fichiers → {s.dechiffres} déchiffrés → "
+        f"{s.extraits} extraits → {s.documents} documents"
+    )
+    if s.echecs():
+        ligne += (
+            f" — échecs : déchiffrement={s.echecs_dechiffrement}, "
+            f"extraction={s.echecs_extraction}, linéarisation={s.echecs_linearisation}"
+        )
+    return ligne
 
 
 def flux_aveugles(stats: dict[str, StatsChaine]) -> list[str]:
