@@ -227,9 +227,17 @@ def detecter_points_de_rupture(spine: pl.LazyFrame) -> pl.LazyFrame:
     """
     return (
         spine.sort(
-            ["ref_situation_contractuelle", "date_evenement"],
-            # Départage des ex-aequo de timestamp : événement avant FACTURATION, comme le
-            # forward-fill SQL de la spine (garde-fou #374 : pas de collision de situation).
+            [
+                "ref_situation_contractuelle",
+                "date_evenement",
+                # Départage des ex-aequo de timestamp : événement AVANT facturation (False < True),
+                # exactement comme le forward-fill SQL de la spine (`spine_contrat.sql`). Sans cette
+                # clé, une borne FACTURATION partageant l'instant d'un vrai événement (ex. MCT pile
+                # minuit le 1er) pouvait capter l'état d'avant ou d'après le changement (6 vs 9 kVA)
+                # selon un ordre arbitraire (issue #270). Le garde-fou #374 exclut par ailleurs les
+                # collisions de situation entre deux vrais événements au même instant.
+                (pl.col("type_fait") == "facturation"),
+            ],
             maintain_order=True,
         )
         .set_sorted("ref_situation_contractuelle")  # Indiquer explicitement que ref_situation_contractuelle est trié
