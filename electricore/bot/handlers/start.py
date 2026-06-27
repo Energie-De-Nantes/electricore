@@ -21,6 +21,7 @@ COMMANDES: list[tuple[str, str]] = [
     ("perimetre", "Périmètre : entrées et sorties C15"),
     ("taxes", "Accise TICFE et CTA, par trimestre"),
     ("facturation", "Documents et contrôles pré-facturation"),
+    ("provision", "Estimation de provision d'un lissé par PDL"),
 ]
 
 # Domaines masqués quand aucun ERP n'est configuré (#159, P2.5).
