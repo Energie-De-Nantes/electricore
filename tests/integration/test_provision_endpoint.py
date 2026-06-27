@@ -126,6 +126,29 @@ def test_estimation_propage_la_profondeur_wide(client, monkeypatch):
     assert est["energie_hp_mensuel_kwh"] == 30.0
 
 
+def test_estimation_propage_le_signal_alertable(client, monkeypatch):
+    """#489 : qualité + couverture + signal alertable traversent jusqu'à l'API (la lib expose,
+    l'aval alerte — pas de logique de notification ici)."""
+    rapport = _rapport("PSIG", trouve=True)
+    rapport = RapportProvision(
+        pdl="PSIG",
+        as_of=rapport.as_of,
+        estimation=rapport.estimation.with_columns(
+            pl.lit("estimée").alias("qualite"),
+            pl.lit(False).alias("couverture_suffisante"),
+            pl.lit(6.0).alias("couverture_mois"),
+            pl.lit(True).alias("presence_regularisation"),
+            pl.lit(True).alias("signal_alertable"),
+        ),
+    )
+    monkeypatch.setattr("electricore.api.routers.provision._estimer", lambda pdl: rapport)
+    est = client.get("/provision/estimation", params={"pdl": "PSIG"}).json()["estimation"]
+    assert est["qualite"] == "estimée"
+    assert est["couverture_suffisante"] is False
+    assert est["presence_regularisation"] is True
+    assert est["signal_alertable"] is True
+
+
 def test_estimation_pdl_sans_r67_renvoie_trouve_false(client, monkeypatch):
     monkeypatch.setattr(
         "electricore.api.routers.provision._estimer",
