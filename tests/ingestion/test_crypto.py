@@ -20,8 +20,8 @@ from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
 
 from electricore.config import runtime
+from electricore.ingestion.transformers.chaine import StatsChaine
 from electricore.ingestion.transformers.crypto import (
-    StatsChaine,
     _decrypt_aes_transformer_base,
     decrypt_file_aes,
     decrypt_with_key_chain,

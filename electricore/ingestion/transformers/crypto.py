@@ -24,7 +24,6 @@ Trousseau de clés N-clés (ADR-0037, registre runtime #141) :
 
 import logging
 from collections.abc import Iterator
-from dataclasses import dataclass
 
 import dlt
 from Crypto.Cipher import AES
@@ -32,48 +31,15 @@ from dlt.common.storages.fsspec_filesystem import FileItemDict
 
 from electricore.config import runtime
 
+# L'étage decrypt applique la discipline de chaîne (`etape_chaine`) et compte dans
+# `StatsChaine` ; les deux vivent dans `transformers/chaine.py`, au-dessus des étages (#479).
+from electricore.ingestion.transformers.chaine import StatsChaine, etape_chaine
+
 logger = logging.getLogger(__name__)
 
 
 # Magic bytes d'un fichier ZIP (PK local file header)
 _ZIP_MAGIC = b"PK\x03\x04"
-
-
-@dataclass
-class StatsChaine:
-    """Compteur de la **chaîne** de transformation d'un flux — escalade per-flux (ADR-0037, étendu).
-
-    Un seul objet mutable est partagé par les trois étages de la chaîne
-    (`decrypt | unzip | parse`) d'un même flux (resource). Chaque étage incrémente ses
-    compteurs au fil des fichiers ; le runner agrège ensuite par flux et décide si
-    l'absence totale de documents produits malgré des échecs (`flux_aveugle`) doit faire
-    échouer le job. Discipline uniforme « attraper → compter → continuer » : un fichier
-    fautif est compté, jamais une raison d'interrompre le run.
-    """
-
-    fichiers: int = 0  # zips entrants (entrée de decrypt)
-    dechiffres: int = 0  # déchiffrements réussis (decrypt OK)
-    extraits: int = 0  # fichiers internes extraits par unzip
-    documents: int = 0  # documents produits (parse OK) — entrée du prédicat
-    echecs_dechiffrement: int = 0
-    echecs_extraction: int = 0
-    echecs_linearisation: int = 0
-
-    def echecs(self) -> int:
-        """Total des échecs sur les trois étages de la chaîne."""
-        return self.echecs_dechiffrement + self.echecs_extraction + self.echecs_linearisation
-
-    def flux_aveugle(self) -> bool:
-        """Flux ayant des fichiers mais produisant 0 document malgré ≥ 1 échec → étage sombre.
-
-        Prédicat généralisé (ADR-0037 ext.) : « aveugle » = a produit zéro document de bout
-        en bout *et* a compté au moins un échec — quel qu'en soit l'étage (clé manquante,
-        zip corrompu en masse, documents tous malformés). Un échec **isolé** noyé dans des
-        documents (`documents > 0`) est toléré. Un flux **vide par nature** (aucun document
-        mais aucun échec — un zip sans fichier interne) n'est PAS aveugle : c'est l'`echecs()`
-        explicite qui distingue le drop-par-erreur du vide légitime.
-        """
-        return self.documents == 0 and self.echecs() > 0
 
 
 # =============================================================================
@@ -191,24 +157,22 @@ def read_sftp_file(encrypted_item: FileItemDict) -> bytes:
 # =============================================================================
 
 
-def _decrypt_aes_transformer_base(
-    encrypted_file: FileItemDict,
-    key_chain: list[tuple[str, bytes, bytes]],
-    stats: StatsChaine,
-) -> Iterator[dict]:
-    """
-    Fonction de base pour déchiffrer les fichiers AES depuis SFTP.
+@etape_chaine(
+    succes="dechiffres",
+    echec="echecs_dechiffrement",
+    libelle="déchiffrement",
+    cle_item="file_name",
+    capture=ValueError,
+)
+def _decrypt(encrypted_file: FileItemDict, key_chain: list[tuple[str, bytes, bytes]]) -> Iterator[dict]:
+    """Étage decrypt (discipline) : fichier chiffré SFTP → document déchiffré.
 
-    Tente chaque clé de key_chain par essai. Fin du fail silencieux (ADR-0037) :
-    un échec de déchiffrement est **compté** dans `stats`, tracé en warn-log, et le
-    fichier est sauté (pas de poison-pill : un fichier corrompu isolé ne fait pas
-    tomber tout le flux). Le runner agrège ensuite `stats` par flux et décide si
-    l'absence totale de succès doit faire échouer le job.
-
-    Args:
-        encrypted_file: Fichier chiffré depuis une resource SFTP
-        key_chain: Chaîne de clés [(label, clé, iv), ...] à essayer
-        stats: Compteur de chaîne du flux courant, muté en place (étage decrypt)
+    Ne déclare que **son travail** (lire, tenter chaque clé par essai, émettre le document) :
+    un échec de toutes les clés **lève** une `ValueError`. La discipline « attraper → compter
+    → continuer » (capture **resserrée** à `ValueError`, comptage `dechiffres`/
+    `echecs_dechiffrement`, non-propagation) vit dans `etape_chaine`. Le pré-compte du zip
+    entrant (`fichiers`) n'est PAS de la discipline (ni succès ni échec) : il vit dans
+    `_decrypt_aes_transformer_base`, hors du combinateur (symétrie à deux compteurs).
 
     Yields:
         dict: {
@@ -220,18 +184,9 @@ def _decrypt_aes_transformer_base(
             'key_used': str,
         }
     """
-    encrypted_data = read_sftp_file(encrypted_file)
-    original_size = len(encrypted_data)
-    stats.fichiers += 1
-
-    try:
-        decrypted_data, key_used = decrypt_with_key_chain(encrypted_data, key_chain)
-    except ValueError as e:
-        stats.echecs_dechiffrement += 1
-        logger.warning("Échec déchiffrement %s : %s", encrypted_file["file_name"], e)
-        return
-
-    stats.dechiffres += 1
+    encrypted_data = read_sftp_file(encrypted_file)  # IO non gardée : une erreur de lecture n'est
+    original_size = len(encrypted_data)  # pas une ValueError → propage (hors discipline ADR-0037).
+    decrypted_data, key_used = decrypt_with_key_chain(encrypted_data, key_chain)  # toutes clés KO → lève
     if len(key_chain) > 1:
         logger.debug("Déchiffré avec clé '%s' : %s", key_used, encrypted_file["file_name"])
 
@@ -243,6 +198,23 @@ def _decrypt_aes_transformer_base(
         "decrypted_size": len(decrypted_data),
         "key_used": key_used,
     }
+
+
+def _decrypt_aes_transformer_base(
+    encrypted_file: FileItemDict,
+    key_chain: list[tuple[str, bytes, bytes]],
+    stats: StatsChaine,
+) -> Iterator[dict]:
+    """Étage decrypt complet : pré-compte le zip entrant (`fichiers`) puis applique la discipline.
+
+    `stats.fichiers` est le compteur d'**entrée** de decrypt — inconditionnel par zip reçu, ni
+    succès ni échec : il vit donc HORS du combinateur (qui reste symétrique à deux compteurs sur
+    les trois étages). Ce pré-compte précède la lecture SFTP de `_decrypt` ; un fichier dont la
+    lecture échouerait est tout de même compté `fichiers` (l'erreur IO propage telle quelle, hors
+    discipline ADR-0037). Seam de test sans dlt : la factory `@dlt.transformer` ci-dessous l'appelle.
+    """
+    stats.fichiers += 1
+    yield from _decrypt(encrypted_file, key_chain, stats)  # stats : dernier positionnel (injecté)
 
 
 def create_decrypt_transformer(

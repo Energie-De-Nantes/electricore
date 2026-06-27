@@ -8,7 +8,7 @@ complet via drop_sources).
 
 from electricore.api.services.ingestion_service import ModeIngestion
 from electricore.ingestion.runner import PlanRun, flux_aveugles, interpreter_flux
-from electricore.ingestion.transformers.crypto import StatsChaine
+from electricore.ingestion.transformers.chaine import StatsChaine
 
 
 def test_flux_aveugles_ne_retient_que_les_flux_sans_document():
@@ -141,7 +141,7 @@ def test_main_echoue_si_un_flux_est_aveugle(monkeypatch):
     import pytest
 
     from electricore.ingestion import runner
-    from electricore.ingestion.transformers.crypto import StatsChaine
+    from electricore.ingestion.transformers.chaine import StatsChaine
 
     monkeypatch.setattr(runner.runtime, "valider", lambda *a, **k: None)
     monkeypatch.setattr(

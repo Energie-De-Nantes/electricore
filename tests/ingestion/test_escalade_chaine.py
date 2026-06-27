@@ -34,7 +34,7 @@ from Crypto.Util.Padding import pad
 
 from electricore.config import runtime
 from electricore.ingestion.sources.sftp_enedis_brut import flux_enedis_brut
-from electricore.ingestion.transformers.crypto import StatsChaine
+from electricore.ingestion.transformers.chaine import StatsChaine
 
 _KEY = bytes.fromhex("00112233445566778899aabbccddeeff")  # 16 octets (AES-128)
 _IV = bytes.fromhex("ffeeddccbbaa99887766554433221100")
@@ -172,12 +172,12 @@ def test_escalade_chaine_bout_en_bout(bucket, tmp_path):
 
 def test_unzip_compte_les_fichiers_extraits():
     """Chaque fichier interne yieldé incrémente `extraits` (aucun échec sur un ZIP sain)."""
-    from electricore.ingestion.transformers.archive import _unzip_transformer_base
+    from electricore.ingestion.transformers.archive import _unzip
 
     stats = StatsChaine()
     fichier = _fichier_dechiffre("a.zip", _zip_clair("mesure.xml", b"<data/>"))
 
-    produits = list(_unzip_transformer_base(fichier, ".xml", "*.xml", stats))
+    produits = list(_unzip(fichier, ".xml", "*.xml", stats))  # stats : dernier positionnel
 
     assert len(produits) == 1
     assert stats.extraits == 1 and stats.echecs_extraction == 0
@@ -186,12 +186,12 @@ def test_unzip_compte_les_fichiers_extraits():
 def test_unzip_compte_un_echec_sur_zip_corrompu_sans_crash():
     """Fin du silence d'unzip (ADR-0037 ext.) : un ZIP illisible est compté
     `echecs_extraction`, sans exception propagée (pas de poison-pill)."""
-    from electricore.ingestion.transformers.archive import _unzip_transformer_base
+    from electricore.ingestion.transformers.archive import _unzip
 
     stats = StatsChaine()
     fichier = _fichier_dechiffre("corrompu.zip", b"ceci n'est pas un zip")
 
-    produits = list(_unzip_transformer_base(fichier, ".xml", "*.xml", stats))
+    produits = list(_unzip(fichier, ".xml", "*.xml", stats))  # stats : dernier positionnel
 
     assert produits == []
     assert stats.extraits == 0 and stats.echecs_extraction == 1
@@ -209,12 +209,12 @@ def _fichier_extrait(nom: str, contenu: bytes) -> dict:
 
 def test_parse_compte_un_document_sur_contenu_valide():
     """Un document linéarisable incrémente `documents` et produit la ligne brute."""
-    from electricore.ingestion.sources.sftp_enedis_brut import _vers_document_brut_base
+    from electricore.ingestion.sources.sftp_enedis_brut import _vers_document_brut
 
     stats = StatsChaine()
     extrait = _fichier_extrait("mesure.JSON", _R64_JSON)
 
-    produits = list(_vers_document_brut_base(extrait, "R64", est_json=True, stats=stats))
+    produits = list(_vers_document_brut(extrait, "R64", True, stats))  # stats : dernier positionnel
 
     assert len(produits) == 1
     assert stats.documents == 1 and stats.echecs_linearisation == 0
@@ -224,12 +224,12 @@ def test_parse_compte_un_echec_sur_document_malforme_sans_raise():
     """Pin du spike (ADR-0037 ext.) : dlt aborte tout l'`extract` sur une exception non
     rattrapée d'un transformer. Un document malformé doit donc être compté
     `echecs_linearisation` et sauté — SANS exception propagée."""
-    from electricore.ingestion.sources.sftp_enedis_brut import _vers_document_brut_base
+    from electricore.ingestion.sources.sftp_enedis_brut import _vers_document_brut
 
     stats = StatsChaine()
     extrait = _fichier_extrait("mesure.JSON", b"{ ceci n'est pas du JSON valide")
 
-    produits = list(_vers_document_brut_base(extrait, "R64", est_json=True, stats=stats))
+    produits = list(_vers_document_brut(extrait, "R64", True, stats))  # stats : dernier positionnel
 
     assert produits == []
     assert stats.documents == 0 and stats.echecs_linearisation == 1
