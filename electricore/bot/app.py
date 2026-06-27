@@ -9,7 +9,7 @@ from telegram.ext import Application, CallbackQueryHandler, CommandHandler
 
 from electricore.api.config import settings
 from electricore.bot import surveillance
-from electricore.bot.handlers import facturation, flux, ingestion, perimetre, start, taxes
+from electricore.bot.handlers import facturation, flux, ingestion, perimetre, provision, start, taxes
 from electricore.bot.tasks import create_task
 
 
@@ -45,4 +45,6 @@ def build_application(token: str) -> Application:
     # Domaine /facturation (#156) — documents + contrôles, absorbe /check.
     application.add_handler(CommandHandler("facturation", facturation.cmd_facturation))
     application.add_handler(CallbackQueryHandler(facturation.on_callback, pattern="^facturation:"))
+    # Domaine /provision (#487) — estimation de provision des lissés (cold-start R67), DuckDB pur.
+    application.add_handler(CommandHandler("provision", provision.cmd_provision))
     return application
