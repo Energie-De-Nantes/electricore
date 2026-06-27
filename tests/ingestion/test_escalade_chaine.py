@@ -145,3 +145,41 @@ def test_unzip_compte_un_echec_sur_zip_corrompu_sans_crash():
 
     assert produits == []
     assert stats.extraits == 0 and stats.echecs_extraction == 1
+
+
+# =============================================================================
+# Étage parse : documents comptés, document malformé compté sans PipelineStepFailed
+# =============================================================================
+
+
+def _fichier_extrait(nom: str, contenu: bytes) -> dict:
+    """Forme du dict produit par l'étage unzip, consommé par l'étage parse."""
+    return {"extracted_file_name": nom, "modification_date": None, "source_zip": "z.zip", "extracted_content": contenu}
+
+
+def test_parse_compte_un_document_sur_contenu_valide():
+    """Un document linéarisable incrémente `documents` et produit la ligne brute."""
+    from electricore.ingestion.sources.sftp_enedis_brut import _vers_document_brut_base
+
+    stats = StatsChaine()
+    extrait = _fichier_extrait("mesure.JSON", _R64_JSON)
+
+    produits = list(_vers_document_brut_base(extrait, "R64", est_json=True, stats=stats))
+
+    assert len(produits) == 1
+    assert stats.documents == 1 and stats.echecs_linearisation == 0
+
+
+def test_parse_compte_un_echec_sur_document_malforme_sans_raise():
+    """Pin du spike (ADR-0037 ext.) : dlt aborte tout l'`extract` sur une exception non
+    rattrapée d'un transformer. Un document malformé doit donc être compté
+    `echecs_linearisation` et sauté — SANS exception propagée."""
+    from electricore.ingestion.sources.sftp_enedis_brut import _vers_document_brut_base
+
+    stats = StatsChaine()
+    extrait = _fichier_extrait("mesure.JSON", b"{ ceci n'est pas du JSON valide")
+
+    produits = list(_vers_document_brut_base(extrait, "R64", est_json=True, stats=stats))
+
+    assert produits == []
+    assert stats.documents == 0 and stats.echecs_linearisation == 1

@@ -31,20 +31,41 @@ from electricore.ingestion.transformers.crypto import (
 logger = logging.getLogger(__name__)
 
 
-def _create_brut_transformer(flux_type: str, est_json: bool):
+def _vers_document_brut_base(
+    extracted_file: dict, flux_type: str, est_json: bool, stats: StatsChaine
+) -> Iterator[dict]:
+    """Étage parse : fichier extrait → document brut (colonne JSON), avec comptage.
+
+    Discipline « attraper → compter → continuer » (ADR-0037 étendu) : un document
+    malformé (JSON/XML illisible) est compté `echecs_linearisation` et sauté — JAMAIS une
+    exception propagée. C'est le pin du spike : une exception non rattrapée d'un transformer
+    fait lever à dlt un `PipelineStepFailed` qui **aborte tout l'`extract`** (tous les flux
+    du run, pas seulement le fichier fautif). Un document linéarisé incrémente `documents`.
+    """
+    contenu: bytes = extracted_file["extracted_content"]
+    try:
+        document = json.loads(contenu) if est_json else xml_vers_dict(contenu)
+    except Exception as e:  # noqa: BLE001 — tout échec de linéarisation est compté, jamais propagé
+        stats.echecs_linearisation += 1
+        logger.warning("Échec linéarisation %s : %s", extracted_file["extracted_file_name"], e)
+        return
+
+    stats.documents += 1
+    yield {
+        "file_name": extracted_file["extracted_file_name"],
+        "modification_date": extracted_file["modification_date"],
+        "_source_zip": extracted_file["source_zip"],
+        "_flux_type": flux_type,
+        "content": document,
+    }
+
+
+def _create_brut_transformer(flux_type: str, est_json: bool, stats: StatsChaine):
     """Transformer final : fichier extrait → document brut (colonne JSON)."""
 
     @dlt.transformer
     def vers_document_brut(extracted_file: dict) -> Iterator[dict]:
-        contenu: bytes = extracted_file["extracted_content"]
-        document = json.loads(contenu) if est_json else xml_vers_dict(contenu)
-        yield {
-            "file_name": extracted_file["extracted_file_name"],
-            "modification_date": extracted_file["modification_date"],
-            "_source_zip": extracted_file["source_zip"],
-            "_flux_type": flux_type,
-            "content": document,
-        }
+        return _vers_document_brut_base(extracted_file, flux_type, est_json, stats)
 
     return vers_document_brut
 
@@ -83,7 +104,7 @@ def flux_enedis_brut(flux_config: dict, max_files: int = None, stats: dict[str, 
         stats_flux = stats.setdefault(flux_type, StatsChaine())
         decrypt_transformer = create_decrypt_transformer(key_chain=key_chain, stats=stats_flux)
         unzip_transformer = create_unzip_transformer(extension, file_regex, stats=stats_flux)
-        brut = _create_brut_transformer(flux_type, est_json)
+        brut = _create_brut_transformer(flux_type, est_json, stats_flux)
 
         pipeline_brut = (sftp_resource | decrypt_transformer | unzip_transformer | brut).with_name(table)
         pipeline_brut.apply_hints(
