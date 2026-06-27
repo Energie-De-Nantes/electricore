@@ -67,6 +67,18 @@ class TestPorteeFluxFactory:
             flux("releves")
 
 
+class TestValidateursSeams:
+    """Le descripteur d'un flux consommé par un pipeline-cœur porte son contrat
+    Pandera au seam (ADR-0035 §5). #295 ferme la dernière lacune de registre :
+    `affaires` (consommé par `affaires_ouvertes`) gagne `AffaireJalon`."""
+
+    def test_descriptor_affaires_porte_affaire_jalon(self):
+        from electricore.core.loaders.duckdb.registry import DESCRIPTOR_AFFAIRES
+        from electricore.core.models.affaire_jalon import AffaireJalon
+
+        assert DESCRIPTOR_AFFAIRES.validator is AffaireJalon
+
+
 class TestFactoriesNommeesEquivalentesAFlux:
     """#273 : c15()…r64() produisent la même requête que `flux(nom)`.
 
