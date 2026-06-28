@@ -20,7 +20,7 @@ POLL_INTERVAL = 5  # secondes entre deux interrogations du job
 POLL_MAX = 360  # ≈ 30 minutes de suivi au maximum
 
 # Clés de flux proposées dans le sous-menu (miroir de FLUX_CONNUS côté API).
-FLUX = ("c15", "f12", "f15", "r15", "r151", "r64")
+FLUX = ("c15", "f12", "f15", "r15", "r151", "r64", "r67")
 
 _STATUS_EMOJI = {
     "running": "⏳",

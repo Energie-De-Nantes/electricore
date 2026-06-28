@@ -27,7 +27,9 @@ def _pipeline_courtcircuite(monkeypatch):
     app.dependency_overrides.clear()
 
 
-@pytest.mark.parametrize("mode", ["test", "all", "rebuild", "resync", "r151", "c15", "r151 c15", "R151 C15"])
+@pytest.mark.parametrize(
+    "mode", ["test", "all", "rebuild", "resync", "r151", "c15", "r64", "r67", "r151 c15", "r151 r67", "R151 C15"]
+)
 def test_run_accepte_les_modes_reels(mode):
     response = TestClient(app).post("/ingestion/run", json={"mode": mode})
     assert response.status_code == 202, response.text

@@ -24,6 +24,7 @@ DESCRIPTIONS = {
     "r15_acc": "Relevés autoconsommation (R15)",
     "r151": "Relevés périodiques",
     "r64": "Relevés courbe (JSON)",
+    "r67": "Mesures facturantes (énergie par période)",
 }
 
 

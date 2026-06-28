@@ -44,7 +44,7 @@ class ModeIngestion(StrEnum):
 
 
 # Clés de flux.yaml, en minuscules — le runner accepte aussi une liste de flux (#152).
-FLUX_CONNUS = frozenset({"c15", "f12", "f15", "r15", "r151", "r64"})
+FLUX_CONNUS = frozenset({"c15", "f12", "f15", "r15", "r151", "r64", "r67"})
 
 
 def valider_mode(mode: str) -> str | None:
