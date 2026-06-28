@@ -9,6 +9,31 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.4.0rc11] - 2026-06-28
+
+### 🛠️ Robustesse ingestion (curseur incrémental R67)
+
+- **R67 re-liste tout à chaque run (`incremental: false`)** (#495) : l'incrémental dlt vit
+  sur le **listing** (`modification_date`), pas sur le **landing** — un flux qui liste un
+  fichier mais échoue en aval (decrypt/parse → 0 document) avançait quand même son curseur
+  et **sautait le fichier à jamais**. C'est ce qui a vidé `raw_r67` en prod (M023 du jour
+  skippés → `flux_r67` absent → `/provision/estimation` en erreur). R67 étant un flux
+  ponctuel et peu volumineux, il éteint l'incrémental : il liste tout, le `merge` sur
+  `file_name` dédoublonne, un fichier non atterri se rejoue. Les flux quotidiens
+  (R64/R151/C15…) gardent leur incrémental.
+- **`--resync` ciblé sur le CLI** (#494) : `python -m electricore.ingestion <flux> --resync`
+  purge l'état incrémental des **seuls** flux sélectionnés (`drop_resources` scopé au run),
+  pour rejouer un curseur bloqué sans re-télécharger tous les flux (le mode `resync` global
+  reste `drop_sources`).
+
+### 🐛 Corrections
+
+- **R67 surfacé dans l'API et le bot d'ingestion** (#492) : `mode: "r67"` accepté par
+  `POST /ingestion/run` et bouton dédié dans le bot.
+- **Déploiement : override `--version` rebranché** (#491) : l'option `--version` de
+  `install.sh`, rendue inerte par #299, réécrit de nouveau `ELECTRICORE_VERSION` dans
+  `config.env` ; garde anti-régression ajoutée.
+
 ## [3.4.0rc10] - 2026-06-27
 
 ### ✨ Nouveautés (estimation de provision des lissés — cold-start R67)
