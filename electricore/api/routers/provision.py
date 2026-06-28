@@ -8,11 +8,17 @@ ADR-0016/0027). Réponse JSON enveloppée avec `contract_version`, auth `X-API-K
 conventions que `POST /facturation/rsc`.
 """
 
-from fastapi import APIRouter, Depends, Query, Response
+import logging
+
+import duckdb
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
 from electricore.api.security import get_current_api_key
 from electricore.api.services.provision_service import CONTRAT_VERSION, serialiser_rapport
 from electricore.core.builds.rapport_provision import RapportProvision
+from electricore.core.loaders.duckdb import DuckDBLockError
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["provision"])
 
@@ -45,4 +51,25 @@ async def get_estimation_provision(
     aucune période R67 dans la fenêtre de 12 mois. **Zéro €** (ADR-0016/0027).
     """
     response.headers["X-Contract-Version"] = str(CONTRAT_VERSION)
-    return serialiser_rapport(_estimer(pdl))
+    try:
+        rapport = _estimer(pdl)
+    except (HTTPException, DuckDBLockError):
+        # DuckDBLockError → handler d'app (503 « ingestion en cours », main.py).
+        raise
+    except duckdb.CatalogException as e:
+        # flux_r67 pas (encore) matérialisé : aucune mesure facturante M023 (R67) ingérée.
+        # État opérationnel attendu, pas un bug → 503 actionnable plutôt qu'un 500 brut.
+        logger.warning("provision/estimation: flux_r67 absent — %s", e)
+        raise HTTPException(
+            503,
+            "Données R67 indisponibles : le flux flux_r67 n'est pas matérialisé (aucune "
+            "mesure facturante M023 ingérée). Déclencher une demande M023 sur le portail "
+            "SGE, l'ingérer, puis réessayer.",
+        ) from e
+    except FileNotFoundError as e:
+        logger.warning("provision/estimation: base DuckDB absente — %s", e)
+        raise HTTPException(503, f"Base de données indisponible : {e}") from e
+    except Exception as e:
+        logger.exception("provision/estimation: erreur inattendue")
+        raise HTTPException(503, f"Erreur lors de l'estimation : {e}") from e
+    return serialiser_rapport(rapport)
