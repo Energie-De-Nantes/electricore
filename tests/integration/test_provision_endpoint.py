@@ -9,6 +9,7 @@ câblage transport + enveloppe (`contract_version`, en-tête, sérialisation), p
 
 import datetime as dt
 
+import duckdb
 import polars as pl
 import pytest
 from fastapi.testclient import TestClient
@@ -74,6 +75,33 @@ def test_estimation_renvoie_enveloppe_kwh(client, monkeypatch):
     assert est["couverture_suffisante"] is True
     # Zéro € exposé (convention de colonne € = suffixe `_eur`, ADR-0016/0027).
     assert not any(cle.endswith("_eur") or "_eur_" in cle for cle in est)
+
+
+def test_flux_r67_absent_renvoie_503_actionnable(client, monkeypatch):
+    """Régression : flux_r67 non matérialisé (R67 ponctuel jamais ingéré / aucune M023) → 503
+    ACTIONNABLE, pas un 500 brut. Le chemin loader réel n'était pas couvert (estimateur
+    monkeypatché), d'où la CatalogException non gérée remontée en prod."""
+
+    def _table_absente(pdl):
+        raise duckdb.CatalogException("Catalog Error: Table with name flux_r67 does not exist!")
+
+    monkeypatch.setattr("electricore.api.routers.provision._estimer", _table_absente)
+    response = client.get("/provision/estimation", params={"pdl": "12345678901234"})
+    assert response.status_code == 503
+    detail = response.json()["detail"]
+    assert "flux_r67" in detail and "M023" in detail  # message qui dit quoi faire
+
+
+def test_erreur_inattendue_renvoie_503_pas_500(client, monkeypatch):
+    """Garde : toute erreur inattendue du seam est emballée en 503 — l'endpoint n'émet jamais
+    de 500 brut (convention `binary_endpoint`/decorators.py)."""
+
+    def _boom(pdl):
+        raise RuntimeError("imprévu")
+
+    monkeypatch.setattr("electricore.api.routers.provision._estimer", _boom)
+    response = client.get("/provision/estimation", params={"pdl": "12345678901234"})
+    assert response.status_code == 503
 
 
 def _rapport_4_cadrans(pdl: str) -> RapportProvision:
