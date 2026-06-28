@@ -140,6 +140,31 @@ class TestDomaineOdoo:
         monkeypatch.setenv("ODOO__URL", brut)
         assert runtime.odoo().url == "https://odoo.example"
 
+    def test_db_entre_guillemets_dequote(self, monkeypatch):
+        """`ODOO__DB` entre guillemets doubles (sops exec-env verbatim) est dé-quotée.
+
+        Sans ça, le nom de base littéral `"edn"` atteint `authenticate()` et Postgres
+        répond `database ""edn"" does not exist` (même classe que #454 pour l'URL).
+        """
+        monkeypatch.setenv("ODOO__DB", '"mainteniste-edn-odoo-edn-main-25347145"')
+        assert runtime.odoo().db == "mainteniste-edn-odoo-edn-main-25347145"
+
+    def test_username_entre_guillemets_dequote(self, monkeypatch):
+        """`ODOO__USERNAME` quotée échoue à l'auth (login littéral `"bot"` introuvable)."""
+        monkeypatch.setenv("ODOO__USERNAME", '"bot"')
+        assert runtime.odoo().username == "bot"
+
+    def test_password_entre_guillemets_dequote(self, monkeypatch):
+        """`ODOO__PASSWORD` dé-quotée pour parité dev↔prod.
+
+        En dev le `.env` passe par python-dotenv qui retire les guillemets appariés ;
+        sans le même traitement en prod (`sops exec-env` verbatim), un secret écrit
+        `ODOO__PASSWORD="secret"` authentifierait avec deux mots de passe différents
+        selon l'environnement.
+        """
+        monkeypatch.setenv("ODOO__PASSWORD", '"secret"')
+        assert runtime.odoo().password == "secret"
+
     def test_url_sans_schema_signalee_clairement(self, monkeypatch):
         """Un schéma absent ne tombe plus en 503 cryptique : message explicite nommant ODOO__URL."""
         monkeypatch.setenv("ODOO__URL", "odoo.example")
