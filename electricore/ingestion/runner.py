@@ -79,16 +79,22 @@ class PlanRun:
     rebuild: bool = False  # True = saute le landing, dbt build seul (zéro réseau)
 
 
-def interpreter_flux(flux: list[str], max_files: int | None) -> PlanRun:
+def interpreter_flux(flux: list[str], max_files: int | None, resync: bool = False) -> PlanRun:
     """Traduit les arguments de flux (modes API compris) en plan d'exécution.
 
     - 'all'     → tous les flux ;
     - 'test'    → tous les flux, 2 fichiers chacun (smoke) ;
     - 'rebuild' → re-matérialise les tables depuis le brut, zéro réseau (~13 s) —
                   le geste standard après un changement de modèle dbt (#140) ;
-    - 'resync'  → état incrémental dlt purgé, tout re-téléchargé (brut perdu/corrompu) ;
+    - 'resync'  → état incrémental dlt purgé sur TOUS les flux, tout re-téléchargé
+                  (`drop_sources`, exceptionnel : brut perdu/corrompu) ;
     - 'reset'   → déprécié, alias de resync ;
     - sinon     → liste de flux (r151 c15 …), upper-casée vers les clés de flux.yaml.
+
+    `resync=True` (drapeau `--resync`) ne vaut que pour la branche liste-de-flux : il
+    purge l'état incrémental des SEULS flux sélectionnés (`drop_resources` scopé au run)
+    pour rejouer un curseur bloqué sans re-télécharger les autres flux. Sans effet sur
+    'all'/'test'/'rebuild'/'resync' (ces modes ont déjà leur propre refresh).
     """
     if flux == ["all"]:
         return PlanRun(selection=None, max_files=max_files, refresh=None)
@@ -98,7 +104,8 @@ def interpreter_flux(flux: list[str], max_files: int | None) -> PlanRun:
         return PlanRun(selection=None, max_files=max_files, refresh=None, rebuild=True)
     if flux in (["resync"], ["reset"]):
         return PlanRun(selection=None, max_files=max_files, refresh="drop_sources")
-    return PlanRun(selection=[f.upper() for f in flux], max_files=max_files, refresh=None)
+    refresh = "drop_resources" if resync else None
+    return PlanRun(selection=[f.upper() for f in flux], max_files=max_files, refresh=refresh)
 
 
 def lander_brut(db_path: Path, plan: PlanRun) -> dict[str, StatsChaine]:
@@ -282,9 +289,15 @@ def main() -> None:
         "--db", type=Path, default=None, help="base DuckDB cible (défaut : $DUCKDB__PATH ou la base de prod locale)"
     )
     parseur.add_argument("--max-files", type=int, default=None, help="limite de fichiers par flux")
+    parseur.add_argument(
+        "--resync",
+        action="store_true",
+        help="purge l'état incrémental des flux sélectionnés (drop_resources scopé au run) "
+        "pour rejouer un curseur bloqué — n'a d'effet qu'avec une liste de flux, ex. « r67 --resync »",
+    )
     args = parseur.parse_args()
 
-    plan = interpreter_flux(args.flux, args.max_files)
+    plan = interpreter_flux(args.flux, args.max_files, resync=args.resync)
 
     # Fail-fast par point d'entrée (ADR-0025) : rebuild ne touche ni SFTP ni AES.
     if plan.rebuild:
