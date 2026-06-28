@@ -67,6 +67,27 @@ def test_selection_multi_flux():
     assert plan.selection == ["R151", "C15"]
 
 
+def test_resync_cible_purge_l_etat_du_seul_flux_selectionne():
+    """`--resync` sur une liste de flux → `drop_resources` scopé au run (purge le seul
+    curseur des flux sélectionnés, pour rejouer un curseur bloqué). Cas d'usage : R67
+    ponctuel dont le curseur a avancé au listing sans atterrissage."""
+    plan = interpreter_flux(["r67"], max_files=None, resync=True)
+    assert plan.selection == ["R67"]
+    assert plan.refresh == "drop_resources"
+
+
+def test_sans_resync_une_liste_de_flux_ne_purge_rien():
+    """Le défaut reste l'incrémental : pas de drapeau → aucun refresh."""
+    assert interpreter_flux(["r67"], max_files=None).refresh is None
+
+
+def test_resync_cible_ne_se_confond_pas_avec_le_mode_resync_global():
+    """Deux purges distinctes : le MODE `resync` rejoue TOUS les flux (`drop_sources`) ;
+    le DRAPEAU `--resync` sur une liste rejoue les SEULS flux visés (`drop_resources`)."""
+    assert interpreter_flux(["resync"], max_files=None).refresh == "drop_sources"
+    assert interpreter_flux(["r67"], max_files=None, resync=True).refresh == "drop_resources"
+
+
 def test_la_base_par_defaut_honore_duckdb_path(monkeypatch):
     """En conteneur, DUCKDB__PATH pointe le volume de données (docker-compose) :
     le runner doit l'honorer, comme l'API et les loaders."""
