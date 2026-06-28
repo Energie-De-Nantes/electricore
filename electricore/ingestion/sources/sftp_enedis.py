@@ -51,7 +51,9 @@ def mask_password_in_url(url: str) -> str:
     return re.sub(pattern, r"\1****\2", url)
 
 
-def create_sftp_resource(flux_type: str, table_name: str, file_pattern: str, sftp_url: str, max_files: int = None):
+def create_sftp_resource(
+    flux_type: str, table_name: str, file_pattern: str, sftp_url: str, max_files: int = None, incremental: bool = True
+):
     """
     Crée une resource SFTP réutilisable avec limitation optionnelle.
 
@@ -61,6 +63,12 @@ def create_sftp_resource(flux_type: str, table_name: str, file_pattern: str, sft
         file_pattern: Pattern pour les fichiers (ZIP ou JSON directs)
         sftp_url: URL du serveur SFTP
         max_files: Nombre max de fichiers à traiter
+        incremental: Si True (défaut), le listing n'émet que les fichiers plus récents
+            que le dernier curseur (modification_date). Si False, RE-LISTE tout à chaque
+            run : le curseur ne peut plus « avancer au listing » et sauter à jamais un
+            fichier qui n'a pas atterri en aval (decrypt/parse → 0 document). Le dédoublon
+            est alors assuré en aval par le merge sur `file_name` (write_disposition merge
+            de la source brute). Réservé aux flux ponctuels et peu volumineux (R67/M023).
     """
 
     @dlt.resource(
@@ -93,7 +101,10 @@ def create_sftp_resource(flux_type: str, table_name: str, file_pattern: str, sft
 
         files.add_map(_normalize_date)
 
-        files.apply_hints(incremental=dlt.sources.incremental("modification_date"))
+        # L'incrémental est OPTIONNEL : sans lui, le curseur ne peut pas avancer au listing
+        # et sauter à jamais un fichier non atterri (le merge `file_name` en aval dédoublonne).
+        if incremental:
+            files.apply_hints(incremental=dlt.sources.incremental("modification_date"))
 
         # Limiter le nombre de fichiers si spécifié
         file_count = 0

@@ -95,8 +95,11 @@ def flux_enedis_brut(flux_config: dict, max_files: int = None, stats: dict[str, 
         est_json = config_flux.get("format") == "json"
         extension = ".json" if est_json else ".xml"
         file_regex = config_flux.get("file_regex", f"*{extension}")
+        # Incrémental par défaut ; un flux peut l'éteindre (`incremental: false` dans flux.yaml)
+        # pour re-lister tout à chaque run et ne jamais sauter un fichier non atterri (R67/M023).
+        incremental = config_flux.get("incremental", True)
 
-        sftp_resource = create_sftp_resource(flux_type, table, file_pattern, sftp_url, max_files)
+        sftp_resource = create_sftp_resource(flux_type, table, file_pattern, sftp_url, max_files, incremental)
         stats_flux = stats.setdefault(flux_type, StatsChaine())
         decrypt_transformer = create_decrypt_transformer(key_chain=key_chain, stats=stats_flux)
         unzip_transformer = create_unzip_transformer(extension, file_regex, stats=stats_flux)
