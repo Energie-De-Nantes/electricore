@@ -9,6 +9,67 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.4.0] - 2026-06-29
+
+Premier stable de la ligne **3.4** : aboutissement du cycle rc1→rc12, validé en production.
+La ligne achève la **descente d'assemblage en dbt** (le cœur consomme, dbt assemble —
+ADR-0041/0042), ouvre electricore comme **source que l'ERP _tire_ sans tirer le moteur**
+(client léger + flux JSONL — ADR-0043), bascule le déploiement en **secrets-as-code**
+(SOPS + age — ADR-0044/0046), et amorce l'**estimation de provision des contrats lissés**
+(cold-start R67 — ADR-0048). Détail rc-par-rc plus bas.
+
+### ✨ Temps forts
+
+- **Descente d'assemblage en dbt — le cœur consomme, dbt assemble** (ADR-0041/0042). La
+  *Chronologie du contrat* est désormais une **spine assemblée en dbt** (forward-fill SQL +
+  grille FACTURATION mensuelle) que `pipeline_historique` se contente de **filtrer par horizon**
+  et de découper en ruptures ; la branche abonnement bascule dessus (parité byte-identique),
+  **~2700 lignes** quittent le cœur. Les loaders `/flux` deviennent de **vrais `SELECT *`**
+  typeless — la forme (types, renames, ancrage de date) descend dans les modèles `flux_*` : un
+  **instant** est un `TIMESTAMPTZ` harmonisé au boundary (le « +1 jour » R151 devenu natif), un
+  **jour civil** un `DATE`, fuseau de session épinglé `Europe/Paris`. La chronologie devient
+  **filtrable par PDL/RSC** au chargement (prédicat poussé en DuckDB, invariant « horizon =
+  paramètre » garanti par test de parité).
+- **electricore, source que l'ERP _tire_ — sans tirer le moteur** (ADR-0043). Extraction du
+  paquet léger **`electricore-client`** (httpx + pydantic seuls, `[arrow]` en extra, publié sur
+  PyPI par tag `client-v*`) : `souscriptions_odoo` consomme l'API sans polars/duckdb/fastapi, sur
+  des **modèles de contrat single-source** gardés par en-tête de version. Les endpoints facturiste
+  passent en **flux JSONL typé** (`/facturation/chronologie`, `/facturation/meta-periodes`,
+  métadonnées en en-têtes), et le trio de pull facturiste se complète : **`POST /facturation/rsc`**
+  (résolution `id_Affaire` → `ref_situation_contractuelle`, X12 ⨝ C15, #282) et la **vue
+  facturiste `GET /facturation/chronologie`** (la frise faits + verdicts d'un PDL/RSC, sans montant).
+- **Déploiement en secrets-as-code** (ADR-0044/0046, #418–#420). Les secrets quittent le `.env`
+  en clair pour un chiffrement **SOPS + age** versionné, déchiffré dans l'image à l'exécution
+  (`sops exec-env`, **fail-fast** sans clé) ; `config.env` (clair) + `secrets.env` (chiffré),
+  chaque box génère ses identités, onboarding GitOps auto-pull, clé admin d'**escrow** hors-ligne.
+  Convention de noms unifiée **`<DOMAINE>__<CHAMP>`** sur tout le runtime, **trousseau API
+  étiqueté** (`API__TROUSSEAU__<consommateur>__KEY`, révocation ciblée), **bloc Odoo unique**
+  `ODOO__*` (fin du sélecteur test/prod).
+- **Estimation de provision des contrats lissés** (ADR-0048, #487/#488/#489). Capacité
+  **cœur-pure** qui amorce (cold-start) la provision d'énergie d'un contrat lissé depuis
+  `flux_r67` (M023) : profil cadran sur **12 mois glissants** → plate, sortie **WIDE** par cadran
+  + métadonnées de couverture/qualité + signal alertable, livrée **bout-en-bout** (build
+  `RapportProvision` → `GET /provision/estimation` → bot `/provision`). **kWh uniquement, zéro €** ;
+  en amont de la régularisation (#191).
+- **Robustesse d'ingestion R67** (#492/#494/#495). R67 re-liste tout (`incremental: false`) —
+  l'incrémental dlt vivant sur le *listing* sautait à jamais un fichier listé mais échoué en aval
+  (avait vidé `raw_r67` en prod) ; `--resync` ciblé par flux purge un curseur bloqué sans
+  re-télécharger ; R67 surfacé dans l'API et le bot d'ingestion.
+
+### ⚠️ Changements incompatibles
+
+- **Déploiement** : chemin d'installation `.env` legacy **retiré** (ADR-0044 §8) — `--deploy-repo`
+  obligatoire, le split `config.env`/`secrets.env` est le seul chemin. Variables d'environnement
+  renommées en `<DOMAINE>__<CHAMP>` (`DUCKDB__PATH`, `API__*`, `BOT__*`, `ODOO__*`,
+  `API__TROUSSEAU__<consommateur>__KEY` à la place de `API_KEY`/`API_KEYS`).
+- **Endpoints `/flux`** : `/flux/r64`, `/flux/r151` servent des **instants** `TIMESTAMPTZ`
+  (R151 = J+1 harmonisé, endpoint déprécié au profit du mart `releves`) ; `/flux/f15` sert des
+  **`DATE`** (jour civil). Empreinte canonique `/releves` et `releve_id` **stables**.
+- **Surface loaders / notebooks** : 14 notebooks de démo/validation morts supprimés (seul subsiste
+  le trio lanceur opérateur) ; `execute_custom_query`, `DuckDBQuery.exec()`, le modèle Pandera
+  `RequêteRelevé` et les loaders Parquet `core.loaders.parquet` retirés (tous sans appelant).
+  `RelevéIndex` (contrat vivant) **conservé**.
+
 ## [3.4.0rc12] - 2026-06-28
 
 ### 🐛 Corrections
