@@ -121,19 +121,29 @@ class Aes(BaseSettings):
         return [(label, *paire.octets(label)) for label, paire in self.trousseau.items()]
 
 
-def _normaliser_url(valeur: str, *, var: str) -> str:
-    """Trim + dé-quote + exige un schéma http(s) (#454).
+def _dequote(valeur: str) -> str:
+    """Trim + retire une paire de guillemets appariés (parité python-dotenv).
 
     En prod, `sops exec-env` exporte les valeurs dotenv **verbatim**, guillemets
-    compris — là où le `.env` lu en dev passe par python-dotenv qui les retire. Un
-    `ODOO__URL="https://…"` (guillemets dans le secret) atteint alors `ServerProxy`
-    tel quel : `urlsplit` lit le schéma `"https` ≠ `http`/`https` et lève
-    « unsupported XML-RPC protocol » (503 cryptique). On retire l'espace et les
-    guillemets appariés, et on rejette tôt un schéma absent avec un message clair.
+    compris — là où le `.env` lu en dev passe par python-dotenv qui les retire. Sans
+    rattrapage, un `ODOO__DB="edn"` (guillemets dans le secret) atteint `authenticate()`
+    tel quel et Postgres répond `database ""edn"" does not exist`. On réplique donc la
+    sémantique dotenv pour tout le bloc `ODOO__*` (#454 ne l'avait fait que pour l'URL).
     """
-    url = valeur.strip()
-    if len(url) >= 2 and url[0] == url[-1] and url[0] in "\"'":
-        url = url[1:-1].strip()
+    nettoyee = valeur.strip()
+    if len(nettoyee) >= 2 and nettoyee[0] == nettoyee[-1] and nettoyee[0] in "\"'":
+        nettoyee = nettoyee[1:-1].strip()
+    return nettoyee
+
+
+def _normaliser_url(valeur: str, *, var: str) -> str:
+    """Dé-quote (cf. `_dequote`) + exige un schéma http(s) (#454).
+
+    Un `ODOO__URL="https://…"` non nettoyée atteint `ServerProxy` tel quel : `urlsplit`
+    lit le schéma `"https` ≠ `http`/`https` et lève « unsupported XML-RPC protocol »
+    (503 cryptique). On rejette en plus tôt un schéma absent avec un message clair.
+    """
+    url = _dequote(valeur)
     if not url.startswith(("http://", "https://")):
         raise ValueError(f"{var} doit commencer par http:// ou https:// (reçu : {valeur!r})")
     return url
@@ -157,6 +167,11 @@ class Odoo(BaseSettings):
     @classmethod
     def _url_normalisee(cls, valeur: str) -> str:
         return _normaliser_url(valeur, var="ODOO__URL")
+
+    @field_validator("db", "username", "password")
+    @classmethod
+    def _identifiants_dequote(cls, valeur: str) -> str:
+        return _dequote(valeur)
 
 
 def _version_package() -> str:
