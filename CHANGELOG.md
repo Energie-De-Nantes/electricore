@@ -9,6 +9,18 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.4.0rc12] - 2026-06-28
+
+### 🐛 Corrections
+
+- **Config Odoo : dé-quote `ODOO__DB` / `ODOO__USERNAME` / `ODOO__PASSWORD`** (suite #454) :
+  en prod `sops exec-env` exporte les valeurs dotenv **verbatim** (guillemets compris) là
+  où le `.env` dev passe par python-dotenv qui les retire. Un secret écrit
+  `ODOO__DB="<base>"` atteignait `authenticate()` quotes incluses → Postgres répondait
+  `database ""<base>"" does not exist` (échec d'auth XML-RPC cryptique). Le nettoyage
+  `_dequote` (jusque-là réservé à `ODOO__URL`, #454) couvre désormais tout le bloc
+  `ODOO__*`, refermant l'écart dev↔prod.
+
 ## [3.4.0rc11] - 2026-06-28
 
 ### 🛠️ Robustesse ingestion (curseur incrémental R67)
