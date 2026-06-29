@@ -32,6 +32,13 @@ Flux quotidiens de suivi des *affaires* SGE (cycle de vie des demandes de presta
 **Énergies de consommation** *retenues pour la facturation*, par **période** et par cadran (`etapeMetier = FACT`), portées en **deux grilles parallèles** qui réconcilient (à l'arrondi cadran près) — *distributeur* (les 4 cadrans saisonniers HPH/HPB/HCH/HCB, pour le TURPE) et *fournisseur* (le tarif de facturation : Base ou HP/HC). Contrairement à un **relevé d'index** (cumul à un instant), R67 porte de l'**énergie déjà différenciée sur une période** → **asset parallèle, hors de l'union `releves`** (modèle figé en [ADR-0047](../../docs/adr/0047-flux-r67-energie-par-periode-distributeur-hors-releves.md)). Le flux **R67** les publie **à la demande** (prestation **M023**, ponctuelle, JSON). Réservé au **fournisseur titulaire actif** ; profondeur restituée = `max(aujourd'hui − 36 mois, dernière mise en service)` — **deux bornes RGPD distinctes** : le *mur occupant* (jamais la donnée d'un occupant précédent — coupée à la dernière MES) et l'*horizon de rétention glissant* (36 mois). Conséquence : sur un **CFNE** (même foyer, MES ancienne) il remonte *avant* l'entrée chez le fournisseur → sert l'amorçage (*cold-start*) de la *provision d'énergie* d'un mensualisé ; sur un **MES/PMES** (nouvel occupant) il est coupé à l'entrée → sans valeur. Les **régularisations** (révision physique d'une consommation estimée) peuvent être **négatives**. Ingestion figée en ADR-0047 ([#214](https://github.com/Energie-De-Nantes/electricore/issues/214), brique de l'épique [#191](https://github.com/Energie-De-Nantes/electricore/issues/191)).
 _Éviter_ : confondre avec les *mesures fines* (courbe de charge R63/R66, soumises au consentement CDC) ; « 60 mois » (la profondeur effective constatée est 36 mois).
 
+**C12** :
+Flux de description contractuelle des PRM du segment C2-C4 (>36 kVA, SGE GUI 0129) ; même
+plomberie que C15 mais sans `Segment_Clientele` natif (segment inféré) ni attribut fiscal ;
+puissance par classe temporelle TURPE → pivot vers les 4 cadrans C4 + scalaire mono ;
+classes HTA non mappées (gardées) ; `Personne_Morale` (`Raison_Sociale`, `Code_APE`) = proxy
+nature économique pour l'accise (#226). Voir [ADR-0051](../../docs/adr/0051-flux-c12-spine-c4.md).
+
 **CAR (Consommation Annuelle de Référence)** :
 Consommation annuelle de référence qu'Enedis recalcule à chaque relève (profilage des points non télérelevés). Alternative *théorique* à R67 pour estimer une provision — un seul nombre annuel, auto-tenu par Enedis — mais **absente de tout flux ingéré** : l'obtenir exigerait l'API SGE web-service (candidat non bâti, [#207](https://github.com/Energie-De-Nantes/electricore/issues/207)). Porte la même borne *mur occupant* que les *mesures facturantes*.
 
