@@ -9,10 +9,10 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
-## [3.4.1rc1] - 2026-06-29
+## [3.4.1] - 2026-06-29
 
-Première RC de la ligne **3.4.1** — durcissement et élagage post-stable, **sans changement
-de comportement fonctionnel** (suite verte, symboles disparus).
+Patch stable **3.4.1** (promotion de la rc1) — durcissement et élagage post-stable, **sans
+changement de comportement fonctionnel** (suite verte, symboles disparus).
 
 ### 🧹 Élagage de la dette de sur-ingénierie (épic #505)
 
