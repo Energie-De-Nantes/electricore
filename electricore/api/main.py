@@ -127,9 +127,17 @@ async def verrou_duckdb_en_503(request, exc: DuckDBLockError) -> JSONResponse:
 
     Conversion centrale : tout endpoint de lecture qui laisse remonter
     `DuckDBLockError` en bénéficie, sans logique par route.
+
+    L'en-tête `X-Error-Kind: ingestion-lock` distingue ce 503 des 503 génériques :
+    le client peut ainsi mapper uniquement le vrai verrou en `IngestionEnCours`,
+    sans faux positifs (ADR, #424).
     """
     logger.warning("Lecture refusée, base verrouillée par un writer (%s %s) : %s", request.method, request.url, exc)
-    return JSONResponse(status_code=503, content={"detail": DETAIL_INGESTION_EN_COURS})
+    return JSONResponse(
+        status_code=503,
+        content={"detail": DETAIL_INGESTION_EN_COURS},
+        headers={"X-Error-Kind": "ingestion-lock"},
+    )
 
 
 # Routers per-domaine (issue #82). Chaque router porte son tag OpenAPI et ses endpoints.
