@@ -17,15 +17,15 @@ def _env_isole(monkeypatch):
 
 def test_api_key_info_attribue_le_consommateur(monkeypatch):
     """APIKeyInfo expose le consommateur (label) d'une clé valide du trousseau."""
-    monkeypatch.setenv("API__TROUSSEAU__librewatt__KEY", "k-librewatt")
-    info = security.APIKeyInfo.from_key("k-librewatt")
+    monkeypatch.setenv("API__TROUSSEAU__librewatt__KEY", "k-librewatt-xxxxxxxxxxxxxxxxxxxxxxx")
+    info = security.APIKeyInfo.from_key("k-librewatt-xxxxxxxxxxxxxxxxxxxxxxx")
     assert info.is_valid
     assert info.consumer == "librewatt"
 
 
 def test_api_key_info_consommateur_none_si_invalide(monkeypatch):
     """Clé inconnue : invalide et sans consommateur attribué."""
-    monkeypatch.setenv("API__TROUSSEAU__librewatt__KEY", "k-librewatt")
+    monkeypatch.setenv("API__TROUSSEAU__librewatt__KEY", "k-librewatt-xxxxxxxxxxxxxxxxxxxxxxx")
     info = security.APIKeyInfo.from_key("cle-inconnue")
     assert not info.is_valid
     assert info.consumer is None
