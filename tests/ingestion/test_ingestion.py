@@ -49,7 +49,8 @@ def test_les_modes_de_l_api_sont_interpretables():
     plans = {mode.value: interpreter_flux([mode.value], max_files=None) for mode in ModeIngestion}
     assert plans["all"] == PlanRun(selection=None, max_files=None, refresh=None, rebuild=False)
     assert plans["test"] == PlanRun(selection=None, max_files=2, refresh=None, rebuild=False)
-    assert plans["r151"] == PlanRun(selection=["R151"], max_files=None, refresh=None, rebuild=False)
+    # r151 n'est plus un mode d'enum mais un flux (FLUX_CONNUS, #510) ; sa sélection est
+    # couverte par test_selection_multi_flux.
     # rebuild = re-matérialiser depuis le brut, zéro réseau (~13 s) — le geste
     # standard après un changement de modèle (#140).
     assert plans["rebuild"] == PlanRun(selection=None, max_files=None, refresh=None, rebuild=True)

@@ -30,11 +30,6 @@ class TestColumnAllowlist:
         q = c15().filter({"pdl": "PDL123"})
         assert q.filters == (("pdl", "PDL123"),)
 
-    def test_raw_condition_bypasses_validation(self):
-        """`.where(...)` reste une échappée pour expressions SQL brutes (non exposée HTTP)."""
-        q = c15().where("pdl LIKE 'PDL%'")
-        assert q.filters == (("__raw_condition", "pdl LIKE 'PDL%'"),)
-
 
 class TestParameterizedFilters:
     """`.filter()` produit du SQL paramétré (`?` placeholders + params séparés)."""

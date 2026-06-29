@@ -6,8 +6,7 @@ from unittest.mock import MagicMock, patch
 import duckdb
 import pytest
 
-from electricore.core.loaders.duckdb import DuckDBLockError
-from electricore.core.loaders.duckdb.helpers import duckdb_readonly_conn
+from electricore.core.loaders.duckdb import DuckDBLockError, duckdb_readonly_conn
 
 
 class TestDuckdbReadonlyConn:
