@@ -174,29 +174,6 @@ def expr_calculer_turpe_fixe_periode() -> pl.Expr:
     return (expr_calculer_turpe_fixe_journalier() * pl.col("nb_jours")).round(2)
 
 
-def expr_valider_puissances_croissantes_c4() -> pl.Expr:
-    """
-    Expression pour valider la contrainte réglementaire C4 : P₁ ≤ P₂ ≤ P₃ ≤ P₄.
-
-    Vérifie que les 4 puissances souscrites C4 respectent l'ordre croissant imposé
-    par la CRE (Délibération 2025-40, p.155).
-
-    Returns:
-        Expression booléenne : True si contrainte respectée, False sinon
-
-    Example:
-        >>> df.filter(expr_valider_puissances_croissantes_c4())  # Garder lignes valides
-        >>> df.with_columns(
-        ...     expr_valider_puissances_croissantes_c4().alias("puissances_valides")
-        ... )
-    """
-    return (
-        (pl.col("puissance_souscrite_hph_kva") <= pl.col("puissance_souscrite_hch_kva"))
-        & (pl.col("puissance_souscrite_hch_kva") <= pl.col("puissance_souscrite_hpb_kva"))
-        & (pl.col("puissance_souscrite_hpb_kva") <= pl.col("puissance_souscrite_hcb_kva"))
-    )
-
-
 # =============================================================================
 # EXPRESSIONS TURPE VARIABLE (ÉNERGIE)
 # =============================================================================

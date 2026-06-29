@@ -28,7 +28,6 @@ from electricore.core.pipelines.turpe import (
     # Expressions communes
     expr_filtrer_regles_temporelles,
     expr_sommer_turpe_cadrans,
-    expr_valider_puissances_croissantes_c4,
     # Chargement des règles
     load_turpe_rules,
     valider_regles_presentes,
@@ -804,37 +803,6 @@ class TestTurpeFixeC4:
         assert row["c_hch"] == 4.21, f"c_hch incorrect: {row['c_hch']}"
         assert row["c_hpb"] == 2.13, f"c_hpb incorrect: {row['c_hpb']}"
         assert row["c_hcb"] == 1.52, f"c_hcb incorrect: {row['c_hcb']}"
-
-    def test_expr_valider_puissances_croissantes_c4_valide(self):
-        """Test validation P₁ ≤ P₂ ≤ P₃ ≤ P₄ - cas valide."""
-        df = pl.DataFrame(
-            {
-                "puissance_souscrite_hph_kva": [36.0, 50.0],
-                "puissance_souscrite_hch_kva": [36.0, 60.0],
-                "puissance_souscrite_hpb_kva": [60.0, 80.0],
-                "puissance_souscrite_hcb_kva": [60.0, 100.0],
-            }
-        )
-
-        resultat = df.with_columns(expr_valider_puissances_croissantes_c4().alias("valide"))
-
-        assert resultat["valide"].to_list() == [True, True]
-
-    def test_expr_valider_puissances_croissantes_c4_invalide(self):
-        """Test validation P₁ ≤ P₂ ≤ P₃ ≤ P₄ - cas invalides."""
-        df = pl.DataFrame(
-            {
-                "puissance_souscrite_hph_kva": [60.0, 36.0, 36.0],  # P₁
-                "puissance_souscrite_hch_kva": [36.0, 50.0, 36.0],  # P₂
-                "puissance_souscrite_hpb_kva": [36.0, 40.0, 36.0],  # P₃
-                "puissance_souscrite_hcb_kva": [36.0, 36.0, 30.0],  # P₄
-            }
-        )
-
-        resultat = df.with_columns(expr_valider_puissances_croissantes_c4().alias("valide"))
-
-        # Tous invalides : P₁ > P₂, P₂ > P₃, P₄ < P₃
-        assert resultat["valide"].to_list() == [False, False, False]
 
     def test_calcul_turpe_fixe_c4_puissance_constante(self):
         """Test calcul TURPE fixe C4 - Exemple 1 : puissance constante (60 kVA)."""
