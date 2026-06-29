@@ -9,6 +9,7 @@ from .duckdb import (
     DuckDBQuery,
     # API fluide
     affaires,
+    c12,
     c15,
     chronologie_releves,
     f15,
@@ -22,6 +23,7 @@ from .duckdb import (
 
 __all__ = [
     # API fluide DuckDB (recommandée)
+    "c12",
     "c15",
     "r151",
     "r15",

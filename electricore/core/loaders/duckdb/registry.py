@@ -54,6 +54,19 @@ DESCRIPTOR_C15 = FluxDescriptor(
 )
 
 
+# Flux C12 - Description contractuelle C2-C4 (>36 kVA, ADR-0051). SELECT * (ADR-0042) :
+# la forme résiduelle (littéral source) vit dans le modèle dbt `flux_c12`. Les puissances
+# sont en BIGINT (kVA entiers). Pas de validateur Pandera : pas de seam de calcul établi
+# à ce stade (ADR-0035 §5 — même raisonnement que F15/R64 ; le premier consommateur
+# établira le contrat).
+DESCRIPTOR_C12 = FluxDescriptor(
+    flux_name="C12",
+    table="flux_enedis.flux_c12",
+    transform=None,
+    validator=None,
+)
+
+
 # Flux R151 - Relevés périodiques. SELECT * (ADR-0042, #395) : la forme résiduelle
 # (source, ordre_index, placeholders null RSC/FTA, precision) et l'instant J+1 vivent
 # désormais dans le modèle dbt `flux_r151`. date_releve sert l'INSTANT harmonisé (révise
@@ -151,6 +164,7 @@ DESCRIPTOR_AFFAIRES = FluxDescriptor(
 
 FLUX_DESCRIPTORS: dict[str, FluxDescriptor] = {
     "c15": DESCRIPTOR_C15,
+    "c12": DESCRIPTOR_C12,
     "r151": DESCRIPTOR_R151,
     "r15": DESCRIPTOR_R15,
     "f15": DESCRIPTOR_F15,

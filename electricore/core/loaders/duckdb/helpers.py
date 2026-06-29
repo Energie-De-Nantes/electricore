@@ -67,6 +67,28 @@ def c15(database_path: str | Path | None = None) -> DuckDBQuery:
     return flux("c15", database_path)
 
 
+def c12(database_path: str | Path | None = None) -> DuckDBQuery:
+    """
+    Crée un DuckDBQuery pour les données flux C12 (description contractuelle C2-C4).
+
+    C12 porte la spine contractuelle des PRM >36 kVA : option tarifaire TURPE,
+    puissances souscrites pivotées par cadran (HPH/HCH/hpb/hcb/HP/HC/Base),
+    utilisateur réseau (Raison_Sociale, Code_APE — proxy accise #226), profil,
+    domaine de tension. Pas de Segment_Clientele natif (ADR-0051).
+
+    Args:
+        database_path: Chemin vers la base DuckDB (optionnel)
+
+    Returns:
+        DuckDBQuery configuré pour flux_c12
+
+    Example:
+        >>> # PDLs C4 par option tarifaire
+        >>> df = c12().filter({"option_tarifaire_turpe": "BTSUPLU4"}).collect()
+    """
+    return flux("c12", database_path)
+
+
 def r151(database_path: str | Path | None = None) -> DuckDBQuery:
     """
     Crée un DuckDBQuery pour les données flux R151 (relevés périodiques).

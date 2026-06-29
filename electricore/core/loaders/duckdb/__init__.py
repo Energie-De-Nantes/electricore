@@ -23,6 +23,7 @@ from .config import DuckDBConfig, DuckDBLockError, duckdb_readonly_conn
 from .helpers import (
     # API fluide
     affaires,
+    c12,
     c15,
     chronologie_releves,
     f15,
@@ -50,6 +51,7 @@ __all__ = [
     "DuckDBQuery",
     # API fluide (recommandée)
     "flux",
+    "c12",
     "c15",
     "r151",
     "r15",
