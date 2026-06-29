@@ -220,6 +220,10 @@ def contexte_du_mois_filtre(
 ) -> ContexteMensuel:
     """Reconstruit le *Contexte mensuel* d'un **seul point (PDL) ou contrat (RSC)** (#366).
 
+    Entrée I/O **distincte** de `contexte_du_mois()` par choix (ADR-0050) : adaptateurs
+    fins, appelants et paramètres disjoints — pas une duplication à effondrer en une
+    entrée unique (la profondeur vit dans `charger()`).
+
     Variante de `contexte_du_mois()` qui **pousse le filtre `pdl`/`rsc` au boundary de
     chargement** : il descend dans DuckDB via `spine_contrat().filter(...)` /
     `chronologie_releves().filter(...)` (clause `WHERE` paramétrée), sans charger le parc entier.
