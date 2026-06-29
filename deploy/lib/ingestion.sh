@@ -115,10 +115,26 @@ run_ingestion_test() {
 }
 
 # show_ingestion_failure_hints <slug>
-# Affiche les 50 dernières lignes des logs ingestion-scheduler + les causes typiques.
+# Remonte un `ConfigurationManquante` éventuel (secret malformé, ADR-0049), puis les 50
+# dernières lignes des logs ingestion-scheduler + les causes typiques.
 show_ingestion_failure_hints() {
     local slug="$1"
     local home="/srv/${slug}"
+
+    # Motif le plus probant en premier : si l'entrypoint a fail-fast sur un secret mal formé
+    # (clé AES non-hex, URL SFTP sans schéma…), le conteneur a loggé `ConfigurationManquante`
+    # (runtime.py, valider(...)) — on l'extrait des logs pour ne pas le noyer dans le dump brut.
+    # C'est ici que surface désormais un secret invalide, le preflight bash ayant disparu (ADR-0049).
+    local conf_err
+    conf_err=$(sudo -u "$slug" -- bash -c \
+        "cd '${home}/deploy/docker' && docker compose logs --tail=200 ingestion-scheduler" 2>/dev/null \
+        | grep -iE 'configuration manquante|ConfigurationManquante' | tail -3)
+    if [[ -n "$conf_err" ]]; then
+        log_err "Secret malformé détecté par le conteneur (corrige secrets.env dans le dépôt) :"
+        printf '%s\n' "$conf_err" | sed 's/^/     ! /'
+        log_info ""
+    fi
+
     log_warn "Causes typiques :"
     log_info "  - Clé manquante au trousseau AES__TROUSSEAU__<label>__{KEY,IV} (flux non déchiffré → job failed)"
     log_info "  - SFTP__URL inaccessible (credentials ou réseau)"

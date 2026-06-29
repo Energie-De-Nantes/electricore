@@ -59,32 +59,13 @@ assert_ok()   { local desc="$1"; shift; if "$@" >/dev/null 2>&1; then ok "$desc"
 assert_fail() { local desc="$1"; shift; if "$@" >/dev/null 2>&1; then ko "$desc (devait échouer)"; else ok "$desc"; fi; }
 assert_eq()   { if [[ "$1" == "$2" ]]; then ok "$3"; else ko "$3 — got '$1', want '$2'"; fi; }
 
-echo "→ validate.sh"
+echo "→ validate.sh (args CLI seulement — le format des secrets vit en pydantic, ADR-0049)"
 assert_ok   "slug 'edn'"                       validate_slug edn
 assert_ok   "slug 'enargia-test'"              validate_slug enargia-test
 assert_fail "slug 'EDN' (majuscules)"          validate_slug EDN
 assert_fail "slug 'edn_test' (underscore)"     validate_slug edn_test
 assert_fail "slug 'e' (trop court)"            validate_slug e
 assert_fail "slug vide"                        validate_slug ""
-
-assert_ok   "aes_key 32 hex"                   validate_aes_key "$(printf 'a%.0s' {1..32})"
-assert_ok   "aes_key 64 hex MAJ+min"           validate_aes_key "abCDef0123456789abCDef0123456789abCDef0123456789abCDef0123456789"
-assert_fail "aes_key 31 hex (trop court)"      validate_aes_key "$(printf 'a%.0s' {1..31})"
-assert_fail "aes_key 64 non-hex"               validate_aes_key "$(printf 'z%.0s' {1..64})"
-assert_fail "aes_key vide"                     validate_aes_key ""
-
-assert_ok   "api_key 32 chars"                 validate_api_key "$(printf 'a%.0s' {1..32})"
-assert_fail "api_key 31 chars"                 validate_api_key "$(printf 'a%.0s' {1..31})"
-assert_fail "api_key vide"                     validate_api_key ""
-
-assert_ok   "url sftp avec creds"              validate_url "sftp://u:p@h.fr:22/p"
-assert_ok   "url file"                         validate_url "file:///var/enedis/"
-assert_ok   "url https"                        validate_url "https://example.com"
-assert_fail "url plain"                        validate_url "not-a-url"
-assert_fail "url ftp (non supporté)"           validate_url "ftp://h.fr/"
-
-assert_ok   "email basique"                    validate_email "user@example.com"
-assert_fail "email sans @"                     validate_email "user.example.com"
 
 assert_ok   "domain electricore.fr"            validate_domain "electricore.fr"
 assert_ok   "domain edn.electricore.fr"        validate_domain "edn.electricore.fr"
@@ -352,20 +333,8 @@ rm -f "$tmp_cfg"
 tmp_cfg=$(mktemp); printf 'INSTANCE_SLUG=edn\nBACKUPS_PATH=/srv/edn/backups\n' > "$tmp_cfg"
 assert_fail "validate_config_env exige ELECTRICORE_VERSION" validate_config_env "$tmp_cfg" "edn"
 rm -f "$tmp_cfg"
-
-# Secrets (clair) : trousseau API + SFTP + trousseau AES (ADR-0046 §4)
-tmp_sec=$(mktemp)
-printf 'API__TROUSSEAU__librewatt__KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nSFTP__URL=sftp://u:p@h.fr:22/x\nAES__TROUSSEAU__demo__KEY=00112233445566778899aabbccddeeff\n' > "$tmp_sec"
-assert_ok   "validate_secrets_plaintext (secrets clairs valides)" validate_secrets_plaintext "$tmp_sec"
-rm -f "$tmp_sec"
-# Trousseau AES vide → échec
-tmp_sec=$(mktemp); printf 'API__TROUSSEAU__librewatt__KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nSFTP__URL=sftp://u:p@h.fr:22/x\n' > "$tmp_sec"
-assert_fail "validate_secrets_plaintext refuse trousseau AES vide" validate_secrets_plaintext "$tmp_sec"
-rm -f "$tmp_sec"
-# Trousseau API vide → échec (ADR-0046 §4 : ≥ 1 consommateur requis)
-tmp_sec=$(mktemp); printf 'SFTP__URL=sftp://u:p@h.fr:22/x\nAES__TROUSSEAU__demo__KEY=00112233445566778899aabbccddeeff\n' > "$tmp_sec"
-assert_fail "validate_secrets_plaintext refuse trousseau API vide" validate_secrets_plaintext "$tmp_sec"
-rm -f "$tmp_sec"
+# Le CONTENU de secrets.env (format clés AES/API, URL SFTP) n'est plus validé en bash :
+# SSOT pydantic (tests/unit/test_runtime.py), vérifié par le conteneur étapes 11-12 (ADR-0049).
 
 echo
 echo "→ secrets.sh (fake-binaries age-keygen/ssh-keygen/sops/git)"
@@ -407,13 +376,6 @@ PATH="${FAKE_BIN}:$PATH" FAKE_SOPS_FAIL=0 box_can_decrypt edn \
 PATH="${FAKE_BIN}:$PATH" FAKE_SOPS_FAIL=1 box_can_decrypt edn \
     && ko "box_can_decrypt: devait échouer si sops échoue (clé non destinataire)" \
     || ok "box_can_decrypt: faux quand sops échoue (deux temps — pas encore destinataire)"
-
-# validate_secrets_env : déchiffre via (fake) sops puis valide le clair.
-PATH="${FAKE_BIN}:$PATH" validate_secrets_env "${secrets_root}/edn/providers/edn/secrets.env" "${secrets_root}/edn/age.key" >/dev/null 2>&1 \
-    && ok "validate_secrets_env: déchiffre + valide le clair (fake sops)" || ko "validate_secrets_env a échoué"
-PATH="${FAKE_BIN}:$PATH" FAKE_SOPS_FAIL=1 validate_secrets_env "${secrets_root}/edn/providers/edn/secrets.env" "${secrets_root}/edn/age.key" >/dev/null 2>&1 \
-    && ko "validate_secrets_env: devait échouer si déchiffrement KO" \
-    || ok "validate_secrets_env: échec propre si le déchiffrement KO"
 
 unset SRV_BASE
 rm -rf "$secrets_root"

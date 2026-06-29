@@ -12,16 +12,15 @@
 #   6. Durcissement VPS (admin ops + sshd root-off + fail2ban + maj auto, ADR-0031 ; --no-harden)
 #   7. Téléchargement config tag-pinné
 #   8. Substitutions (slug, domaine, email)
-#   9. Édition .env + validation (loop)
+#   9. Identité box + pull dépôt secrets + validation config.env + box_can_decrypt (ADR-0044)
 #  10. DNS check bloquant
 #  11. docker compose up + wait_for_health
-#  12. Test ingestion (mode test, ~3s)
+#  12. Test ingestion (mode test, ~3s) — valide le CONTENU des secrets via le vrai conteneur
 #  13. Récap final
 #
-# Mode reconfigure : si /srv/<slug>/.env existe déjà, on backup le .env,
-# on saute la création user/Docker/UFW (idempotents de toute façon), on
-# ne télécharge pas le .env (mais on rafraîchit compose/Caddy/crontab pour
-# bump de version), et on ne touche jamais à la DB DuckDB.
+# Mode reconfigure : si /srv/<slug>/ porte déjà une clé age (ou un legacy .env),
+# on saute la création user/Docker/UFW (idempotents de toute façon), on rafraîchit
+# compose/Caddy/crontab pour le bump de version, et on ne touche jamais à la DB DuckDB.
 #
 # Sourçage : le script est protégé par un guard `main` (en fin de fichier).
 # Sourcer install.sh expose `fetch_lib_files` sans déclencher l'installation.
@@ -216,100 +215,57 @@ main() {
                  "Éditer à la main avant de mettre en prod."
     fi
 
-    # ─── Étape 9 : secrets-as-code (ADR-0044) OU legacy .env ────────────────
-    if [[ -n "$OPT_DEPLOY_REPO" ]]; then
-        # ── Secrets-as-code : identité de la box + auto-pull + déchiffrement ──
-        log_step "Identité de la box (age + SSH deploy key)"
-        if pubs=$(generate_box_identities "$OPT_SLUG"); then
-            age_pub=$(printf '%s\n' "$pubs" | sed -n 's/^AGE_PUBLIC_KEY=//p')
-            ssh_pub=$(printf '%s\n' "$pubs" | sed -n 's/^SSH_DEPLOY_PUBKEY=//p')
-        else
-            die "Génération des identités de la box échouée (image ${SECRETS_IMAGE} indisponible ?)."
-        fi
-
-        log_step "Pull du dépôt de déploiement privé"
-        if ! pull_deploy_repo "$OPT_DEPLOY_REPO" "$OPT_SLUG"; then
-            # Onboarding EN DEUX TEMPS (ADR-0044 §4) : la deploy key SSH doit être
-            # enregistrée comme deploy key RO avant que le pull réussisse.
-            print_onboarding_pending "$OPT_SLUG" "$OPT_DOMAIN" "$age_pub" "$ssh_pub"
-            _CLEAN_EXIT=1
-            return 0
-        fi
-
-        log_step "Validation du split config/secret + déchiffrement"
-        config_env="${HOME_DIR}/config.env"
-        secrets_env="${HOME_DIR}/providers/${OPT_SLUG}/secrets.env"
-        age_key="${HOME_DIR}/age.key"
-        if errs=$(validate_config_env "$config_env" "$OPT_SLUG"); then
-            log_ok "config.env valide"
-        else
-            log_err "config.env invalide :"; printf '%s\n' "$errs" | sed 's/^/     - /'
-            die "Corrige providers/${OPT_SLUG}/config.env dans le dépôt, pousse, puis relance reconfigure."
-        fi
-
-        # Override LOCAL de la version (#460) : `--version` pilote le tag d'image déployé même
-        # en secrets-as-code, SANS toucher au dépôt secrets (la version n'est pas un secret,
-        # c'est un paramètre de déploiement — ADR-0044). Appliqué APRÈS le pull : le config.env
-        # du dépôt reste la baseline GitOps (reconfigure sans --version = version pinée). Le pull
-        # ré-écrit config.env à chaque reconfigure → l'override est ré-appliqué à chaque fois.
-        # (Régression #299 corrigée : l'appel avait été supprimé → --version devenait inerte.)
-        if [[ "${OPT_VERSION_EXPLICIT:-0}" -eq 1 ]]; then
-            repo_version=$(read_env_var "$config_env" ELECTRICORE_VERSION)
-            override_config_version "$config_env" "$OPT_VERSION"
-            log_warn "ELECTRICORE_VERSION overridé localement : ${OPT_VERSION} (dépôt : ${repo_version}) — non versionné, propre à cette box."
-        fi
-
-        if ! box_can_decrypt "$OPT_SLUG"; then
-            # La box a sa clé + le ciphertext, mais ne déchiffre pas → sa clé age publique
-            # n'est pas (encore) destinataire dans .sops.yaml. 2e temps de l'onboarding.
-            print_onboarding_pending "$OPT_SLUG" "$OPT_DOMAIN" "$age_pub" "$ssh_pub"
-            die "La box ne déchiffre pas encore : enregistre sa clé age comme destinataire (.sops.yaml + sops updatekeys), pousse, puis relance reconfigure."
-        fi
-        if errs=$(validate_secrets_env "$secrets_env" "$age_key"); then
-            log_ok "secrets.env déchiffré et valide"
-        else
-            log_err "secrets.env invalide (après déchiffrement) :"; printf '%s\n' "$errs" | sed 's/^/     - /'
-            die "Corrige les secrets dans le dépôt (sops providers/${OPT_SLUG}/secrets.env), pousse, puis relance reconfigure."
-        fi
+    # ─── Étape 9 : secrets-as-code (ADR-0044) ──────────────────────────────
+    # --deploy-repo est obligatoire depuis le cutover (cli.sh) : on génère l'identité
+    # de la box, on tire le dépôt, on valide la POLITIQUE de split (config.env : présence
+    # des substitutions compose + anti-leak) et on teste que la box DÉCHIFFRE (box_can_decrypt).
+    # On ne valide PLUS le contenu de secrets.env par un preflight bash : le vrai conteneur le
+    # fait verbatim via `sops exec-env` aux étapes 11-12 (cf. ADR-0049, classe de bug rc12).
+    log_step "Identité de la box (age + SSH deploy key)"
+    if pubs=$(generate_box_identities "$OPT_SLUG"); then
+        age_pub=$(printf '%s\n' "$pubs" | sed -n 's/^AGE_PUBLIC_KEY=//p')
+        ssh_pub=$(printf '%s\n' "$pubs" | sed -n 's/^SSH_DEPLOY_PUBKEY=//p')
     else
-        # ── Legacy .env (migration / tests) : édition + validation monolithique ──
-        substitute_env "$ENV_FILE" "$OPT_SLUG" "$OPT_VERSION"
-        log_step "Configuration .env (édition + validation)"
-        if [[ "$MODE_RECONFIGURE" -eq 1 ]]; then
-            backup="${ENV_FILE}.bak.$(date +%Y%m%dT%H%M%SZ)"
-            cp -p "$ENV_FILE" "$backup"
-            chown "$OPT_SLUG:$OPT_SLUG" "$backup"
-            log_info "backup du .env existant → ${backup}"
-        fi
-        if [[ -n "$OPT_ENV_FROM" ]]; then
-            [[ -r "$OPT_ENV_FROM" ]] || die "--env-from : fichier illisible : $OPT_ENV_FROM"
-            cp "$OPT_ENV_FROM" "$ENV_FILE"
-            chown "$OPT_SLUG:$OPT_SLUG" "$ENV_FILE"
-            chmod 600 "$ENV_FILE"
-            log_info "chargement depuis $OPT_ENV_FROM"
-        else
-            log_info "ouverture de $ENV_FILE dans \${EDITOR:-nano}…"
-        fi
-        while true; do
-            if [[ -z "$OPT_ENV_FROM" ]]; then
-                sudo -u "$OPT_SLUG" "${EDITOR:-nano}" "$ENV_FILE"
-            fi
-            if errs=$(validate_env_file "$ENV_FILE" "$OPT_SLUG"); then
-                log_ok ".env valide"
-                strip_validation_error_block "$ENV_FILE"
-                chmod 600 "$ENV_FILE"
-                break
-            fi
-            log_err ".env invalide :"
-            printf '%s\n' "$errs" | sed 's/^/     - /'
-            if [[ -n "$OPT_ENV_FROM" ]]; then
-                die ".env fourni invalide, abandon."
-            fi
-            prepend_errors_to_env "$ENV_FILE" "$errs"
-            log_warn "ré-ouverture de l'éditeur dans 2s…"
-            sleep 2
-        done
+        die "Génération des identités de la box échouée (image ${SECRETS_IMAGE} indisponible ?)."
     fi
+
+    log_step "Pull du dépôt de déploiement privé"
+    if ! pull_deploy_repo "$OPT_DEPLOY_REPO" "$OPT_SLUG"; then
+        # Onboarding EN DEUX TEMPS (ADR-0044 §4) : la deploy key SSH doit être
+        # enregistrée comme deploy key RO avant que le pull réussisse.
+        print_onboarding_pending "$OPT_SLUG" "$OPT_DOMAIN" "$age_pub" "$ssh_pub"
+        _CLEAN_EXIT=1
+        return 0
+    fi
+
+    log_step "Validation du split config + test de déchiffrement"
+    config_env="${HOME_DIR}/config.env"
+    if errs=$(validate_config_env "$config_env" "$OPT_SLUG"); then
+        log_ok "config.env valide"
+    else
+        log_err "config.env invalide :"; printf '%s\n' "$errs" | sed 's/^/     - /'
+        die "Corrige providers/${OPT_SLUG}/config.env dans le dépôt, pousse, puis relance reconfigure."
+    fi
+
+    # Override LOCAL de la version (#460) : `--version` pilote le tag d'image déployé même
+    # en secrets-as-code, SANS toucher au dépôt secrets (la version n'est pas un secret,
+    # c'est un paramètre de déploiement — ADR-0044). Appliqué APRÈS le pull : le config.env
+    # du dépôt reste la baseline GitOps (reconfigure sans --version = version pinée). Le pull
+    # ré-écrit config.env à chaque reconfigure → l'override est ré-appliqué à chaque fois.
+    # (Régression #299 corrigée : l'appel avait été supprimé → --version devenait inerte.)
+    if [[ "${OPT_VERSION_EXPLICIT:-0}" -eq 1 ]]; then
+        repo_version=$(read_env_var "$config_env" ELECTRICORE_VERSION)
+        override_config_version "$config_env" "$OPT_VERSION"
+        log_warn "ELECTRICORE_VERSION overridé localement : ${OPT_VERSION} (dépôt : ${repo_version}) — non versionné, propre à cette box."
+    fi
+
+    if ! box_can_decrypt "$OPT_SLUG"; then
+        # La box a sa clé + le ciphertext, mais ne déchiffre pas → sa clé age publique
+        # n'est pas (encore) destinataire dans .sops.yaml. 2e temps de l'onboarding.
+        print_onboarding_pending "$OPT_SLUG" "$OPT_DOMAIN" "$age_pub" "$ssh_pub"
+        die "La box ne déchiffre pas encore : enregistre sa clé age comme destinataire (.sops.yaml + sops updatekeys), pousse, puis relance reconfigure."
+    fi
+    log_ok "secrets.env déchiffrable (contenu validé par le conteneur, étapes 11-12)"
 
     # ─── Étape 10 : DNS ─────────────────────────────────────────────────────
     log_step "Vérification DNS"

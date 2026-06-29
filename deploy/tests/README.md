@@ -8,7 +8,7 @@ Deux niveaux : unit pour les helpers purs (`deploy/lib/`), e2e pour le script co
 ./deploy/tests/unit.sh
 ```
 
-Lance ~30 assertions sur les validateurs (`validate_slug`, `validate_aes_key`, etc.) et la détection OS (avec fixtures `/etc/os-release` mockées). Sortie type :
+Lance les assertions sur les validateurs d'args CLI (`validate_slug`, `validate_domain`), la politique de split (`validate_config_env`) et la détection OS (avec fixtures `/etc/os-release` mockées). Sortie type :
 
 ```
 → validate.sh
