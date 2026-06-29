@@ -136,6 +136,29 @@ jobs:
       - name: Run deploy unit tests
         run: bash deploy/tests/unit.sh
 
+      # sops + age : mêmes versions pinnées que le job `test` (déchiffrement image) et
+      # que deploy/lib/secrets.sh (SOPS_VERSION/AGE_VERSION) pour l'aller-retour crypto
+      # réel de l'onboarding (secrets_roundtrip.sh, anti-régression #453).
+      - name: Installer sops + age (aller-retour crypto onboarding, #453)
+        run: |
+          set -euo pipefail
+          SOPS_VERSION=3.9.4
+          SOPS_SHA256=5488e32bc471de7982ad895dd054bbab3ab91c417a118426134551e9626e4e85
+          AGE_VERSION=1.2.1
+          AGE_SHA256=7df45a6cc87d4da11cc03a539a7470c15b1041ab2b396af088fe9990f7c79d50
+          curl -fsSL -o /tmp/sops "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.amd64"
+          echo "${SOPS_SHA256}  /tmp/sops" | sha256sum -c -
+          sudo install -m 0755 /tmp/sops /usr/local/bin/sops
+          curl -fsSL -o /tmp/age.tgz "https://github.com/FiloSottile/age/releases/download/v${AGE_VERSION}/age-v${AGE_VERSION}-linux-amd64.tar.gz"
+          echo "${AGE_SHA256}  /tmp/age.tgz" | sha256sum -c -
+          tar -xzf /tmp/age.tgz -C /tmp
+          sudo install -m 0755 /tmp/age/age /usr/local/bin/age
+          sudo install -m 0755 /tmp/age/age-keygen /usr/local/bin/age-keygen
+          sops --version
+          age --version
+      - name: Run secrets onboarding round-trip (#453)
+        run: bash deploy/tests/secrets_roundtrip.sh
+
   # Build + scan + smoke de l'image Docker sur CHAQUE PR (#435) — via le workflow
   # réutilisable partagé avec release.yml. `push` reste à false : seul release.yml pousse.
   docker-image:
