@@ -52,6 +52,33 @@ class TestDomaineSftp:
         """Compatibilité avec les `except ValueError` existants (façade odoo)."""
         assert issubclass(runtime.ConfigurationManquante, ValueError)
 
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "sftp://user:pass@sftp.enedis.fr:22/exports",
+            "file:///var/enedis/",
+            "https://sftp.example.com",
+            "http://localhost:8080",
+        ],
+    )
+    def test_url_schema_supporte_accepte(self, monkeypatch, url):
+        monkeypatch.setenv("SFTP__URL", url)
+        assert runtime.sftp().url == url
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "not-a-url",
+            "ftp://sftp.example.com",
+            "sftp.example.com",
+        ],
+    )
+    def test_url_schema_invalide_rejete(self, monkeypatch, url):
+        monkeypatch.setenv("SFTP__URL", url)
+        with pytest.raises(runtime.ConfigurationManquante) as exc:
+            runtime.sftp()
+        assert "SFTP__URL" in str(exc.value)
+
 
 HEX_A = "aa" * 16
 HEX_B = "bb" * 16
@@ -84,11 +111,28 @@ class TestDomaineAes:
             runtime.aes()
         assert "AES__TROUSSEAU__<label>__KEY" in str(exc.value)
 
-    def test_hex_invalide_signale(self):
-        """Une clé non-hexadécimale est signalée avec son label dans le message."""
-        aes = runtime.Aes(trousseau={"aes256_2026": runtime.PaireCles(key="pas-du-hex", iv=HEX_B)})
-        with pytest.raises(ValueError, match="AES256_2026"):
-            aes.chaine()
+    @pytest.mark.parametrize(
+        "key,label",
+        [
+            ("pas-du-hex", "bad1"),
+            ("aa" * 15, "bad2"),  # 30 chars, trop court
+            ("zz" * 32, "bad3"),  # 64 non-hex
+        ],
+    )
+    def test_cle_aes_invalide_rejetee_a_l_instanciation(self, monkeypatch, key, label):
+        """Une KEY AES non-hex ou de longueur ≠ 32/64 est rejetée à l'instanciation du domaine aes."""
+        monkeypatch.setenv(f"AES__TROUSSEAU__{label}__KEY", key)
+        with pytest.raises(runtime.ConfigurationManquante) as exc:
+            runtime.aes()
+        assert f"AES__TROUSSEAU__{label.upper()}__KEY" in str(exc.value)
+
+    def test_iv_aes_invalide_rejete_a_l_instanciation(self, monkeypatch):
+        """Un IV non-hex est rejeté à l'instanciation, la variable IV est nommée."""
+        monkeypatch.setenv("AES__TROUSSEAU__bad__KEY", HEX_A)
+        monkeypatch.setenv("AES__TROUSSEAU__bad__IV", "pas-du-hex")
+        with pytest.raises(runtime.ConfigurationManquante) as exc:
+            runtime.aes()
+        assert "AES__TROUSSEAU__BAD__IV" in str(exc.value)
 
 
 class TestDomaineOdoo:
@@ -207,48 +251,64 @@ class TestDomaineOdoo:
 class TestDomaineApi:
     def test_trousseau_etiquete_authentifie(self, monkeypatch):
         """ADR-0046 §4 : une clé API__TROUSSEAU__<consommateur>__KEY est acceptée."""
-        monkeypatch.setenv("API__TROUSSEAU__librewatt__KEY", "k-librewatt-tres-longue")
+        monkeypatch.setenv("API__TROUSSEAU__librewatt__KEY", "k-librewatt-xxxxxxxxxxxxxxxxxxxx")
         api = runtime.api()
-        assert api.cle_valide("k-librewatt-tres-longue")
-        assert "k-librewatt-tres-longue" in api.cles_valides()
+        assert api.cle_valide("k-librewatt-xxxxxxxxxxxxxxxxxxxx")
+        assert "k-librewatt-xxxxxxxxxxxxxxxxxxxx" in api.cles_valides()
 
     def test_attribution_du_consommateur(self, monkeypatch):
         """ADR-0046 §4 : la clé entrante est attribuée à son consommateur (label)."""
-        monkeypatch.setenv("API__TROUSSEAU__librewatt__KEY", "k-librewatt")
-        monkeypatch.setenv("API__TROUSSEAU__odoo__KEY", "k-odoo")
+        monkeypatch.setenv("API__TROUSSEAU__librewatt__KEY", "k-librewatt-xxxxxxxxxxxxxxxxxxxxxxx")
+        monkeypatch.setenv("API__TROUSSEAU__odoo__KEY", "k-odoo-xxxxxxxxxxxxxxxxxxxxxxxxxxx")
         api = runtime.api()
-        assert api.consommateur_pour("k-librewatt") == "librewatt"
-        assert api.consommateur_pour("k-odoo") == "odoo"
+        assert api.consommateur_pour("k-librewatt-xxxxxxxxxxxxxxxxxxxxxxx") == "librewatt"
+        assert api.consommateur_pour("k-odoo-xxxxxxxxxxxxxxxxxxxxxxxxxxx") == "odoo"
         assert api.consommateur_pour("inconnue") is None
 
     def test_revocation_ciblee_d_un_consommateur(self, monkeypatch):
         """ADR-0046 §4 : retirer la clé d'un consommateur ne touche pas les autres."""
-        monkeypatch.setenv("API__TROUSSEAU__librewatt__KEY", "k-librewatt")
-        monkeypatch.setenv("API__TROUSSEAU__odoo__KEY", "k-odoo")
-        assert runtime.api().cle_valide("k-librewatt")
-        assert runtime.api().cle_valide("k-odoo")
+        monkeypatch.setenv("API__TROUSSEAU__librewatt__KEY", "k-librewatt-xxxxxxxxxxxxxxxxxxxxxxx")
+        monkeypatch.setenv("API__TROUSSEAU__odoo__KEY", "k-odoo-xxxxxxxxxxxxxxxxxxxxxxxxxxx")
+        assert runtime.api().cle_valide("k-librewatt-xxxxxxxxxxxxxxxxxxxxxxx")
+        assert runtime.api().cle_valide("k-odoo-xxxxxxxxxxxxxxxxxxxxxxxxxxx")
         monkeypatch.delenv("API__TROUSSEAU__odoo__KEY")
         runtime.vider_cache()
         api = runtime.api()
-        assert api.cle_valide("k-librewatt")  # l'autre consommateur survit
-        assert not api.cle_valide("k-odoo")  # le révoqué est rejeté
+        assert api.cle_valide("k-librewatt-xxxxxxxxxxxxxxxxxxxxxxx")  # l'autre consommateur survit
+        assert not api.cle_valide("k-odoo-xxxxxxxxxxxxxxxxxxxxxxxxxxx")  # le révoqué est rejeté
 
     def test_cle_bare_api_key_refusee(self, monkeypatch):
         """ADR-0046 §4 : le bare API_KEY/API_KEYS est retiré (trousseau-only)."""
-        monkeypatch.setenv("API_KEY", "ancienne-cle-plate-bare")
+        monkeypatch.setenv("API_KEY", "ancienne-cle-plate-bare-xxxxxxxxx")
         api = runtime.api()
-        assert not api.cle_valide("ancienne-cle-plate-bare")
+        assert not api.cle_valide("ancienne-cle-plate-bare-xxxxxxxxx")
         assert api.cles_valides() == []
 
     def test_cles_valides_liste_les_cles_du_trousseau(self):
-        api = runtime.Api(trousseau={"principal": {"key": "k-principale"}, "second": {"key": "k-2"}})
-        assert api.cles_valides() == ["k-principale", "k-2"]
+        api = runtime.Api(
+            trousseau={
+                "principal": {"key": "k-principale-xxxxxxxxxxxxxxxxxxx"},
+                "second": {"key": "k-second-xxxxxxxxxxxxxxxxxxxxxxxxxxx"},
+            }
+        )
+        assert api.cles_valides() == ["k-principale-xxxxxxxxxxxxxxxxxxx", "k-second-xxxxxxxxxxxxxxxxxxxxxxxxxxx"]
 
     def test_cle_valide_compare_digest(self):
-        api = runtime.Api(trousseau={"c": {"key": "bonne-cle"}})
-        assert api.cle_valide("bonne-cle")
+        api = runtime.Api(trousseau={"c": {"key": "bonne-cle-xxxxxxxxxxxxxxxxxxxxxxxx"}})
+        assert api.cle_valide("bonne-cle-xxxxxxxxxxxxxxxxxxxxxxxx")
         assert not api.cle_valide("mauvaise-cle")
         assert not api.cle_valide("")
+
+    def test_cle_api_courte_rejetee(self, monkeypatch):
+        """Une clé API < 32 caractères est rejetée par le domaine api."""
+        monkeypatch.setenv("API__TROUSSEAU__test__KEY", "trop-courte-31-xxxx-yyyy-zzz")  # 28 chars
+        with pytest.raises(runtime.ConfigurationManquante):
+            runtime.api()
+
+    def test_cle_api_32_chars_acceptee(self, monkeypatch):
+        cle = "a" * 32
+        monkeypatch.setenv("API__TROUSSEAU__test__KEY", cle)
+        assert runtime.api().cle_valide(cle)
 
     def test_sans_cle_configuree_rien_ne_passe(self):
         api = runtime.Api()

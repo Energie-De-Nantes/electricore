@@ -8,6 +8,7 @@ du dépôt. Accès par accessors de module mis en cache ; `valider(*accessors)`
 offre le fail-fast par point d'entrée.
 """
 
+import re
 import secrets as _secrets
 from functools import lru_cache
 from importlib.metadata import PackageNotFoundError
@@ -67,12 +68,25 @@ class Duckdb(BaseSettings):
     chemin: Path = Field(default=_DEFAUT_BASE_DUCKDB, validation_alias="DUCKDB__PATH")
 
 
+_SCHEMAS_SFTP = re.compile(r"^(sftp|file|https?)://")
+
+
 class Sftp(BaseSettings):
     """Domaine sftp : source des flux Enedis."""
 
     model_config = SettingsConfigDict(env_prefix="SFTP__", populate_by_name=True, extra="ignore")
 
     url: str
+
+    @field_validator("url")
+    @classmethod
+    def _valider_schema(cls, v: str) -> str:
+        if not _SCHEMAS_SFTP.match(v):
+            raise ValueError(f"schéma non supporté (attendu sftp://, file://, http(s)://) : {v!r}")
+        return v
+
+
+_HEX_32_OR_64 = re.compile(r"^[0-9a-fA-F]{32}$|^[0-9a-fA-F]{64}$")
 
 
 class PaireCles(BaseSettings):
@@ -86,6 +100,20 @@ class PaireCles(BaseSettings):
 
     key: str
     iv: str | None = None
+
+    @field_validator("key")
+    @classmethod
+    def _valider_cle(cls, v: str) -> str:
+        if not _HEX_32_OR_64.match(v):
+            raise ValueError(f"doit être un hexadécimal de 32 ou 64 caractères (reçu: {len(v)} car.)")
+        return v
+
+    @field_validator("iv")
+    @classmethod
+    def _valider_iv(cls, v: str | None) -> str | None:
+        if v is not None and not _HEX_32_OR_64.match(v):
+            raise ValueError(f"doit être un hexadécimal de 32 ou 64 caractères (reçu: {len(v)} car.)")
+        return v
 
     def octets(self, etiquette: str) -> tuple[bytes, bytes | None]:
         try:
@@ -188,6 +216,13 @@ class CleConsommateur(BaseSettings):
     model_config = SettingsConfigDict(extra="ignore")
 
     key: str
+
+    @field_validator("key")
+    @classmethod
+    def _valider_longueur(cls, v: str) -> str:
+        if len(v) < 32:
+            raise ValueError(f"doit contenir au moins 32 caractères (reçu: {len(v)})")
+        return v
 
 
 class Api(BaseSettings):
