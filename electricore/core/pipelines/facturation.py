@@ -84,21 +84,6 @@ def expr_calculer_trimestre() -> pl.Expr:
     return annee + pl.lit("-T") + quarter
 
 
-def expr_has_changement() -> pl.Expr:
-    """
-    Détermine s'il y a eu des changements dans la période.
-
-    Un changement est détecté s'il y a plus d'une sous-période.
-
-    Returns:
-        Expression Polars retournant True si changement détecté
-
-    Example:
-        >>> lf.with_columns(expr_has_changement().alias("has_changement"))
-    """
-    return pl.col("nb_sous_periodes") > 1
-
-
 # =============================================================================
 # EXPRESSIONS D'AGRÉGATION MENSUELLE
 # =============================================================================
@@ -403,5 +388,4 @@ __all__ = [
     "expr_puissance_moyenne",
     "expr_memo_puissance_simple",
     "expr_calculer_trimestre",
-    "expr_has_changement",
 ]
