@@ -1,43 +1,49 @@
 #!/usr/bin/env bash
-# Fake `docker` pour les tests de secrets.sh (ADR-0044) — simule `docker run … <tool>`.
-# On n'a PAS de vrai Docker en CI deploy-shell : on imite juste les sous-commandes
-# qu'appelle secrets.sh (age-keygen, age-keygen -y, ssh-keygen). Trace les appels
-# dans $FAKE_DOCKER_LOG si défini.
+# Fake `docker` pour les tests deploy-shell (ADR-0044, #453).
+# Modélise le VRAI comportement de l'entrypoint electricore-entrypoint :
+#   - sans contournement ET sans secrets montés → fail-fast (exit 1)
+#   - avec -e ELECTRICORE_DECRYPT=off → bypass, exécute la commande
+#   - avec les deux secrets montés (/run/secrets/{secrets.env,age.key}) → OK
+# Trace les appels dans $FAKE_DOCKER_LOG si défini.
 [[ -n "${FAKE_DOCKER_LOG:-}" ]] && printf '%s\n' "$*" >> "$FAKE_DOCKER_LOG"
 
-# Sauter les flags `run --rm [-v src:dst[:ro]]* <image>` pour atteindre la commande.
+# ─── Parse les flags `docker run` ────────────────────────────────────────────
 args=("$@")
 i=0
-# avance jusqu'après l'image (1er token qui ne commence pas par '-' après 'run',
-# en sautant les valeurs de -v). Simplification : on cherche le 1er token connu.
 tool=""
+decrypt_off=0
+secrets_env_mounted=0
+age_key_mounted=0
 mount_src=""
+
 while [[ $i -lt ${#args[@]} ]]; do
     case "${args[$i]}" in
-        -v) mount_src="${args[$((i+1))]%%:*}"; i=$((i+2)); continue ;;
+        -v)
+            val="${args[$((i+1))]}"
+            dst="${val#*:}"; dst="${dst%%:*}"
+            [[ "$dst" == "/run/secrets/secrets.env" ]] && secrets_env_mounted=1
+            [[ "$dst" == "/run/secrets/age.key" ]]     && age_key_mounted=1
+            mount_src="${val%%:*}"
+            i=$((i+2)); continue ;;
+        -e)
+            [[ "${args[$((i+1))]}" == "ELECTRICORE_DECRYPT=off" ]] && decrypt_off=1
+            i=$((i+2)); continue ;;
         age-keygen|ssh-keygen|python|python3|sh) tool="${args[$i]}"; break ;;
     esac
     i=$((i+1))
 done
 
+# ─── Modèle entrypoint : fail-fast si pas de bypass ET secrets incomplets ──────
+# Miroir de deploy/docker/entrypoint.sh (ADR-0044 §3) :
+#   - ELECTRICORE_DECRYPT=off → bypass total (importabilité smoke, #434)
+#   - LES DEUX secrets montés → OK (déchiffrement smoke, montent secrets.env + age.key)
+#   - Sinon → fail-fast (empêche crypto via l'image sans bypass, régression #453)
+if [[ "$decrypt_off" -eq 0 && ( "$secrets_env_mounted" -eq 0 || "$age_key_mounted" -eq 0 ) ]]; then
+    echo "fake docker: entrypoint fail-fast (ni ELECTRICORE_DECRYPT=off, ni les deux secrets montés)" >&2
+    exit 1
+fi
+
 case "$tool" in
-    age-keygen)
-        # `age-keygen -y /age.key` → imprime une pub factice déterministe ;
-        # `age-keygen` seul → imprime une clé privée factice (format age) sur stdout.
-        if [[ "${args[$((i+1))]:-}" == "-y" ]]; then
-            echo "age1faketestpublickeyxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxq9"
-        else
-            echo "# created: fake"
-            echo "# public key: age1faketestpublickeyxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxq9"
-            echo "AGE-SECRET-KEY-1FAKETESTPRIVATEKEYXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-        fi
-        ;;
-    ssh-keygen)
-        # `ssh-keygen … -f /out/ssh_deploy_key` → écrit privée + .pub dans le mount.
-        out="${mount_src}/ssh_deploy_key"
-        echo "FAKE-OPENSSH-PRIVATE-KEY" > "$out"
-        echo "ssh-ed25519 AAAAFAKEDEPLOYKEY deploy-key" > "${out}.pub"
-        ;;
     python|python3)
         # smoke d'importabilité (smoke.sh) : l'image importe les modules de tête.
         # FAKE_SMOKE_IMPORT_FAIL=1 simule une image cassée (import KO).
