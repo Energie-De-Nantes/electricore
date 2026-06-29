@@ -50,6 +50,9 @@ CAS_GOLDEN: list[tuple[str, str, str, str | None]] = [
     # R67 (mesures facturantes, ADR-0047) : fixture = LISTE de documents JSON (un par PDL),
     # landés en plusieurs lignes (un document par fichier) — cf. lignes_via_dbt.
     ("r67.json", "raw_r67", "flux_r67", None),
+    # C12 (description contractuelle C2-C4) : fixture hand-crafted (attributs XML requis
+    # empêchent le générateur XSD, voir c12_xsd.xml pour le détail).
+    ("c12_xsd.xml", "raw_c12", "flux_c12", "flux_c12_xsd"),
     # X12/X13 (affaires SGE) : même source raw_affaires, origine dérivée du file_name.
     ("affaires_X12.xml", "raw_affaires", "flux_affaires", None),
     ("affaires_X13.xml", "raw_affaires", "flux_affaires", "flux_affaires_x13"),

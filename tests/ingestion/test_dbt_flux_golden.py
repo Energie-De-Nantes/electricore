@@ -186,6 +186,25 @@ SPECS = [
         cas="flux_f15_detail_xsd",
         numeric_cols=frozenset({"prix_unitaire", "quantite", "montant_ht"}),
     ),
+    FluxSpec(
+        "flux_c12",
+        "c12_xsd.xml",
+        "raw_c12",
+        cas="flux_c12_xsd",
+        type_contract={
+            "date_evenement": DATE,
+            "date_debut": DATE,
+            "date_fin": DATE,
+            "date_premiere_mise_en_service": DATE,
+            "puissance_souscrite_kva": "BIGINT",
+            "puissance_souscrite_hp_kva": "BIGINT",
+            "puissance_souscrite_hc_kva": "BIGINT",
+            "puissance_souscrite_hph_kva": "BIGINT",
+            "puissance_souscrite_hch_kva": "BIGINT",
+            "puissance_souscrite_hpb_kva": "BIGINT",
+            "puissance_souscrite_hcb_kva": "BIGINT",
+        },
+    ),
     # X12/X13 (affaires SGE) : id d'affaire + codes statut/objet/état portés en
     # *attributs* XML (premier flux à en exposer) ; origine dérivée du file_name.
     FluxSpec(

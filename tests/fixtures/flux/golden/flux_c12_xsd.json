@@ -1,0 +1,33 @@
+[
+  {
+    "pdl": "99100000000001",
+    "date_evenement": "2024-06-15",
+    "date_debut": "2024-01-01",
+    "date_premiere_mise_en_service": "2020-01-01",
+    "numero_affaire": "AFF000001",
+    "option_tarifaire_turpe": "BTSUPLU4",
+    "profil": "ENT4",
+    "domaine_de_tension": "BTSUP",
+    "raison_sociale": "FOURNISSEUR EXEMPLE",
+    "code_ape": "3514Z",
+    "puissance_souscrite_hph_kva": 250,
+    "puissance_souscrite_hch_kva": 200,
+    "puissance_souscrite_hpb_kva": 180,
+    "puissance_souscrite_hcb_kva": 150,
+    "source": "flux_C12"
+  },
+  {
+    "pdl": "99100000000002",
+    "date_evenement": "2024-06-15",
+    "date_debut": "2024-03-01",
+    "date_fin": "2024-12-31",
+    "date_premiere_mise_en_service": "2019-06-01",
+    "option_tarifaire_turpe": "BTSUPMU",
+    "profil": "ENT2",
+    "raison_sociale": "FOURNISSEUR EXEMPLE",
+    "code_ape": "4321A",
+    "puissance_souscrite_hp_kva": 100,
+    "puissance_souscrite_hc_kva": 80,
+    "source": "flux_C12"
+  }
+]

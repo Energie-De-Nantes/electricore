@@ -76,6 +76,8 @@ SURCHARGES_NOM = {
     "Id_Classe_Temporelle": lambda occ: ("BASE", "HP", "HC", "HPH")[occ % 4],
     "Valeur": lambda occ: str(next(_COMPTEUR_VALEUR)),
     "Valeur_Precedent": lambda occ: str(next(_COMPTEUR_VALEUR)),
+    # C12 : Code_APE (APE fictif plausible pour la production électricité)
+    "Code_APE": lambda occ: ("3514Z", "4321A")[occ % 2],
 }
 
 VALEURS_BASE = {
