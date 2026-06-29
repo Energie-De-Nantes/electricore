@@ -2,7 +2,14 @@
 
 `_BaseClient` factorise tout ce qui est commun aux endpoints : URL de base,
 en-tête `X-API-Key`, construction du `httpx.Client` (timeout), conversion
-d'erreur HTTP (503 → `IngestionEnCours`) et la garde de version de contrat.
+d'erreur HTTP et la garde de version de contrat.
+
+Contrat X-Error-Kind (#424) — `_raise_for_status` discrimine les erreurs via
+l'en-tête `X-Error-Kind` de la réponse, pas le code HTTP seul :
+- `ingestion-lock` (503) → `IngestionEnCours` : verrou writer DuckDB, réessayable.
+- `precondition`  (422) → `PreconditionNonRemplie` : précondition métier, actionnable.
+- header absent → `httpx.HTTPStatusError` (raise_for_status standard).
+
 Les méthodes d'endpoint (méta-périodes, chronologie, turpe variable, Arrow)
 sont montées par-dessus dans `client.py`.
 """
@@ -13,13 +20,10 @@ import warnings
 
 import httpx
 
-from .exceptions import ContractVersionError, IngestionEnCours
+from .exceptions import ContractVersionError, IngestionEnCours, PreconditionNonRemplie
 
 # Timeout généreux en lecture : les flux JSONL peuvent durer (gros parc).
 DEFAULT_TIMEOUT = httpx.Timeout(30.0, read=300.0)
-
-# Code HTTP « ingestion en cours » (base DuckDB verrouillée par un writer, #171).
-STATUS_INGESTION_EN_COURS = 503
 
 
 class _BaseClient:
@@ -56,16 +60,25 @@ class _BaseClient:
         return {"X-API-Key": self.api_key}
 
     def _raise_for_status(self, response: httpx.Response) -> None:
-        """Convertit les erreurs HTTP en exceptions du client.
+        """Convertit les erreurs HTTP en exceptions du client via X-Error-Kind (#424).
 
-        503 (base verrouillée par l'ingestion) → `IngestionEnCours` ; tout autre
-        statut d'erreur → `httpx.HTTPStatusError` via `raise_for_status`.
+        Priorité à l'en-tête `X-Error-Kind` pour discriminer les cas :
+        - `ingestion-lock` → `IngestionEnCours` (503 verrou writer, réessayable).
+        - `precondition`   → `PreconditionNonRemplie` (422, action requise côté Odoo).
+        - absent           → `httpx.HTTPStatusError` (raise_for_status standard).
         """
-        if response.status_code == STATUS_INGESTION_EN_COURS:
+        kind = response.headers.get("X-Error-Kind")
+        if kind == "ingestion-lock":
             raise IngestionEnCours(
                 "L'API electricore est momentanément indisponible : un cycle d'ingestion "
                 "verrouille la base. Réessayer après le checkpoint."
             )
+        if kind == "precondition":
+            try:
+                detail = response.json().get("detail", "Précondition métier non remplie.")
+            except Exception:
+                detail = "Précondition métier non remplie."
+            raise PreconditionNonRemplie(detail)
         response.raise_for_status()
 
     @staticmethod
