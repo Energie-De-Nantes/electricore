@@ -22,7 +22,7 @@ def with_odoo[T](func: Callable[..., T]) -> Callable[..., T]:
     expose la signature publique sans ce paramètre (utile pour FastAPI).
 
     Example:
-        @xlsx_endpoint(app, "/taxes/accise/detail.xlsx", ...)
+        @binary_endpoint(app, "/taxes/accise/detail.xlsx", media_type=XLSX_MEDIA_TYPE, ...)
         @with_odoo
         def export_accise_detail_xlsx(odoo, trimestre=None) -> bytes:
             return xlsx_multi_sheet({"Détail": accise_par_contrat(odoo, trimestre)})

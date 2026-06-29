@@ -1,6 +1,6 @@
 """Sérialiseurs des artefacts API (XLSX multi-onglets, Arrow IPC) — issue #41.
 
-Consommés directement par les endpoints stackant `@xlsx_endpoint`/`@arrow_endpoint`
+Consommés directement par les endpoints stackant `@binary_endpoint`
 au-dessus des orchestrations de `integrations.odoo`. `zip_csv` a été supprimé en
 #78 (plus aucun caller — `/facturation/documents` migré en XLSX multi-onglets).
 """
