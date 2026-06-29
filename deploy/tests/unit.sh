@@ -465,6 +465,30 @@ grep -Eq -- '-v [^ ]*/test_age\.key:/run/secrets/age\.key:ro' "$SMOKE_LOG" \
     || ko "smoke_image: clé age non montée au bon chemin"
 rm -f "$SMOKE_LOG"
 
+# ── Fake docker modèle le fail-fast de l'entrypoint (#453) ───────────────────
+# Un `docker run <image> <cmd>` sans bypass (ELECTRICORE_DECRYPT=off) NI secrets
+# montés doit fail-fast. Cela verrouille la règle : la crypto ne passe JAMAIS par
+# l'image (son entrypoint SOPS bloquerait sans secrets → bug #1 de la bascule EDN).
+echo
+echo "→ fake docker / entrypoint fail-fast (#453)"
+out=$(PATH="${FAKE_BIN}:$PATH" docker run --rm electricore:test age-keygen 2>&1); rc=$?
+[[ "$rc" -ne 0 ]] \
+    && ok "fake docker: age-keygen sans bypass → fail-fast (crypto ne passe jamais par l'image)" \
+    || ko "fake docker: age-keygen sans bypass devait fail-fast"
+grep -qi "fail-fast\|entrypoint" <<<"$out" \
+    && ok "fake docker: fail-fast mentionne l'entrypoint" \
+    || ko "fake docker: fail-fast manque le motif entrypoint"
+
+# Avec bypass ELECTRICORE_DECRYPT=off → l'appel doit RÉUSSIR (bypass explicite documenté).
+# Ici age-keygen n'est plus une commande simulée mais la règle est :
+# le fail-fast est levé par le bypass, puis la commande non-simulée retourne exit 1 —
+# ce qui est distinct du fail-fast d'entrypoint (l'entrypoint n'a pas bloqué).
+# On teste le cas le plus simple : python (toujours simulé) avec bypass → succès.
+out=$(PATH="${FAKE_BIN}:$PATH" docker run --rm -e ELECTRICORE_DECRYPT=off electricore:test python -c "pass" 2>&1); rc=$?
+[[ "$rc" -eq 0 ]] \
+    && ok "fake docker: python avec ELECTRICORE_DECRYPT=off → bypass (entrypoint non bloquant)" \
+    || ko "fake docker: python avec bypass devait réussir (got rc=$rc)"
+
 rm -rf "$SMOKE_FIX"
 
 echo
