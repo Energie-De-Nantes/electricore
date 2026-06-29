@@ -11,12 +11,10 @@ import importlib
 
 import pytest
 
-TYPES = ("OdooConfig", "FieldsCache", "OdooReader", "OdooQuery", "OdooWriter", "ResultatVerification")
+TYPES = ("OdooReader", "OdooQuery", "OdooWriter", "ResultatVerification")
 
 HELPERS = (
     "query",
-    "lignes_factures",
-    "commandes",
     "commandes_lignes",
     "lignes_factures_du_mois",
     "verifier",
@@ -105,11 +103,18 @@ def test_core_writers_no_longer_exposes_odoo_writer() -> None:
 # Helpers supprimés en #85 : 4 helpers à 0 caller retirés pour amincir la surface publique.
 # - `factures`, `partenaires`, `commandes_factures` : 0 caller (presets shallow et navigation dead code)
 # - `consommations_mensuelles` : était un alias explicite de `commandes_lignes`
+# Supprimés en #507 : 0 caller prod
+# - `lignes_factures`, `commandes` : presets morts (live helpers : `query` + `commandes_lignes`)
+# - `OdooConfig`, `FieldsCache` : double-clé ODOO_URL/ODOO_DB jamais fournie en prod
 REMOVED_HELPERS = (
     "factures",
     "partenaires",
     "consommations_mensuelles",
     "commandes_factures",
+    "lignes_factures",
+    "commandes",
+    "OdooConfig",
+    "FieldsCache",
 )
 
 

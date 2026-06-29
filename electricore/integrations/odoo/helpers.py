@@ -38,57 +38,6 @@ def query(odoo: OdooReader, model: str, domain: list | None = None, fields: list
     return OdooQuery(connector=odoo, lazy_frame=df.lazy(), _current_model=model)
 
 
-def lignes_factures(odoo: OdooReader, domain: list | None = None) -> OdooQuery:
-    """
-    Query builder pour lignes de factures Odoo (account.move.line).
-
-    Args:
-        odoo: Instance OdooReader connectée
-        domain: Filtre Odoo initial
-
-    Returns:
-        OdooQuery chainable
-
-    Example:
-        >>> with OdooReader(config) as odoo:
-        ...     df = (lignes_factures(odoo)
-        ...         .filter(pl.col('quantity') > 0)
-        ...         .enrich('product_id', fields=['name', 'default_code'])
-        ...         .collect())
-    """
-    return query(
-        odoo, "account.move.line", domain=domain, fields=["name", "quantity", "price_unit", "product_id", "move_id"]
-    )
-
-
-def commandes(odoo: OdooReader, domain: list | None = None) -> OdooQuery:
-    """
-    Query builder pour commandes de vente Odoo (sale.order).
-
-    Args:
-        odoo: Instance OdooReader connectée
-        domain: Filtre Odoo initial (ex: [('state', '=', 'sale')])
-
-    Returns:
-        OdooQuery chainable
-
-    Example:
-        >>> with OdooReader(config) as odoo:
-        ...     df = (commandes(odoo, domain=[('state', '=', 'sale')])
-        ...         .enrich('partner_id', fields=['name', 'email'])
-        ...         .filter(pl.col('amount_total') > 500)
-        ...         .collect())
-    """
-    return query(
-        odoo, "sale.order", domain=domain, fields=["name", "date_order", "amount_total", "state", "partner_id"]
-    )
-
-
-# =============================================================================
-# HELPERS AVEC NAVIGATION - Raccourcis pour relations multi-niveaux
-# =============================================================================
-
-
 def commandes_lignes(odoo: OdooReader, domain: list | None = None) -> OdooQuery:
     """
     Query builder pour commandes avec lignes de factures détaillées.
