@@ -88,7 +88,6 @@ def interpreter_flux(flux: list[str], max_files: int | None, resync: bool = Fals
                   le geste standard après un changement de modèle dbt (#140) ;
     - 'resync'  → état incrémental dlt purgé sur TOUS les flux, tout re-téléchargé
                   (`drop_sources`, exceptionnel : brut perdu/corrompu) ;
-    - 'reset'   → déprécié, alias de resync ;
     - sinon     → liste de flux (r151 c15 …), upper-casée vers les clés de flux.yaml.
 
     `resync=True` (drapeau `--resync`) ne vaut que pour la branche liste-de-flux : il
@@ -102,7 +101,7 @@ def interpreter_flux(flux: list[str], max_files: int | None, resync: bool = Fals
         return PlanRun(selection=None, max_files=max_files or 2, refresh=None)
     if flux == ["rebuild"]:
         return PlanRun(selection=None, max_files=max_files, refresh=None, rebuild=True)
-    if flux in (["resync"], ["reset"]):
+    if flux == ["resync"]:
         return PlanRun(selection=None, max_files=max_files, refresh="drop_sources")
     refresh = "drop_resources" if resync else None
     return PlanRun(selection=[f.upper() for f in flux], max_files=max_files, refresh=refresh)
@@ -168,6 +167,14 @@ def flux_aveugles(stats: dict[str, StatsChaine]) -> list[str]:
     return [flux for flux, s in stats.items() if s.flux_aveugle()]
 
 
+def _msg_flux_aveugles(aveugles: list[str]) -> str:
+    """Message d'erreur unique des flux aveugles (réutilisé aux chemins échec dbt + succès)."""
+    return (
+        f"❌ Flux aveugles (0 document produit) : {', '.join(aveugles)} "
+        "— étage(s) sombre(s) au bilan de chaîne ci-dessus"
+    )
+
+
 # Modèles dbt servis par chaque table brute (raw_r15 sert deux linéarisations).
 MODELES_PAR_RAW = {
     "raw_c15": ["flux_c15"],
@@ -198,6 +205,8 @@ def construire_dbt(db_path: Path) -> bool:
     presentes = {t for (t,) in con.execute("select table_name from information_schema.tables").fetchall()}
     con.close()
     selection = [f"+{modele}" for raw, modeles in MODELES_PAR_RAW.items() if raw in presentes for modele in modeles]
+    # Marts périodiques (`releves`, `chronologie_releves`) : mêmes trois sources C15 + R151/R64.
+    periodiques_ok = {"raw_c15", "raw_r151", "raw_r64"} <= presentes
     # Le modèle de relevés canonique `releves` (mart, ADR-0029) est un DESCENDANT des
     # flux : les `+flux_*` (ancêtres) ne l'atteignent pas. On l'ajoute dès que ses trois
     # sources sont matérialisables (C15 + périodiques R151/R64) — sinon un arm d'union
@@ -206,7 +215,7 @@ def construire_dbt(db_path: Path) -> bool:
     # `int_releves__c15` qui n'est pas un `flux_*` (sinon : Catalog Error « int_releves__c15
     # does not exist », cf. régression test_runner_construit_releves). Les flux ancêtres,
     # déjà dans `selection` via `+flux_*`, sont dédoublonnés par dbt.
-    if {"raw_c15", "raw_r151", "raw_r64"} <= presentes:
+    if periodiques_ok:
         selection.append("+releves")
     # La spine de la Chronologie du contrat (mart, ADR-0041) est un DESCENDANT de flux_c15 :
     # même raison que `releves`, les `+flux_*` ne l'atteignent pas. Elle ne dépend que de C15
@@ -216,7 +225,7 @@ def construire_dbt(db_path: Path) -> bool:
     # La Chronologie des relevés (mart, ADR-0041) projette la spine sur l'énergie : elle
     # apparie les relevés (canoniques) aux bornes de la spine. Mêmes sources que `releves`
     # (C15 + R151/R64) ; `+chronologie_releves` tire ses ancêtres (spine, releves, flux_*).
-    if {"raw_c15", "raw_r151", "raw_r64"} <= presentes:
+    if periodiques_ok:
         selection.append("+chronologie_releves")
     if not selection:
         _out("  aucune table brute landée — rien à construire")
@@ -268,8 +277,6 @@ def bilan(db_path: Path) -> None:
         """
     ).fetchall()
     for schema, table in lignes:
-        if table.startswith("_dlt"):
-            continue
         n = con.execute(f'select count(*) from "{schema}"."{table}"').fetchone()[0]
         _out(f"  {schema}.{table}: {n}")
     con.close()
@@ -323,10 +330,7 @@ def main() -> None:
         # Si rien n'a été construit alors que des flux sont aveugles, la vraie cause est
         # en amont (un étage de la chaîne est resté sombre), pas dbt — surfacer le bon diagnostic.
         if aveugles:
-            _out(
-                f"❌ Flux aveugles (0 document produit) : {', '.join(aveugles)} "
-                "— étage(s) sombre(s) au bilan de chaîne ci-dessus"
-            )
+            _out(_msg_flux_aveugles(aveugles))
         else:
             _out("❌ dbt build a échoué")
         sys.exit(1)
@@ -340,9 +344,6 @@ def main() -> None:
     # échouer le job ; la surveillance bot alerte alors sur un job `failed`. Placé après le dbt
     # build pour que les flux sains continuent de couler malgré le flux aveugle.
     if aveugles:
-        _out(
-            f"❌ Flux aveugles (0 document produit) : {', '.join(aveugles)} "
-            "— étage(s) sombre(s) au bilan de chaîne ci-dessus"
-        )
+        _out(_msg_flux_aveugles(aveugles))
         sys.exit(1)
     _out("✅ Terminé")

@@ -49,24 +49,15 @@ def extract_files_from_zip(zip_data: bytes, file_extension: str = ".xml") -> lis
     return files
 
 
-# Import de la fonction de matching depuis parsers
 import fnmatch
-import re as _re
 
 
 def match_xml_pattern(nom_fichier: str, pattern: str | None) -> bool:
-    """Vrai si le nom de fichier correspond au pattern (wildcard fnmatch ou regex)."""
-    if pattern is None:
-        return True
-    try:
-        if "*" in pattern or "?" in pattern:
-            return fnmatch.fnmatch(nom_fichier, pattern)
-        return bool(_re.search(pattern, nom_fichier))
-    except _re.error:
-        try:
-            return fnmatch.fnmatch(nom_fichier, pattern)
-        except Exception:
-            return False
+    """Vrai si le nom de fichier correspond au pattern glob (fnmatch).
+
+    Tous les `file_regex` de flux.yaml sont des globs (`*`/`?`/`[…]`) → fnmatch seul.
+    """
+    return fnmatch.fnmatch(nom_fichier, pattern) if pattern else True
 
 
 # =============================================================================
