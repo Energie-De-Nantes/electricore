@@ -50,15 +50,7 @@ async def run_ingestion(
         raise HTTPException(409, "Un job d'ingestion est déjà en cours d'exécution.")
 
     job = await ingestion_service.start_job(mode)
-    return IngestionJobResponse(
-        id=job.id,
-        mode=job.mode,
-        status=job.status,
-        started_at=job.started_at,
-        finished_at=job.finished_at,
-        error=job.error,
-        output=job.output,
-    )
+    return IngestionJobResponse.model_validate(job)
 
 
 @router.get("/ingestion/jobs", response_model=list[IngestionJobResponse])
@@ -71,19 +63,7 @@ async def list_ingestion_jobs(
 
     **Authentification requise.**
     """
-    jobs = ingestion_service.list_jobs(limit)
-    return [
-        IngestionJobResponse(
-            id=j.id,
-            mode=j.mode,
-            status=j.status,
-            started_at=j.started_at,
-            finished_at=j.finished_at,
-            error=j.error,
-            output=j.output,
-        )
-        for j in jobs
-    ]
+    return [IngestionJobResponse.model_validate(j) for j in ingestion_service.list_jobs(limit)]
 
 
 @router.get("/ingestion/jobs/{job_id}", response_model=IngestionJobResponse)
@@ -101,12 +81,4 @@ async def get_ingestion_job(
     job = ingestion_service.get_job(job_id)
     if job is None:
         raise HTTPException(404, f"Job '{job_id}' introuvable.")
-    return IngestionJobResponse(
-        id=job.id,
-        mode=job.mode,
-        status=job.status,
-        started_at=job.started_at,
-        finished_at=job.finished_at,
-        error=job.error,
-        output=job.output,
-    )
+    return IngestionJobResponse.model_validate(job)

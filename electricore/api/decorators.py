@@ -35,16 +35,7 @@ def _resoudre_filename(template: str, args: dict[str, object]) -> str:
     devient `accise.xlsx`).
     """
     valeurs = {k: ("" if v is None else str(v)) for k, v in args.items()}
-    return template.format_map(_DefaultEmpty(valeurs))
-
-
-class _DefaultEmpty(dict):
-    """Mapping qui renvoie `""` pour les clés absentes — évite KeyError sur
-    les placeholders inutilisés par le handler.
-    """
-
-    def __missing__(self, key):  # type: ignore[override]
-        return ""
+    return template.format(**valeurs)
 
 
 def binary_endpoint(
@@ -106,40 +97,3 @@ def binary_endpoint(
         return wrapper
 
     return decorator
-
-
-def xlsx_endpoint(
-    target: FastAPI | APIRouter,
-    path: str,
-    *,
-    filename: str,
-    requires_odoo: bool = False,
-    error_status: int = 503,
-    tags: list[str] | None = None,
-):
-    """Wrapper convenance de `binary_endpoint` pour les exports XLSX."""
-    return binary_endpoint(
-        target,
-        path,
-        media_type=XLSX_MEDIA_TYPE,
-        filename=filename,
-        requires_odoo=requires_odoo,
-        error_status=error_status,
-        tags=tags,
-    )
-
-
-def arrow_endpoint(
-    target: FastAPI | APIRouter,
-    path: str,
-    *,
-    requires_odoo: bool = False,
-    tags: list[str] | None = None,
-):
-    """Wrapper convenance de `binary_endpoint` pour les flux Arrow IPC.
-
-    Pas de `Content-Disposition` — le flux est consommé en mémoire par le client.
-    """
-    return binary_endpoint(
-        target, path, media_type=ARROW_MEDIA_TYPE, filename=None, requires_odoo=requires_odoo, tags=tags
-    )

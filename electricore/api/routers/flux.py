@@ -7,14 +7,16 @@ sinon `{table_name}` capture `c15.xlsx` et la requête est mal routée.
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from electricore.api.decorators import arrow_endpoint, xlsx_endpoint
+from electricore.api.decorators import ARROW_MEDIA_TYPE, XLSX_MEDIA_TYPE, binary_endpoint
 from electricore.api.security import get_current_api_key
 from electricore.api.services import duckdb_service
 
 router = APIRouter(tags=["flux"])
 
 
-@xlsx_endpoint(router, "/flux/c15/entrees.xlsx", filename="entrees_c15.xlsx", error_status=500)
+@binary_endpoint(
+    router, "/flux/c15/entrees.xlsx", media_type=XLSX_MEDIA_TYPE, filename="entrees_c15.xlsx", error_status=500
+)
 def get_entrees_xlsx(
     limit: int = Query(10000, le=100000, description="Nombre maximum de lignes"),
 ) -> bytes:
@@ -26,7 +28,9 @@ def get_entrees_xlsx(
     return xlsx_multi_sheet({"entrees": df})
 
 
-@xlsx_endpoint(router, "/flux/c15/sorties.xlsx", filename="sorties_c15.xlsx", error_status=500)
+@binary_endpoint(
+    router, "/flux/c15/sorties.xlsx", media_type=XLSX_MEDIA_TYPE, filename="sorties_c15.xlsx", error_status=500
+)
 def get_sorties_xlsx(
     limit: int = Query(10000, le=100000, description="Nombre maximum de lignes"),
 ) -> bytes:
@@ -65,7 +69,9 @@ def _load_flux_df(table_name: str, prm: str | None, limit: int):
 # sinon `{table_name}` capture `c15.xlsx` et la requête est mal routée.
 
 
-@xlsx_endpoint(router, "/flux/{table_name}.xlsx", filename="flux_{table_name}.xlsx", error_status=500)
+@binary_endpoint(
+    router, "/flux/{table_name}.xlsx", media_type=XLSX_MEDIA_TYPE, filename="flux_{table_name}.xlsx", error_status=500
+)
 def get_flux_xlsx(
     table_name: str,
     prm: str | None = Query(None, description="Filtrer par pdl (Point de Livraison)"),
@@ -78,7 +84,7 @@ def get_flux_xlsx(
     return xlsx_multi_sheet({table_name: df})
 
 
-@arrow_endpoint(router, "/flux/{table_name}.arrow")
+@binary_endpoint(router, "/flux/{table_name}.arrow", media_type=ARROW_MEDIA_TYPE)
 def get_flux_arrow(
     table_name: str,
     prm: str | None = Query(None, description="Filtrer par pdl (Point de Livraison)"),

@@ -6,7 +6,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from electricore.api.config import settings
-from electricore.api.decorators import arrow_endpoint, xlsx_endpoint
+from electricore.api.decorators import ARROW_MEDIA_TYPE, XLSX_MEDIA_TYPE, binary_endpoint
 from electricore.api.security import get_current_api_key
 from electricore.api.serializers import arrow_stream, xlsx_multi_sheet
 from electricore.api.services.check_facturation_service import check_odoo_xlsx, verifier_odoo
@@ -23,7 +23,13 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["facturation"])
 
 
-@xlsx_endpoint(router, "/facturation/rapport.xlsx", filename="facturation_rapport{mois}.xlsx", requires_odoo=True)
+@binary_endpoint(
+    router,
+    "/facturation/rapport.xlsx",
+    media_type=XLSX_MEDIA_TYPE,
+    filename="facturation_rapport{mois}.xlsx",
+    requires_odoo=True,
+)
 @with_odoo
 def export_facturation_rapport_xlsx(
     odoo,
@@ -37,7 +43,13 @@ def export_facturation_rapport_xlsx(
     return xlsx_multi_sheet(feuilles_rapport_facturation(rapport_facturation(odoo, mois)))
 
 
-@xlsx_endpoint(router, "/facturation/detail.xlsx", filename="facturation_detail{mois}.xlsx", requires_odoo=True)
+@binary_endpoint(
+    router,
+    "/facturation/detail.xlsx",
+    media_type=XLSX_MEDIA_TYPE,
+    filename="facturation_detail{mois}.xlsx",
+    requires_odoo=True,
+)
 @with_odoo
 def export_facturation_detail_xlsx(
     odoo,
@@ -51,7 +63,7 @@ def export_facturation_detail_xlsx(
     return xlsx_multi_sheet({"Détail": facturation_du_mois(odoo, mois)})
 
 
-@arrow_endpoint(router, "/facturation/detail.arrow", requires_odoo=True)
+@binary_endpoint(router, "/facturation/detail.arrow", media_type=ARROW_MEDIA_TYPE, requires_odoo=True)
 @with_odoo
 def export_facturation_detail_arrow(
     odoo,
@@ -93,7 +105,9 @@ async def check_facturation_odoo(api_key: str = Depends(get_current_api_key)):
     return result
 
 
-@xlsx_endpoint(router, "/facturation/check/odoo.xlsx", filename="check_odoo.xlsx", requires_odoo=True)
+@binary_endpoint(
+    router, "/facturation/check/odoo.xlsx", media_type=XLSX_MEDIA_TYPE, filename="check_odoo.xlsx", requires_odoo=True
+)
 def export_check_odoo_xlsx() -> bytes:
     """Détail complet des vérifications pré-facturation Odoo en XLSX multi-onglets.
 
@@ -104,7 +118,13 @@ def export_check_odoo_xlsx() -> bytes:
     return check_odoo_xlsx()
 
 
-@xlsx_endpoint(router, "/facturation/documents.xlsx", filename="facturation{mois}.xlsx", requires_odoo=True)
+@binary_endpoint(
+    router,
+    "/facturation/documents.xlsx",
+    media_type=XLSX_MEDIA_TYPE,
+    filename="facturation{mois}.xlsx",
+    requires_odoo=True,
+)
 @with_odoo
 def export_facturation_documents(
     odoo,
