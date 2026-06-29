@@ -176,3 +176,37 @@ models:
       - name: affaire_etat
         description: État fin de l'affaire au jalon (DMTR, DMREC, CPRE, CPNR…).
         data_tests: [not_null]
+
+  - name: flux_c12
+    description: >
+      Description contractuelle C12 : une ligne par PRM, segment C2-C4 (>36 kVA).
+      Puissances souscrites par cadran TURPE pivotées en colonnes (HPE→hpb, HCE→hcb) ;
+      classes HTA (Pointe, HPDemiSaison, HCDemiSaison, JA, PM) ignorées → NULL.
+      Pas de Segment_Clientele natif : inféré en aval (ADR-0051, #344).
+      Parité golden vérifiée (tests/ingestion/test_dbt_flux_golden.py).
+    columns:
+      - name: pdl
+        description: Point de livraison (14 chiffres).
+        data_tests: [not_null]
+      - name: date_debut
+        description: Date de début de la situation contractuelle (DATE).
+        data_tests: [not_null]
+      - name: option_tarifaire_turpe
+        description: >
+          Option tarifaire TURPE souscrite (Libelle XSD). Valeurs XSD : BTSUPLU, BTSUPMU,
+          HTA5, HTA8, HTASansDiff, BTINFCUST, BTINFMUDT, BTINFLU, BTINFMUST, HTALU5,
+          HTACU5, HTALUPM5, HTACUPM5, BTSUPLU4, BTSUPCU4, BTSUPCUACC, BTSUPLUACC, HTAST5.
+
+  - name: stg_c12
+    description: >
+      Staging C12 : une ligne par PRM, prm complète en colonne json (avant extraction).
+      Sert exclusivement flux_c12 via ref().
+    columns:
+      - name: pdl
+        description: Point de livraison extrait de l'Identifiant (14 chiffres).
+      - name: libelle_classe_temporelle
+        description: >
+          Libelle de la Classe_Temporelle_TURPE_Souscrite. Enum XSD complet :
+          Pointe, HPH, HPDemiSaison, HCH, HCDemiSaison, HPE, HCE, JA, Base, HP, HC, PM.
+          Un accepted_values sur ce champ attrape toute valeur inconnue d'Enedis.
+
