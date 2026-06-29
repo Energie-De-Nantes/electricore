@@ -25,18 +25,6 @@ logger = logging.getLogger(__name__)
 _LOCK_RETRY_ATTEMPTS = 3
 _LOCK_RETRY_BACKOFF_S = 1.0
 
-# Mapping documentaire des tables DuckDB vers schémas métier (non utilisé en runtime).
-_TABLE_MAPPINGS = {
-    "historique": {
-        "source_tables": ["flux_enedis.flux_c15"],
-        "description": "Historique des événements contractuels avec relevés avant/après",
-    },
-    "releves": {
-        "source_tables": ["flux_enedis.releves"],
-        "description": "Modèle de relevés canonique dbt (C15 + R64 + R151, ADR-0029)",
-    },
-}
-
 
 @dataclass(frozen=True, slots=True)
 class DuckDBConfig:

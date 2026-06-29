@@ -44,14 +44,13 @@ class DuckDBQuery:
         >>> lazy_df = query.lazy()
     """
 
-    # Descripteur du flux (immutable) — colonnes, transform, validateur, base_sql.
+    # Descripteur du flux (immutable) — transform, validateur, base_sql.
     config: FluxDescriptor
 
     # État de la requête (immutable tuples)
     database_path: str | Path | None = None
     filters: tuple[tuple[str, Any], ...] = ()  # Tuple de tuples = immutable
     limit_value: int | None = None
-    valider: bool = True
 
     # =========================================================================
     # MÉTHODES BUILDER (Retournent nouvelles instances)
@@ -69,42 +68,11 @@ class DuckDBQuery:
         Returns:
             Nouvelle instance DuckDBQuery avec les filtres ajoutés
 
-        Raises:
-            ValueError: Si une colonne n'appartient pas au schéma du flux.
-
         Example:
             >>> query.filter({"Date_Evenement": ">= '2024-01-01'", "pdl": ["PDL123"]})
         """
-        # Allowlist de `.filter()` fermée seulement quand le descripteur ÉNUMÈRE ses
-        # colonnes (legacy). Un loader `SELECT *` — mart (`base_sql`) ou flux dont la forme
-        # résiduelle a migré en dbt (colonnes vides, ADR-0042) — ne re-déclare pas son
-        # schéma → allowlist ouverte.
-        if self.config.base_sql is None and self.config.columns:
-            allowed = {c.name for c in self.config.columns}
-            unknown = [col for col in filters if col not in allowed]
-            if unknown:
-                raise ValueError(
-                    f"colonne inconnue {unknown!r} pour le flux {self.config.flux_name}. "
-                    f"Colonnes valides : {sorted(allowed)}"
-                )
+        # Tous les flux sont en SELECT * (ADR-0042) → allowlist toujours ouverte.
         new_filters = self.filters + tuple(filters.items())
-        return replace(self, filters=new_filters)
-
-    def where(self, condition: str) -> "DuckDBQuery":
-        """
-        Ajoute une condition WHERE sous forme de chaîne brute.
-
-        Args:
-            condition: Condition SQL brute (ex: "pdl IN ('PDL123', 'PDL456')")
-
-        Returns:
-            Nouvelle instance DuckDBQuery avec la condition ajoutée
-
-        Example:
-            >>> query.where("date_evenement >= '2024-01-01' AND puissance_souscrite > 6")
-        """
-        # Utiliser une clé spéciale pour les conditions brutes
-        new_filters = self.filters + (("__raw_condition", condition),)
         return replace(self, filters=new_filters)
 
     def limit(self, count: int) -> "DuckDBQuery":
@@ -121,18 +89,6 @@ class DuckDBQuery:
             >>> query.limit(1000)
         """
         return replace(self, limit_value=count)
-
-    def validate(self, enable: bool = True) -> "DuckDBQuery":
-        """
-        Active ou désactive la validation Pandera.
-
-        Args:
-            enable: True pour activer la validation
-
-        Returns:
-            Nouvelle instance DuckDBQuery avec la configuration de validation
-        """
-        return replace(self, valider=enable)
 
     def entrees(self) -> "DuckDBQuery":
         """Filtre sur les codes d'entrée canoniques C15 (PMES, MES, CFNE).
@@ -175,10 +131,6 @@ class DuckDBQuery:
             (sql_fragment_avec_?, params) — les valeurs ne sont JAMAIS interpolées
             dans le SQL ; elles transitent par le binding `conn.execute(sql, params)`.
         """
-        # Condition brute (échappée, non exposée HTTP, validée allowlist au constructeur)
-        if column == "__raw_condition":
-            return condition, []
-
         # Placeholder NU : la valeur transite par le binding (jamais interpolée). Le littéral
         # est interprété en Europe/Paris par le fuseau de session épinglé de la connexion
         # (#393, ADR-0042) — plus d'enveloppe `timezone(...)` par colonne (#391 retiré).
@@ -269,8 +221,8 @@ class DuckDBQuery:
         if self.config.transform is not None:
             lazy_frame = self.config.transform(lazy_frame)
 
-        # Validation si demandée (impure - side effect)
-        if self.valider and self.config.validator is not None:
+        # Validation Pandera toujours active (bascule retire en #506).
+        if self.config.validator is not None:
             sample_df = lazy_frame.limit(100).collect()
             self.config.validator.validate(sample_df)
 
