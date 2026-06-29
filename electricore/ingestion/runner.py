@@ -178,6 +178,7 @@ def _msg_flux_aveugles(aveugles: list[str]) -> str:
 # Modèles dbt servis par chaque table brute (raw_r15 sert deux linéarisations).
 MODELES_PAR_RAW = {
     "raw_c15": ["flux_c15"],
+    "raw_c12": ["flux_c12"],
     "raw_r15": ["flux_r15", "flux_r15_acc"],
     "raw_r151": ["flux_r151"],
     "raw_f12": ["flux_f12_detail"],

@@ -81,6 +81,19 @@ sources:
             description: Nom du fichier source (traçabilité).
           - name: modification_date
             description: Date de modification SFTP (clé d'incrémental dlt).
+      - name: raw_c12
+        description: >
+          Flux C12 (description contractuelle des PRM C2-C4, >36 kVA), un document par ligne.
+          Le XML est converti en dict par `etl/parsing/xml.xml_vers_dict` avant landing.
+          Contient les puissances souscrites par classe temporelle TURPE, l'option tarifaire,
+          l'utilisateur réseau (Personne_Morale avec Raison_Sociale et Code_APE).
+        columns:
+          - name: content
+            description: Document JSON intégral (En_Tete_Flux + Contrat + PRM[]).
+          - name: file_name
+            description: Nom du fichier source (traçabilité).
+          - name: modification_date
+            description: Date de modification SFTP (clé d'incrémental dlt).
       - name: raw_affaires
         description: >
           Flux X12 + X13 (suivi des affaires SGE), un document XML→dict par ligne.
