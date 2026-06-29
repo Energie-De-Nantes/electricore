@@ -58,10 +58,6 @@ def test_les_modes_de_l_api_sont_interpretables():
     assert plans["resync"] == PlanRun(selection=None, max_files=None, refresh="drop_sources", rebuild=False)
 
 
-def test_reset_est_un_alias_dépréciée_de_resync():
-    assert interpreter_flux(["reset"], max_files=None) == interpreter_flux(["resync"], max_files=None)
-
-
 def test_selection_multi_flux():
     plan = interpreter_flux(["r151", "c15"], max_files=None)
     assert plan.selection == ["R151", "C15"]

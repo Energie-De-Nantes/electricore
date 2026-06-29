@@ -40,7 +40,6 @@ class ModeIngestion(StrEnum):
     all = "all"
     rebuild = "rebuild"  # re-matérialise depuis le brut, zéro réseau (#140)
     resync = "resync"  # purge l'état incrémental + re-télécharge tout (brut perdu)
-    reset = "reset"  # déprécié : alias de resync
 
 
 # Clés de flux.yaml, en minuscules — le runner accepte aussi une liste de flux (#152).

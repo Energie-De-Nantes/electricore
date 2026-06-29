@@ -138,20 +138,6 @@ def decrypt_with_key_chain(
     raise ValueError(f"Échec déchiffrement avec {len(key_chain)} clé(s) :\n" + "\n".join(errors))
 
 
-def read_sftp_file(encrypted_item: FileItemDict) -> bytes:
-    """
-    Lit le contenu d'un fichier depuis SFTP.
-
-    Args:
-        encrypted_item: Item FileItemDict de DLT
-
-    Returns:
-        bytes: Contenu du fichier
-    """
-    with encrypted_item.open() as f:
-        return f.read()
-
-
 # =============================================================================
 # TRANSFORMER DLT
 # =============================================================================
@@ -184,8 +170,11 @@ def _decrypt(encrypted_file: FileItemDict, key_chain: list[tuple[str, bytes, byt
             'key_used': str,
         }
     """
-    encrypted_data = read_sftp_file(encrypted_file)  # IO non gardée : une erreur de lecture n'est
-    original_size = len(encrypted_data)  # pas une ValueError → propage (hors discipline ADR-0037).
+    # IO non gardée : une erreur de lecture n'est pas une ValueError → propage
+    # (hors discipline ADR-0037).
+    with encrypted_file.open() as f:
+        encrypted_data = f.read()
+    original_size = len(encrypted_data)
     decrypted_data, key_used = decrypt_with_key_chain(encrypted_data, key_chain)  # toutes clés KO → lève
     if len(key_chain) > 1:
         logger.debug("Déchiffré avec clé '%s' : %s", key_used, encrypted_file["file_name"])
@@ -218,36 +207,24 @@ def _decrypt_aes_transformer_base(
 
 
 def create_decrypt_transformer(
-    aes_key: bytes = None,
-    aes_iv: bytes = None,
     *,
-    key_chain: list[tuple[str, bytes, bytes]] | None = None,
+    key_chain: list[tuple[str, bytes, bytes]],
     stats: StatsChaine | None = None,
 ):
     """
     Factory pour créer un transformer de déchiffrement avec trousseau pré-chargé.
 
-    Le trousseau est résolu une seule fois à la création du transformer (pas à chaque
-    fichier). Précédence : `key_chain` explicite > `aes_key`/`aes_iv` (clé unique, tests)
-    > trousseau du registre runtime.
+    Le trousseau (résolu une fois par la source via `load_aes_key_chain`, partagé
+    entre flux) et le compteur de chaîne du flux courant sont injectés à la création
+    du transformer, pas à chaque fichier.
 
     Args:
-        aes_key: Clé AES explicite (optionnel, pour les tests)
-        aes_iv: IV AES explicite (optionnel, pour les tests)
         key_chain: Trousseau déjà résolu [(label, clé, iv), …] — partagé entre flux par la source
         stats: Compteur de chaîne du flux courant (escalade per-flux, ADR-0037)
 
     Returns:
         Transformer DLT configuré
     """
-    if key_chain is None:
-        if aes_key is not None and aes_iv is not None:
-            key_chain = [("explicit", aes_key, aes_iv)]
-        else:
-            key_chain = load_aes_key_chain()
-            names = [name for name, _, _ in key_chain]
-            logger.info("%d clé(s) AES chargée(s) : %s", len(key_chain), names)
-
     stats = stats if stats is not None else StatsChaine()
 
     @dlt.transformer
