@@ -88,3 +88,29 @@ class TestDuckdbReadonlyConn:
                     pass  # pragma: no cover
 
         assert not isinstance(excinfo.value, DuckDBLockError)
+
+    def test_non_lock_ioexception_propagates_immediately_without_retry(self):
+        """IOException non-verrou (corruption, version mismatch…) → propagée
+        sans retry, jamais wrappée en DuckDBLockError (#424)."""
+        exc = duckdb.IOException("IO Error: Could not read from file: corrupt")
+
+        with patch("duckdb.connect", side_effect=exc) as mock_connect:
+            with patch("time.sleep") as mock_sleep:
+                with pytest.raises(duckdb.IOException, match="corrupt"):
+                    with duckdb_readonly_conn("/corrupt.duckdb"):
+                        pass  # pragma: no cover
+
+        assert mock_connect.call_count == 1
+        mock_sleep.assert_not_called()
+
+    def test_non_lock_ioexception_is_not_wrapped_as_lock_error(self):
+        """Une IOException non-verrou ne doit PAS devenir DuckDBLockError (#424).
+        Sinon l'API afficherait « ingestion en cours » pour une corruption."""
+        exc = duckdb.IOException("IO Error: Unsupported DuckDB file format version")
+
+        with patch("duckdb.connect", side_effect=exc):
+            with pytest.raises(duckdb.IOException) as excinfo:
+                with duckdb_readonly_conn("/version-mismatch.duckdb"):
+                    pass  # pragma: no cover
+
+        assert not isinstance(excinfo.value, DuckDBLockError)

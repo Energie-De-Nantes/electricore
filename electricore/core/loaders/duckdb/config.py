@@ -54,14 +54,20 @@ class DuckDBLockError(duckdb.IOException):
 
 
 def _is_lock_error(exc: duckdb.IOException) -> bool:
-    """Discrimine un verrou (récupérable) d'une erreur non récupérable.
+    """Discrimine un verrou writer (récupérable) d'une erreur IO non récupérable.
 
-    DuckDB n'expose qu'`IOException` ; on inspecte le message.
+    DuckDB n'expose qu'`IOException` ; on inspecte le message pour ne reconnaître
+    que les formulations de verrou réel (#424). Toute autre IOException (version
+    mismatch, corruption, WAL illisible, fichier manquant) est renvoyée brute —
+    elle ne se résoudra jamais seule et ne doit pas s'afficher « ingestion en cours ».
+
+    Phrasings connus du verrou DuckDB :
+    - « Could not set lock on file »
+    - « Conflicting lock is held »
     """
     msg = str(exc).lower()
-    if "does not exist" in msg or "no such file" in msg:
-        return False
-    return True
+    # ponytail: deux marqueurs suffisent — les phrasing DuckDB sont stables
+    return "could not set lock" in msg or "conflicting lock" in msg
 
 
 @contextmanager
