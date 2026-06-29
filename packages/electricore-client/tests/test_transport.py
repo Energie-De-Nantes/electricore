@@ -1,16 +1,22 @@
 """Tests du substrat de transport (`_BaseClient`).
 
 Couvre les invariants partagés par tous les endpoints : en-tête `X-API-Key`,
-conversion 503 → `IngestionEnCours`, propagation des autres erreurs HTTP, et la
+discrimination via X-Error-Kind (#424), propagation des autres erreurs HTTP, et la
 garde de version de contrat asymétrique (warn si serveur en avance, raise si en
 retard). Tout est testé via `httpx.MockTransport` (aucun serveur réel).
+
+Contrat X-Error-Kind (3 familles, #424) :
+1. 503 + X-Error-Kind: ingestion-lock → IngestionEnCours (verrou, réessayable).
+2. 503 sans header               → httpx.HTTPStatusError (erreur générique).
+3. 422 + X-Error-Kind: precondition → PreconditionNonRemplie (actionnable).
 """
 
+import json
 import warnings
 
 import httpx
 import pytest
-from electricore_client.exceptions import ContractVersionError, IngestionEnCours
+from electricore_client.exceptions import ContractVersionError, IngestionEnCours, PreconditionNonRemplie
 from electricore_client.headers import EnTetesMeta
 from electricore_client.transport import _BaseClient
 
@@ -20,15 +26,54 @@ def _client(handler) -> _BaseClient:
     return _BaseClient(url="http://testserver", api_key="secret-key", http_client=http)
 
 
-def test_raise_for_status_mappe_503_sur_ingestion_en_cours():
-    """Un 503 (base verrouillée par l'ingestion) → `IngestionEnCours`, pas une HTTPStatusError."""
+# -- Famille 1 : 503 + X-Error-Kind: ingestion-lock → IngestionEnCours ----------
+
+
+def test_raise_for_status_mappe_503_ingestion_lock_sur_ingestion_en_cours():
+    """503 + X-Error-Kind: ingestion-lock → IngestionEnCours (#424)."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(503, headers={"X-Error-Kind": "ingestion-lock"})
+
+    client = _client(handler)
+    response = client._http.get("http://testserver/x")
+    with pytest.raises(IngestionEnCours):
+        client._raise_for_status(response)
+
+
+# -- Famille 2 : 503 sans header → HTTPStatusError (générique, pas IngestionEnCours) --
+
+
+def test_raise_for_status_503_sans_header_nest_pas_ingestion_en_cours():
+    """503 sans X-Error-Kind → HTTPStatusError, pas IngestionEnCours (#424).
+    Un 503 générique (ex. proxy timeout) ne doit pas être maquillé en verrou."""
 
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(503)
 
     client = _client(handler)
     response = client._http.get("http://testserver/x")
-    with pytest.raises(IngestionEnCours):
+    with pytest.raises(httpx.HTTPStatusError):
+        client._raise_for_status(response)
+
+
+# -- Famille 3 : 422 + X-Error-Kind: precondition → PreconditionNonRemplie ------
+
+
+def test_raise_for_status_mappe_422_precondition_sur_precondition_non_remplie():
+    """422 + X-Error-Kind: precondition → PreconditionNonRemplie avec le détail serveur (#424)."""
+    detail_serveur = "Réconciliation RSC requise pour 2025-03-01 : 1 ligne(s) sans RSC."
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            422,
+            headers={"X-Error-Kind": "precondition", "Content-Type": "application/json"},
+            content=json.dumps({"detail": detail_serveur}).encode(),
+        )
+
+    client = _client(handler)
+    response = client._http.get("http://testserver/x")
+    with pytest.raises(PreconditionNonRemplie, match="RSC"):
         client._raise_for_status(response)
 
 
