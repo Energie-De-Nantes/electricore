@@ -11,15 +11,13 @@ les plages de validité de chaque taux (format identique à accise_rules.csv).
 Formule : cta_eur = turpe_fixe_eur × taux_cta_pct / 100
 """
 
-from pathlib import Path
-
 import pandera.polars as pa
 import polars as pl
 from pandera.typing.polars import LazyFrame
 
 from electricore.core.models.cta_mensuel import CtaMensuel
 from electricore.core.pipelines.facturation import expr_calculer_trimestre
-from electricore.core.pipelines.taux import ajouter_taux_en_vigueur
+from electricore.core.pipelines.taux import ajouter_taux_en_vigueur, charger_regles_taux
 
 # =============================================================================
 # CHARGEMENT DES RÈGLES CTA
@@ -35,13 +33,7 @@ def load_cta_rules() -> pl.LazyFrame:
         `taux_cta_pct` (Float64). Chaque ligne représente l'entrée en vigueur
         d'un nouveau taux qui remplace le précédent.
     """
-    file_path = Path(__file__).parent.parent.parent / "config" / "cta_rules.csv"
-
-    return (
-        pl.scan_csv(file_path)
-        .with_columns(pl.col("start").str.to_datetime().dt.replace_time_zone("Europe/Paris"))
-        .with_columns(pl.col("taux_cta_pct").cast(pl.Float64))
-    )
+    return charger_regles_taux("cta_rules.csv", "taux_cta_pct")
 
 
 # =============================================================================
