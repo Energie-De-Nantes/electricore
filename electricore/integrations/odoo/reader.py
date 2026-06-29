@@ -12,7 +12,7 @@ from typing import Any, cast
 
 import polars as pl
 
-from .config import FieldsCache, OdooConfig
+from .config import FieldsCache
 
 logger = logging.getLogger(__name__)
 
@@ -45,37 +45,23 @@ class OdooReader:
         "exists",
     }
 
-    def __init__(
-        self,
-        config: dict[str, str],
-        url: str | None = None,
-        db: str | None = None,
-        username: str | None = None,
-        password: str | None = None,
-    ):
+    def __init__(self, config: dict[str, str]):
         """
         Initialise le connecteur Odoo avec configuration explicite.
 
         Args:
-            config: Dictionnaire de configuration obligatoire
-            url: URL du serveur Odoo (surcharge config si fourni)
-            db: Nom de la base de données (surcharge config si fourni)
-            username: Nom d'utilisateur (surcharge config si fourni)
-            password: Mot de passe (surcharge config si fourni)
+            config: Dictionnaire de configuration avec clés 'url', 'db', 'username', 'password'
+                    (typiquement runtime.odoo().model_dump())
 
         Example:
             >>> config = {'url': 'https://demo.odoo.com', 'db': 'demo',
             ...           'username': 'admin', 'password': 'admin'}
             >>> odoo = OdooReader(config)
         """
-        # Créer configuration immutable
-        config_dict = {
-            "url": url or config.get("url") or config.get("ODOO_URL"),
-            "db": db or config.get("db") or config.get("ODOO_DB"),
-            "username": username or config.get("username") or config.get("ODOO_USERNAME"),
-            "password": password or config.get("password") or config.get("ODOO_PASSWORD"),
-        }
-        self._config = OdooConfig.from_dict(config_dict)
+        missing = [k for k in ("url", "db", "username", "password") if not config.get(k)]
+        if missing:
+            raise ValueError(f"Paramètres manquants dans la configuration: {', '.join(missing)}")
+        self._config = config
 
         # Cache pour métadonnées des champs
         self._fields_cache = FieldsCache()
@@ -97,7 +83,7 @@ class OdooReader:
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Déconnexion propre."""
         self.disconnect()
-        logger.info(f"Disconnected from {self._config.db} Odoo db.")
+        logger.info(f"Disconnected from {self._config['db']} Odoo db.")
 
     def _ensure_connection(func: Callable[..., Any]) -> Callable[..., Any]:  # type: ignore[misc]
         """Décorateur pour s'assurer que la connexion est active.
@@ -116,8 +102,8 @@ class OdooReader:
     def connect(self) -> None:
         """Établit la connexion à Odoo."""
         self._uid = self._get_uid()
-        self._proxy = xmlrpc.client.ServerProxy(f"{self._config.url}/xmlrpc/2/object")
-        logger.info(f"Connected to {self._config.db} Odoo database.")
+        self._proxy = xmlrpc.client.ServerProxy(f"{self._config['url']}/xmlrpc/2/object")
+        logger.info(f"Connected to {self._config['db']} Odoo database.")
 
     def disconnect(self) -> None:
         """Ferme la connexion à Odoo."""
@@ -137,10 +123,10 @@ class OdooReader:
         Raises:
             Exception: Si l'authentification échoue
         """
-        common_proxy = xmlrpc.client.ServerProxy(f"{self._config.url}/xmlrpc/2/common")
-        uid = common_proxy.authenticate(self._config.db, self._config.username, self._config.password, {})
+        common_proxy = xmlrpc.client.ServerProxy(f"{self._config['url']}/xmlrpc/2/common")
+        uid = common_proxy.authenticate(self._config["db"], self._config["username"], self._config["password"], {})
         if not uid:
-            raise Exception(f"Authentication failed for user {self._config.username} on {self._config.db}")
+            raise Exception(f"Authentication failed for user {self._config['username']} on {self._config['db']}")
         # xmlrpc.client retourne une union large ; pour authenticate() Odoo c'est toujours un int
         return cast(int, uid)
 
@@ -177,7 +163,9 @@ class OdooReader:
         logger.debug(f"Executing {method} on {model} with args {args} and kwargs {kwargs}")
 
         # _ensure_connection garantit self._proxy non-None à ce point
-        result = self._proxy.execute_kw(self._config.db, self._uid, self._config.password, model, method, args, kwargs)  # type: ignore[union-attr]
+        result = self._proxy.execute_kw(
+            self._config["db"], self._uid, self._config["password"], model, method, args, kwargs
+        )  # type: ignore[union-attr]
 
         return result if isinstance(result, list) else [result]
 
@@ -306,23 +294,3 @@ class OdooReader:
             logger.warning(f"Cannot get field info for {model}.{field_name}: {e}")
             self._fields_cache.set(model, field_name, None)
             return None
-
-    def get_relation_model(self, model: str, field_name: str) -> str | None:
-        """
-        Détermine automatiquement le modèle cible d'une relation.
-
-        Args:
-            model: Modèle source
-            field_name: Champ de relation
-
-        Returns:
-            str: Nom du modèle cible ou None si pas une relation
-
-        Example:
-            >>> target = odoo.get_relation_model('sale.order', 'partner_id')
-            >>> print(target)  # 'res.partner'
-        """
-        field_info = self.get_field_info(model, field_name)
-        if field_info and field_info.get("type") in ["many2one", "one2many", "many2many"]:
-            return field_info.get("relation")
-        return None

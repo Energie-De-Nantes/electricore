@@ -8,7 +8,7 @@ qui permet de naviguer et enrichir les données Odoo de manière fluide.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
 import polars as pl
@@ -37,7 +37,6 @@ class OdooQuery:
 
     connector: OdooReader  # Type hint forward reference
     lazy_frame: pl.LazyFrame
-    _field_mappings: dict[str, str] = field(default_factory=dict)
     _current_model: str | None = None
 
     # === Méthodes atomiques privées ===
@@ -275,7 +274,6 @@ class OdooQuery:
         return OdooQuery(
             connector=self.connector,
             lazy_frame=lazy_frame,
-            _field_mappings=self._field_mappings,
             _current_model=target_model,  # Navigation : change le modèle courant
         )
 
@@ -310,7 +308,6 @@ class OdooQuery:
         return OdooQuery(
             connector=self.connector,
             lazy_frame=lazy_frame,
-            _field_mappings=self._field_mappings,
             _current_model=self._current_model,  # Enrichissement : garde le modèle courant
         )
 
@@ -319,7 +316,6 @@ class OdooQuery:
         return OdooQuery(
             connector=self.connector,
             lazy_frame=self.lazy_frame.filter(*conditions),
-            _field_mappings=self._field_mappings,
             _current_model=self._current_model,
         )
 
@@ -328,16 +324,6 @@ class OdooQuery:
         return OdooQuery(
             connector=self.connector,
             lazy_frame=self.lazy_frame.select(*columns),
-            _field_mappings=self._field_mappings,
-            _current_model=self._current_model,
-        )
-
-    def rename(self, mapping: dict[str, str]) -> OdooQuery:
-        """Renomme des colonnes."""
-        return OdooQuery(
-            connector=self.connector,
-            lazy_frame=self.lazy_frame.rename(mapping),
-            _field_mappings={**self._field_mappings, **mapping},
             _current_model=self._current_model,
         )
 
