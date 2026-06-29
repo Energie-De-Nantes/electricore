@@ -14,6 +14,7 @@ Les 3 fonctions de service correspondent aux 4 endpoints :
 """
 
 import polars as pl
+from fastapi import HTTPException
 
 from electricore.core.builds.contexte_mensuel import (
     _MAPPING_CATEGORIE_COLONNE,
@@ -45,6 +46,22 @@ def _contexte_et_lignes(odoo: OdooReader, mois: str | None) -> tuple[ContexteMen
         .filter(pl.col("categorie_produit").is_in(categories_facturables))
         .collect()
     )
+    # Précondition RSC (#424) : des lignes sans ref_situation_contractuelle signalent
+    # un mois non réconcilié. On lève ici un 422 actionnable (X-Error-Kind: precondition)
+    # plutôt que de laisser rapprocher() échouer en SERIES_CONTAINS_NULLS → 503 opaque.
+    # collect() → DataFrame dans le chemin réel ; le mock de test peut rendre LazyFrame.
+    lignes_collected = lignes_df.collect() if isinstance(lignes_df, pl.LazyFrame) else lignes_df
+    n_sans_rsc = lignes_collected["ref_situation_contractuelle"].is_null().sum()
+    if n_sans_rsc > 0:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Réconciliation RSC requise pour {contexte.mois} : "
+                f"{n_sans_rsc} ligne(s) de facture sans ref_situation_contractuelle. "
+                "Réconcilie les RSC dans Odoo avant de facturer ce mois."
+            ),
+            headers={"X-Error-Kind": "precondition"},
+        )
     return contexte, lignes_df
 
 

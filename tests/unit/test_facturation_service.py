@@ -201,3 +201,102 @@ def test_categories_hors_scope_ecartees_avant_rapprochement(monkeypatch):
     assert "All" not in categories
     assert result.height == 1
     assert result["quantite_enedis"].to_list() == [123.45]
+
+
+def test_contexte_et_lignes_leve_422_si_rsc_nulle(monkeypatch):
+    """Précondition RSC (#424) : des lignes Odoo sans ref_situation_contractuelle
+    signalent un mois non réconcilié → HTTPException 422 avec X-Error-Kind: precondition
+    et le mois dans le message — avant que rapprocher() voie les nulls."""
+    from datetime import datetime
+
+    import polars as pl
+    import pytest
+    from fastapi import HTTPException
+
+    from electricore.api.services import facturation_service
+    from electricore.core.builds.contexte_mensuel import ContexteMensuel
+
+    df_fact_mensuelle = pl.DataFrame(
+        {
+            "ref_situation_contractuelle": ["RSC001"],
+            "pdl": ["12345678901234"],
+            "debut": [datetime(2025, 3, 1)],
+            "fin": [datetime(2025, 4, 1)],
+            "energie_hp_kwh": [100.0],
+            "energie_hc_kwh": [0.0],
+            "energie_base_kwh": [0.0],
+            "nb_jours": [31],
+            "turpe_fixe_eur": [10.0],
+            "turpe_variable_eur": [50.0],
+            "qualite": ["réelle"],
+            "statut_communication": ["communicante"],
+            "memo_puissance": [""],
+        }
+    ).with_columns(
+        pl.col("debut").dt.replace_time_zone("Europe/Paris"),
+        pl.col("fin").dt.replace_time_zone("Europe/Paris"),
+    )
+
+    contexte_prefab = ContexteMensuel(
+        mois="2025-03-01",
+        historique_enrichi=pl.LazyFrame(
+            {"ref_situation_contractuelle": ["RSC001"], "num_compteur": ["12345678"], "type_compteur": ["LINKY"]}
+        ),
+        abonnements=pl.LazyFrame(),
+        energie=pl.LazyFrame(),
+        releves_utilises=pl.LazyFrame(),
+        facturation_mensuelle=df_fact_mensuelle,
+    )
+    monkeypatch.setattr(facturation_service, "contexte_du_mois", lambda mois=None: contexte_prefab)
+
+    # Ligne Odoo avec RSC null : mois non réconcilié
+    df_lignes_avec_rsc_nulle = pl.DataFrame(
+        {
+            "ref_situation_contractuelle": [None],
+            "categorie_produit": ["HP"],
+            "quantite": [100.0],
+            "est_brouillon": [True],
+            "invoice_line_ids": [201],
+            "x_pdl": ["12345678901234"],
+            "x_lisse": [False],
+            "name_account_move": ["INV/2025/0003"],
+            "name_product_product": ["Énergie HP"],
+        },
+        schema={
+            "ref_situation_contractuelle": pl.Utf8,
+            "categorie_produit": pl.Utf8,
+            "quantite": pl.Float64,
+            "est_brouillon": pl.Boolean,
+            "invoice_line_ids": pl.Int64,
+            "x_pdl": pl.Utf8,
+            "x_lisse": pl.Boolean,
+            "name_account_move": pl.Utf8,
+            "name_product_product": pl.Utf8,
+        },
+    )
+
+    class _QueryMock:
+        def __init__(self, df):
+            self._df = df
+
+        def lazy(self):
+            return self._df.lazy()
+
+        def collect(self):
+            return self._df
+
+        def filter(self, *a, **k):
+            return _QueryMock(self._df.lazy().filter(*a, **k).collect())
+
+    monkeypatch.setattr(
+        facturation_service, "lignes_factures_du_mois", lambda odoo, mois: _QueryMock(df_lignes_avec_rsc_nulle)
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        facturation_service._contexte_et_lignes(odoo=None, mois="2025-03-01")
+
+    exc = exc_info.value
+    assert exc.status_code == 422
+    assert exc.headers.get("X-Error-Kind") == "precondition"
+    assert "2025-03-01" in exc.detail
+    assert "1" in exc.detail  # n=1 ligne sans RSC
