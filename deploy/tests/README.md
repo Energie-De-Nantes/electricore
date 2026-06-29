@@ -45,12 +45,41 @@ Bash uniquement, pas de framework. Pour ajouter un test : éditer `unit.sh` (voi
 
 Le harnais monte le repo sur `/repo` dans la VM, injecte une clé SSH root bidon, et lance `install.sh` en `sudo`. Snapshot/restore permettent d'itérer sans relancer un `up` complet.
 
+## Aller-retour crypto onboarding (vrais binaires, anti-régression #453)
+
+```bash
+./deploy/tests/secrets_roundtrip.sh
+```
+
+Exerce le chemin **HOST-CRYPTO bout-en-bout** avec de vrais `sops` + `age-keygen` (pas les fakes) :
+`generate_box_identities` → `sops encrypt` → `box_can_decrypt` / `_ingestion_read_scheduler_key` + assert négatif (mauvaise clé → échec).
+
+**En CI** (job `deploy-tests`) : les outils sont installés (mêmes versions pinnées que le job `test`) → le test tourne pour de VRAI et une régression crypto casse CI.
+
+**En local sans sops/age** : skip propre (`skipped: sops/age absent`, exit 0) — pas de régression locale.
+
+### Ce que la vérification couvre
+
+| Vérification | Fichier | Vecteur de régression gardé |
+|---|---|---|
+| Aller-retour crypto réel (generate → encrypt → decrypt) | `secrets_roundtrip.sh` | Outil hôte absent, `box_can_decrypt` cassé, clé scheduler non extraite |
+| Assert négatif (autre clé → échec) | `secrets_roundtrip.sh` | `box_can_decrypt` serait un rubber-stamp |
+| Fake docker modèle le fail-fast de l'entrypoint | `fixtures/fake_bin/docker` + `unit.sh` | Crypto reroutée via l'image sans bypass |
+| Bypass `ELECTRICORE_DECRYPT=off` toujours fonctionnel | `unit.sh` (section fake docker #453) | Smoke d'importabilité cassé |
+
+### Ce que la vérification ne couvre PAS délibérément
+
+- **Vrai Docker / runtime de l'image** : couvert par `tests/integration/test_entrypoint_dechiffrement.py` (job `test` de CI). Pas de vrai `docker` ni `docker compose` dans le job `deploy-tests`.
+- **Pull du dépôt de déploiement réel** : couvert par les tests e2e (VM Multipass ou VPS). `pull_deploy_repo` utilise le fake `git` en tests unitaires.
+- **Validation du contenu de secrets.env** (format des clés) : SSOT pydantic (`electricore/config/runtime.py`), vérifié par le conteneur au runtime (ADR-0049).
+
 ## Cycle de dev recommandé
 
 1. Modifier `deploy/lib/<fichier>.sh` ou `deploy/install.sh`.
 2. Si on a touché à une fonction pure : `./deploy/tests/unit.sh` (en boucle, ~instantané).
-3. Si on a touché à l'orchestration : `./deploy/tests/e2e/multipass.sh run` (puis `restore` pour réessayer).
-4. Avant push : `unit.sh` doit être vert ; e2e idéalement aussi.
+3. Si on a touché au crypto onboarding : `./deploy/tests/secrets_roundtrip.sh` (nécessite sops + age).
+4. Si on a touché à l'orchestration : `./deploy/tests/e2e/multipass.sh run` (puis `restore` pour réessayer).
+5. Avant push : `unit.sh` + `secrets_roundtrip.sh` doivent être verts ; e2e idéalement aussi.
 
 ## Ajouter une fonction + son test
 
