@@ -74,7 +74,6 @@ electricore/
 │
 ├── integrations/              # 🔌 INTEGRATIONS - Adaptateurs ERP (ADR-0016)
 │   └── odoo/                  # OdooReader, OdooQuery, OdooWriter, helpers, transforms
-│       └── models/            # Pandera schemas Odoo (FactureOdoo, CommandeVenteOdoo…)
 │
 ├── api/                       # 🌐 API - REST Access Layer (hub central, voir ADR-0009)
 │   ├── services/              # Query services (DuckDB, jobs d'ingestion, facturation, taxes)
@@ -180,8 +179,7 @@ from electricore.core.loaders import (
 # Adaptateur Odoo — vit dans integrations/, pas dans core/
 from electricore.integrations.odoo import (
     OdooReader, OdooQuery, OdooWriter,  # connecteurs
-    query, factures, commandes,         # helpers d'accès
-    commandes_lignes, lignes_factures_du_mois,
+    query, commandes_lignes, lignes_factures_du_mois,  # helpers d'accès
 )
 
 # Pipelines individuels

@@ -22,8 +22,6 @@ HELPERS = (
     "enrichir_liens",
 )
 
-PANDERA_MODELS = ("FactureOdoo", "LigneFactureOdoo", "CommandeVenteOdoo")
-
 
 @pytest.mark.parametrize("name", TYPES)
 def test_types_importable_from_integrations_odoo(name: str) -> None:
@@ -41,32 +39,10 @@ def test_helpers_importable_from_integrations_odoo(name: str) -> None:
     assert callable(getattr(module, name))
 
 
-@pytest.mark.parametrize("name", PANDERA_MODELS)
-def test_pandera_models_importable_from_integrations_odoo_models(name: str) -> None:
-    """A : chaque schéma Pandera Odoo est exposé par `integrations.odoo.models`."""
-    module = importlib.import_module("electricore.integrations.odoo.models")
-    assert hasattr(module, name), f"{name} absent de electricore.integrations.odoo.models"
-    assert getattr(module, name) is not None
-
-
-SURFACE_FROM_ROOT = TYPES + HELPERS
-SURFACE_FROM_MODELS = PANDERA_MODELS
-
-
-@pytest.mark.parametrize("name", SURFACE_FROM_ROOT)
+@pytest.mark.parametrize("name", TYPES + HELPERS)
 def test_surface_lives_physically_in_integrations_odoo(name: str) -> None:
     """B : chaque symbole exposé par `integrations.odoo` vit *physiquement* dans ce sous-package."""
     module = importlib.import_module("electricore.integrations.odoo")
-    symbol = getattr(module, name)
-    assert symbol.__module__.startswith("electricore.integrations.odoo"), (
-        f"{name} vit toujours en {symbol.__module__} (devrait commencer par electricore.integrations.odoo)"
-    )
-
-
-@pytest.mark.parametrize("name", SURFACE_FROM_MODELS)
-def test_pandera_models_live_physically_in_integrations_odoo_models(name: str) -> None:
-    """B : chaque schéma Pandera vit *physiquement* dans `integrations.odoo.models`."""
-    module = importlib.import_module("electricore.integrations.odoo.models")
     symbol = getattr(module, name)
     assert symbol.__module__.startswith("electricore.integrations.odoo"), (
         f"{name} vit toujours en {symbol.__module__} (devrait commencer par electricore.integrations.odoo)"
@@ -77,6 +53,7 @@ OLD_ODOO_PATHS = (
     "electricore.core.loaders.odoo",
     "electricore.core.writers.odoo",
     "electricore.core.models.odoo",
+    "electricore.integrations.odoo.models",  # supprimé en #508 : 3 schémas Pandera jamais .validate()-és
 )
 
 
