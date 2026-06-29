@@ -49,6 +49,12 @@ R67:
   file_regex: "*.json"  # JSON en minuscules dans les ZIPs R67
   incremental: false
 
+
+C12:
+  file_pattern: "**/*_C12_*.zip"
+  format: xml
+  file_regex: "*_C12_*.xml"
+
 # X12 (affaires initiées par l'instance) + X13 (affaires reçues d'autres acteurs)
 # partagent le même schéma XSD → une seule table brute `raw_affaires` ; l'origine se
 # dérive du nom de fichier dans le modèle dbt. Le glob `[23]` capture X12 et X13 sans
