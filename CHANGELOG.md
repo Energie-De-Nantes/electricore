@@ -9,6 +9,44 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.4.1rc1] - 2026-06-29
+
+Première RC de la ligne **3.4.1** — durcissement et élagage post-stable, **sans changement
+de comportement fonctionnel** (suite verte, symboles disparus).
+
+### 🧹 Élagage de la dette de sur-ingénierie (épic #505)
+
+Audit ponytail repo-wide → retrait de **~766 lignes** de code mort / flexibilité spéculative,
+en 8 tranches indépendantes vérifiées (suite verte + symbole disparu) :
+
+- **Loaders DuckDB** : machinerie de projection morte retirée (résidu post-#311) — la
+  construction de requête se réduit à `SELECT *` + WHERE, validation toujours active (#506).
+- **Intégration Odoo** : surface morte (`OdooConfig`/résolution double-clé, overrides de
+  `OdooReader`, `OdooQuery.rename`, helpers sans appelant) + 3 schémas Pandera inutilisés
+  retirés (#507, #508).
+- **Pipelines** : `expr_has_changement` retirée (duplication inline conservée) ; le validateur
+  C4 standalone documenté est conservé (#509).
+- **API** : décorateurs binaires effondrés en un `binary_endpoint` unique ; feature
+  d'introspection `/admin/api-keys` sans consommateur retirée (#510, #511).
+- **Ingestion** : runner + transformers nettoyés (fabrique crypto, `match_xml_pattern`→`fnmatch`,
+  alias `reset` déprécié, gardes mortes, déduplications) — déchiffrement par trousseau
+  (ADR-0037) inchangé (#512).
+- **Dépendances** : `numpy` (dépendance directe inutilisée) retirée — reste tirée
+  transitivement par polars/pyarrow (#513).
+
+### 🔐 Schéma des secrets en SSOT pydantic (ADR-0049)
+
+- Validation de **format** des secrets centralisée dans des `field_validators` pydantic
+  (source unique de vérité) ; `deploy/` ne valide plus que la **politique de split**, le
+  contenu étant validé par le vrai conteneur — supprime le preflight bash redondant et le
+  chemin legacy `.env` mort (#500, #501).
+- Couverture **anti-régression de l'onboarding** : entrypoint docker fail-fast sur secret
+  manquant, round-trip crypto sur binaires réels (#453).
+
+### 🐛 Corrections
+
+- Déploiement : `sops encrypt --age` explicite (parité `add-provider.sh`, revue #504).
+
 ## [3.4.0] - 2026-06-29
 
 Premier stable de la ligne **3.4** : aboutissement du cycle rc1→rc12, validé en production.
