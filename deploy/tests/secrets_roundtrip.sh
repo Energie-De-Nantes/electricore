@@ -70,8 +70,7 @@ AES__TROUSSEAU__aes256_2026__KEY=00112233445566778899aabbccddeeff001122334455667
 EOF
 
 secrets_path="${srv_root}/${TEST_SLUG}/providers/${TEST_SLUG}/secrets.env"
-SOPS_AGE_RECIPIENTS="$BOX_AGE_PUBKEY" \
-    sops encrypt --input-type dotenv --output-type dotenv "$plaintext" \
+sops encrypt --age "$BOX_AGE_PUBKEY" --input-type dotenv --output-type dotenv "$plaintext" \
     > "$secrets_path" 2>/dev/null \
     && ok "sops encrypt: secrets.env chiffré pour la box" \
     || ko "sops encrypt: échec du chiffrement"
