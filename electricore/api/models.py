@@ -5,7 +5,7 @@ Définit les structures de données Pydantic pour les réponses API.
 
 from datetime import date, datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 # Modèles ingestion
 
@@ -18,6 +18,8 @@ class IngestionRunRequest(BaseModel):
 
 class IngestionJobResponse(BaseModel):
     """Statut d'un job d'ingestion."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     id: str = Field(..., description="Identifiant unique du job")
     mode: str = Field(..., description="Mode d'exécution utilisé")

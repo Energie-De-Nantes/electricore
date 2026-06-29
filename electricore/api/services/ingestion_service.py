@@ -36,7 +36,6 @@ def _build_pipeline_command(mode: str) -> list[str]:
 
 class ModeIngestion(StrEnum):
     test = "test"
-    r151 = "r151"
     all = "all"
     rebuild = "rebuild"  # re-matérialise depuis le brut, zéro réseau (#140)
     resync = "resync"  # purge l'état incrémental + re-télécharge tout (brut perdu)

@@ -8,7 +8,7 @@ Response wrapping, Content-Disposition).
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from electricore.api.decorators import arrow_endpoint, xlsx_endpoint
+from electricore.api.decorators import ARROW_MEDIA_TYPE, XLSX_MEDIA_TYPE, binary_endpoint
 from electricore.api.security import get_current_api_key
 
 
@@ -22,7 +22,7 @@ def test_xlsx_endpoint_emballe_handler_avec_media_type_et_filename():
     """Tracer bullet : le décorateur enregistre la route et renvoie une `Response` XLSX."""
     app = _app_avec_auth_neutralisee()
 
-    @xlsx_endpoint(app, "/test/xlsx", filename="test.xlsx")
+    @binary_endpoint(app, "/test/xlsx", media_type=XLSX_MEDIA_TYPE, filename="test.xlsx")
     async def handler() -> bytes:
         return b"PK\x03\x04contenu"
 
@@ -40,7 +40,7 @@ def test_xlsx_endpoint_substitue_placeholders_du_filename_depuis_les_args():
 
     app = _app_avec_auth_neutralisee()
 
-    @xlsx_endpoint(app, "/test/avec_arg.xlsx", filename="accise_{trimestre}.xlsx")
+    @binary_endpoint(app, "/test/avec_arg.xlsx", media_type=XLSX_MEDIA_TYPE, filename="accise_{trimestre}.xlsx")
     async def handler(trimestre: str = Query(...)) -> bytes:
         return b"PK"
 
@@ -60,7 +60,7 @@ def test_xlsx_endpoint_placeholder_none_vaut_chaine_vide():
 
     app = _app_avec_auth_neutralisee()
 
-    @xlsx_endpoint(app, "/test/optionnel.xlsx", filename="accise{trimestre}.xlsx")
+    @binary_endpoint(app, "/test/optionnel.xlsx", media_type=XLSX_MEDIA_TYPE, filename="accise{trimestre}.xlsx")
     async def handler(trimestre: str | None = Query(default=None)) -> bytes:
         return b"PK"
 
@@ -74,7 +74,7 @@ def test_xlsx_endpoint_convertit_exception_metier_en_503():
     """Une exception levée par le handler devient un `HTTPException(503)`."""
     app = _app_avec_auth_neutralisee()
 
-    @xlsx_endpoint(app, "/test/erreur.xlsx", filename="x.xlsx")
+    @binary_endpoint(app, "/test/erreur.xlsx", media_type=XLSX_MEDIA_TYPE, filename="x.xlsx")
     async def handler() -> bytes:
         raise RuntimeError("Odoo timeout")
 
@@ -94,7 +94,7 @@ def test_xlsx_endpoint_garde_odoo_renvoie_501_si_non_configure(monkeypatch):
     app = _app_avec_auth_neutralisee()
     appels: list[bool] = []
 
-    @xlsx_endpoint(app, "/test/garde.xlsx", filename="x.xlsx", requires_odoo=True)
+    @binary_endpoint(app, "/test/garde.xlsx", media_type=XLSX_MEDIA_TYPE, filename="x.xlsx", requires_odoo=True)
     async def handler() -> bytes:
         appels.append(True)
         return b"PK"
@@ -113,7 +113,7 @@ def test_xlsx_endpoint_supporte_handler_synchrone():
     """
     app = _app_avec_auth_neutralisee()
 
-    @xlsx_endpoint(app, "/test/sync.xlsx", filename="sync.xlsx")
+    @binary_endpoint(app, "/test/sync.xlsx", media_type=XLSX_MEDIA_TYPE, filename="sync.xlsx")
     def handler_sync() -> bytes:  # noqa: ANN201 — def volontaire
         return b"PK\x03\x04sync"
 
@@ -126,7 +126,7 @@ def test_xlsx_endpoint_supporte_handler_synchrone():
 def test_xlsx_endpoint_accepte_un_apirouter_via_target_kwarg():
     """Le décorateur accepte un `APIRouter` (pas seulement `FastAPI`) via le kwarg `target` (issue #81).
 
-    Prérequis du split de `api/main.py` en routers per-domaine : `xlsx_endpoint`
+    Prérequis du split de `api/main.py` en routers per-domaine : `binary_endpoint`
     doit pouvoir enregistrer ses routes sur un `APIRouter` aussi bien que sur
     une instance `FastAPI`.
     """
@@ -134,7 +134,7 @@ def test_xlsx_endpoint_accepte_un_apirouter_via_target_kwarg():
 
     router = APIRouter()
 
-    @xlsx_endpoint(target=router, path="/test/router.xlsx", filename="depuis_router.xlsx")
+    @binary_endpoint(target=router, path="/test/router.xlsx", media_type=XLSX_MEDIA_TYPE, filename="depuis_router.xlsx")
     async def handler() -> bytes:
         return b"PK\x03\x04depuis_router"
 
@@ -150,14 +150,14 @@ def test_xlsx_endpoint_accepte_un_apirouter_via_target_kwarg():
 
 
 def test_arrow_endpoint_emballe_handler_en_arrow_ipc_sans_content_disposition():
-    """`@arrow_endpoint` jumelle de `@xlsx_endpoint` pour le streaming Arrow IPC.
+    """`@binary_endpoint` pour le streaming Arrow IPC.
 
     Pas de `Content-Disposition` : le flux Arrow est consommé en mémoire
     par le client (pas téléchargé).
     """
     app = _app_avec_auth_neutralisee()
 
-    @arrow_endpoint(app, "/test/arrow")
+    @binary_endpoint(app, "/test/arrow", media_type=ARROW_MEDIA_TYPE)
     async def handler() -> bytes:
         return b"ARROW1\x00\x00fake"
 
@@ -170,12 +170,12 @@ def test_arrow_endpoint_emballe_handler_en_arrow_ipc_sans_content_disposition():
 
 
 def test_arrow_endpoint_accepte_un_apirouter_via_target_kwarg():
-    """`@arrow_endpoint` accepte aussi un `APIRouter` via `target=` (cf. #81)."""
+    """`@binary_endpoint` accepte aussi un `APIRouter` via `target=` (cf. #81)."""
     from fastapi import APIRouter
 
     router = APIRouter()
 
-    @arrow_endpoint(target=router, path="/test/arrow_router")
+    @binary_endpoint(target=router, path="/test/arrow_router", media_type=ARROW_MEDIA_TYPE)
     async def handler() -> bytes:
         return b"ARROW1\x00\x00from_router"
 

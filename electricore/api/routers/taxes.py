@@ -5,7 +5,7 @@ from datetime import date
 
 from fastapi import APIRouter, Depends, Query
 
-from electricore.api.decorators import arrow_endpoint, xlsx_endpoint
+from electricore.api.decorators import ARROW_MEDIA_TYPE, XLSX_MEDIA_TYPE, binary_endpoint
 from electricore.api.models import MillesimeResponse, PeremptionResponse
 from electricore.api.security import get_current_api_key
 from electricore.api.serializers import arrow_stream, xlsx_multi_sheet
@@ -53,7 +53,13 @@ def get_peremption(api_key: str = Depends(get_current_api_key)) -> list[Perempti
 # =============================================================================
 
 
-@xlsx_endpoint(router, "/taxes/accise/rapport.xlsx", filename="accise_rapport{trimestre}.xlsx", requires_odoo=True)
+@binary_endpoint(
+    router,
+    "/taxes/accise/rapport.xlsx",
+    media_type=XLSX_MEDIA_TYPE,
+    filename="accise_rapport{trimestre}.xlsx",
+    requires_odoo=True,
+)
 @with_odoo
 def export_accise_rapport_xlsx(
     odoo,
@@ -67,7 +73,13 @@ def export_accise_rapport_xlsx(
     return xlsx_multi_sheet(feuilles_rapport_taxe(rapport_accise_service(odoo, trimestre)))
 
 
-@xlsx_endpoint(router, "/taxes/accise/detail.xlsx", filename="accise_detail{trimestre}.xlsx", requires_odoo=True)
+@binary_endpoint(
+    router,
+    "/taxes/accise/detail.xlsx",
+    media_type=XLSX_MEDIA_TYPE,
+    filename="accise_detail{trimestre}.xlsx",
+    requires_odoo=True,
+)
 @with_odoo
 def export_accise_detail_xlsx(
     odoo,
@@ -81,7 +93,7 @@ def export_accise_detail_xlsx(
     return xlsx_multi_sheet({"Détail": accise_par_contrat_service(odoo, trimestre)})
 
 
-@arrow_endpoint(router, "/taxes/accise/detail.arrow", requires_odoo=True)
+@binary_endpoint(router, "/taxes/accise/detail.arrow", media_type=ARROW_MEDIA_TYPE, requires_odoo=True)
 @with_odoo
 def export_accise_detail_arrow(
     odoo,
@@ -100,7 +112,13 @@ def export_accise_detail_arrow(
 # =============================================================================
 
 
-@xlsx_endpoint(router, "/taxes/cta/rapport.xlsx", filename="cta_rapport{trimestre}.xlsx", requires_odoo=True)
+@binary_endpoint(
+    router,
+    "/taxes/cta/rapport.xlsx",
+    media_type=XLSX_MEDIA_TYPE,
+    filename="cta_rapport{trimestre}.xlsx",
+    requires_odoo=True,
+)
 @with_odoo
 def export_cta_rapport_xlsx(
     odoo,
@@ -114,7 +132,13 @@ def export_cta_rapport_xlsx(
     return xlsx_multi_sheet(feuilles_rapport_taxe(rapport_cta_service(odoo, trimestre)))
 
 
-@xlsx_endpoint(router, "/taxes/cta/detail.xlsx", filename="cta_detail{trimestre}.xlsx", requires_odoo=True)
+@binary_endpoint(
+    router,
+    "/taxes/cta/detail.xlsx",
+    media_type=XLSX_MEDIA_TYPE,
+    filename="cta_detail{trimestre}.xlsx",
+    requires_odoo=True,
+)
 @with_odoo
 def export_cta_detail_xlsx(
     odoo,
@@ -128,7 +152,7 @@ def export_cta_detail_xlsx(
     return xlsx_multi_sheet({"Détail": cta_par_contrat_service(odoo, trimestre)})
 
 
-@arrow_endpoint(router, "/taxes/cta/detail.arrow", requires_odoo=True)
+@binary_endpoint(router, "/taxes/cta/detail.arrow", media_type=ARROW_MEDIA_TYPE, requires_odoo=True)
 @with_odoo
 def export_cta_detail_arrow(
     odoo,

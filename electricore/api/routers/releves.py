@@ -11,7 +11,7 @@ et `/info` (sous-ressource) DOIVENT précéder la route JSON `/releves`.
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from electricore.api.decorators import arrow_endpoint, xlsx_endpoint
+from electricore.api.decorators import ARROW_MEDIA_TYPE, XLSX_MEDIA_TYPE, binary_endpoint
 from electricore.api.security import get_current_api_key
 from electricore.api.services import duckdb_service
 from electricore.core.loaders.duckdb import DuckDBLockError
@@ -66,7 +66,7 @@ _F_DEBUT = Query(None, description="Borne basse incluse sur `date_releve` (ex. `
 _F_FIN = Query(None, description="Borne haute incluse sur `date_releve` (ex. `2025-12-31`)")
 
 
-@arrow_endpoint(router, "/releves.arrow")
+@binary_endpoint(router, "/releves.arrow", media_type=ARROW_MEDIA_TYPE)
 def get_releves_arrow(
     prm: str | None = _F_PRM,
     source: str | None = _F_SOURCE,
@@ -85,7 +85,7 @@ def get_releves_arrow(
     return arrow_stream(df)
 
 
-@xlsx_endpoint(router, "/releves.xlsx", filename="releves.xlsx", error_status=500)
+@binary_endpoint(router, "/releves.xlsx", media_type=XLSX_MEDIA_TYPE, filename="releves.xlsx", error_status=500)
 def get_releves_xlsx(
     prm: str | None = _F_PRM,
     source: str | None = _F_SOURCE,
