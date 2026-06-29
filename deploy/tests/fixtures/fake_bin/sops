@@ -16,7 +16,7 @@ case "$sub" in
             echo "fake sops: échec déchiffrement (clé non destinataire)" >&2
             exit 1
         fi
-        # Émet un clair factice cohérent (utilisé par validate_secrets_env +
+        # Émet un clair factice cohérent (utilisé par box_can_decrypt +
         # _ingestion_read_scheduler_key, qui extrait le label "scheduler").
         cat <<'EOF'
 API__TROUSSEAU__librewatt__KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa

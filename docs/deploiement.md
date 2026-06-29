@@ -152,10 +152,15 @@ La colonne **Bloc** ci-dessous indique dans quel fichier chaque variable vit.
 
 `install.sh` **valide le split** automatiquement (pas d'éditeur) : `validate_config_env`
 sur la moitié claire (slug qui matche, `ELECTRICORE_VERSION`/`BACKUPS_PATH` présents,
-**garde-fou anti-fuite** rejetant tout secret en clair), et `validate_secrets_plaintext`
-sur la moitié **déchiffrée** (trousseau API ≥ 1 clé ≥ 32 chars, `SFTP__URL` parseable,
-trousseau AES ≥ 1 clé hex 32/64, `__IV` optionnel cohérent). En cas d'erreur, l'install
-**échoue** en listant les manques : tu corriges les fichiers **dans le dépôt de
+**garde-fou anti-fuite** rejetant tout secret en clair), et un **test de déchiffrement**
+(`box_can_decrypt`) sur la moitié chiffrée. Le **format** des secrets (trousseau API ≥ 1
+clé ≥ 32 chars, `SFTP__URL` parseable, trousseau AES ≥ 1 clé hex 32/64, `__IV` optionnel
+cohérent) n'est plus revérifié en bash : c'est la SSOT du registre pydantic
+(`electricore/config/runtime.py`), appliquée par le **vrai conteneur** au test ingestion
+(étape 12, `valider(sftp, aes, duckdb)` via `sops exec-env`) — voir
+[ADR-0049](adr/0049-schema-secrets-ssot-pydantic-deploy-valide-le-split.md). En cas
+d'erreur, l'install **échoue** en listant les manques (un secret malformé remonte le
+`ConfigurationManquante` du conteneur) : tu corriges les fichiers **dans le dépôt de
 déploiement**, push, et relances le `reconfigure`.
 
 ## Provisionner une nouvelle instance
