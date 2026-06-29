@@ -17,10 +17,8 @@ from electricore.core.loaders.duckdb import (
     DuckDBQuery,
     c15,
     duckdb_readonly_conn,
-    get_available_tables,
     releves,
 )
-from electricore.core.loaders.duckdb.config import _TABLE_MAPPINGS
 
 
 class TestDuckDBConfig:
@@ -61,14 +59,6 @@ class TestDuckDBConfig:
         """from_path(None) équivaut à from_env()."""
         config = DuckDBConfig.from_path(None)
         assert config.database_path == DuckDBConfig.from_env().database_path
-
-    def test_table_mappings_structure(self):
-        """_TABLE_MAPPINGS documente les tables métier essentielles."""
-        assert "historique" in _TABLE_MAPPINGS
-        assert "releves" in _TABLE_MAPPINGS
-        hist_mapping = _TABLE_MAPPINGS["historique"]
-        assert "source_tables" in hist_mapping
-        assert "description" in hist_mapping
 
 
 class TestDuckDBConnection:
@@ -150,35 +140,6 @@ class TestLoadFunctions:
             releves(database_path="nonexistent_test.duckdb").lazy()
 
 
-class TestUtilityFunctions:
-    """Tests pour les fonctions utilitaires."""
-
-    @patch("electricore.core.loaders.duckdb.helpers.duckdb_readonly_conn")
-    def test_get_available_tables(self, mock_conn_context):
-        """Test de récupération des tables disponibles."""
-        # Setup du mock
-        mock_conn = Mock()
-        mock_conn_context.return_value.__enter__.return_value = mock_conn
-        mock_conn.execute.return_value.fetchall.return_value = [
-            ("schema1", "table1"),
-            ("schema1", "table2"),
-            ("schema2", "table3"),
-        ]
-
-        # Appeler la fonction
-        result = get_available_tables("test.duckdb")
-
-        # Vérifications
-        assert result == ["schema1.table1", "schema1.table2", "schema2.table3"]
-        # Vérifier que la bonne requête a été appelée
-        mock_conn.execute.assert_called_once_with("""
-            SELECT table_schema, table_name
-            FROM information_schema.tables
-            WHERE table_schema != 'information_schema'
-            ORDER BY table_schema, table_name
-        """)
-
-
 class TestIntegrationWithRealData:
     """Tests d'intégration avec données réelles (si disponibles)."""
 
@@ -189,9 +150,7 @@ class TestIntegrationWithRealData:
         """Test avec la vraie base DuckDB si disponible."""
         try:
             # Charger un petit échantillon
-            result = (
-                c15(database_path="electricore/ingestion/flux_enedis_pipeline.duckdb").validate(False).limit(5).lazy()
-            )
+            result = c15(database_path="electricore/ingestion/flux_enedis_pipeline.duckdb").limit(5).lazy()
 
             # Vérifications de base
             assert isinstance(result, pl.LazyFrame)
@@ -215,12 +174,7 @@ class TestIntegrationWithRealData:
         """Test avec la vraie base DuckDB si disponible."""
         try:
             # Charger un petit échantillon
-            result = (
-                releves(database_path="electricore/ingestion/flux_enedis_pipeline.duckdb")
-                .validate(False)
-                .limit(5)
-                .lazy()
-            )
+            result = releves(database_path="electricore/ingestion/flux_enedis_pipeline.duckdb").limit(5).lazy()
 
             # Vérifications de base
             assert isinstance(result, pl.LazyFrame)

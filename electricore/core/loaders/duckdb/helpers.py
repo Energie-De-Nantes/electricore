@@ -2,7 +2,7 @@
 Fonctions helpers pour DuckDB - API fonctionnelle.
 
 Ce module fournit des shortcuts pour créer des DuckDBQuery sur les flux
-Enedis les plus courants, ainsi que des utilitaires pour interagir avec DuckDB.
+Enedis les plus courants.
 
 Toutes les fonctions factory sont pures : elles prennent des paramètres
 optionnels et retournent un DuckDBQuery configuré.
@@ -10,7 +10,6 @@ optionnels et retournent un DuckDBQuery configuré.
 
 from pathlib import Path
 
-from .config import DuckDBConfig, duckdb_readonly_conn
 from .descriptor import FluxDescriptor
 from .query import DuckDBQuery, make_query
 from .registry import FLUX_DESCRIPTORS, FluxInconnu
@@ -308,31 +307,3 @@ def chronologie_releves(database_path: str | Path | None = None) -> DuckDBQuery:
         validator=ChronologieReleves,
     )
     return DuckDBQuery(config=config, database_path=database_path)
-
-
-# =============================================================================
-# UTILITAIRES
-# =============================================================================
-
-
-def get_available_tables(database_path: str | Path | None = None) -> list[str]:
-    """
-    Liste les tables disponibles dans la base DuckDB.
-
-    Args:
-        database_path: Chemin vers la base DuckDB
-
-    Returns:
-        Liste des noms de tables avec schéma (ex: ["flux_enedis.flux_c15"])
-    """
-    config = DuckDBConfig.from_path(database_path)
-
-    with duckdb_readonly_conn(config.database_path) as conn:
-        result = conn.execute("""
-            SELECT table_schema, table_name
-            FROM information_schema.tables
-            WHERE table_schema != 'information_schema'
-            ORDER BY table_schema, table_name
-        """).fetchall()
-
-        return [f"{schema}.{table}" for schema, table in result]

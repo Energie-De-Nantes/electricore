@@ -6,17 +6,16 @@ depuis DuckDB vers Polars avec validation Pandera.
 
 Architecture :
 - config.py : Configuration et connexions (immutable)
-- query.py : Query builder immutable avec lazy evaluation (cast tz dérivé de la forme)
-- sql.py : Génération SQL fonctionnelle (Column + FormeTemporelle + build_base_query)
+- query.py : Query builder immutable avec lazy evaluation
+- sql.py : Génération SQL fonctionnelle (build_base_query = SELECT *)
 - descriptor.py : FluxDescriptor — descripteur unifié d'un flux/mart (#389)
 - registry.py : Registre unique des descripteurs de flux
-- helpers.py : Fonctions factory et utilitaires
+- helpers.py : Fonctions factory
 
 API publique :
 - c15(), r151(), r15(), f15(), r64() : Query builders par flux individuel
 - releves() : modèle de relevés canonique dbt (C15 + R64 + R151, ADR-0029)
 - DuckDBQuery : Builder immutable avec méthodes chainables
-- Utilitaires : get_available_tables()
 """
 
 # Imports internes
@@ -28,8 +27,6 @@ from .helpers import (
     chronologie_releves,
     f15,
     flux,
-    # Utilitaires
-    get_available_tables,
     r15,
     r64,
     r67,
@@ -67,6 +64,4 @@ __all__ = [
     # Groupings C15 canoniques (cf. CONTEXT.md)
     "ENTREES_C15",
     "SORTIES_C15",
-    # Utilitaires
-    "get_available_tables",
 ]
