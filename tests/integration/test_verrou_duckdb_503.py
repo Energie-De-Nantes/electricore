@@ -42,6 +42,15 @@ class TestVerrouPendantIngestion:
         assert response.status_code == 503
         assert "ingestion en cours" in response.json()["detail"].lower()
 
+    def test_verrou_503_porte_header_x_error_kind_ingestion_lock(self, client, base_verrouillee):
+        """Le 503 verrou porte `X-Error-Kind: ingestion-lock` (#424) : signal
+        distinctif qui permet au client de mapper ce seul cas en IngestionEnCours,
+        sans confondre avec un 503 générique."""
+        response = client.get("/flux/r151.xlsx")
+
+        assert response.status_code == 503
+        assert response.headers.get("x-error-kind") == "ingestion-lock"
+
     def test_flux_json_repond_503_avec_detail_ingestion(self, client, base_verrouillee):
         response = client.get("/flux/r151")
 
