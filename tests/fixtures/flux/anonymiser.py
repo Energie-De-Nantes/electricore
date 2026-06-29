@@ -106,6 +106,7 @@ PLACEHOLDERS = {
     "Code_Commune": "00000",
     "Code_Departement": "00",
     "Raison_Sociale": "FOURNISSEUR EXEMPLE",
+    "Code_APE": "3514Z",  # code APE fictif (production électricité)
 }
 
 

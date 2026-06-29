@@ -75,6 +75,6 @@ puissances as (
 )
 
 select
-    * exclude (prm_id),
+    * exclude (prm_id, classes),
     'flux_C12' as source
 from flat left join puissances using (prm_id)

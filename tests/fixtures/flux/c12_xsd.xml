@@ -1,0 +1,143 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!--
+  Fixture XSD C12 — construite à la main (le générateur generer_fixtures_xsd.py ne
+  gère pas encore les attributs XML requis, ex. Commune[@Code_INSEE], SI_Contractuel
+  [@Identifiant_Historique]). Marqué hand-authored.
+
+  Deux PRM pour couvrir les deux cas de pivot :
+    PRM #1 : tarif BTSUPLU4 — 4 classes (HPH/HCH/HPE/HCE) → colonnes C4 hph/hch/hpb/hcb
+    PRM #2 : tarif BTSUPLU  — 2 classes (HP/HC)             → colonnes HP/HC seulement
+
+  Les valeurs de Puissance_Souscrite sont distinctes pour détecter les transpositions.
+-->
+<C12>
+  <En_Tete_Flux>
+    <Identifiant_Flux>C12</Identifiant_Flux>
+    <Libelle_Flux>Description contractuelle des PRM du segment C2-C4</Libelle_Flux>
+    <Version_XSD>1.12.1</Version_XSD>
+    <Identifiant_Emetteur>Enedis</Identifiant_Emetteur>
+    <Identifiant_Destinataire>17XFICTIF000001X</Identifiant_Destinataire>
+    <Date_Creation>2024-06-15T00:01:00+02:00</Date_Creation>
+    <Mode_Generation>COMPLET</Mode_Generation>
+  </En_Tete_Flux>
+  <Contrat>
+    <Identifiant>CTR0000001</Identifiant>
+    <Date_Debut>2024-01-01</Date_Debut>
+    <Responsable_Equilibre>
+      <Date_Debut>2024-01-01</Date_Debut>
+      <Code_EIC>17XFICTIF000002X</Code_EIC>
+      <Raison_Sociale>FOURNISSEUR EXEMPLE</Raison_Sociale>
+    </Responsable_Equilibre>
+    <Client_Contractant>
+      <Code_EIC>17XFICTIF000003X</Code_EIC>
+      <Raison_Sociale>FOURNISSEUR EXEMPLE</Raison_Sociale>
+    </Client_Contractant>
+    <!-- PRM #1 : 4 classes TURPE (HPH/HCH/HPE/HCE) — cas C4 standard -->
+    <PRM>
+      <Identifiant>99100000000001</Identifiant>
+      <Type_Evenement>
+        <Contractuel>false</Contractuel>
+        <Comptage>false</Comptage>
+        <Reseau>false</Reseau>
+        <Administratif>false</Administratif>
+        <Date_Evenement>2024-06-15</Date_Evenement>
+        <Adresse_Postale>
+          <Code_Postal>44000</Code_Postal>
+          <Commune Code_INSEE="44109"/>
+        </Adresse_Postale>
+        <CAD>
+          <Num_Depan_24>0000000000</Num_Depan_24>
+        </CAD>
+        <Situation_Contractuelle>
+          <Synthese_Contractuelle>
+            <Date_De_Premiere_Mise_En_Service>2020-01-01</Date_De_Premiere_Mise_En_Service>
+          </Synthese_Contractuelle>
+          <Date_Debut>2024-01-01</Date_Debut>
+          <Evenement>
+            <Nature_Evenement>MES</Nature_Evenement>
+            <Numero_Affaire>AFF000001</Numero_Affaire>
+          </Evenement>
+          <Utilisateur_Reseau>
+            <Personne_Morale>
+              <Raison_Sociale>FOURNISSEUR EXEMPLE</Raison_Sociale>
+              <Code_APE>3514Z</Code_APE>
+            </Personne_Morale>
+          </Utilisateur_Reseau>
+          <Option_Tarifaire_TURPE_Souscrite>
+            <Option_Tarifaire_TURPE>
+              <Libelle>BTSUPLU4</Libelle>
+            </Option_Tarifaire_TURPE>
+            <Classe_Temporelle_TURPE_Souscrite>
+              <Libelle>HPH</Libelle>
+              <Puissance_Souscrite>250</Puissance_Souscrite>
+            </Classe_Temporelle_TURPE_Souscrite>
+            <Classe_Temporelle_TURPE_Souscrite>
+              <Libelle>HCH</Libelle>
+              <Puissance_Souscrite>200</Puissance_Souscrite>
+            </Classe_Temporelle_TURPE_Souscrite>
+            <Classe_Temporelle_TURPE_Souscrite>
+              <Libelle>HPE</Libelle>
+              <Puissance_Souscrite>180</Puissance_Souscrite>
+            </Classe_Temporelle_TURPE_Souscrite>
+            <Classe_Temporelle_TURPE_Souscrite>
+              <Libelle>HCE</Libelle>
+              <Puissance_Souscrite>150</Puissance_Souscrite>
+            </Classe_Temporelle_TURPE_Souscrite>
+          </Option_Tarifaire_TURPE_Souscrite>
+          <Profil>ENT4</Profil>
+        </Situation_Contractuelle>
+        <Alimentation>
+          <Alimentation_Principale>
+            <Tension_De_Livraison>230_400V</Tension_De_Livraison>
+            <Domaine_De_Tension>BTSUP</Domaine_De_Tension>
+          </Alimentation_Principale>
+        </Alimentation>
+      </Type_Evenement>
+    </PRM>
+    <!-- PRM #2 : 2 classes TURPE (HP/HC) — cas mono/HPHC -->
+    <PRM>
+      <Identifiant>99100000000002</Identifiant>
+      <Type_Evenement>
+        <Contractuel>false</Contractuel>
+        <Comptage>false</Comptage>
+        <Reseau>false</Reseau>
+        <Administratif>false</Administratif>
+        <Date_Evenement>2024-06-15</Date_Evenement>
+        <Adresse_Postale>
+          <Code_Postal>75001</Code_Postal>
+          <Commune Code_INSEE="75056"/>
+        </Adresse_Postale>
+        <CAD>
+          <Num_Depan_24>0000000000</Num_Depan_24>
+        </CAD>
+        <Situation_Contractuelle>
+          <Synthese_Contractuelle>
+            <Date_De_Premiere_Mise_En_Service>2019-06-01</Date_De_Premiere_Mise_En_Service>
+          </Synthese_Contractuelle>
+          <Date_Debut>2024-03-01</Date_Debut>
+          <Date_Fin>2024-12-31</Date_Fin>
+          <Utilisateur_Reseau>
+            <Personne_Morale>
+              <Raison_Sociale>FOURNISSEUR EXEMPLE</Raison_Sociale>
+              <Code_APE>4321A</Code_APE>
+            </Personne_Morale>
+          </Utilisateur_Reseau>
+          <Option_Tarifaire_TURPE_Souscrite>
+            <Option_Tarifaire_TURPE>
+              <Libelle>BTSUPMU</Libelle>
+            </Option_Tarifaire_TURPE>
+            <Classe_Temporelle_TURPE_Souscrite>
+              <Libelle>HP</Libelle>
+              <Puissance_Souscrite>100</Puissance_Souscrite>
+            </Classe_Temporelle_TURPE_Souscrite>
+            <Classe_Temporelle_TURPE_Souscrite>
+              <Libelle>HC</Libelle>
+              <Puissance_Souscrite>80</Puissance_Souscrite>
+            </Classe_Temporelle_TURPE_Souscrite>
+          </Option_Tarifaire_TURPE_Souscrite>
+          <Profil>ENT2</Profil>
+        </Situation_Contractuelle>
+      </Type_Evenement>
+    </PRM>
+  </Contrat>
+</C12>
