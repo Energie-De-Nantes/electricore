@@ -8,14 +8,12 @@ L'Accise est calculée sur la base de la consommation mensuelle en appliquant
 les taux réglementaires en vigueur selon la période.
 """
 
-from pathlib import Path
-
 import pandera.polars as pa
 import polars as pl
 from pandera.typing.polars import LazyFrame
 
 from electricore.core.models.accise_mensuel import AcciseMensuel
-from electricore.core.pipelines.taux import ajouter_taux_en_vigueur
+from electricore.core.pipelines.taux import ajouter_taux_en_vigueur, charger_regles_taux
 
 # =============================================================================
 # CHARGEMENT DES RÈGLES ACCISE
@@ -31,13 +29,7 @@ def load_accise_rules() -> pl.LazyFrame:
         `taux_accise_eur_mwh` (Float64). Chaque ligne représente l'entrée en
         vigueur d'un nouveau taux qui remplace le précédent.
     """
-    file_path = Path(__file__).parent.parent.parent / "config" / "accise_rules.csv"
-
-    return (
-        pl.scan_csv(file_path)
-        .with_columns(pl.col("start").str.to_datetime().dt.replace_time_zone("Europe/Paris"))
-        .with_columns(pl.col("taux_accise_eur_mwh").cast(pl.Float64))
-    )
+    return charger_regles_taux("accise_rules.csv", "taux_accise_eur_mwh")
 
 
 # =============================================================================

@@ -13,7 +13,8 @@ import pandera as pa_errors
 import polars as pl
 import pytest
 
-from electricore.core.pipelines.taux import ajouter_taux_en_vigueur
+from electricore.core.models.historique_taux import historique_taux_schema
+from electricore.core.pipelines.taux import ajouter_taux_en_vigueur, charger_regles_taux
 
 TZ = ZoneInfo("Europe/Paris")
 
@@ -144,3 +145,29 @@ class TestSchemaHistorique:
 
         with pytest.raises(pa_errors.errors.SchemaError):
             ajouter_taux_en_vigueur(df, historique_invalide, date_col="date", taux_col="taux").collect()
+
+
+class TestChargerReglesTaux:
+    """Lecteur partagé des registres de taux régulés `*_rules.csv` (Accise, CTA — pas TURPE)."""
+
+    def test_parse_start_en_datetime_paris_et_caste_le_taux(self):
+        """`start` ressort en Datetime[Europe/Paris] et la colonne de taux en Float64."""
+        regles = charger_regles_taux("cta_rules.csv", "taux_cta_pct").collect()
+
+        assert regles.schema["start"] == pl.Datetime(time_unit="us", time_zone="Europe/Paris")
+        assert regles.schema["taux_cta_pct"] == pl.Float64
+        assert regles.height > 0
+
+    def test_conserve_la_reference_reglementaire(self):
+        """`reference` (Référence réglementaire, ADR-0024) traverse le lecteur telle quelle."""
+        regles = charger_regles_taux("accise_rules.csv", "taux_accise_eur_mwh").collect()
+
+        assert "reference" in regles.columns
+        assert regles["reference"].dtype == pl.String
+
+    def test_sortie_conforme_au_contrat_historique_taux(self):
+        """La sortie satisfait `historique_taux_schema(taux_col)` — précondition de `ajouter_taux_en_vigueur`."""
+        regles = charger_regles_taux("accise_rules.csv", "taux_accise_eur_mwh").collect()
+
+        # Ne lève pas : c'est exactement le contrat consommé en aval.
+        historique_taux_schema("taux_accise_eur_mwh").validate(regles)
