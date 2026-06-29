@@ -329,7 +329,6 @@ ${ssh_recap}
   Étapes suivantes recommandées :
     - Configurer un offsite des backups (rclone vers un cloud — cf. docs/deploiement.md)
     - Ajouter https://${OPT_DOMAIN}/health à votre monitoring distant
-    - Sauvegarder ${ENV_FILE} dans un gestionnaire de secrets
 
   Pour reconfigurer plus tard (rotation clés AES, bump version, etc.) :
     sudo bash $0 --slug ${OPT_SLUG} --domain ${OPT_DOMAIN}
