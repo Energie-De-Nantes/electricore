@@ -101,16 +101,9 @@ class PaireCles(BaseSettings):
     key: str
     iv: str | None = None
 
-    @field_validator("key")
+    @field_validator("key", "iv")
     @classmethod
-    def _valider_cle(cls, v: str) -> str:
-        if not _HEX_32_OR_64.match(v):
-            raise ValueError(f"doit être un hexadécimal de 32 ou 64 caractères (reçu: {len(v)} car.)")
-        return v
-
-    @field_validator("iv")
-    @classmethod
-    def _valider_iv(cls, v: str | None) -> str | None:
+    def _valider_hex(cls, v: str | None) -> str | None:
         if v is not None and not _HEX_32_OR_64.match(v):
             raise ValueError(f"doit être un hexadécimal de 32 ou 64 caractères (reçu: {len(v)} car.)")
         return v
