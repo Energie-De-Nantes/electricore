@@ -18,3 +18,5 @@ exclude_docs: "*.excalidraw"
 nav:
   - Accueil: index.md
   - Guide facturiste: facturiste/changelog-facturiste.md
+  - Bot Telegram (facturiste): guide-bot-facturiste.md
+  - Notebook opérateur: operateur-notebook.md
