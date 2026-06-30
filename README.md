@@ -5,6 +5,7 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](pyproject.toml)
 [![Polars](https://img.shields.io/badge/data-Polars%20%2B%20DuckDB-9C27B0.svg)](docs/adr/0002-polars-uniquement.md)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![Docs](https://img.shields.io/badge/docs-site-blue)](https://energie-de-nantes.github.io/electricore/)
 
 **ElectriCore** est un outil libre pour reprendre le contrôle des données du réseau électrique
 français. Il transforme les flux bruts **Enedis** (le distributeur) en données structurées,
