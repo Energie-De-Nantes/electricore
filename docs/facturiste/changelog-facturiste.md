@@ -1,6 +1,6 @@
 # Ce qui a changé pour le facturiste (juin 2026)
 
-> Lecture côté métier du [CHANGELOG technique](../../CHANGELOG.md), de la première
+> Lecture côté métier du [CHANGELOG technique](https://github.com/Energie-De-Nantes/electricore/blob/main/CHANGELOG.md), de la première
 > release versionnée **v1.3.5** (1ᵉʳ juin 2026) à la ligne stable **3.4** (29 juin 2026).
 > On y parle de ce que la machine **calcule et livre pour vous** — pas de comment c'est codé.
 >
@@ -252,4 +252,4 @@ pas dans la ligne stable.
 ---
 
 *Détails techniques, ruptures de contrat d'API et numéros d'issue : voir le
-[CHANGELOG complet](../../CHANGELOG.md).*
+[CHANGELOG complet](https://github.com/Energie-De-Nantes/electricore/blob/main/CHANGELOG.md).*
