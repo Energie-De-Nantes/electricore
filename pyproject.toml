@@ -1,6 +1,6 @@
 [project]
 name = "electricore"
-version = "3.5.0rc3"
+version = "3.5.0"
 description = "Moteur de traitement données énergétiques françaises - Architecture Polars/DuckDB pour flux Enedis"
 authors = [
     {name = "Virgile"}
