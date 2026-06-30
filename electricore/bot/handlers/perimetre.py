@@ -21,6 +21,8 @@ _EXPORTS = {
     "sorties": ("sorties_c15.xlsx", "Sorties C15 (RES, CFNS)"),
 }
 
+_TELEGRAM_MSG_MAX = 4096  # limite dure de l'API Telegram par message
+
 
 def clavier_principal() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
@@ -38,14 +40,26 @@ def _formater_affaires(affaires: list[dict]) -> str:
     """Rend la vue cockpit des affaires non soldées (texte HTML Telegram)."""
     if not affaires:
         return "✅ Aucune affaire en cours."
-    lignes = [f"<b>Affaires en cours</b> ({len(affaires)}) :"]
+    entete = f"<b>Affaires en cours</b> ({len(affaires)}) :"
+    lignes = [entete]
+    # La liste arrive triée par ancienneté décroissante : on garde les plus anciennes
+    # (= les plus actionnables) et on tronque la queue si on dépasse la limite Telegram —
+    # sinon edit_message_text échoue (>4096 car.) et le bot reste muet (cf. facturation.py).
+    budget = _TELEGRAM_MSG_MAX - 100
+    affichees = 0
     for a in affaires:
         prestation = a.get("prestation_libelle") or a.get("prestation") or "?"
         etat = a.get("dernier_etat_libelle") or a.get("dernier_etat") or "?"
-        lignes.append(
+        ligne = (
             f"• <code>{escape(a.get('pdl'))}</code> — {escape(prestation)} · "
             f"{escape(etat)} · {a.get('anciennete_jours')} j"
         )
+        if sum(len(li) + 1 for li in lignes) + len(ligne) > budget:
+            break
+        lignes.append(ligne)
+        affichees += 1
+    if affichees < len(affaires):
+        lignes.append(f"\n<i>… et {len(affaires) - affichees} autres (les plus anciennes affichées)</i>")
     return "\n".join(lignes)
 
 

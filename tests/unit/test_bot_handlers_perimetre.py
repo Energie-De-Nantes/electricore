@@ -139,6 +139,25 @@ def test_formater_affaires_vide():
     assert "aucune" in txt.lower()
 
 
+def test_formater_affaires_tronque_sous_la_limite_telegram():
+    """Une liste qui dépasserait 4096 car. est raccourcie aux frontières de lignes —
+    sinon edit_message_text échoue et le bot reste muet."""
+    affaires = [
+        {
+            "pdl": f"{i:014d}",
+            "prestation": "CST",
+            "prestation_libelle": "Changement de structure tarifaire",
+            "dernier_etat_libelle": "Demande recevable",
+            "anciennete_jours": 500 - i,
+        }
+        for i in range(80)
+    ]
+    txt = handlers_perimetre._formater_affaires(affaires)
+    assert len(txt) <= 4096
+    assert "autres" in txt  # mention de troncature
+    assert "(80)" in txt  # l'en-tête garde le compte total
+
+
 def test_menu_propose_les_affaires(client):
     update = update_commande()
 

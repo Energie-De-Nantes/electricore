@@ -9,6 +9,20 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.5.0rc3] - 2026-06-30
+
+Troisième release candidate de la **minor 3.5**.
+
+### 🐛 Corrigé — cockpit `/perimetre affaires` muet (bot)
+
+La vue « Affaires en cours » du bot construisait un message dépassant la limite dure
+de **4096 caractères** de l'API Telegram dès qu'assez d'affaires étaient en cours
+(≈ 46 suffisaient), faisant échouer `edit_message_text` hors `try/except` : le spinner
+« ⏳ Affaires en cours… » restait bloqué, le bot paraissait muet. `_formater_affaires`
+tronque désormais la liste aux frontières de lignes sous la limite, en gardant les
+affaires les plus anciennes (les plus actionnables) et en signalant le reste — même
+garde-fou que le récap de facturation.
+
 ## [3.5.0rc2] - 2026-06-30
 
 Deuxième release candidate de la **minor 3.5** — discrimination des erreurs côté
