@@ -9,6 +9,34 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.5.0rc2] - 2026-06-30
+
+Deuxième release candidate de la **minor 3.5** — discrimination des erreurs côté
+client/API et publication du **site de documentation**.
+
+### ✨ Ajouté — discrimination des erreurs (#424)
+
+En-tête **`X-Error-Kind`** renvoyé par l'API pour qualifier la nature d'une erreur
+au-delà du seul code HTTP, et consommé par le client :
+
+- **503 verrou d'ingestion** : `X-Error-Kind: ingestion-lock` sur le 503 du verrou DuckDB,
+  pour distinguer un verrou transitoire d'une vraie indisponibilité ;
+- **client** : route les exceptions sur `X-Error-Kind` plutôt que sur le code HTTP seul ;
+- **précondition RSC** : `rapprocher()` renvoie un **422 actionnable** en amont plutôt
+  qu'une erreur opaque.
+
+### 📚 Documentation — site MkDocs (#525)
+
+Site **MkDocs Material** publié sur GitHub Pages (build + deploy en CI sur push `main`) :
+guide du bot facturiste, guide facturiste, runbook d'onboarding du notebook opérateur,
+badge et lien depuis le README.
+
+### 🐛 Corrigé
+
+- **DuckDB** : `_is_lock_error` restreint aux vrais verrous DuckDB — ne masque plus d'autres
+  erreurs (#424).
+- **Site** : page d'accueil (404 à la racine) et liens du CHANGELOG en URL absolue GitHub.
+
 ## [3.5.0rc1] - 2026-06-30
 
 Première release candidate de la **minor 3.5** — ouverture du segment **C2-C4** côté ingestion.
