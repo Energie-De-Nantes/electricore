@@ -1,0 +1,19 @@
+site_name: ElectriCore
+site_url: https://energie-de-nantes.github.io/electricore/
+theme:
+  name: material
+
+plugins:
+  - search
+
+validation:
+  nav:
+    omitted_files: ignore
+  links:
+    absolute_links: ignore
+    unrecognized_links: ignore
+
+exclude_docs: "*.excalidraw"
+
+nav:
+  - Guide facturiste: facturiste/changelog-facturiste.md

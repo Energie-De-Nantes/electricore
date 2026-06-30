@@ -132,6 +132,9 @@ test = [
 typecheck = [
     "mypy>=1.13",
 ]
+docs = [
+    "mkdocs-material>=9",
+]
 
 
 [tool.pytest.ini_options]
