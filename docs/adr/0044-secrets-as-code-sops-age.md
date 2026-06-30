@@ -178,3 +178,84 @@ Pas de `CONTEXT.md` deploy créé : SOPS / age / destinataire sont des outils **
 métier electricore (les `CONTEXT.md` existants sont des glossaires métier). Les rares termes propres au
 projet (`config.env` vs `secrets.env`, dépôt de déploiement, identité par instance) sont définis **en
 contexte** dans cet ADR. À réévaluer si un glossaire ops émerge.
+
+## Amendement (29/06/2026, `/grill-with-docs`) — `config.env` SSOT du déploiement ; le CLI ne porte que le couple d'amorçage
+
+Le §1 faisait déjà de `config.env` la moitié claire *et versionnée*, et la note `#460`
+y posait un premier précédent : `--version` est un **paramètre de déploiement** que le
+dépôt pine et que le CLI **override localement** (réécriture de `ELECTRICORE_VERSION`
+dans la copie tirée). Cet amendement **généralise** ce précédent à **tous** les
+paramètres de déploiement non secrets, et **resserre la surface CLI** de `install.sh` au
+strict couple d'amorçage. Motivation : faciliter le one-liner `curl … | bash` — la
+commande copiée-collée sur une box fraîche passe de quatre options à deux.
+
+### Décision
+
+1. **`config.env` est l'unique source de vérité du déploiement.** Tous les paramètres
+   non secrets propres à l'instance y vivent : `INSTANCE_SLUG`, `ELECTRICORE_VERSION`
+   (déjà), `BACKUPS_PATH` (déjà), **`INSTANCE_DOMAIN`** (nouveau, **requis**) et
+   **`LETSENCRYPT_EMAIL`** (nouveau, **optionnel**). Le domaine et l'email **quittent**
+   donc la ligne de commande.
+
+2. **Le CLI ne porte que le couple d'amorçage : `--slug` + `--deploy-repo`.** Ce sont les
+   seules valeurs **irréductibles** : au **1er temps** (cf. §4), la box doit créer
+   `/srv/<slug>/` puis y cloner le dépôt **avant** de pouvoir lire le moindre
+   `config.env`, et ce clone **échoue** (deploy key pas encore enregistrée) → **rien** ne
+   peut venir de `config.env` au tout premier run. `domain`/`version`/`email` ne servent
+   qu'au **2e temps** (`reconfigure`), précisément quand `config.env` existe. Conséquence :
+   le one-liner du 1er temps se réduit à
+   `curl … | sudo bash -s -- --slug <slug> --deploy-repo <url>`.
+
+3. **Précédence uniforme, le flag *satisfait* la validation.** Pour chaque paramètre
+   migré : `valeur_effective = --flag ?? config.env`. Quand un flag est fourni, `install.sh`
+   l'**écrit dans la copie locale de `config.env` avant la validation** (même mécanisme que
+   l'override `--version` du §1/#460) → il **satisfait** l'exigence `INSTANCE_DOMAIN` de
+   `validate_config_env`. C'est ce qui rend la migration **douce** : l'instance vivante (EDN)
+   continue de `reconfigure` avec `--domain` tant que `providers/edn/config.env` n'a pas
+   gagné `INSTANCE_DOMAIN` — **aucune casse au déploiement** (les helpers se rafraîchissent
+   depuis `main` au `reconfigure`, donc la nouvelle validation atterrit immédiatement ; le
+   flag la couvre le temps de la transition cross-repo).
+
+4. **Caddy devient piloté par l'environnement (`config.env` *littéral*, plus de patch).**
+   Le service `caddy` gagne `env_file: ../../config.env` ; le `Caddyfile.example` utilise la
+   substitution native `{$INSTANCE_DOMAIN}` (adresse de site) et `email {$LETSENCRYPT_EMAIL}`.
+   La fonction `substitute_caddyfile` et l'étape de patch **disparaissent** : `config.env`
+   est consommé tel quel à l'exécution, plus aucun artefact patché sur la box. (Le `Caddyfile`
+   local de dev — `electricore.localhost`, `tls internal` — reste inchangé : ni domaine ni
+   email d'environnement.)
+
+5. **Email optionnel sans piège ACME.** La directive globale `email` de Caddy **plante** sur
+   un argument vide ; or `email {$LETSENCRYPT_EMAIL}` vide produit exactement ça. Plutôt que
+   d'exiger l'email ou de pousser un placeholder bidon chez Let's Encrypt, `install.sh`
+   **dérive `admin@<INSTANCE_DOMAIN>`** quand `LETSENCRYPT_EMAIL` est absent (écriture dans la
+   copie locale, même motif qu'au point 3). Caddy reçoit toujours une adresse **valide et
+   maîtrisée par l'opérateur** ; l'opérateur peut en fixer une explicite ; rien de factice
+   n'est jamais transmis à l'ACME. L'email reste **optionnel** côté `config.env`.
+
+### Révisions du corps
+
+- **§1** : la note `#460` (override `--version`) est désormais un **cas particulier** d'un
+  motif général « flag → écrit dans la copie locale de `config.env` → satisfait/override la
+  validation », partagé par `version`, `domain` et `email`.
+- **Conséquences, ligne `docker-compose.yml`** : « `caddy` inchangé (aucun secret) » devient
+  **`caddy` gagne `env_file: ../../config.env`** — toujours **aucun secret** (le `config.env`
+  est clair), mais il n'est plus inerte : il lit le domaine et l'email d'instance.
+- **`deploy/install.sh` + `deploy/lib/`** : `validate_config_env` exige `INSTANCE_DOMAIN`
+  (satisfait par `--domain` quand fourni) ; `parse_args` ne **requiert plus** `--domain`
+  (gardé comme override) ; `substitute_caddyfile` supprimée ; `override_config_version` se
+  généralise (domaine + dérivation d'email) ; la validation domaine/email passe **après le
+  pull** et conditionnelle ; messages d'onboarding/récap/trap allégés du `--domain`.
+
+### Conséquence cross-repo (hors PR, non urgente)
+
+Ajouter `INSTANCE_DOMAIN=edn.electricore.fr` (et pin `ELECTRICORE_VERSION`) à
+`providers/edn/config.env` dans le dépôt privé `electricore-secrets`. La **précédence douce**
+(point 3) rend ce pas **non bloquant** : `--domain` continue de marcher jusque-là.
+
+### Pas de spike, pas de diagramme
+
+La seule inconnue technique (comportement de Caddy sur un `email`/site vide) est **neutralisée
+par construction** : le point 5 garantit un domaine **et** un email **toujours non vides** — pas
+d'expérience à mener. Le diagramme [`secrets-as-code-sops`](../secrets-as-code-sops.png) reste
+juste à son niveau d'abstraction (où vit quoi) ; cet amendement raffine le **contrat d'install**,
+la prose suffit.
