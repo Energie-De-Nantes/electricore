@@ -73,6 +73,13 @@ facturable, et avec quelle assurance.
 Avant juin, plusieurs chiffres étaient **silencieusement faux** — pas en erreur, juste
 faux. Le gros du travail de juin a été de les rendre **exacts et démontrables**.
 
+> **Aucune fausse facture émise.** Ces versions (v2.0, v3.0) **n'ont jamais été le chemin
+> de facturation en production** : pendant toute cette période, la facturation réelle
+> passait par l'**ancien système**. Les chiffres « silencieusement faux » vivaient dans
+> electricore **en construction**, jamais sur les factures de vos clients. Ce qui suit
+> décrit les défauts qu'on a corrigés *avant* de faire d'electricore une source de
+> facturation fiable.
+
 - **Les index étaient ~1000× trop grands** *(v3.0)*. Les relevés périodiques (R151/R64)
   arrivent d'Enedis en **wattheures** ; ils étaient mélangés aux index C15 déjà en kWh.
   Résultat : énergie, TURPE variable, accise **et** facturation corrompus. Désormais tout
