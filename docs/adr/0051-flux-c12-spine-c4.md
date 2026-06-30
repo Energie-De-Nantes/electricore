@@ -1,5 +1,9 @@
 # ADR-0051 — Ingestion flux C12 : spine contractuelle C4
 
+## Statut
+
+Accepté (#344).
+
 ## Contexte
 
 Le flux **C12** (SGE GUI 0129, XSD 0130 v1.12.1) porte la *description contractuelle des PRM
@@ -39,8 +43,10 @@ Le mapping HPE→hpb / HCE→hcb suit la convention de nommage des cadrans (ADR-
 
 **Classes HTA non mappées** (Pointe, HPDemiSaison, HCDemiSaison, JA, PM) : présentes dans le
 XSD pour les tarifs HTA5/HTA8 ; produisent NULL dans le pivot. Gardées en blanc pour l'instant
-(aucun cas de production observé dans le périmètre C2-C4 BT courant). Un `accepted_values`
-dbt sur `Libelle` attrape toute valeur hors de l'enum XSD complet.
+(aucun cas de production observé dans le périmètre C2-C4 BT courant). Un test singulier dbt
+(`assert_flux_c12_libelle_classe_dans_enum_xsd`) attrape toute valeur hors de l'enum XSD
+complet (dérive de schéma Enedis) ; il ne fait **pas** échouer les classes HTA connues mais
+non mappées.
 
 **Pas de colonne `segment_clientele`** : absent du XSD C12. Le segment est inféré en aval
 depuis le domaine de tension et l'option tarifaire.
