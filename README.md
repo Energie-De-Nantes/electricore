@@ -269,17 +269,21 @@ uv run marimo edit notebooks/   # édition complète (pipelines, validations TUR
 
 Pour un **opérateur non-dev**, un pont transitoire ([#414](https://github.com/Energie-De-Nantes/electricore/issues/414))
 sert les notebooks Odoo opérationnels (`accueil`, `injection_rsc`, `facturation`) en applications
-marimo **lecture seule**, sans git ni code :
+marimo **lecture seule**, sans git ni code (le moteur est publié sur PyPI) :
 
 ```bash
-uv sync --extra notebooks
-uv run electricore-notebooks   # valide l'env, sert les apps sur localhost, ouvre le navigateur
+uv tool install 'electricore[notebooks]'           # fournit la commande electricore-notebooks
+cd <dossier-contenant-le-.env-livré> && electricore-notebooks
 ```
 
-Variables requises : creds Odoo (`ODOO__*`) + `ELECTRICORE_API_URL` + `ELECTRICORE_API_KEY`
-(voir [docs/configuration.md](docs/configuration.md)). Les notebooks qui écrivent dans Odoo gardent un **mode
-simulation activé par défaut** et un bouton « Injecter dans Odoo » explicite. Ce lanceur est voué à
-disparaître à l'arrivée de `souscriptions_odoo`.
+L'opérateur reçoit un `.env` **livré à la main** (clé API partagée en lecture + **son propre**
+login Odoo `ODOO__*`) et le dépose dans son dossier de travail — le launcher lit le `.env` du
+**répertoire courant**. Les notebooks qui écrivent dans Odoo gardent un **mode simulation activé
+par défaut** et un bouton « Injecter dans Odoo » explicite. Ce lanceur est voué à disparaître à
+l'arrivée de `souscriptions_odoo`.
+
+> **Runbook complet** : [docs/operateur-notebook.md](docs/operateur-notebook.md) — install,
+> `.env`, lancement, et pourquoi l'opérateur ne rejoint pas le schéma secrets-as-code.
 
 ---
 

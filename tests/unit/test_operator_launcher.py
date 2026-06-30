@@ -131,6 +131,38 @@ def test_charger_env_sans_fichier_ne_fait_rien(monkeypatch):
     assert os.environ.get("ELECTRICORE_API_URL") is None
 
 
+def test_charger_env_charge_aussi_le_env_du_cwd(monkeypatch, tmp_path):
+    """Après `uv tool install`, le `.env` paquet tombe dans site-packages (absent) :
+    charger_env() doit aussi lire le `./.env` du répertoire courant, là où l'opérateur
+    dépose le `.env` livré (cf. docs/operateur-notebook.md).
+    """
+    monkeypatch.delenv("ELECTRICORE_API_URL", raising=False)
+    # Simule la distribution : FICHIER_ENV pointe sur un .env paquet ABSENT (non None
+    # → la branche de chargement s'exécute), donc seul le ./.env du CWD peut peupler.
+    monkeypatch.setattr(runtime, "FICHIER_ENV", tmp_path / "site-packages" / ".env")
+    (tmp_path / ".env").write_text("ELECTRICORE_API_URL=https://depuis-le-cwd.example\n")
+    monkeypatch.chdir(tmp_path)
+
+    charger_env()
+
+    assert os.environ.get("ELECTRICORE_API_URL") == "https://depuis-le-cwd.example"
+
+
+def test_charger_env_paquet_l_emporte_sur_le_cwd(monkeypatch, tmp_path):
+    """Précédence : en checkout dev, le `.env` paquet l'emporte sur le `./.env` du CWD."""
+    monkeypatch.delenv("ELECTRICORE_API_URL", raising=False)
+    paquet = tmp_path / "depot"
+    paquet.mkdir()
+    (paquet / ".env").write_text("ELECTRICORE_API_URL=https://depuis-le-paquet.example\n")
+    monkeypatch.setattr(runtime, "FICHIER_ENV", paquet / ".env")
+    (tmp_path / ".env").write_text("ELECTRICORE_API_URL=https://depuis-le-cwd.example\n")
+    monkeypatch.chdir(tmp_path)
+
+    charger_env()
+
+    assert os.environ.get("ELECTRICORE_API_URL") == "https://depuis-le-paquet.example"
+
+
 # --- Seam : résolution du dossier embarqué + construction de l'app ASGI ---
 
 
