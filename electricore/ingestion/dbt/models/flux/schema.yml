@@ -197,16 +197,3 @@ models:
           HTA5, HTA8, HTASansDiff, BTINFCUST, BTINFMUDT, BTINFLU, BTINFMUST, HTALU5,
           HTACU5, HTALUPM5, HTACUPM5, BTSUPLU4, BTSUPCU4, BTSUPCUACC, BTSUPLUACC, HTAST5.
 
-  - name: stg_c12
-    description: >
-      Staging C12 : une ligne par PRM, prm complète en colonne json (avant extraction).
-      Sert exclusivement flux_c12 via ref().
-    columns:
-      - name: pdl
-        description: Point de livraison extrait de l'Identifiant (14 chiffres).
-      - name: libelle_classe_temporelle
-        description: >
-          Libelle de la Classe_Temporelle_TURPE_Souscrite. Enum XSD complet :
-          Pointe, HPH, HPDemiSaison, HCH, HCDemiSaison, HPE, HCE, JA, Base, HP, HC, PM.
-          Un accepted_values sur ce champ attrape toute valeur inconnue d'Enedis.
-
