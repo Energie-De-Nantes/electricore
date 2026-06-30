@@ -16,4 +16,5 @@ validation:
 exclude_docs: "*.excalidraw"
 
 nav:
+  - Accueil: index.md
   - Guide facturiste: facturiste/changelog-facturiste.md
