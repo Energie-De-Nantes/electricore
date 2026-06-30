@@ -76,7 +76,7 @@ def _manquantes_odoo() -> list[str]:
 
 
 def charger_env() -> None:
-    """Charge le `.env` à la racine du dépôt dans `os.environ` (précédence préservée).
+    """Charge les `.env` (paquet + répertoire courant) dans `os.environ`.
 
     Les creds Odoo passent par pydantic-settings (`_env_file`), mais
     `ELECTRICORE_API_URL`/`ELECTRICORE_API_KEY` sont lues en direct via `os.getenv`
@@ -85,14 +85,24 @@ def charger_env() -> None:
     uvicorn lancé par `main()`, ce seul chargement les rend visibles à la fois pour
     la validation et pour les notebooks.
 
-    `override=False` : une vraie variable d'env-système l'emporte toujours sur le
-    `.env` (précédence documentée, ADR-0024). `FICHIER_ENV is None` (seam de test)
-    → on ne fait rien.
+    Deux emplacements, du plus prioritaire au moins prioritaire :
+    1. `FICHIER_ENV` — `.env` ancré sur le paquet. En **checkout dev** c'est le `.env`
+       racine du dépôt. Après `uv tool install 'electricore[notebooks]'`, ce chemin
+       tombe dans `site-packages/` (absent) → no-op.
+    2. `./.env` du **répertoire courant** — c'est là que l'opérateur tool-installé
+       dépose le `.env` qu'on lui a livré (`cd <dossier> && electricore-notebooks`).
+       Sans ce 2ᵉ emplacement, la promesse « aucun git, dépose un `.env`, lance »
+       serait intenable hors checkout (cf. docs/operateur-notebook.md).
+
+    `override=False` : une vraie variable d'env-système l'emporte toujours, et le
+    `.env` paquet l'emporte sur celui du CWD (précédence documentée, ADR-0024).
+    `FICHIER_ENV is None` (seam de test) → on ne charge rien.
     """
     from dotenv import load_dotenv
 
     if runtime.FICHIER_ENV is not None:
         load_dotenv(runtime.FICHIER_ENV, override=False)
+        load_dotenv(Path.cwd() / ".env", override=False)
 
 
 def valider_environnement() -> None:
