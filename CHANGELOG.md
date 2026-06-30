@@ -9,6 +9,48 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.5.0] - 2026-07-01
+
+Premier stable de la ligne **3.5** : aboutissement du cycle rc1→rc3. La minor **ouvre le
+segment C2-C4 côté ingestion** (flux C12 — ADR-0051), **discrimine les erreurs** client/API
+au-delà du code HTTP (`X-Error-Kind` — #424), et publie le **site de documentation** MkDocs
+(#525). Purement additive — aucun changement incompatible. Détail rc-par-rc plus bas.
+
+### ✨ Temps forts
+
+- **Ouverture du segment C2-C4 — ingestion du flux C12** (ADR-0051, #344). Ingestion du flux
+  **C12** (description contractuelle des PRM **>36 kVA**, SGE GUI 0129), même plomberie ELT que
+  C15 : source dlt + modèles dbt `stg_c12`/`flux_c12` + loader `c12()`, **spine contractuelle C4**
+  (puissances souscrites pivotées par classe temporelle TURPE, option tarifaire, domaine de
+  tension, personne morale `raison_sociale`/`code_ape` — proxy de la catégorie d'accise #226),
+  segment **inféré**, golden XSD + garde-fou anti-dérive de schéma. Côté ingestion : le contrat
+  de consommation aval est délibérément différé (ADR-0051, « le premier consommateur l'établira »).
+- **Discrimination des erreurs client/API** (#424). En-tête **`X-Error-Kind`** qualifiant la
+  nature d'une erreur au-delà du seul code HTTP : `ingestion-lock` sur le 503 du verrou DuckDB
+  (verrou transitoire vs vraie indisponibilité), routage des exceptions client sur cet en-tête,
+  et **précondition RSC 422 actionnable** en amont de `rapprocher()`.
+- **Site de documentation MkDocs** (#525). Site **MkDocs Material** publié sur GitHub Pages
+  (build + deploy CI sur push `main`) : guides bot facturiste & facturiste, runbook d'onboarding
+  du notebook opérateur, badge et lien depuis le README.
+
+### 🔧 Modifié
+
+- **Taux régulés** : lecteur partagé `charger_regles_taux` des registres `*_rules.csv`
+  (factorisation du chargement CSV, #520).
+
+### 🐛 Corrigé
+
+- **Bot** : cockpit `/perimetre affaires` muet au-delà de ~46 affaires — `_formater_affaires`
+  tronque désormais aux frontières de lignes sous la limite Telegram (4096 car.), en gardant les
+  affaires les plus anciennes.
+- **DuckDB** : `_is_lock_error` restreint aux vrais verrous — ne masque plus d'autres erreurs (#424).
+
+### 🧹 Divers
+
+- [ADR-0050](docs/adr/0050-entrees-contexte-mensuel-parc-et-point-distinctes.md) : les deux
+  entrées « contexte mensuel » (parc / point) restent délibérément distinctes.
+- Tests : retrait des tests d'intégration `OdooWriter` (config morte).
+
 ## [3.5.0rc3] - 2026-06-30
 
 Troisième release candidate de la **minor 3.5**.
