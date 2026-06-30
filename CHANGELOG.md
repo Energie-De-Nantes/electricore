@@ -9,6 +9,38 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.5.0rc1] - 2026-06-30
+
+Première release candidate de la **minor 3.5** — ouverture du segment **C2-C4** côté ingestion.
+
+### ✨ Ajouté — flux C12 (#344)
+
+Ingestion du **flux C12** (description contractuelle des PRM du segment **C2-C4, >36 kVA**,
+Enedis SGE GUI 0129), suivant la même plomberie ELT que C15 :
+
+- nouvelle source dlt + modèles dbt `stg_c12` / `flux_c12` + loader `c12()` ;
+- **spine contractuelle C4** : puissances souscrites pivotées par classe temporelle TURPE
+  (`puissance_souscrite_{hph,hch,hpb,hcb}_kva` + scalaire mono), option tarifaire TURPE,
+  domaine de tension, et personne morale (`raison_sociale`, `code_ape`) — proxy de la
+  catégorie d'accise (#226) ;
+- segment **inféré** (pas de `Segment_Clientele` natif dans le XSD C12), classes HTA non
+  mappées (gardées) ;
+- golden XSD (mono + 4 puissances) + garde-fou anti-dérive de schéma. Le golden sur données
+  réelles est **différé** (nécessite le trousseau AES).
+
+Décision : [ADR-0051](docs/adr/0051-flux-c12-spine-c4.md).
+
+### 🔧 Modifié
+
+- **Taux régulés** : lecteur partagé `charger_regles_taux` des registres `*_rules.csv`
+  (factorisation du chargement CSV, #520).
+
+### 🧹 Divers
+
+- [ADR-0050](docs/adr/0050-entrees-contexte-mensuel-parc-et-point-distinctes.md) : les deux
+  entrées « contexte mensuel » (parc / point) restent délibérément distinctes.
+- Tests : retrait des tests d'intégration `OdooWriter` (config morte).
+
 ## [3.4.1] - 2026-06-29
 
 Patch stable **3.4.1** (promotion de la rc1) — durcissement et élagage post-stable, **sans
