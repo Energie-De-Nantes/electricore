@@ -49,9 +49,10 @@ Consommation annuelle de référence qu'Enedis recalcule à chaque relève (prof
 **Mode d'ingestion** :
 Paramètre du pipeline d'ingestion sélectionnant l'étendue de l'exécution :
 - `test` : 2 fichiers (validation rapide)
-- `r151` : flux R151 complet uniquement
 - `all` : tous les flux
-- `reset` : purge + ré-ingestion complète
+- `rebuild` : re-matérialise depuis le brut, zéro réseau
+- `resync` : purge l'état incrémental + re-télécharge tout
+- une liste de *flux connus* (`r151 c15`…) : ces flux-là uniquement
 
 **Job d'ingestion** :
 Exécution asynchrone du pipeline d'ingestion déclenchée via l'API (`POST /ingestion/run`). Identifié par un UUID, doté d'un statut (`running`, `completed`, `failed`) et d'une sortie (`output` ou `error`).
@@ -68,6 +69,10 @@ _Éviter_ : extraction (collision avec le E de ETL = récupération SFTP), parsi
 
 **Configuration de flux** :
 Entrée de `flux.yaml` réduite au **mouvement** : `file_pattern` (glob SFTP des zips), `format` (xml/json) et `file_regex` (fichiers à extraire). Le contrat de sélection vit dans les modèles dbt — ce qui n'est pas sélectionné par un modèle reste néanmoins disponible dans le brut (`flux_raw`), re-matérialisable à volonté (`ingestion.py rebuild`).
+
+**Flux connu** :
+Type de flux enregistré dans la *configuration de flux*. Source unique de vérité de « quels flux existent » : toute autre liste de flux — flux déclenchables par un *job d'ingestion*, menus opérateur, registres de lecture — en **dérive** ou lui est **comparée** (test de parité), jamais recopiée à la main.
+_Éviter_ : recopier la liste ailleurs (toute copie manuelle dérive en silence — un flux ajouté n'apparaît pas dans les copies).
 
 ---
 
