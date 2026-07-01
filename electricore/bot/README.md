@@ -18,7 +18,7 @@ adapté à l'instance.
 |---|---|---|
 | `/ingestion` | All · Test · Rebuild · Flux… · Resync · Statut | `/ingestion rebuild`, `/ingestion r151 c15`, `/ingestion statut` |
 | `/flux` | tables avec descriptions, 📊 stats · 📥 export | `/flux stats c15`, `/flux export r151` |
-| `/perimetre` | 📥 Entrées · 📤 Sorties (C15) | `/perimetre entrees`, `/perimetre sorties` |
+| `/perimetre` | 📥 Entrées · 📤 Sorties (C15) · 🔢 PDL périmètre (M023) · 🗂 Affaires | `/perimetre entrees`, `/perimetre pdls`, `/perimetre affaires` |
 | `/taxes` ⁽ᵉʳᵖ⁾ | Accise · CTA → trimestre (4 derniers + toutes périodes) | `/taxes accise 2025-T1`, `/taxes cta` |
 | `/facturation` ⁽ᵉʳᵖ⁾ | Documents (choix du mois) · Check Odoo | `/facturation documents 2026-05-01`, `/facturation check` |
 | `/provision` | estimation de provision d'un lissé par PDL (kWh) | `/provision 12345678901234` |

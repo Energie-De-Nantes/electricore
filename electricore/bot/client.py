@@ -100,6 +100,9 @@ class ElectriCoreClient:
     async def get_sorties_xlsx(self) -> bytes:
         return await self._get_bytes("/flux/c15/sorties.xlsx")
 
+    async def get_perimetre_pdls_csv(self) -> bytes:
+        return await self._get_bytes("/perimetre/pdls.csv")
+
     async def get_affaires_ouvertes(self, *, inclure_ame: bool = False) -> list[dict]:
         """Affaires SGE non soldées (X12/X13) — cockpit read-only, #276."""
         params = {"inclure_ame": "true"} if inclure_ame else None
