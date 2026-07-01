@@ -64,6 +64,21 @@ def test_selection_multi_flux():
     assert plan.selection == ["R151", "C15"]
 
 
+def test_selection_accepte_c12_et_affaires():
+    """c12 et affaires sont des flux connus (flux.yaml) : ingérables comme les autres (#535)."""
+    plan = interpreter_flux(["c12", "affaires"], max_files=None)
+    assert plan.selection == ["C12", "AFFAIRES"]
+
+
+def test_flux_inconnu_leve_une_erreur_explicite():
+    """Un typo dans la liste de flux doit échouer fort — pas sélectionner silencieusement
+    rien (#535 : le runner valide via le même helper `flux_connus()` que l'API)."""
+    import pytest
+
+    with pytest.raises(ValueError, match="bogus"):
+        interpreter_flux(["bogus"], max_files=None)
+
+
 def test_resync_cible_purge_l_etat_du_seul_flux_selectionne():
     """`--resync` sur une liste de flux → `drop_resources` scopé au run (purge le seul
     curseur des flux sélectionnés, pour rejouer un curseur bloqué). Cas d'usage : R67

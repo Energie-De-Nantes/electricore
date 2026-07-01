@@ -28,7 +28,22 @@ def _pipeline_courtcircuite(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "mode", ["test", "all", "rebuild", "resync", "r151", "c15", "r64", "r67", "r151 c15", "r151 r67", "R151 C15"]
+    "mode",
+    [
+        "test",
+        "all",
+        "rebuild",
+        "resync",
+        "r151",
+        "c15",
+        "r64",
+        "r67",
+        "c12",
+        "affaires",
+        "r151 c15",
+        "r151 r67",
+        "R151 C15",
+    ],
 )
 def test_run_accepte_les_modes_reels(mode):
     response = TestClient(app).post("/ingestion/run", json={"mode": mode})
@@ -54,3 +69,13 @@ def test_anciens_chemins_etl_repondent_404(chemin):
     client = TestClient(app)
     response = client.post(chemin, json={"mode": "test"}) if chemin == "/etl/run" else client.get(chemin)
     assert response.status_code == 404
+
+
+def test_get_flux_retourne_les_flux_connus_y_compris_c12_et_affaires():
+    """#535 : le menu bot dérive de cet endpoint — la liste doit inclure c12/affaires
+    (dérive historique : ingérables en CLI mais absents d'API/bot)."""
+    response = TestClient(app).get("/ingestion/flux")
+    assert response.status_code == 200
+    assert set(response.json()) == set(ingestion_service.FLUX_CONNUS)
+    assert "c12" in response.json()
+    assert "affaires" in response.json()

@@ -31,6 +31,7 @@ import dlt
 import yaml
 
 from electricore.config import runtime
+from electricore.ingestion.config import flux_connus
 from electricore.ingestion.sources.sftp_enedis_brut import flux_enedis_brut
 from electricore.ingestion.transformers.chaine import StatsChaine
 
@@ -103,6 +104,9 @@ def interpreter_flux(flux: list[str], max_files: int | None, resync: bool = Fals
         return PlanRun(selection=None, max_files=max_files, refresh=None, rebuild=True)
     if flux == ["resync"]:
         return PlanRun(selection=None, max_files=max_files, refresh="drop_sources")
+    inconnus = [f for f in flux if f.lower() not in flux_connus()]
+    if inconnus:
+        raise ValueError(f"Flux inconnu(s) : {', '.join(inconnus)}. Flux connus : {', '.join(sorted(flux_connus()))}.")
     refresh = "drop_resources" if resync else None
     return PlanRun(selection=[f.upper() for f in flux], max_files=max_files, refresh=refresh)
 

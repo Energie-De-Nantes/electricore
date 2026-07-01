@@ -19,9 +19,6 @@ from electricore.bot.tasks import create_task
 POLL_INTERVAL = 5  # secondes entre deux interrogations du job
 POLL_MAX = 360  # ≈ 30 minutes de suivi au maximum
 
-# Clés de flux proposées dans le sous-menu (miroir de FLUX_CONNUS côté API).
-FLUX = ("c15", "f12", "f15", "r15", "r151", "r64", "r67")
-
 _STATUS_EMOJI = {
     "running": "⏳",
     "completed": "✅",
@@ -50,8 +47,8 @@ def clavier_principal() -> InlineKeyboardMarkup:
     )
 
 
-def clavier_flux() -> InlineKeyboardMarkup:
-    boutons = [InlineKeyboardButton(f, callback_data=f"ingestion:run:{f}") for f in FLUX]
+def clavier_flux(flux: list[str]) -> InlineKeyboardMarkup:
+    boutons = [InlineKeyboardButton(f, callback_data=f"ingestion:run:{f}") for f in flux]
     lignes = [boutons[i : i + 3] for i in range(0, len(boutons), 3)]
     lignes.append([InlineKeyboardButton("← Retour", callback_data="ingestion:menu")])
     return InlineKeyboardMarkup(lignes)
@@ -176,12 +173,23 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             _TITRE_MENU, chat_id=chat_id, message_id=message_id, parse_mode="HTML", reply_markup=clavier_principal()
         )
     elif data == "ingestion:flux":
+        try:
+            flux = await ElectriCoreClient().get_flux_connus()
+        except Exception as e:
+            await context.bot.edit_message_text(
+                f"❌ Erreur : <code>{escape(e)}</code>",
+                chat_id=chat_id,
+                message_id=message_id,
+                parse_mode="HTML",
+                reply_markup=clavier_retour(),
+            )
+            return
         await context.bot.edit_message_text(
             "<b>Ingestion ciblée</b> — choisis un flux :",
             chat_id=chat_id,
             message_id=message_id,
             parse_mode="HTML",
-            reply_markup=clavier_flux(),
+            reply_markup=clavier_flux(flux),
         )
     elif data == "ingestion:statut":
         await context.bot.edit_message_text(

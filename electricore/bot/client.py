@@ -85,6 +85,10 @@ class ElectriCoreClient:
     async def get_table_info(self, table: str) -> dict:
         return await self._get_json(f"/flux/{table}/info")
 
+    async def get_flux_connus(self) -> list[str]:
+        """Flux connus (clés de flux.yaml), source unique du sous-menu d'ingestion (#535)."""
+        return await self._get_json("/ingestion/flux")
+
     async def run_ingestion(self, mode: str) -> dict:
         return await self._post_json("/ingestion/run", json={"mode": mode})
 

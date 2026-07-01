@@ -14,6 +14,8 @@ from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
 
+from electricore.ingestion.config import flux_connus
+
 # Racine du projet (3 niveaux au-dessus de electricore/api/services/)
 _PROJECT_ROOT = Path(__file__).parents[3]
 
@@ -41,8 +43,9 @@ class ModeIngestion(StrEnum):
     resync = "resync"  # purge l'état incrémental + re-télécharge tout (brut perdu)
 
 
-# Clés de flux.yaml, en minuscules — le runner accepte aussi une liste de flux (#152).
-FLUX_CONNUS = frozenset({"c15", "f12", "f15", "r15", "r151", "r64", "r67"})
+# Clés de flux.yaml, en minuscules — dérivées de la source unique (#535, glossaire « Flux
+# connu ») : le runner accepte aussi une liste de flux (#152).
+FLUX_CONNUS = flux_connus()
 
 
 def valider_mode(mode: str) -> str | None:
