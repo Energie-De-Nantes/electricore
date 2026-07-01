@@ -34,12 +34,17 @@ def _valider_identifiant_sql(identifiant: str) -> str:
 # colonne (date de relevé / d'événement / de facture), pas la date d'ingestion.
 COLONNE_DATE_METIER = {
     "c15": "date_evenement",
+    "c12": "date_evenement",  # comme c15 (#537)
     "f12_detail": "date_facture",
     "f15_detail": "date_facture",
     "r15": "date_releve",
     "r15_acc": "date_releve",
     "r151": "date_releve",
     "r64": "date_releve",
+    # fin de période mesurée — pas date_creation, qui est de la métadonnée de
+    # production (arbitrage grilling #537).
+    "r67": "fin",
+    "affaires": "jalon_date_heure",  # dernier jalon (#537)
 }
 
 
