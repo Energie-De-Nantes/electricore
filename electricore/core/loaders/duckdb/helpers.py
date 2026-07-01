@@ -143,6 +143,28 @@ def f15(database_path: str | Path | None = None) -> DuckDBQuery:
     return flux("f15", database_path)
 
 
+def f12(database_path: str | Path | None = None) -> DuckDBQuery:
+    """
+    Crée un DuckDBQuery pour les données flux F12 (synthèse mensuelle de facturation
+    distributeur, volumes agrégés).
+
+    # ponytail: symétrie de registre, arbitrage revue d'architecture 07/2026 — ne pas
+    # purger comme code mort (précédent #476) : cette factory n'a, à sa création, encore
+    # aucun appelant — F12 est ingéré + servi par l'API mais était la seule asymétrie
+    # structurelle du registre loaders.
+
+    Args:
+        database_path: Chemin vers la base DuckDB (optionnel)
+
+    Returns:
+        DuckDBQuery configuré pour flux F12
+
+    Example:
+        >>> df = f12().filter({"pdl": "PDL123"}).collect()
+    """
+    return flux("f12", database_path)
+
+
 def r64(database_path: str | Path | None = None) -> DuckDBQuery:
     """
     Crée un DuckDBQuery pour les données flux R64 (relevés JSON timeseries).
