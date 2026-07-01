@@ -53,6 +53,21 @@ async def run_ingestion(
     return IngestionJobResponse.model_validate(job)
 
 
+@router.get("/ingestion/flux", response_model=list[str])
+async def get_flux_connus(
+    api_key: str = Depends(get_current_api_key),
+):
+    """
+    Liste les flux connus (clés de `flux.yaml`, en minuscules).
+
+    Source unique dérivée par le bot pour construire son sous-menu d'ingestion (#535,
+    glossaire « Flux connu ») — remplace toute copie manuelle qui dérive en silence.
+
+    **Authentification requise.**
+    """
+    return sorted(ingestion_service.FLUX_CONNUS)
+
+
 @router.get("/ingestion/jobs", response_model=list[IngestionJobResponse])
 async def list_ingestion_jobs(
     limit: int = Query(20, ge=1, le=50, description="Nombre de jobs à retourner"),

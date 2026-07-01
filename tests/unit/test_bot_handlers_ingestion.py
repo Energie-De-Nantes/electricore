@@ -19,12 +19,15 @@ from tests.unit.telegram_fakes import (
     update_commande,
 )
 
+_FLUX_CONNUS = ["affaires", "c12", "c15", "f12", "f15", "r15", "r151", "r64", "r67"]
+
 
 class FakeClient:
-    def __init__(self, statut_final="completed", jobs=None):
+    def __init__(self, statut_final="completed", jobs=None, flux=None):
         self.lances: list[str] = []
         self.statut_final = statut_final
         self.jobs = jobs if jobs is not None else []
+        self.flux = flux if flux is not None else list(_FLUX_CONNUS)
 
     async def run_ingestion(self, mode: str) -> dict:
         self.lances.append(mode)
@@ -35,6 +38,9 @@ class FakeClient:
 
     async def get_jobs(self, limit: int = 5) -> list[dict]:
         return self.jobs
+
+    async def get_flux_connus(self) -> list[str]:
+        return self.flux
 
 
 @pytest.fixture(autouse=True)
@@ -131,8 +137,29 @@ def test_callback_flux_ouvre_le_sous_menu_des_flux(client):
     assert client.lances == []
     (_, _, _, kwargs) = bot.edits[-1]
     callbacks = {btn.callback_data for row in kwargs["reply_markup"].inline_keyboard for btn in row}
-    assert {f"ingestion:run:{f}" for f in handlers_ingestion.FLUX} <= callbacks
+    # Le sous-menu dérive de GET /ingestion/flux (#535) — y compris c12/affaires,
+    # sans liste en dur côté bot.
+    assert {f"ingestion:run:{f}" for f in client.flux} <= callbacks
+    assert "ingestion:run:c12" in callbacks
+    assert "ingestion:run:affaires" in callbacks
     assert "ingestion:menu" in callbacks, "le sous-menu offre un retour"
+
+
+def test_callback_flux_degrade_proprement_si_l_api_est_injoignable(monkeypatch):
+    """Pattern `etape()`/`flux.py` : une erreur API affiche un message, pas une exception."""
+
+    class ClientEnPanne(FakeClient):
+        async def get_flux_connus(self) -> list[str]:
+            raise RuntimeError("API injoignable")
+
+    fake = ClientEnPanne()
+    monkeypatch.setattr(handlers_ingestion, "ElectriCoreClient", lambda: fake)
+    update = update_callback("ingestion:flux")
+    bot = FakeBot()
+
+    _scenario_callback(update, bot)
+
+    assert "❌" in bot.edits[-1][2]
 
 
 def test_callback_menu_revient_au_clavier_principal(client):

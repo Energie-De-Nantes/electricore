@@ -54,6 +54,19 @@ def test_get_check_odoo_xlsx_obtient_le_detail_via_l_api(monkeypatch):
     assert xlsx_bytes[:4] == b"PK\x03\x04", "XLSX = container ZIP, doit commencer par PK\\x03\\x04"
 
 
+def test_get_flux_connus_obtient_la_liste_via_l_api():
+    """Le sous-menu bot dérive de GET /ingestion/flux (#535), y compris c12/affaires."""
+    app.dependency_overrides[get_current_api_key] = lambda: "test-key"
+    bot_client = ElectriCoreClient(transport=httpx.ASGITransport(app=app))
+    try:
+        flux = asyncio.run(bot_client.get_flux_connus())
+    finally:
+        app.dependency_overrides.clear()
+
+    assert "c12" in flux
+    assert "affaires" in flux
+
+
 def test_erreur_http_expose_le_detail_api():
     """En cas d'erreur HTTP, l'opérateur lit le `detail` renvoyé par l'API —
     pas la ligne de statut httpx brute (incident du 503 cryptique, #171)."""
