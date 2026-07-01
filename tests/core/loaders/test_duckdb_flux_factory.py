@@ -16,7 +16,7 @@ from electricore.core.loaders.duckdb.registry import FLUX_DESCRIPTORS
 class TestFluxFactory:
     """`flux(nom)` produit un builder pour chaque flux enregistré."""
 
-    @pytest.mark.parametrize("nom", ["c15", "r151", "r15", "f15", "r64", "r67"])
+    @pytest.mark.parametrize("nom", ["c15", "r151", "r15", "f15", "f12", "r64", "r67"])
     def test_flux_retourne_un_builder(self, nom):
         assert isinstance(flux(nom), DuckDBQuery)
 
@@ -89,6 +89,14 @@ class TestValidateursSeams:
 
         assert DESCRIPTOR_F15.validator is None
 
+    def test_descriptor_f12_sans_validator_meme_raisonnement_que_f15(self):
+        """F12 (#536, symétrie de registre) : même raisonnement que F15 — pas de seam de
+        calcul core établi, pas de miroir Pandera à ce stade."""
+        from electricore.core.loaders.duckdb.registry import DESCRIPTOR_F12
+
+        assert DESCRIPTOR_F12.validator is None
+        assert DESCRIPTOR_F12.table == "flux_enedis.flux_f12_detail"
+
 
 class TestFactoriesNommeesEquivalentesAFlux:
     """#273 : c15()…r64() produisent la même requête que `flux(nom)`.
@@ -99,9 +107,9 @@ class TestFactoriesNommeesEquivalentesAFlux:
     cible le même flux. Le collapse #273 doit préserver cette équivalence.
     """
 
-    @pytest.mark.parametrize("nom", ["c15", "r151", "r15", "f15", "r64", "r67"])
+    @pytest.mark.parametrize("nom", ["c15", "r151", "r15", "f15", "f12", "r64", "r67"])
     def test_factory_nommee_batit_la_meme_requete_que_flux(self, nom):
-        from electricore.core.loaders.duckdb import c15, f15, r15, r64, r67, r151
+        from electricore.core.loaders.duckdb import c15, f12, f15, r15, r64, r67, r151
 
-        nommee = {"c15": c15, "r151": r151, "r15": r15, "f15": f15, "r64": r64, "r67": r67}[nom]
+        nommee = {"c15": c15, "r151": r151, "r15": r15, "f15": f15, "f12": f12, "r64": r64, "r67": r67}[nom]
         assert nommee()._build_final_query() == flux(nom)._build_final_query()

@@ -97,6 +97,21 @@ DESCRIPTOR_R15 = FluxDescriptor(
 )
 
 
+# Flux F12 - Synthèse mensuelle de facturation distributeur (volumes agrégés). SELECT *
+# (ADR-0042) : la forme résiduelle vit dans le modèle dbt `flux_f12_detail`. Pas de
+# validateur Pandera : même raisonnement que F15 (ADR-0035 §5) — pas de seam de calcul
+# core établi à ce stade, le premier consommateur établira le contrat.
+# ponytail: symétrie de registre, arbitrage revue d'architecture 07/2026 — ne pas purger
+# comme code mort (précédent #476) : F12 est ingéré + servi par l'API mais n'a, à sa
+# création, encore aucun appelant côté core.
+DESCRIPTOR_F12 = FluxDescriptor(
+    flux_name="F12",
+    table="flux_enedis.flux_f12_detail",
+    transform=None,
+    validator=None,
+)
+
+
 # Flux F15 - Factures détaillées. SELECT * (ADR-0042, #396) : la forme résiduelle (source)
 # vit dans le modèle dbt `flux_f15_detail`. Les dates F15 (date_facture/date_debut/date_fin)
 # sont des JOURS CIVILS (DATE) servis tels quels — plus d'ancrage en instant Paris (le loader
@@ -168,6 +183,7 @@ FLUX_DESCRIPTORS: dict[str, FluxDescriptor] = {
     "r151": DESCRIPTOR_R151,
     "r15": DESCRIPTOR_R15,
     "f15": DESCRIPTOR_F15,
+    "f12": DESCRIPTOR_F12,
     "r64": DESCRIPTOR_R64,
     "r67": DESCRIPTOR_R67,
     "affaires": DESCRIPTOR_AFFAIRES,
