@@ -18,6 +18,7 @@ _TITRE_MENU = "<b>Tables flux Enedis</b> — stats ou export :"
 # Descriptions courtes des tables (UI). Table absente du dict : listée sans description.
 DESCRIPTIONS = {
     "c15": "Événements contractuels (périmètre)",
+    "c12": "Description contractuelle C2-C4 (>36 kVA)",
     "f12_detail": "Facturation distributeur (F12)",
     "f15_detail": "Factures détaillées (F15)",
     "r15": "Relevés quotidiens + événements",
@@ -25,6 +26,7 @@ DESCRIPTIONS = {
     "r151": "Relevés périodiques",
     "r64": "Relevés courbe (JSON)",
     "r67": "Mesures facturantes (énergie par période)",
+    "affaires": "Affaires SGE (suivi opérationnel)",
 }
 
 

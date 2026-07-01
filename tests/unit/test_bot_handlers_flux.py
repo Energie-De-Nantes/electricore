@@ -81,6 +81,19 @@ def test_le_menu_decrit_chaque_table_connue(monkeypatch):
     assert "table_inconnue" in texte, "une table sans description reste listée"
 
 
+def test_le_menu_decrit_c12_et_affaires(monkeypatch):
+    """#537 : c12 et affaires étaient listés sans description (dérive silencieuse)."""
+    fake = FakeClient(tables=["c12", "affaires"])
+    monkeypatch.setattr(handlers_flux, "ElectriCoreClient", lambda: fake)
+    update = update_commande()
+
+    asyncio.run(handlers_flux.cmd_flux(update, contexte()))
+
+    ((texte, _),) = update.effective_message.replies
+    assert "C2-C4" in texte, "description contractuelle c12"
+    assert "SGE" in texte, "description affaires"
+
+
 # =============================================================================
 # Cycles 2-3 — callbacks stats, export, retour
 # =============================================================================

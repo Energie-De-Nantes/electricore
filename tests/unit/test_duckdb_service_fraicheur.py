@@ -27,6 +27,14 @@ def base_flux(tmp_path, monkeypatch):
         "INSERT INTO flux_enedis.releves VALUES "
         "('pdl1', 'flux_R151', '2026-01-15 00:00:00'), ('pdl2', 'flux_C15', '2026-02-01 00:00:00')"
     )
+    # #537 : c12 (date_evenement, comme c15), r67 (fin — fin de période mesurée, pas
+    # date_creation qui est de la métadonnée de production), affaires (jalon_date_heure).
+    conn.execute("CREATE TABLE flux_enedis.flux_c12 (pdl VARCHAR, date_evenement TIMESTAMP)")
+    conn.execute("INSERT INTO flux_enedis.flux_c12 VALUES ('pdl1', '2026-03-10 00:00:00')")
+    conn.execute("CREATE TABLE flux_enedis.flux_r67 (pdl VARCHAR, fin DATE, date_creation TIMESTAMP)")
+    conn.execute("INSERT INTO flux_enedis.flux_r67 VALUES ('pdl1', '2026-04-01', '2026-06-30 00:00:00')")
+    conn.execute("CREATE TABLE flux_enedis.flux_affaires (pdl VARCHAR, jalon_date_heure TIMESTAMPTZ)")
+    conn.execute("INSERT INTO flux_enedis.flux_affaires VALUES ('pdl1', '2026-05-20 00:00:00+02')")
     conn.close()
     monkeypatch.setenv("DUCKDB__PATH", str(base))
     return base
@@ -52,6 +60,25 @@ def test_get_table_info_rejette_un_nom_porteur_dinjection(base_flux):
     d'identifiant non-bindables (`COUNT(*)` / `max()`) ne peuvent pas porter d'injection."""
     with pytest.raises(ValueError):
         duckdb_service.get_table_info("c15'; DROP TABLE flux_c15; --")
+
+
+def test_get_table_info_expose_la_derniere_date_pour_c12(base_flux):
+    """c12 → date_evenement, comme c15 (#537)."""
+    info = duckdb_service.get_table_info("c12")
+    assert info["derniere_date"] == "2026-03-10"
+
+
+def test_get_table_info_expose_la_derniere_date_pour_r67(base_flux):
+    """r67 → fin (fin de période mesurée), pas date_creation (métadonnée de
+    production, #537)."""
+    info = duckdb_service.get_table_info("r67")
+    assert info["derniere_date"] == "2026-04-01"
+
+
+def test_get_table_info_expose_la_derniere_date_pour_affaires(base_flux):
+    """affaires → jalon_date_heure, le dernier jalon (#537)."""
+    info = duckdb_service.get_table_info("affaires")
+    assert info["derniere_date"] == "2026-05-20"
 
 
 def test_get_table_info_pour_mart_sans_prefixe_flux(base_flux):
