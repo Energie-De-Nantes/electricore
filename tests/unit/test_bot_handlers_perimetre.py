@@ -32,6 +32,10 @@ class FakeClient:
         self.exports.append("sorties")
         return b"PK\x03\x04sorties"
 
+    async def get_perimetre_pdls_csv(self) -> bytes:
+        self.exports.append("pdls")
+        return b"pdl\n99000000000017\n"
+
     async def get_affaires_ouvertes(self) -> list[dict]:
         self.affaires_appels += 1
         return [
@@ -91,7 +95,28 @@ def test_callback_sorties_envoie_le_document(client):
     assert kwargs["filename"] == "sorties_c15.xlsx"
 
 
-@pytest.mark.parametrize("raccourci,export", [("entrees", "entrees"), ("sorties", "sorties")])
+def test_callback_pdls_envoie_le_csv(client):
+    update = update_callback("perimetre:pdls")
+    bot = FakeBot()
+
+    asyncio.run(handlers_perimetre.on_callback(update, contexte(bot=bot)))
+
+    assert client.exports == ["pdls"]
+    ((_, kwargs),) = bot.documents
+    assert kwargs["filename"] == "perimetre_pdls.csv"
+    assert "M023" in kwargs["caption"]
+
+
+def test_menu_propose_les_pdls(client):
+    update = update_commande()
+
+    asyncio.run(handlers_perimetre.cmd_perimetre(update, contexte()))
+
+    ((_, kwargs),) = update.effective_message.replies
+    assert "perimetre:pdls" in callbacks_du_markup(kwargs)
+
+
+@pytest.mark.parametrize("raccourci,export", [("entrees", "entrees"), ("sorties", "sorties"), ("pdls", "pdls")])
 def test_raccourcis_texte(client, raccourci, export):
     update = update_commande()
     bot = FakeBot()

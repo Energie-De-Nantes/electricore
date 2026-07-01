@@ -6,17 +6,37 @@ vol (l'en-cours). Le rollup « non soldées + ancienneté » se calcule à la le
 (`affaires_ouvertes`), jamais matérialisé. Lecture seule : aucune écriture vers le SGE.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 import polars as pl
 from fastapi import APIRouter, Depends, Query
 
+from electricore.api.decorators import binary_endpoint
 from electricore.api.security import get_current_api_key
 
 router = APIRouter(tags=["perimetre"])
 
 PARIS = ZoneInfo("Europe/Paris")
+
+
+@binary_endpoint(router, "/perimetre/pdls.csv", media_type="text/csv", filename="perimetre_pdls.csv", error_status=500)
+def get_perimetre_pdls_csv(
+    # noqa B008 : motif FastAPI standard du repo ; B008 ne dédouane que les types immuables connus (pas `date`).
+    jour: date | None = Query(None, description="Périmètre actif à ce jour civil (défaut : aujourd'hui)"),  # noqa: B008
+    limit: int = Query(100000, le=1000000, description="Nombre maximum de PDL"),
+) -> bytes:
+    """CSV (une colonne `pdl`) des PDL présents dans le périmètre à une date (ADR-0052).
+
+    Liste à déposer sur le portail SGE pour une **demande M023** (collecte des relevés
+    quotidiens → R64). `jour` optionnel : par défaut le périmètre du jour.
+    """
+    from electricore.core.loaders.duckdb import c15
+    from electricore.core.pipelines.perimetre import pdls_actifs_a
+
+    # L'aujourd'hui (impur) est injecté ici, au boundary ; le cœur reste pur (#179).
+    df = pdls_actifs_a(c15().lazy(), jour or datetime.now(PARIS).date()).head(limit)
+    return df.write_csv().encode("utf-8")
 
 
 def _load_affaires_df(**kwargs) -> pl.DataFrame:

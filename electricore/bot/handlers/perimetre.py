@@ -14,11 +14,12 @@ from electricore.bot.client import ElectriCoreClient
 from electricore.bot.format import escape
 
 _TITRE_MENU = "<b>Périmètre</b> — exports C15 + affaires SGE en cours :"
-_USAGE = "Usage : /perimetre — ou /perimetre entrees, /perimetre sorties, /perimetre affaires"
+_USAGE = "Usage : /perimetre — ou /perimetre entrees, /perimetre sorties, /perimetre pdls, /perimetre affaires"
 
 _EXPORTS = {
     "entrees": ("entrees_c15.xlsx", "Entrées C15 (PMES, MES, CFNE)"),
     "sorties": ("sorties_c15.xlsx", "Sorties C15 (RES, CFNS)"),
+    "pdls": ("perimetre_pdls.csv", "PDL du périmètre actif — pour une demande M023 (relevés quotidiens R64)"),
 }
 
 _TELEGRAM_MSG_MAX = 4096  # limite dure de l'API Telegram par message
@@ -31,6 +32,7 @@ def clavier_principal() -> InlineKeyboardMarkup:
                 InlineKeyboardButton("📥 Entrées", callback_data="perimetre:entrees"),
                 InlineKeyboardButton("📤 Sorties", callback_data="perimetre:sorties"),
             ],
+            [InlineKeyboardButton("🔢 PDL périmètre (M023)", callback_data="perimetre:pdls")],
             [InlineKeyboardButton("🗂 Affaires en cours", callback_data="perimetre:affaires")],
         ]
     )
@@ -82,17 +84,19 @@ async def _envoyer_export(bot, chat_id: int, message_id: int, sens: str) -> None
         f"⏳ Génération de l'export {sens}…", chat_id=chat_id, message_id=message_id, parse_mode="HTML"
     )
     client = ElectriCoreClient()
+    fetch = {
+        "entrees": client.get_entrees_xlsx,
+        "sorties": client.get_sorties_xlsx,
+        "pdls": client.get_perimetre_pdls_csv,
+    }[sens]
     try:
-        if sens == "entrees":
-            xlsx_bytes = await client.get_entrees_xlsx()
-        else:
-            xlsx_bytes = await client.get_sorties_xlsx()
+        contenu = await fetch()
     except Exception as e:
         await bot.edit_message_text(
             f"❌ Erreur : <code>{escape(e)}</code>", chat_id=chat_id, message_id=message_id, parse_mode="HTML"
         )
         return
-    await bot.send_document(chat_id=chat_id, document=io.BytesIO(xlsx_bytes), filename=filename, caption=caption)
+    await bot.send_document(chat_id=chat_id, document=io.BytesIO(contenu), filename=filename, caption=caption)
     await bot.edit_message_text(
         f"📥 <code>{filename}</code> envoyé.", chat_id=chat_id, message_id=message_id, parse_mode="HTML"
     )

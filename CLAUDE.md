@@ -140,7 +140,7 @@ SFTP Enedis → Ingestion (dlt + dbt) → DuckDB → Query Builders → Core Pip
 - **Date convention**: R151 flux uses +1 day adjustment to harmonize with R64/R15/C15 (see [docs/conventions-dates-enedis.md](docs/conventions-dates-enedis.md))
 - **Column naming**: Follows `grandeur_cadran_unité` format
 - **Domain glossary**: see [CONTEXT-MAP.md](CONTEXT-MAP.md) — multi-context layout, business vocabulary in [`electricore/core/CONTEXT.md`](electricore/core/CONTEXT.md) (PDL, FTA, TURPE, cadrans, événements C15, périmètre, abonnement, Odoo); module-specific terms in `ingestion/api/bot/CONTEXT.md`.
-- **Architecture decisions**: see [docs/adr/](docs/adr/) — load-bearing past decisions (monorepo, Polars-only, R151 date adjustment, French language, DuckDB, DLT, query builders, AES rotation, API-centric architecture, Telegram bot, VPS Docker deployment, core ERP-agnostique, rôles loaders/pipelines/builds/integrations, linéarisation dbt + bascule production, surface bot par domaines, périodisations séparées, trois registres de savoir, facturation calendaire)
+- **Architecture decisions**: see [docs/adr/](docs/adr/) — load-bearing past decisions (monorepo, Polars-only, R151 date adjustment, French language, DuckDB, DLT, query builders, AES rotation, API-centric architecture, Telegram bot, VPS Docker deployment, core ERP-agnostique, rôles loaders/pipelines/builds/integrations, linéarisation dbt + bascule production, surface bot par domaines, périodisations séparées, trois registres de savoir, facturation calendaire, présence au périmètre par RSC)
 
 #### Column Naming Conventions
 
