@@ -62,6 +62,15 @@ entre l'artefact et sa source — la même protection que le test de parité dir
 mobile de plus (un script de génération à maintenir, un risque d'artefact non régénéré oublié
 en commit). Le test de parité obtient la même garantie sans ce détour.
 
+Le codegen ne donnerait d'ailleurs la garantie « par construction » qu'à l'instant de la
+génération : l'artefact étant committé, il faudrait de toute façon vérifier en CI qu'il n'a
+pas dérivé de sa source — on n'échange pas la vérification contre la construction, on les
+additionne. Restait l'avantage d'épargner la saisie manuelle des sites un par un lors de
+l'ajout d'un flux — avantage qui s'amortit à l'ère des agents : la saisie multi-sites est
+déléguée, et le test de parité est précisément le contrat exécutable qu'il faut à un agent
+(« as-tu pensé aux 7 sites ? » devient un échec de test immédiat, pas une convention à
+connaître).
+
 ## Conséquences
 
 - Ajouter un flux exige toujours de toucher les sites énumérés ci-dessus — ce n'est **pas**
