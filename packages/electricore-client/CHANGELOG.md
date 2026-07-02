@@ -4,7 +4,22 @@ Toutes les évolutions notables de ce paquet sont consignées ici.
 Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/) ;
 le versionnage suit [SemVer](https://semver.org/lang/fr/).
 
-## [0.1.0] — non publié
+## [0.2.0] — 2026-07-02
+
+### Ajouté
+- **Discrimination des erreurs par l'en-tête `X-Error-Kind`** (#424) : le
+  transport ne mappe plus sur le seul code HTTP. `503 + ingestion_lock` →
+  `IngestionEnCours` ; `422 + precondition` → **`PreconditionNonRemplie`**
+  (nouvelle exception, détail serveur conservé) ; les autres erreurs HTTP se
+  propagent inchangées.
+- Méthode `resoudre_rsc(ids)` : POST `/facturation/rsc`, résolution
+  `id_Affaire` → RSC (#282). Modèles `ResolutionRscRequest` /
+  `ResultatResolutionRsc` single-sourcés.
+- `PreconditionNonRemplie` ré-exportée au **top-level** du paquet, comme les
+  trois autres exceptions (`from electricore_client import
+  PreconditionNonRemplie`).
+
+## [0.1.0] — 2026-06-23
 
 ### Ajouté
 - Squelette du paquet `electricore-client` (top-level `electricore_client`),

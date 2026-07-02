@@ -861,7 +861,7 @@ typecheck = [{ name = "mypy", specifier = ">=1.13" }]
 
 [[package]]
 name = "electricore-client"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "packages/electricore-client" }
 dependencies = [
     { name = "httpx" },
