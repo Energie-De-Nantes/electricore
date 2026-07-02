@@ -110,11 +110,16 @@ def test_chaque_valeur_du_mapping_est_un_modele_dbt_existant():
             assert modele in modeles_dbt, f"{raw} → {modele} : modèle dbt introuvable ({modele}.sql)"
 
 
-def test_chaque_flux_ingere_a_un_descripteur_loader():
-    """Chaque flux connu doit être requêtable côté cœur (registre loaders)."""
-    descriptors = _flux_descriptors()
+def _assert_chaque_flux_a_un_descripteur(descriptors: dict) -> None:
+    """Invariant partagé avec le test de mutation : l'affaiblir ici fait échouer
+    `test_mutation_locale_retirer_un_flux_du_registre_loaders_fait_echouer`."""
     for f in flux_connus():
         assert f in descriptors, f"flux '{f}' ingéré (flux.yaml) mais absent de FLUX_DESCRIPTORS"
+
+
+def test_chaque_flux_ingere_a_un_descripteur_loader():
+    """Chaque flux connu doit être requêtable côté cœur (registre loaders)."""
+    _assert_chaque_flux_a_un_descripteur(_flux_descriptors())
 
 
 def test_chaque_descriptor_pointe_un_modele_dbt_existant():
@@ -170,12 +175,12 @@ def test_couverture_libelles_bot_chaque_table_exposee_a_une_description():
 
 def test_mutation_locale_retirer_un_flux_du_registre_loaders_fait_echouer():
     """Sanity du test lui-même (#538, critère d'acceptation) : retirer un flux connu du
-    registre loaders doit faire échouer `test_chaque_flux_ingere_a_un_descripteur_loader`."""
+    registre loaders fait échouer le VRAI invariant (helper partagé, pas une copie —
+    l'affaiblir se voit ici)."""
     descriptors = dict(_flux_descriptors())
     descriptors.pop("c12")
     with pytest.raises(AssertionError):
-        for f in flux_connus():
-            assert f in descriptors, f"flux '{f}' ingéré (flux.yaml) mais absent de FLUX_DESCRIPTORS"
+        _assert_chaque_flux_a_un_descripteur(descriptors)
 
 
 def test_config_ne_dependend_pas_de_dlt_dans_le_module():
