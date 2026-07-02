@@ -19,8 +19,10 @@ _CHEMIN_FLUX_YAML = Path(__file__).parent / "flux.yaml"
 def flux_connus() -> frozenset[str]:
     """Clés de `flux.yaml`, en minuscules — les *flux connus* de l'ingestion.
 
-    Lecture YAML pure (pas d'import `dlt`) : appelable depuis `core`/l'API sans
-    l'extra `[ingestion]`.
+    Lecture YAML pure (pas d'import `dlt`) : l'API (qui embarque l'extra
+    `[ingestion]`) en dérive sa validation sans charger dlt. `core`, lui, n'en
+    dérive jamais (ADR-0053 mur 2, verrou dans `test_core_purity.py`) — ses
+    registres sont *comparés* par le test de parité.
     """
     config = yaml.safe_load(_CHEMIN_FLUX_YAML.read_text())
     return frozenset(cle.lower() for cle in config)

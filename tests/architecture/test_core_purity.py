@@ -2,8 +2,11 @@
 
 Enforce [ADR-0016](../../docs/adr/0016-core-erp-agnostique.md) — `core/` ne
 dépend que de Polars, DuckDB, Pandera et la stdlib. Aucun import vers
-`electricore.integrations`, `electricore.api`, `electricore.bot`, ou une lib
-ERP (`odoorpc`, …) n'est toléré.
+`electricore.integrations`, `electricore.api`, `electricore.bot`,
+`electricore.ingestion` (mur 2 de
+[ADR-0053](../../docs/adr/0053-parite-sites-declaration-flux-connu.md) :
+core ne dérive pas de flux.yaml, il est *comparé* par le test de parité),
+ou une lib ERP (`odoorpc`, …) n'est toléré.
 
 Analyse statique via `ast` : couvre aussi les imports `TYPE_CHECKING` (un type
 emprunté à une couche supérieure reste un couplage, même sans dépendance runtime).
@@ -18,6 +21,7 @@ FORBIDDEN_PREFIXES: tuple[str, ...] = (
     "electricore.integrations",
     "electricore.api",
     "electricore.bot",
+    "electricore.ingestion",  # ADR-0053 mur 2 : core ne dérive pas des flux connus
     "odoorpc",
 )
 
