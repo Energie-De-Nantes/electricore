@@ -77,6 +77,24 @@ def test_raise_for_status_mappe_422_precondition_sur_precondition_non_remplie():
         client._raise_for_status(response)
 
 
+def test_les_exceptions_sont_toutes_exposees_au_top_level():
+    """Les 4 exceptions s'importent depuis `electricore_client` directement.
+
+    Verrue relevée par l'intégration Odoo : `PreconditionNonRemplie` forçait
+    `from electricore_client.exceptions import …` alors que ses trois sœurs
+    étaient top-level."""
+    import electricore_client
+
+    for nom in (
+        "ElectricoreClientError",
+        "IngestionEnCours",
+        "PreconditionNonRemplie",
+        "ContractVersionError",
+    ):
+        assert nom in electricore_client.__all__
+        assert issubclass(getattr(electricore_client, nom), Exception)
+
+
 def test_raise_for_status_propage_les_autres_erreurs():
     """Tout autre statut d'erreur reste une `httpx.HTTPStatusError`."""
 

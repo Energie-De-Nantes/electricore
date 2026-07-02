@@ -16,6 +16,7 @@ from .exceptions import (
     ContractVersionError,
     ElectricoreClientError,
     IngestionEnCours,
+    PreconditionNonRemplie,
 )
 from .headers import EnTetesMeta
 from .models import (
@@ -33,12 +34,13 @@ from .models import (
 )
 from .streaming import JsonlStream
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "ElectricoreClient",
     "ElectricoreClientError",
     "IngestionEnCours",
+    "PreconditionNonRemplie",
     "ContractVersionError",
     "EnTetesMeta",
     "JsonlStream",
