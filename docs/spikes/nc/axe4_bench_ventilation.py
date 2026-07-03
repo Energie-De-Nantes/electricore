@@ -10,14 +10,14 @@ R64/R151, indépendant de la reconstruction. Aucune fenêtre synthétique.
 
 4 méthodes benchées : (1) prorata temporis, (2) profil saisonnier du parc EDN
 (leave-one-out), (3) sans-ventilation aux bornes réelles (praticabilité), (4)
-profils officiels Enedis (pluggable — extrait public non embarqué, cf §7).
+profils officiels Enedis (pluggable — extrait public non embarqué, cf §6).
 
 Repro :  uv run python docs/spikes/nc/axe4_bench_ventilation.py
 (lecture seule ; nécessite la base d'ingestion locale peuplée C15+R15+F15+R64+R151.
 Si `uv run` échoue en sandbox sur ~/.cache/uv, relancer hors sandbox.)
 
 RGPD : aucune sortie agrégée de ce script ne doit contenir de PDL/RSC — invariant
-final (§10) qui scanne CE fichier .py et le rapport .md committé. Le détail par
+final (§11) qui scanne CE fichier .py et le rapport .md committé. Le détail par
 PDL (nécessaire pour déboguer) part dans sorties-locales/ (non suivi par git).
 """
 
