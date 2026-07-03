@@ -1,16 +1,17 @@
 # Axe 2 — couverture data par NC → source de vérité moisniversaire
 
-Spike #545 (sous-issue du PRD #542, Observabilité des non-communicants). **Scope partiel**
-de ce rapport : R15 / F15 / C15 uniquement. Le **R67 n'est pas encore en base** (campagne
-M023 [#543](https://github.com/Energie-De-Nantes/electricore/issues/543) pas atterrie) —
-la section 4 le constate, le verdict de la section 6 est **explicitement provisoire** et
-sera révisé une fois le R67 intégré (V2).
+Spike #545 (sous-issue du PRD #542, Observabilité des non-communicants). Couvre **R15 /
+F15 / C15 / R67** : un premier lot de la campagne M023
+[#543](https://github.com/Energie-De-Nantes/electricore/issues/543) a été landé (22/25 NC),
+ce qui permet le **verdict V2 définitif** (section 7).
 
 Script rejouable : [`axe2_couverture.py`](axe2_couverture.py) (`uv run python
-docs/spikes/nc/axe2_couverture.py`), lecture seule DuckDB, invariants inline. Base locale
-au 2026-07-03 : données jusqu'au 2026-06-17. Détail par PDL en sortie locale non
-committée (`sorties-locales/axe2_couverture_nc.csv`) — RGPD : ce rapport ne contient que
-des agrégats.
+docs/spikes/nc/axe2_couverture.py`), lecture seule DuckDB, invariants inline. Il s'adapte à
+la présence du R67 : verdict définitif si `flux_r67` est landé, provisoire sinon. Le landing
+d'un ZIP M023 se fait via [`lander_r67_m023.py`](lander_r67_m023.py) puis `uv run python -m
+electricore.ingestion rebuild`. Base locale au 2026-07-03 : données jusqu'au 2026-06-17.
+Détail par PDL en sortie locale non committée (`sorties-locales/axe2_couverture_nc.csv`) —
+RGPD : ce rapport ne contient que des agrégats.
 
 ## Cohorte
 
@@ -61,11 +62,27 @@ des agrégats.
   un `MES`/`MCT` classique côté communicant. Le C15 n'est donc **pas** une source d'index
   exploitable pour les NC sur cette base.
 
-## 4. R67 — en attente de la campagne M023 (#543)
+## 4. R67 — mesures facturantes (campagne M023 #543 landée)
 
-Table `flux_r67` absente de la base à ce jour. Le script tolère son arrivée (vérification
-`information_schema`, bascule automatique dès que la table existe). **Ce volet et le
-verdict final (V2) attendent l'atterrissage de la campagne #543.**
+Un lot M023 a été landé (via [`lander_r67_m023.py`](lander_r67_m023.py) → `flux_r67`,
+[ADR-0047](../../adr/0047-flux-r67-energie-par-periode-distributeur-hors-releves.md)).
+
+- **Couverture : 22/25 PDL NC**, 403 fenêtres (une mesure d'énergie par période, déjà
+  différenciée par cadran et par période par Enedis). Les 3 NC manquants ne sont pas dans
+  ce lot (vraisemblablement définitivement absents côté SGE).
+- **Nature : 65 % `estimé`, 27 % `régularisé`, 8 % `réel`.** R67 apporte surtout de
+  l'*estimation Enedis* — il ne résout **pas** la rareté du relevé réel (cf. section 5),
+  cohérent avec le parc pré-Linky de l'axe 1.
+- Motifs : `CYCL` 246, `AUTRE` 132, `CFNS` 25.
+- **Fenêtres** : taille médiane **56 j** (moisniversaire, bimestriel). Le pavage est propre
+  à un recouvrement résiduel près (1 recouvrement inter-motifs — CFNS/CYCL — toléré par
+  l'ADR-0047, contrairement à F15 dont l'unicité de motif garantit le non-recouvrement).
+- **Profondeur** : R67 remonte à **2023-06-27** contre **2024-04-09** pour le F15 en base —
+  ~9 mois de mesures moisniversaire de plus.
+- **Invariant — cohérence R67↔F15** : sur les **84 fenêtres à bornes strictement identiques**
+  (CYCL des deux côtés), R67 et F15 donnent **exactement** la même énergie (84/84 à ±1 kWh,
+  écart moyen 0,00 kWh). R67 ne contredit jamais le facturé : il l'**étend** (246 fenêtres
+  CYCL vs 200 pour F15, et plus profond).
 
 ## 5. Fréquence des relevés Réels (relève physique) chez les NC
 
@@ -96,25 +113,27 @@ R15 et F15 ne sont donc pas deux vérités concurrentes mais **la même énergie
 deux flux différents — F15 l'agrège déjà par fenêtre facturée, R15 exige un diff
 d'index entre deux relevés.
 
-## 7. V2 (provisoire) — désignation de la source de vérité moisniversaire
+## 7. V2 (définitif) — désignation de la source de vérité moisniversaire
 
-> **Provisoire — verdict final V2 après intégration R67** (#543).
+> **Verdict V2 définitif** — un lot R67 de la campagne M023 #543 est landé.
 
-Sur le périmètre R15/F15/C15 :
+Confrontation des quatre sources chez les NC :
 
-- **C15 est écarté** : 0 % de couverture en index chez les NC sur ce corpus.
-- **R15 seul (tel qu'ingéré aujourd'hui) est écarté comme source d'énergie** : son index
-  canonique est nul à 100 % pour les NC (lacune d'ingestion identifiée en section 1) ;
-  seules ses *dates* de relevé sont exploitables en l'état.
-- **F15 est la source d'énergie la plus directement exploitable** : fenêtres propres
-  (aucun recouvrement, réconciliation vérifiée), énergies déjà agrégées par cadran,
-  24/25 PDL couverts, et confirmée **identique** à l'énergie R15 réellement mesurée
-  (section 6) quand cette dernière est correctement extraite.
+- **C15 écarté** : 0 % de couverture en index chez les NC sur ce corpus.
+- **R15 seul écarté comme source d'énergie** : son index canonique est nul à 100 % pour les
+  NC (lacune d'ingestion, section 1) ; seules ses *dates* de relevé sont exploitables.
+- **F15** : source facturée fiable (fenêtres propres, 24/25), mais moins profonde que R67 et
+  strictement corroborante (identique à R67 sur bornes communes).
+- **R67** : énergie moisniversaire déjà différenciée par cadran ET par période, 22/25 NC,
+  profondeur ~3 ans (9 mois de plus que F15), nature étiquetée, **identique à F15 là où les
+  bornes coïncident**.
 
-**Candidat provisoire : F15** comme source de vérité des fenêtres moisniversaire et des
-énergies associées, complété par les dates de relevé R15 pour les PDL sans facture F15
-récente. Ce verdict reste **partiel** : le R67 (énergie par période déjà différenciée par
-le distributeur, cf. [ADR-0047](../../adr/0047-flux-r67-energie-par-periode-distributeur-hors-releves.md))
-n'a pas encore été confronté aux deux autres sources et pourrait s'avérer préférable une
-fois disponible (troisième candidat, jamais dans l'union des relevés par construction). Le
-verdict définitif est déféré à V2, après atterrissage de la campagne M023 #543.
+**Source de vérité désignée : R67**, avec F15 en corroboration et garde-fou. R67 est le
+seul flux qui donne, pour les NC, une énergie déjà ventilée par période moisniversaire sur
+une profondeur exploitable, sans jamais contredire le facturé.
+
+**Réserve assumée** : R67 est **majoritairement `estimé`** (8 % de lignes réelles) — c'est
+la meilleure estimation Enedis disponible, pas du relevé physique. Le solde « propre » sur
+relevé réel reste hors de portée à cadence utile (section 5). Une régularisation NC
+s'appuie donc sur R67 en assumant son caractère estimé. Ce verdict alimente l'ADR final
+[#548](https://github.com/Energie-De-Nantes/electricore/issues/548).
