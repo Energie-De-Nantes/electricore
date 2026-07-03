@@ -364,7 +364,7 @@ synthese = [
     f"- **Ancienneté** : le champ natif Enedis de bascule est vide sur {n_nc - n_natif_rempli}/{n_nc} "
     "RSC NC actuelles ; ancienneté dérivée de l'historique C15 pour celles-ci (détail : axe 3).",
     f"- **Bascules** : {bascules_depuis_0} bascules ont quitté le niveau 0 sur tout l'historique, "
-    f"**0** y sont revenues (aucune bascule 2→0 ni 1→0 observée à ce jour).",
+    f"**{bascules_vers_0}** y sont revenues (aucune bascule 2→0 ni 1→0 observée à ce jour).",
     f"- **Mouvements du parc NC** : {total_entrees} entrées / {total_sorties} sorties historiques "
     f"(solde {total_entrees - total_sorties}, cohérent avec le NC actuel).",
     "",
