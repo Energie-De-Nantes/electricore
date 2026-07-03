@@ -75,8 +75,10 @@ Un lot M023 a été landé (via [`lander_r67_m023.py`](lander_r67_m023.py) → `
   cohérent avec le parc pré-Linky de l'axe 1.
 - Motifs : `CYCL` 246, `AUTRE` 132, `CFNS` 25.
 - **Fenêtres** : taille médiane **56 j** (moisniversaire, bimestriel). Le pavage est propre
-  à un recouvrement résiduel près (1 recouvrement inter-motifs — CFNS/CYCL — toléré par
-  l'ADR-0047, contrairement à F15 dont l'unicité de motif garantit le non-recouvrement).
+  à un recouvrement résiduel près : l'ADR-0047 avait vérifié **zéro** recouvrement inter-motifs
+  sur 4 fichiers pilotes ; ce lot NC plus large en montre **1** (CFNS/CYCL). On l'**observe**
+  plutôt qu'on l'assert (contrairement à F15, dont l'unicité de motif garantit le
+  non-recouvrement). La cohérence ci-dessous filtre CYCL des deux côtés → aucun double-compte.
 - **Profondeur** : R67 remonte à **2023-06-27** contre **2024-04-09** pour le F15 en base —
   ~9 mois de mesures moisniversaire de plus.
 - **Invariant — cohérence R67↔F15** : sur les **84 fenêtres à bornes strictement identiques**

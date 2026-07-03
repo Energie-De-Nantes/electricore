@@ -14,6 +14,11 @@ Chemin par défaut : les ZIP R67 du répertoire M023 local (non suivi par git, R
 il contient des numéros de PDL). Passer un autre chemin en argument. Le script
 n'imprime que des agrégats anonymes (nb PRM, nb mesures), jamais de PDL.
 
+NB : le landing globe TOUS les ZIP R67 du dossier (ou le seul fichier passé en argument)
+— il ne filtre pas sur une cohorte. Lander plusieurs demandes M023 peut donc amener des
+PDL hors périmètre d'analyse ; c'est inoffensif (les spikes aval filtrent par cohorte),
+mais `flux_r67` portera alors tous les PDL landés.
+
 Repro : nécessite la base d'ingestion locale. Écrit dans la base (read/write).
 """
 
