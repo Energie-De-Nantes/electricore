@@ -237,9 +237,11 @@ else:
     motifs = qdf(NC_PDL_CTE + "select id_motif_releve m, count(*) n from flux_r67 r join nc_pdl using (pdl) group by 1")
     print("  motifs :", {r["m"]: r["n"] for r in motifs.iter_rows(named=True)})
 
-    # Fenêtres : taille + pavage. ADR-0047 dit que les motifs partitionnent le temps ; en
-    # pratique un recouvrement résiduel entre motifs (CFNS/CYCL) reste possible → on OBSERVE
-    # (pas d'assertion à zéro comme F15, dont l'unicité de motif garantit le non-recouvrement).
+    # Fenêtres : taille + pavage. L'ADR-0047 a vérifié ZÉRO recouvrement inter-motifs sur 4
+    # fichiers pilotes ; ce lot NC plus large en montre 1 (CFNS/CYCL) → on OBSERVE plutôt qu'on
+    # assert (contrairement à F15, dont l'unicité de motif garantit le non-recouvrement). La
+    # jointure de cohérence ci-dessous filtre CYCL des deux côtés, donc ce recouvrement résiduel
+    # ne peut pas double-compter.
     r67_fen = qdf(NC_PDL_CTE + "select r.pdl, r.debut, r.fin from flux_r67 r join nc_pdl using (pdl)").sort(
         ["pdl", "debut"]
     )
@@ -262,7 +264,9 @@ else:
     # côtés pour éviter le double-compte du recouvrement inter-motifs résiduel.
     r67_cyc = qdf(
         NC_PDL_CTE + "select r.pdl, r.debut date_debut, r.fin date_fin, "
-        "coalesce(energie_base_kwh,0)+coalesce(energie_hp_kwh,0)+coalesce(energie_hc_kwh,0) r67_kwh "
+        "coalesce(energie_base_kwh,0)+coalesce(energie_hp_kwh,0)+coalesce(energie_hc_kwh,0)"
+        "+coalesce(energie_hph_kwh,0)+coalesce(energie_hpb_kwh,0)+coalesce(energie_hch_kwh,0)"
+        "+coalesce(energie_hcb_kwh,0) r67_kwh "
         "from flux_r67 r join nc_pdl using (pdl) where id_motif_releve='CYCL'"
     )
     f15_cyc = qdf(
@@ -280,7 +284,14 @@ else:
             f"  cohérence R67↔F15 (bornes identiques CYCL) : {coh.height} fenêtres communes, "
             f"{exact}/{coh.height} à ±1 kWh (écart moyen {coh['ecart'].mean():.2f} kWh)"
         )
-        assert exact == coh.height, "INVARIANT : R67 et F15 divergent sur des bornes identiques"
+        # Tripwire souple (pas une égalité dure) : sur ce lot 84/84 sont à 0,00 kWh, mais
+        # l'ADR-0047 documente un arrondi par cadran (~1 kWh sur la moitié des intervalles à
+        # 4 cadrans) qui pourrait, sur un futur lot >36 kVA, faire diverger un rare intervalle
+        # au-delà de ±1 kWh sans que R67 « mente ». On exige donc une concordance massive, pas
+        # parfaite — un vrai désaccord de fond ferait chuter le ratio bien en-deçà.
+        assert exact >= coh.height * 0.95, (
+            f"INVARIANT : R67 et F15 divergent sur {coh.height - exact}/{coh.height} bornes identiques (>5%)"
+        )
 
 # === 5. Fréquence des relevés Réels (relève physique) =================================
 print("\n=== 5. Fréquence des relevés Réels chez les NC ===")
@@ -470,7 +481,7 @@ Constats de ce spike (volet R15/F15/C15) :
 """
     )
 
-# === 9. Garde RGPD — scan du rapport committé =========================================
+# === 8. Garde RGPD — scan du rapport committé =========================================
 print("=== 8. Garde RGPD — scan du rapport committé ===")
 motif_pdl = re.compile(r"\b\d{14}\b")
 if RAPPORT.exists():
