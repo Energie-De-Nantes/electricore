@@ -190,6 +190,7 @@ electricore/ingestion/.dlt/secrets.toml
 *.duckdb
 perimetre_manquants/
 surveillance_perimetre_manquants.csv
+sorties-locales/
 .serena/
 
 # Artefacts de déploiement Docker générés à partir des fichiers .example
