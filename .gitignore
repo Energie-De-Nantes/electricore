@@ -208,3 +208,6 @@ electricore/ingestion/.dbt_target_*/
 
 # repo-scoped GitHub PAT for in-sandbox automation — never commit
 .gh-token
+
+# Sortie locale des spikes NC (détail nominatif par PDL, RGPD)
+sorties-locales/
