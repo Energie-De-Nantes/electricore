@@ -2,6 +2,15 @@ site_name: ElectriCore
 site_url: https://energie-de-nantes.github.io/electricore/
 theme:
   name: material
+  palette:
+    # `custom` = les couleurs viennent des variables --md-* de stylesheets/cozy.css
+    # (palette « Warm Cosy » des schémas Excalidraw, scripts/cozy_palettes.json).
+    scheme: default
+    primary: custom
+    accent: custom
+
+extra_css:
+  - stylesheets/cozy.css
 
 plugins:
   - search

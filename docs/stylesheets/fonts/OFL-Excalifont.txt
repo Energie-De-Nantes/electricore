@@ -1,0 +1,12 @@
+Excalifont-Regular.woff2 — subset Latin de la fonte Excalifont.
+
+Copyright (c) 2024 by Excalidraw. All rights reserved.
+Design : Your Own Font Foundry (Virgil) ; Ján Filípek / DizajnDesign
+(Excalifont, modifications). Excalifont is a trademark of Excalidraw.
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+The full license text is embedded in the font's name table and available at:
+http://scripts.sil.org/OFL
+
+Source : https://github.com/excalidraw/excalidraw
+(packages/excalidraw/fonts/Excalifont/, subset U+20-7E + Latin-1 + œ + €)
