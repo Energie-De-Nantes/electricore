@@ -17,6 +17,10 @@ class ResultatVerification:
     lisses_quantite_1: pl.DataFrame
 
 
+# Discriminant commande énergie (#564) : solde les faux positifs hors énergie (ex. S00583).
+_ENERGIE = ("x_pdl", "!=", False)
+
+
 def verifier(odoo: OdooReader) -> ResultatVerification:
     return ResultatVerification(
         rsc_manquante=_rsc_manquante(odoo),
@@ -31,7 +35,7 @@ def _rsc_manquante(odoo: OdooReader) -> pl.DataFrame:
     return query(
         odoo,
         "sale.order",
-        domain=[("state", "=", "sale"), ("x_ref_situation_contractuelle", "=", False)],
+        domain=[("state", "=", "sale"), _ENERGIE, ("x_ref_situation_contractuelle", "=", False)],
         fields=["name", "x_pdl"],
     ).collect()
 
@@ -40,7 +44,7 @@ def _cfne_manquante(odoo: OdooReader) -> pl.DataFrame:
     return query(
         odoo,
         "sale.order",
-        domain=[("state", "=", "sale"), ("x_date_cfne", "=", False)],
+        domain=[("state", "=", "sale"), _ENERGIE, ("x_date_cfne", "=", False)],
         fields=["name", "x_pdl"],
     ).collect()
 
@@ -49,7 +53,7 @@ def _invoicing_state_counts(odoo: OdooReader) -> pl.DataFrame:
     raw = query(
         odoo,
         "sale.order",
-        domain=[("state", "=", "sale")],
+        domain=[("state", "=", "sale"), _ENERGIE],
         fields=["x_invoicing_state"],
     ).collect()
     state_col = pl.col("x_invoicing_state").fill_null("(non défini)")
@@ -61,7 +65,7 @@ def _factures_draft(odoo: OdooReader) -> pl.DataFrame:
         query(
             odoo,
             "sale.order",
-            domain=[("state", "=", "sale")],
+            domain=[("state", "=", "sale"), _ENERGIE],
             fields=["name", "invoice_ids"],
         )
         .follow("invoice_ids", domain=[("state", "=", "draft")], fields=["name"])
@@ -81,7 +85,7 @@ def _lisses_quantite_1(odoo: OdooReader) -> pl.DataFrame:
         query(
             odoo,
             "sale.order",
-            domain=[("state", "=", "sale"), ("x_lisse", "=", True)],
+            domain=[("state", "=", "sale"), _ENERGIE, ("x_lisse", "=", True)],
             fields=["name", "order_line"],
         )
         .follow("order_line", domain=[("product_uom_qty", "=", 1)], fields=["product_id", "product_uom_qty"])
