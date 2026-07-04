@@ -6,12 +6,25 @@ theme:
 plugins:
   - search
 
+hooks:
+  - scripts/mkdocs_hooks.py
+
+# validation.links n'a pas de niveau `error` dans cette version de MkDocs (seulement
+# warn/info/ignore) : `warn` est le niveau le plus strict disponible, et c'est bien
+# `mkdocs build --strict` (garde-fou CI, #560) qui transforme un warning en échec.
+# `not_found` (lien interne mort) est donc désormais bloquant partout SAUF dans
+# docs/adr/** et docs/agents/** (registres figés, cf. scripts/mkdocs_hooks.py) : ces
+# deux répertoires portent ~55 liens vers du code/des fichiers hors docs/ (légitimes,
+# mais non résolvables par MkDocs) ou, pour deux ADRs, une coquille de nommage vers un
+# autre ADR — corriger le contenu d'un ADR publié est un interdit dur (#560), même pour
+# un lien.
 validation:
   nav:
     omitted_files: ignore
   links:
-    absolute_links: ignore
-    unrecognized_links: ignore
+    not_found: warn
+    absolute_links: warn
+    unrecognized_links: warn
 
 exclude_docs: "*.excalidraw"
 
