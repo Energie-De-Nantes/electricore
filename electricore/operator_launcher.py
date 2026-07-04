@@ -167,11 +167,20 @@ def construire_app(directory: str | Path, *, prefixe: str = _PREFIXE_APPS):
 
 
 def main() -> None:
-    """Point d'entrée `electricore-notebooks` : charge le .env, valide, sert, ouvre le navigateur."""
+    """Point d'entrée `electricore-notebooks` : charge le .env, valide, sert, ouvre le navigateur.
+
+    `--edit` : sert les notebooks en mode édition au lieu du mode run. L'API ASGI
+    marimo est run-only → on remplace le process par `python -m marimo edit`
+    (même venv), l'env étant déjà chargé et validé.
+    """
     charger_env()
     valider_environnement()
 
     dossier = dossier_notebooks()
+
+    if "--edit" in sys.argv[1:]:
+        os.execv(sys.executable, [sys.executable, "-m", "marimo", "edit", str(dossier)])
+
     app = construire_app(dossier)
 
     base = f"http://{_HOTE}:{_PORT}{_PREFIXE_APPS}"

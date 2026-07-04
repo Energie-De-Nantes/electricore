@@ -8,6 +8,7 @@ Le smoke navigateur/serveur est une vérif MANUELLE (non automatisée).
 """
 
 import os
+import sys
 from pathlib import Path
 
 import pytest
@@ -17,6 +18,7 @@ from electricore.operator_launcher import (
     charger_env,
     construire_app,
     dossier_notebooks,
+    main,
     url_navigateur,
     valider_environnement,
 )
@@ -205,6 +207,28 @@ def test_url_navigateur_repli_sur_le_premier_sans_accueil():
 def test_url_navigateur_aucun_notebook():
     """Dossier vide → aucune URL à ouvrir."""
     assert url_navigateur(_BASE, []) is None
+
+
+def test_main_edit_delegue_a_marimo_edit(monkeypatch):
+    """`--edit` remplace le process par `python -m marimo edit <dossier>` (ASGI = run-only)."""
+    _poser_env(monkeypatch, _ENV_COMPLET)
+    monkeypatch.setattr(sys, "argv", ["electricore-notebooks", "--edit"])
+
+    appels = {}
+
+    def faux_execv(exe, argv):
+        appels["exe"], appels["argv"] = exe, argv
+        # execv ne retourne jamais : lever ici stoppe main() comme le ferait le vrai exec.
+        raise RuntimeError("exec simulé")
+
+    monkeypatch.setattr(os, "execv", faux_execv)
+
+    with pytest.raises(RuntimeError, match="exec simulé"):
+        main()
+
+    assert appels["exe"] == sys.executable
+    assert appels["argv"][:4] == [sys.executable, "-m", "marimo", "edit"]
+    assert Path(appels["argv"][4]).is_dir()
 
 
 def test_construire_app_monte_le_dossier_embarque(tmp_path: Path):
