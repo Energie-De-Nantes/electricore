@@ -25,6 +25,14 @@ _Note_ : « Fournisseur » est générique — il désigne aussi bien le fournis
 Déploiement ElectriCore dédié à un *fournisseur* particulier (EDN, Enargia…). Chaque instance a sa propre base DuckDB, ses clés AES, sa config Odoo, sa source SFTP, son sous-domaine. Identifiée par un slug court (`edn`, `enargia`).
 _Éviter_ : tenant (anglicisme), déploiement (confus avec l'opération de release).
 
+**Commun** :
+Mode d'organisation d'EDN : une ressource (le service de fourniture d'électricité et son outillage) gérée collectivement par ses usager·ère·s, sans salariés. ElectriCore est l'outillage logiciel de ce commun.
+_Éviter_ : coopérative (statut différent), entreprise.
+
+**Usager·ère** :
+Souscripteur·ice d'EDN, dans le vocabulaire des communs. Côté domaine Enedis c'est le *client final* / titulaire du contrat sur un *PDL*.
+_Éviter_ : client (relation marchande, à réserver aux contextes Odoo/facturation), adhérent, sociétaire (vocabulaire coopératif).
+
 **Gestionnaire de réseau** :
 Synonyme métier d'Enedis dans la majeure partie du territoire. À distinguer du *transporteur* (RTE, haute tension).
 
