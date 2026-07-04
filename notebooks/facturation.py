@@ -141,8 +141,10 @@ def _(mois_input):
             True,
             mo.callout(
                 mo.md(
-                    "**Serveur electricore injoignable** — vérifiez `/ingestion` sur le bot "
-                    "Telegram, sinon prévenez Virgile."
+                    # L'URL tentée rend un défaut localhost inattendu auto-diagnostique
+                    # (run direct hors lanceur opérateur, ELECTRICORE_API_URL non définie).
+                    f"**Serveur electricore injoignable** (`{client.url}`) — vérifiez `/ingestion` "
+                    "sur le bot Telegram, sinon prévenez Virgile."
                 ),
                 kind="danger",
             ),
