@@ -7,11 +7,36 @@ Ce module fournit OdooWriter pour créer et modifier des données dans Odoo ERP.
 import copy
 import logging
 from collections.abc import Hashable
+from dataclasses import dataclass, field
 from typing import Any
 
 from .reader import OdooReader
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True, slots=True)
+class EchecEcriture:
+    """Échec d'écriture sur un record : id Odoo visé + raison XML-RPC."""
+
+    id: int
+    raison: str
+
+
+@dataclass(frozen=True, slots=True)
+class RapportEcriture:
+    """Rapport de `OdooWriter.update()` (#571).
+
+    Un échec XML-RPC sur un record n'interrompt plus la boucle : chaque record
+    restant est quand même tenté, et chaque catégorie est rapportée plutôt que
+    de stopper net ou de finir en simple log. Relancer `update()` est sûr
+    (écriture idempotente, mêmes valeurs sur les mêmes ids) : le rapport sert
+    à décider quoi corriger avant de relancer, pas à empêcher de relancer.
+    """
+
+    ids_reussis: list[int] = field(default_factory=list)
+    echecs: list[EchecEcriture] = field(default_factory=list)
+    sans_id: list[dict[Hashable, Any]] = field(default_factory=list)
 
 
 class OdooWriter(OdooReader):
@@ -77,7 +102,7 @@ class OdooWriter(OdooReader):
         logger.info(f"{model} #{created_ids} created in Odoo db.")
         return created_ids
 
-    def update(self, model: str, records: list[dict[Hashable, Any]]) -> None:
+    def update(self, model: str, records: list[dict[Hashable, Any]]) -> RapportEcriture:
         """
         Met à jour des enregistrements dans Odoo.
 
@@ -85,18 +110,25 @@ class OdooWriter(OdooReader):
             model: Modèle Odoo
             records: Liste des enregistrements à mettre à jour (doivent contenir 'id')
 
+        Returns:
+            RapportEcriture : ids réussis, échecs (id + raison), records sans 'id'.
+            Un échec XML-RPC sur un record n'interrompt pas la boucle (#571) — les
+            appelants qui ignorent le retour (ex. `injection_rsc.py`) continuent de
+            fonctionner sans modification.
+
         Note:
             Les valeurs None sont filtrées : un champ à None ne sera pas modifié dans Odoo.
             Pour effacer explicitement un champ, passer False.
             Attention : OdooReader._normalize_for() convertit les False Odoo en None,
             donc un round-trip read→update ne modifiera jamais les champs vides.
         """
-        updated_ids = []
+        rapport = RapportEcriture()
         records_copy = copy.deepcopy(records)
 
         for record in records_copy:
             if "id" not in record:
                 logger.warning(f"Record missing 'id' field, skipping: {record}")
+                rapport.sans_id.append(record)
                 continue
 
             record_id = int(record["id"])
@@ -107,9 +139,17 @@ class OdooWriter(OdooReader):
                 k: v for k, v in record.items() if v is not None and not (hasattr(v, "__len__") and len(v) == 0)
             }
 
-            if not self._sim:
-                self.execute(model, "write", [[record_id], clean_data])
-            updated_ids.append(record_id)
+            try:
+                if not self._sim:
+                    self.execute(model, "write", [[record_id], clean_data])
+                rapport.ids_reussis.append(record_id)
+            except Exception as e:
+                logger.warning(f"{model} #{record_id} write failed: {e}")
+                rapport.echecs.append(EchecEcriture(id=record_id, raison=str(e)))
 
         mode_text = " [simulated]" if self._sim else ""
-        logger.info(f"{len(records_copy)} {model} #{updated_ids} written in Odoo db.{mode_text}")
+        logger.info(f"{len(rapport.ids_reussis)} {model} #{rapport.ids_reussis} written in Odoo db.{mode_text}")
+        if rapport.echecs:
+            logger.warning(f"{len(rapport.echecs)} {model} write(s) failed: {rapport.echecs}")
+
+        return rapport
