@@ -18,7 +18,7 @@ with app.setup:
     if str(project_root) not in sys.path:
         sys.path.append(str(project_root))
 
-    from datetime import date
+    from datetime import date, timedelta
 
     from electricore_client.arrow import ElectricoreArrowClient as ElectricoreClient
 
@@ -71,8 +71,10 @@ def _():
 
 @app.cell
 def _():
-    _today = date.today().replace(day=1)
-    mois_input = mo.ui.text(label="Mois (YYYY-MM-DD)", value=_today.isoformat())
+    # Dernier mois révolu : le mois courant n'a jamais de périodes calculées (#179),
+    # le proposer par défaut garantissait « 0 lignes » (#554).
+    _dernier_mois_revolu = date.today().replace(day=1) - timedelta(days=1)
+    mois_input = mo.ui.text(label="Mois (YYYY-MM)", value=_dernier_mois_revolu.strftime("%Y-%m"))
     mois_input
     return (mois_input,)
 
@@ -91,7 +93,8 @@ def _():
 
 @app.cell
 def _(mois_input):
-    fact_mois_brut = client.facturation(mois=mois_input.value)
+    _mois = f"{mois_input.value.strip()[:7]}-01"  # YYYY-MM → YYYY-MM-01 (tolère un YYYY-MM-DD saisi par habitude)
+    fact_mois_brut = client.facturation(mois=_mois)
     fact_mois = fact_mois_brut.filter(pl.col("a_facturer"))
     mo.md(f"**{len(fact_mois_brut)}** lignes du mois côté serveur · **{len(fact_mois)}** à facturer (a_facturer=True)")
     return (fact_mois,)
