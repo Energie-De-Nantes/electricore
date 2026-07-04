@@ -19,6 +19,11 @@ nav:
   - Accueil: index.md
   - Comprendre:
       - comprendre/index.md
+      - Le système électrique français: comprendre/systeme-electrique.md
+      - Le compteur et le PDL: comprendre/compteur-pdl.md
+      - L'anatomie d'une facture: comprendre/anatomie-facture.md
+      - Pourquoi recalculer soi-même: comprendre/pourquoi-recalculer.md
+      - ElectriCore vu de loin: comprendre/electricore-vu-de-loin.md
   - Facturer:
       - Guide facturiste: facturiste/changelog-facturiste.md
       - Bot Telegram (facturiste): guide-bot-facturiste.md
