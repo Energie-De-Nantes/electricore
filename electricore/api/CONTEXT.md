@@ -20,6 +20,10 @@ _Éviter_ : `/flux/releves` (range un mart sous le namespace flux brut), `/marts
 **Résolution RSC** :
 `POST /facturation/rsc` — résolution **sans état** où Odoo POST un lot d'`id_Affaire` et electricore renvoie le `ref_situation_contractuelle` correspondant, par **recoupement X12 ⨝ C15** (#282, souscriptions_odoo #5). Match **exact** sur l'`id_affaire` que portent les événements C15 (= l'`Id_Affaire` de l'affaire X12, cf. [core/CONTEXT.md](../core/CONTEXT.md)), lu sur le `flux_c15` natif (pas le mart `spine_contrat` forward-fillé) ; X12 (`flux_affaires`) sert au **recoupement d'existence** (distingue *affaire connue sans RSC* d'*affaire inconnue*). Lot + `id_affaire` opaque ré-émis, **succès partiel** par entrée (RSC xor motif d'erreur). JSON enveloppé (`contract_version` / `results`), ERP-agnostique (zéro `integrations/odoo`). Contrat figé : [docs/contrat-rsc.md](../../docs/contrat-rsc.md). Aucune heuristique temporelle (le notebook `injection_rsc` n'asof-joint par PDL que faute d'`Id_Affaire` sur les `sale.order` legacy).
 
+**Contrat figé (`X-Contract-Version`)** :
+Garde de version portée par les seuls endpoints facturiste **typés** (JSON/JSONL enveloppé : méta-périodes, chronologie, turpe-variable, RSC, provision), où un client pydantic `extra="ignore"` masquerait silencieusement un champ disparu. Les endpoints **Arrow** (`*.arrow`) n'en portent **pas, par choix** : ce sont des passe-plats dont le schéma voyage avec la donnée (Arrow IPC auto-décrit) — un `except ContractVersionError` sur un appel Arrow du client est donc du code défensif dormant, pas un bug.
+_Éviter_ : ajouter la garde aux `*.arrow` « pour cohérence » (slice serveur + client + release PyPI sans champ à protéger).
+
 **Endpoint sécurisé** :
 Endpoint nécessitant la clé `X-API-Key` (header) ou `?api_key=` (query). Tous les endpoints sont sécurisés sauf `/`, `/health`, `/docs`, `/redoc`.
 
