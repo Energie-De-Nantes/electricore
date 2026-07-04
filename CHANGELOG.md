@@ -9,6 +9,32 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.5.1] - 2026-07-04
+
+Patch de la **campagne de facturation** : sélection des factures Odoo du mois par
+**date-ancre** (ADR-0055, #561) et garde-fou pré-campagne (#564). Débloque l'injection
+de la campagne de juin 2026.
+
+### 🐛 Corrigé
+
+- **Sélection par date-ancre** (#561, ADR-0055) : `lignes_factures_du_mois` sélectionne les
+  factures par égalité stricte `invoice_date == 05/(M+1)` (rollover décembre → `05/01/N+1`)
+  au lieu de la fenêtre mensuelle `[M, M+1)` — la fenêtre ramassait la campagne précédente
+  validée, et les brouillons de campagne (générés sans date) étaient invisibles. Convention
+  inter-systèmes : Odoo pose la date à la génération, electricore la lit.
+- **Faux positifs des checks pré-facturation** (#564) : discriminant énergie
+  `x_pdl != False` généralisé aux 5 checks existants — les commandes hors énergie
+  (ex. S00583) ne sont plus ratissées.
+
+### ✨ Ajouté
+
+- **Check pré-campagne « brouillons hors ancre »** (#564) : tout brouillon de facture d'une
+  commande énergie daté hors de l'ancre courante (le 05 du mois courant) ou sans date
+  remonte dans `/check odoo` avant le lancement de la campagne — détection bruyante d'une
+  violation de la convention date-ancre.
+- Glossaire `integrations/odoo/CONTEXT.md` : entrées **date-ancre** et
+  **campagne de facturation**.
+
 ## [3.5.0] - 2026-07-01
 
 Premier stable de la ligne **3.5** : aboutissement du cycle rc1→rc3. La minor **ouvre le
