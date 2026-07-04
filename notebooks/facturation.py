@@ -67,7 +67,7 @@ with app.setup:
             api_msg = mo.md(
                 "**API electricore joignable**\n\n"
                 f"- URL: `{client.url}`\n"
-                f"- Version serveur: `{_health.json().get('version', '?')}`\n"
+                f"- Version serveur: `{_health.json().get('api_version', '?')}`\n"
                 f"- Clé API: `***`"
             )
         except Exception:
