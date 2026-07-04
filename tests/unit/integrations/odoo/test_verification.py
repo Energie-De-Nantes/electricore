@@ -1,17 +1,21 @@
 """Tests pour integrations/odoo/verification.py."""
 
+from datetime import date
 from unittest.mock import MagicMock, patch
 
 import polars as pl
 from polars.testing import assert_frame_equal
 
 from electricore.integrations.odoo.verification import (
+    _ENERGIE,
     ResultatVerification,
+    _brouillons_hors_ancre,
     _cfne_manquante,
     _factures_draft,
     _invoicing_state_counts,
     _lisses_quantite_1,
     _rsc_manquante,
+    ancre_courante,
     verifier,
 )
 
@@ -187,19 +191,87 @@ class TestLissesQuantite1:
         assert ("x_pdl", "!=", False) in kwargs["domain"]
 
 
+class TestAncreCourante:
+    """#564 : ancre courante = 05 du mois courant = date_ancre(dernier mois révolu)."""
+
+    def test_05_du_mois_courant(self):
+        assert ancre_courante(date(2026, 7, 4)) == "2026-07-05"
+
+    def test_rollover_janvier(self):
+        """Rollover décembre → janvier : ancre = 05/01/(N+1) (partagé avec #561)."""
+        assert ancre_courante(date(2027, 1, 15)) == "2027-01-05"
+
+
+class TestBrouillonsHorsAncre:
+    @patch(f"{MODULE}.ancre_courante")
+    @patch(f"{MODULE}.query")
+    def test_domaine_capture_energie_brouillon_hors_ancre_ou_sans_date(self, mock_query, mock_ancre):
+        mock_ancre.return_value = "2026-07-05"
+        odoo = MagicMock()
+        chain = _chain_mock(pl.DataFrame())
+        mock_query.return_value = chain
+
+        _brouillons_hors_ancre(odoo)
+
+        _, kwargs = mock_query.call_args
+        assert _ENERGIE in kwargs["domain"]
+        _, follow_kwargs = chain.follow.call_args
+        assert follow_kwargs["domain"] == [
+            ("state", "=", "draft"),
+            "|",
+            ("invoice_date", "!=", "2026-07-05"),
+            ("invoice_date", "=", False),
+        ]
+
+    @patch(f"{MODULE}.query")
+    def test_retourne_dataframe_avec_account_move_id(self, mock_query):
+        odoo = MagicMock()
+        raw = pl.DataFrame(
+            {
+                "sale_order_id": [1],
+                "name": ["SO1"],
+                "invoice_ids": [10],
+                "name_account_move": ["INV/001"],
+                "invoice_date": [None],
+            }
+        )
+        mock_query.return_value = _chain_mock(raw)
+        result = _brouillons_hors_ancre(odoo)
+        assert "account_move_id" in result.columns
+        assert result["account_move_id"][0] == 10
+
+    @patch(f"{MODULE}.query")
+    def test_df_vide_retourne_colonnes_attendues(self, mock_query):
+        odoo = MagicMock()
+        raw = pl.DataFrame(
+            {
+                "sale_order_id": pl.Series([], dtype=pl.Int64),
+                "name": pl.Series([], dtype=pl.Utf8),
+                "invoice_ids": pl.Series([], dtype=pl.Int64),
+                "name_account_move": pl.Series([], dtype=pl.Utf8),
+            }
+        )
+        mock_query.return_value = _chain_mock(raw)
+        result = _brouillons_hors_ancre(odoo)
+        assert result.is_empty()
+        assert "account_move_id" in result.columns
+
+
 class TestVerifier:
+    @patch(f"{MODULE}._brouillons_hors_ancre")
     @patch(f"{MODULE}._lisses_quantite_1")
     @patch(f"{MODULE}._factures_draft")
     @patch(f"{MODULE}._invoicing_state_counts")
     @patch(f"{MODULE}._cfne_manquante")
     @patch(f"{MODULE}._rsc_manquante")
-    def test_compose_les_5_checks(self, mock_rsc, mock_cfne, mock_counts, mock_draft, mock_lisses):
+    def test_compose_les_6_checks(self, mock_rsc, mock_cfne, mock_counts, mock_draft, mock_lisses, mock_hors_ancre):
         odoo = MagicMock()
         mock_rsc.return_value = pl.DataFrame({"sale_order_id": [1]})
         mock_cfne.return_value = pl.DataFrame({"sale_order_id": [2]})
         mock_counts.return_value = pl.DataFrame({"state": ["a"], "n": [1]})
         mock_draft.return_value = pl.DataFrame({"account_move_id": [10]})
         mock_lisses.return_value = pl.DataFrame({"sale_order_id": [3]})
+        mock_hors_ancre.return_value = pl.DataFrame({"account_move_id": [11]})
 
         result = verifier(odoo)
 
@@ -207,5 +279,6 @@ class TestVerifier:
         assert result.rsc_manquante["sale_order_id"][0] == 1
         assert result.cfne_manquante["sale_order_id"][0] == 2
         assert result.factures_draft["account_move_id"][0] == 10
+        assert result.brouillons_hors_ancre["account_move_id"][0] == 11
         mock_rsc.assert_called_once_with(odoo)
         mock_cfne.assert_called_once_with(odoo)
