@@ -1,3 +1,7 @@
+---
+fraicheur: 2026-07-04
+---
+
 # Guide du bot Telegram (facturiste)
 
 > Le bot Telegram est votre **cockpit** ElectriCore : surveiller l'ingestion, contrôler
@@ -7,7 +11,7 @@
 > **À retenir d'emblée :** le bot est **en lecture seule**. Il **n'écrit jamais dans
 > Odoo**. L'écriture dans Odoo (injection des lignes, RSC) reste le travail des
 > **notebooks marimo** que vous validez à la main (voir
-> [Ce qui a changé pour le facturiste](changelog-facturiste.md)). Le bot sert à
+> [Ce qui a changé pour le facturiste](facturiste/changelog-facturiste.md)). Le bot sert à
 > **savoir** et à **contrôler**, pas à pousser.
 
 ![Le bot facturiste en un coup d'œil — cycle de facturation, frontière lecture/écriture et outils à la demande](facturiste-bot-cockpit.png)
@@ -165,5 +169,5 @@ HC), la **couverture** disponible (✅ suffisante / ⚠️ insuffisante), la **q
 
 ⁽ᵉʳᵖ⁾ masqué quand aucun Odoo n'est configuré.
 
-*Détail de la surface et de l'architecture : [README du bot](../electricore/bot/README.md).
-Ce qui a changé côté métier : [changelog facturiste](changelog-facturiste.md).*
+*Détail de la surface et de l'architecture : [README du bot](https://github.com/Energie-De-Nantes/electricore/blob/main/electricore/bot/README.md).
+Ce qui a changé côté métier : [changelog facturiste](facturiste/changelog-facturiste.md).*

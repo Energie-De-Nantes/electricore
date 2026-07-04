@@ -564,10 +564,10 @@ result = ajouter_turpe_fixe(periodes_df.lazy()).collect()
 
 ## Ressources complémentaires
 
-- **Code source** : [electricore/core/pipelines/turpe.py](../electricore/core/pipelines/turpe.py)
-- **Tests exhaustifs** : [tests/unit/test_turpe.py](../tests/unit/test_turpe.py)
+- **Code source** : [electricore/core/pipelines/turpe.py](https://github.com/Energie-De-Nantes/electricore/blob/main/electricore/core/pipelines/turpe.py)
+- **Tests exhaustifs** : [tests/unit/test_turpe.py](https://github.com/Energie-De-Nantes/electricore/blob/main/tests/unit/test_turpe.py)
 - **Documentation C4** : [turpe-fixe-c4-btsup36kva.md](./turpe-fixe-c4-btsup36kva.md)
-- **Tarifs CRE officiels** : [electricore/config/turpe_rules.csv](../electricore/config/turpe_rules.csv)
+- **Tarifs CRE officiels** : [electricore/config/turpe_rules.csv](https://github.com/Energie-De-Nantes/electricore/blob/main/electricore/config/turpe_rules.csv)
 - **Nomenclature CRE** : Délibération CRE 2025-40 du 30 janvier 2025
 
 ---

@@ -3,7 +3,7 @@
 > Contrat d'intégration **figé** pour le consommateur (addon `souscriptions_odoo`).
 > Périmètre : [issue #282](https://github.com/Energie-De-Nantes/electricore/issues/282)
 > (endpoint #3), réconciliation par `id_Affaire` (souscriptions_odoo ADR-0010, issue #5).
-> Vocabulaire : [`electricore/core/CONTEXT.md`](../electricore/core/CONTEXT.md) (entrées
+> Vocabulaire : [`electricore/core/CONTEXT.md`](https://github.com/Energie-De-Nantes/electricore/blob/main/electricore/core/CONTEXT.md) (entrées
 > *Affaire*, *Id_Affaire*, *Ref_Situation_Contractuelle*).
 
 `POST /facturation/rsc` est une **résolution sans état** : l'appelant prête un lot

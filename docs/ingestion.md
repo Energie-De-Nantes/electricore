@@ -115,7 +115,7 @@ plomberie JSON de R64 (landing → `stg_r67` → `flux_r67`) mais **n'est jamais
 les marts de relevés (`releves`/`chronologie_releves`) — l'y verser ferait calculer une
 « énergie d'énergie » et casserait le grain/la priorité des relevés. Modèle figé en
 [ADR-0047](adr/0047-flux-r67-energie-par-periode-distributeur-hors-releves.md) ; glossaire
-*Mesures facturantes (R67)* dans [`electricore/ingestion/CONTEXT.md`](../electricore/ingestion/CONTEXT.md).
+*Mesures facturantes (R67)* dans [`electricore/ingestion/CONTEXT.md`](https://github.com/Energie-De-Nantes/electricore/blob/main/electricore/ingestion/CONTEXT.md).
 
 Le modèle `flux_r67` (wide, 1 ligne par `(pdl, debut, fin)`) : union de tous les
 `contexte[]` (les motifs partitionnent le temps sans recouvrement) ; **coalesce d'une

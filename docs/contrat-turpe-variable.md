@@ -2,7 +2,7 @@
 
 > Contrat d'intégration **figé** pour le consommateur (addon `souscriptions_odoo`).
 > Décision et justifications : [ADR-0030](adr/0030-calculateur-turpe-variable-odoo-fournit-assiette.md).
-> Vocabulaire : [`electricore/core/CONTEXT.md`](../electricore/core/CONTEXT.md) (entrées *Cadran*, *FTA*, *TURPE*).
+> Vocabulaire : [`electricore/core/CONTEXT.md`](https://github.com/Energie-De-Nantes/electricore/blob/main/electricore/core/CONTEXT.md) (entrées *Cadran*, *FTA*, *TURPE*).
 
 `POST /facturation/turpe-variable` est un **calculateur sans état** : l'appelant **fournit
 l'assiette** (énergies par cadran + FTA + `debut`) et electricore renvoie le **montant**
@@ -114,7 +114,7 @@ par 0 → **pas de double comptage**.
 Cette correction **repose sur un invariant load-bearing** : *chaque FTA a des coefficients
 `c_*` non-nuls à **exactement une** granularité* (`base`, `hp_hc`, ou `4_cadrans`). Si une
 règle en portait deux, envoyer les 7 énergies **double-compterait en silence**. L'invariant
-est **figé sous test** : [`tests/unit/test_turpe_rules_granularite.py`](../tests/unit/test_turpe_rules_granularite.py)
+est **figé sous test** : [`tests/unit/test_turpe_rules_granularite.py`](https://github.com/Energie-De-Nantes/electricore/blob/main/tests/unit/test_turpe_rules_granularite.py)
 (#252) casse, en nommant la FTA fautive, si une future ligne de `turpe_rules.csv` le viole.
 
 ## Succès partiel (un calculateur n'omet jamais une réponse demandée)
