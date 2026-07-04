@@ -26,6 +26,7 @@ def verifier_odoo() -> dict:
         "invoicing_state_counts": dict(r.invoicing_state_counts.iter_rows()),
         "factures_draft": enrichir_liens(r.factures_draft, base_url, "account.move").to_dicts(),
         "lisses_quantite_1": _serialize_lisses(r.lisses_quantite_1, base_url),
+        "brouillons_hors_ancre": enrichir_liens(r.brouillons_hors_ancre, base_url, "account.move").to_dicts(),
     }
 
 
