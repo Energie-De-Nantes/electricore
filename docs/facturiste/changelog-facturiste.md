@@ -1,3 +1,7 @@
+---
+fraicheur: 2026-07-04
+---
+
 # Ce qui a changé pour le facturiste (juin 2026)
 
 > Lecture côté métier du [CHANGELOG technique](https://github.com/Energie-De-Nantes/electricore/blob/main/CHANGELOG.md), de la première

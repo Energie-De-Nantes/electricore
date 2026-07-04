@@ -1,3 +1,7 @@
+---
+fraicheur: 2026-07-04
+---
+
 # Carte des domaines
 
 Tu cherches un terme métier (PDL, RSC, FTA, cadran…) ou le vocabulaire propre à

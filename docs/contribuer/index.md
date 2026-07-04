@@ -1,3 +1,7 @@
+---
+fraicheur: 2026-07-04
+---
+
 # Contribuer
 
 Cette section s'adresse à toi si tu es **contributeur·ice** : tu codes en

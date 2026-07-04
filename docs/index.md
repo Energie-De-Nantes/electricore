@@ -1,3 +1,7 @@
+---
+fraicheur: 2026-07-04
+---
+
 # ElectriCore
 
 **ElectriCore** transforme les flux bruts d'Enedis en données de facturation

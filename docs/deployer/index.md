@@ -1,3 +1,7 @@
+---
+fraicheur: 2026-07-04
+---
+
 # Déployer
 
 Cette section s'adresse à toi si tu es **déployeur·euse** : tu installes et tu
