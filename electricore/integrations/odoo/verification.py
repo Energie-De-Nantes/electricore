@@ -17,7 +17,11 @@ class ResultatVerification:
     invoicing_state_counts: pl.DataFrame
     factures_draft: pl.DataFrame
     lisses_quantite_1: pl.DataFrame
-    brouillons_hors_ancre: pl.DataFrame = field(default_factory=pl.DataFrame)
+    brouillons_hors_ancre: pl.DataFrame = field(
+        default_factory=lambda: pl.DataFrame(
+            schema={"account_move_id": pl.Int64, "name": pl.Utf8, "name_account_move": pl.Utf8, "invoice_date": pl.Utf8}
+        )
+    )
 
 
 # Discriminant commande énergie (#564) : solde les faux positifs hors énergie (ex. S00583).

@@ -84,11 +84,13 @@ async def check_facturation_odoo(api_key: str = Depends(get_current_api_key)):
 
     **Authentification requise. Nécessite Odoo configuré.**
 
-    Pour tous les sale.order avec state='sale', retourne :
+    Pour tous les sale.order énergie (`x_pdl` renseigné) avec state='sale', retourne :
     - `rsc_manquante` : liste des sale.order sans `x_ref_situation_contractuelle`
     - `cfne_manquante` : liste des sale.order sans `x_date_cfne`
     - `invoicing_state_counts` : répartition des `x_invoicing_state`
     - `factures_draft` : factures encore en draft (anomalie après campagne)
+    - `brouillons_hors_ancre` : brouillons datés hors de l'ancre courante ou
+      sans date (check pré-campagne, #564, ADR-0054)
 
     Chaque entrée contient un lien direct vers l'enregistrement Odoo (champ `url`).
     """
