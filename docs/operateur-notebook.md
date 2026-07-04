@@ -1,3 +1,7 @@
+---
+fraicheur: 2026-07-04
+---
+
 # Onboarding d'un opérateur notebook (pont transitoire #414)
 
 > **Pont transitoire.** Les notebooks opérateur (`facturation`, `injection_rsc`)

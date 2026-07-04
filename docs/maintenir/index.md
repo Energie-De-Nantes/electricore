@@ -1,3 +1,7 @@
+---
+fraicheur: 2026-07-04
+---
+
 # Maintenir
 
 Cette section s'adresse à toi si tu es **mainteneur·e** : tu tiens

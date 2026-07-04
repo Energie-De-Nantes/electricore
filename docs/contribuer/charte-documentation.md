@@ -1,3 +1,7 @@
+---
+fraicheur: 2026-07-04
+---
+
 # Charte de la documentation
 
 ElectriCore est un commun ([ADR-0024](../adr/0024-trois-registres-de-savoir.md) :

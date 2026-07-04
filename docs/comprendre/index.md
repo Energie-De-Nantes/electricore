@@ -1,3 +1,7 @@
+---
+fraicheur: 2026-07-04
+---
+
 # Comprendre
 
 Cette section s'adresse à toi si tu es **usager·ère** d'ElectriCore : tu veux

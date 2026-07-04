@@ -1,3 +1,7 @@
+---
+fraicheur: 2026-07-04
+---
+
 # Développer
 
 Architecture, patterns établis et exemples de code pour qui code en amont du
