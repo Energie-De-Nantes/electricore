@@ -87,6 +87,14 @@ La CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) exécute les troi
    - `refactor(scope): ...` — refactor sans changement de comportement
 3. **Garder les PRs focalisées** — un sujet par PR, plus facile à reviewer.
 4. **Pousser la branche et ouvrir une PR** vers `main`. La CI s'exécute automatiquement.
+5. **Documentation à jour** — une PR qui change un comportement visible d'un rôle
+   (usager·ère, opérateur·ice, déployeur·euse, contributeur·ice, mainteneur·e) met à
+   jour la page correspondante du site dans la même PR (voir la
+   [charte de la documentation](docs/contribuer/charte-documentation.md) pour qui
+   sont ces rôles et où vit leur page). Règle opposable en revue : le test de parité
+   (`tests/unit/test_parite_docs.py`) garantit qu'aucune page n'est orpheline de la
+   nav, pas que son contenu a suivi le changement — ça reste à la reviewer·euse de
+   vérifier.
 
 ## Conventions techniques
 
