@@ -38,6 +38,15 @@ class TestRscManquante:
         result = _rsc_manquante(odoo)
         assert_frame_equal(result, expected)
 
+    @patch(f"{MODULE}.query")
+    def test_domaine_restreint_aux_commandes_energie(self, mock_query):
+        """#564 : discriminant x_pdl généralisé — solde les faux positifs hors énergie (S00583)."""
+        odoo = MagicMock()
+        mock_query.return_value = _chain_mock(pl.DataFrame())
+        _rsc_manquante(odoo)
+        _, kwargs = mock_query.call_args
+        assert ("x_pdl", "!=", False) in kwargs["domain"]
+
 
 class TestCfneManquante:
     @patch(f"{MODULE}.query")
@@ -47,6 +56,14 @@ class TestCfneManquante:
         mock_query.return_value = _chain_mock(expected)
         result = _cfne_manquante(odoo)
         assert_frame_equal(result, expected)
+
+    @patch(f"{MODULE}.query")
+    def test_domaine_restreint_aux_commandes_energie(self, mock_query):
+        odoo = MagicMock()
+        mock_query.return_value = _chain_mock(pl.DataFrame())
+        _cfne_manquante(odoo)
+        _, kwargs = mock_query.call_args
+        assert ("x_pdl", "!=", False) in kwargs["domain"]
 
 
 class TestInvoicingStateCounts:
@@ -69,6 +86,14 @@ class TestInvoicingStateCounts:
         mock_query.return_value = _chain_mock(raw)
         result = _invoicing_state_counts(odoo)
         assert result["state"].to_list() == ["a_state", "z_state"]
+
+    @patch(f"{MODULE}.query")
+    def test_domaine_restreint_aux_commandes_energie(self, mock_query):
+        odoo = MagicMock()
+        mock_query.return_value = _chain_mock(pl.DataFrame({"x_invoicing_state": pl.Series([], dtype=pl.Utf8)}))
+        _invoicing_state_counts(odoo)
+        _, kwargs = mock_query.call_args
+        assert ("x_pdl", "!=", False) in kwargs["domain"]
 
 
 class TestFacturesDraft:
@@ -104,6 +129,14 @@ class TestFacturesDraft:
         assert result.is_empty()
         assert "account_move_id" in result.columns
 
+    @patch(f"{MODULE}.query")
+    def test_domaine_restreint_aux_commandes_energie(self, mock_query):
+        odoo = MagicMock()
+        mock_query.return_value = _chain_mock(pl.DataFrame())
+        _factures_draft(odoo)
+        _, kwargs = mock_query.call_args
+        assert ("x_pdl", "!=", False) in kwargs["domain"]
+
 
 class TestLissesQuantite1:
     @patch(f"{MODULE}.query")
@@ -136,6 +169,22 @@ class TestLissesQuantite1:
         result = _lisses_quantite_1(odoo)
         assert result.is_empty()
         assert "categ_names" in result.columns
+
+    @patch(f"{MODULE}.query")
+    def test_domaine_restreint_aux_commandes_energie(self, mock_query):
+        odoo = MagicMock()
+        mock_query.return_value = _chain_mock(
+            pl.DataFrame(
+                {
+                    "sale_order_id": pl.Series([], dtype=pl.Int64),
+                    "name": pl.Series([], dtype=pl.Utf8),
+                    "name_product_category": pl.Series([], dtype=pl.Utf8),
+                }
+            )
+        )
+        _lisses_quantite_1(odoo)
+        _, kwargs = mock_query.call_args
+        assert ("x_pdl", "!=", False) in kwargs["domain"]
 
 
 class TestVerifier:
