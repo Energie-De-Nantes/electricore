@@ -20,6 +20,7 @@ with app.setup:
 
     from datetime import date, timedelta
 
+    from electricore_client import ContractVersionError, IngestionEnCours, PreconditionNonRemplie
     from electricore_client.arrow import ElectricoreArrowClient as ElectricoreClient
 
     # Configuration du logging
@@ -59,12 +60,13 @@ def _():
 
 @app.cell(hide_code=True)
 def _():
+    # Le serveur calcule le rapprochement Odoo × Enedis et les flags a_facturer /
+    # a_supprimer indépendamment de l'état de facturation courant dans Odoo (ADR-0014).
     mo.md(r"""
-    # Mois cible
+    # Mois à traiter
 
-    Toutes les requêtes portent sur ce mois. `client.facturation(mois)` retourne le
-    rapprochement Odoo × Enedis du mois avec les flags `a_facturer` / `a_supprimer`
-    (calculés côté serveur, cf. ADR-0014), sans dépendre de l'état de facturation actuel.
+    Choisissez ci-dessous le mois à facturer (format AAAA-MM). Par défaut : le dernier
+    mois terminé — le mois en cours n'a jamais de données prêtes à facturer.
     """)
     return
 
@@ -82,21 +84,98 @@ def _():
 @app.cell(hide_code=True)
 def _():
     mo.md(r"""
-    # Récupération des données Enedis
+    # Récupération des données du mois
 
-    `client.facturation(mois)` retourne `lignes_facture_rapprochees` (Odoo × Enedis × compteur)
-    calculé côté serveur, incluant les flags `a_facturer` / `a_supprimer`. Le notebook filtre
-    côté client en prod via `.filter(pl.col("a_facturer"))`.
+    Le notebook interroge le serveur electricore pour le mois choisi et ne garde que
+    les lignes à facturer ce mois-ci.
+
+    **Si un encadré d'erreur apparaît ci-dessous** : suivez l'action qu'il indique. Les
+    étapes suivantes du notebook ne s'exécutent pas tant que le problème n'est pas réglé —
+    c'est voulu, pas un bug.
     """)
     return
 
 
 @app.cell
 def _(mois_input):
+    # Fail-fast config (#571) : sans clé API, inutile de tenter l'appel réseau —
+    # message actionnable immédiat plutôt qu'un 401 différé.
+    mo.stop(
+        not client.api_key,
+        mo.callout(
+            mo.md(
+                "**Configuration API manquante**\n\n"
+                "`ELECTRICORE_API_KEY` (ou `API_KEYS`) n'est pas définie. "
+                "Renseignez-la dans `.env` puis relancez ce notebook."
+            ),
+            kind="danger",
+        ),
+    )
+
     _mois = f"{mois_input.value.strip()[:7]}-01"  # YYYY-MM → YYYY-MM-01 (tolère un YYYY-MM-DD saisi par habitude)
-    fact_mois_brut = client.facturation(mois=_mois)
-    fact_mois = fact_mois_brut.filter(pl.col("a_facturer"))
-    mo.md(f"**{len(fact_mois_brut)}** lignes du mois côté serveur · **{len(fact_mois)}** à facturer (a_facturer=True)")
+
+    # Zéro traceback pour le facturiste (#571, cf. #554) : chaque échec connu du
+    # transport client (X-Error-Kind, #424) devient un message métier + arrêt propre
+    # de l'aval (mo.stop empêche les cellules suivantes de tourner sur des données
+    # absentes/périmées).
+    try:
+        fact_mois_brut = client.facturation(mois=_mois)
+        # a_facturer / a_supprimer : flags calculés côté serveur (ADR-0014), indépendants
+        # de l'état de facturation actuel dans Odoo. lignes_facture_rapprochees = rapprochement
+        # Odoo × Enedis × compteur ; on ne garde que ce qui reste à facturer.
+        fact_mois = fact_mois_brut.filter(pl.col("a_facturer"))
+    except IngestionEnCours:
+        mo.stop(
+            True,
+            mo.callout(mo.md("**Ingestion en cours** — réessayez dans environ 15 minutes."), kind="warn"),
+        )
+    except PreconditionNonRemplie as e:
+        mo.stop(True, mo.callout(mo.md(f"**Précondition non remplie**\n\n{e}"), kind="warn"))
+    except ContractVersionError:
+        mo.stop(
+            True,
+            mo.callout(mo.md("**Mise à jour requise** — prévenez Virgile."), kind="danger"),
+        )
+    except httpx.TransportError:
+        mo.stop(
+            True,
+            mo.callout(
+                mo.md(
+                    "**Serveur electricore injoignable** — vérifiez `/ingestion` sur le bot "
+                    "Telegram, sinon prévenez Virgile."
+                ),
+                kind="danger",
+            ),
+        )
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code in (401, 403):
+            mo.stop(True, mo.callout(mo.md("**Clé API invalide** — prévenez Virgile."), kind="danger"))
+        mo.stop(
+            True,
+            mo.callout(
+                mo.md(f"**Erreur serveur inattendue** (HTTP {e.response.status_code}) — prévenez Virgile."),
+                kind="danger",
+            ),
+        )
+    except Exception as e:
+        mo.stop(True, mo.callout(mo.md(f"**Erreur inattendue** — prévenez Virgile.\n\n`{e}`"), kind="danger"))
+
+    # Complément #554 : le défaut « dernier mois révolu » évite déjà le cas courant,
+    # ce garde-fou couvre le résiduel (mois saisi à la main, ingestion pas encore passée…).
+    mo.stop(
+        len(fact_mois_brut) == 0,
+        mo.callout(
+            mo.md(
+                f"**Aucune donnée renvoyée par le serveur pour {_mois[:7]}.**\n\n"
+                "À vérifier : l'ingestion du mois est-elle passée ? le mois est-il terminé ? "
+                "la réconciliation des contrats a-t-elle été faite (notebook *Attribution des "
+                "contrats*) ?"
+            ),
+            kind="warn",
+        ),
+    )
+
+    mo.md(f"**{len(fact_mois_brut)}** lignes du mois côté serveur · **{len(fact_mois)}** à facturer")
     return (fact_mois,)
 
 
@@ -109,17 +188,19 @@ def _(fact_mois):
 @app.cell(hide_code=True)
 def _():
     mo.md(r"""
-    ## Déménagements
+    ## Clients ayant changé de contrat en cours de mois
 
-    PDLs avec plusieurs `ref_situation_contractuelle` distinctes dans le mois.
-    Dédoublonnage sur `(pdl, ref_situation_contractuelle)` requis (la table
-    `fact_mois` a une ligne par invoice_line, pas par RSC).
+    Un point de livraison peut changer de contrat pendant le mois (déménagement,
+    renégociation…). Le tableau ci-dessous les repère : à vérifier avant validation,
+    un cas peut demander un traitement à la main.
     """)
     return
 
 
 @app.cell
 def _(fact_mois):
+    # Une ligne par invoice_line dans fact_mois : dédoublonner sur (pdl, contrat) pour
+    # repérer les PDL à plusieurs situations contractuelles distinctes dans le mois.
     _pdl_rsc = fact_mois.select(["pdl", "ref_situation_contractuelle"]).unique()
     _pdl_counts = _pdl_rsc.group_by("pdl").agg(pl.len().alias("n"))
     pdls_doublons = _pdl_counts.filter(pl.col("n") > 1)["pdl"].to_list()
@@ -131,13 +212,14 @@ def _(fact_mois):
 
 @app.cell(hide_code=True)
 def _():
+    # invoice_line_ids / sale_order_id / invoice_ids / x_lisse : identifiants Odoo
+    # passe-plat conservés par `rapprocher` (core) — aucune lecture Odoo séparée ici,
+    # tout vient déjà de l'API dans fact_mois.
     mo.md(r"""
-    # Réconciliation Enedis → Odoo
+    # Comparaison avec Odoo
 
-    `fact_mois` (= `lignes_facture_rapprochees`) contient déjà le rapprochement
-    par `invoice_line_ids` **et** les identifiants Odoo passe-plat
-    (`sale_order_id`, `invoice_ids`, `x_lisse`), conservés par `rapprocher`.
-    Aucune lecture Odoo séparée : tout vient de l'API.
+    Les données chargées plus haut contiennent déjà le rapprochement complet entre
+    Odoo et Enedis : pas de connexion Odoo séparée à cette étape.
     """)
     return
 
@@ -362,15 +444,40 @@ def _(
 ):
     mo.stop(not run_button.value, mo.md("Vérifiez les données ci-dessus puis cliquez sur **Injecter**."))
 
+    # Un échec par record n'interrompt plus la boucle : chaque update() rapporte ce
+    # qui a réussi / échoué / a été ignoré (sans id) au lieu de stopper net (#571).
     with OdooWriter(config=config, sim=sim_mode.value) as _writer:
-        _writer.update("account.move.line", lines_records)
-        _writer.update("account.move", invoices_records)
-        _writer.update("sale.order", orders_records)
+        _rapport_lignes = _writer.update("account.move.line", lines_records)
+        _rapport_factures = _writer.update("account.move", invoices_records)
+        _rapport_orders = _writer.update("sale.order", orders_records)
 
-    _label = "simulées" if sim_mode.value else "mises à jour"
+    _mode_label = "**simulation** (aucune écriture réelle)" if sim_mode.value else "**écriture réelle** dans Odoo"
+
+    def _resume(nom, rapport):
+        texte = f"- **{nom}** : {len(rapport.ids_reussis)} OK"
+        if rapport.echecs:
+            details = ", ".join(f"#{e.id} ({e.raison})" for e in rapport.echecs)
+            texte += f", **{len(rapport.echecs)} échec(s)** → {details}"
+        if rapport.sans_id:
+            texte += f", {len(rapport.sans_id)} ignoré(s) (sans id)"
+        return texte
+
+    _rapports = (
+        ("Lignes de facture", _rapport_lignes),
+        ("Factures", _rapport_factures),
+        ("Commandes", _rapport_orders),
+    )
+    _a_des_echecs = any(rapport.echecs for _, rapport in _rapports)
+
     mo.callout(
-        mo.md(f"✅ **{len(lines_records)} lignes** account.move.line {_label} (`quantity`)."),
-        kind="success",
+        mo.md(
+            f"Injection en {_mode_label}.\n\n"
+            + "\n".join(_resume(nom, rapport) for nom, rapport in _rapports)
+            + "\n\n**Relancer cette étape ne risque rien** : les écritures sont idempotentes "
+            "(mêmes valeurs réappliquées sur les mêmes lignes). Si des échecs apparaissent "
+            "ci-dessus, corrigez la cause côté Odoo puis relancez l'injection."
+        ),
+        kind="danger" if _a_des_echecs else "success",
     )
     return
 
