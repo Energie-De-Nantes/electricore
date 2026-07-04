@@ -65,13 +65,36 @@ def _expr_est_brouillon() -> pl.Expr:
     return ((pl.col("x_invoicing_state") == "draft") & (pl.col("state_account_move") == "draft")).alias("est_brouillon")
 
 
-def lignes_factures_du_mois(odoo: OdooReader, mois: str, domain: list | None = None) -> pl.LazyFrame:
-    """Lignes de factures Odoo du mois cible : datées du mois **ou brouillon** (#561).
+def date_ancre(mois: str) -> str:
+    """Date-ancre de la campagne de facturation du mois cible (#561, ADR-0054).
 
-    Les brouillons de campagne naissent sans `invoice_date` (elle se pose à la
-    validation) : une fenêtre par date seule ne peut jamais les voir. La sélection
-    est donc « `invoice_date` ∈ [mois, mois+1) OU `state = draft` » — la campagne
-    courante est toujours visible, l'historique validé reste fenêtré pour l'audit.
+    Odoo pose `invoice_date = 05/(M+1)` sur tous les brouillons de la campagne
+    du mois `mois` au moment de « lancer la facturation du mois » (conso de
+    juin → factures datées 05/07). Convention inter-systèmes : Odoo la pose,
+    electricore la lit par égalité stricte — si l'un des deux bascule l'ancre,
+    l'autre casse silencieusement (d'où le check pré-campagne, #564, qui
+    réutilise ce calcul pour l'« ancre courante »).
+
+    Args:
+        mois: Premier jour du mois cible au format "YYYY-MM-DD".
+
+    Returns:
+        Date-ancre au format "YYYY-MM-DD" (05 du mois suivant ; rollover
+        décembre géré : conso de décembre N → 05/01/(N+1)).
+    """
+    d = date.fromisoformat(mois)
+    annee, mois_suivant = (d.year + 1, 1) if d.month == 12 else (d.year, d.month + 1)
+    return date(annee, mois_suivant, 5).isoformat()
+
+
+def lignes_factures_du_mois(odoo: OdooReader, mois: str, domain: list | None = None) -> pl.LazyFrame:
+    """Lignes de factures Odoo du mois cible, sélectionnées par date-ancre (#561, ADR-0054).
+
+    La campagne du mois cible est entièrement datée à l'ancre `date_ancre(mois)`
+    (posée par Odoo à la génération) : la sélection est une égalité stricte sur
+    `invoice_date`, pas une fenêtre. Un brouillon sans date ou daté ailleurs est
+    une violation de la convention — elle n'est pas absorbée ici silencieusement,
+    elle est détectée en amont par le check pré-campagne (#564).
 
     Source du chemin facturation (déménagée de `helpers.py`, #144 — symétrie
     avec les sources taxes ci-dessus). Aucun filtre sur `x_invoicing_state` ni
@@ -88,10 +111,9 @@ def lignes_factures_du_mois(odoo: OdooReader, mois: str, domain: list | None = N
 
     Returns:
         LazyFrame Polars `LignesFacture`-compatible : une ligne par
-        `account.move.line` du mois cible ou en brouillon.
+        `account.move.line` de la campagne du mois cible.
     """
-    d = date.fromisoformat(mois)
-    mois_suivant = (date(d.year + 1, 1, 1) if d.month == 12 else date(d.year, d.month + 1, 1)).isoformat()
+    ancre = date_ancre(mois)
     base_domain = [("state", "=", "sale")] + (domain or [])
 
     return (
@@ -111,14 +133,8 @@ def lignes_factures_du_mois(odoo: OdooReader, mois: str, domain: list | None = N
         )
         .follow(
             "invoice_ids",
-            # Notation préfixe Odoo : fenêtre du mois OU brouillon (#561).
-            domain=[
-                "|",
-                "&",
-                ("invoice_date", ">=", mois),
-                ("invoice_date", "<", mois_suivant),
-                ("state", "=", "draft"),
-            ],
+            # Égalité stricte sur la date-ancre de la campagne (#561, ADR-0054).
+            domain=[("invoice_date", "=", ancre)],
             fields=["name", "invoice_date", "state", "invoice_line_ids"],
         )
         .follow("invoice_line_ids", fields=["name", "product_id", "quantity"])
