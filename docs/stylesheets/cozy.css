@@ -1,0 +1,53 @@
+/* Palette « Warm Cosy » — la même que les schémas Excalidraw du repo
+   (scripts/cozy_palettes.json, palette `actuel`).
+   Rôles : papier #f7f2e9, encre #292524, A données #15803d, B alerte #c2410c. */
+
+@font-face {
+  /* Excalifont = fontFamily 5 des schémas Excalidraw. Subset Latin (couvre le
+     français, œ et € inclus). SIL OFL 1.1, voir fonts/OFL-Excalifont.txt. */
+  font-family: "Excalifont";
+  src: url("fonts/Excalifont-Regular.woff2") format("woff2");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* papier & encre */
+  --md-default-bg-color: #f7f2e9;
+  --md-default-fg-color: #292524;
+  --md-default-fg-color--light: #575042;
+  --md-default-fg-color--lighter: #7a705c;
+  --md-default-fg-color--lightest: #d6d2cd;
+
+  /* bandeau d'entête = rôle « dark » des schémas (boîtes code) */
+  --md-primary-fg-color: #292524;
+  --md-primary-fg-color--light: #575042;
+  --md-primary-fg-color--dark: #1c1917;
+  --md-primary-bg-color: #f7f2e9;
+  --md-primary-bg-color--light: rgba(247, 242, 233, 0.7);
+
+  /* accent (survol des liens, focus, boutons) = orange B alerte/frontière */
+  --md-accent-fg-color: #c2410c;
+  --md-accent-fg-color--transparent: rgba(194, 65, 12, 0.1);
+
+  /* liens = vert A données */
+  --md-typeset-a-color: #15803d;
+
+  /* code : papier assombri, encre inchangée */
+  --md-code-bg-color: #efe8da;
+  --md-code-fg-color: #292524;
+
+  --md-footer-bg-color: #292524;
+  --md-footer-bg-color--dark: #1c1917;
+}
+
+/* Hand-drawn sur les titres et le nom du site ; le corps de texte reste en
+   fonte système pour la lisibilité (h5/h6 aussi : trop petits pour Excalifont). */
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3,
+.md-typeset h4,
+.md-header__topic {
+  font-family: "Excalifont", var(--md-text-font-family, sans-serif);
+}
