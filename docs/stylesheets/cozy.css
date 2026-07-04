@@ -1,6 +1,8 @@
-/* Palette « Warm Cosy » — la même que les schémas Excalidraw du repo
-   (scripts/cozy_palettes.json, palette `actuel`).
-   Rôles : papier #f7f2e9, encre #292524, A données #15803d, B alerte #c2410c. */
+/* Palette « Warm Cosy » — la même que les schémas Excalidraw du repo.
+   Source de vérité : les docs/**/*.excalidraw livrés (viewBackgroundColor
+   #faf4ed, encre titres/annotations #464261), pas scripts/cozy_palettes.json
+   (palette de travail, teintes antérieures). Papier identique = les PNG des
+   schémas se fondent dans la page sans liseré. */
 
 @font-face {
   /* Excalifont = fontFamily 5 des schémas Excalidraw. Subset Latin (couvre le
@@ -18,7 +20,7 @@
 :root,
 [data-md-color-scheme="default"] {
   /* papier & encre */
-  --md-default-bg-color: #f7f2e9;
+  --md-default-bg-color: #faf4ed;
   --md-default-fg-color: #292524;
   --md-default-fg-color--light: #575042;
   --md-default-fg-color--lighter: #7a705c;
@@ -28,8 +30,8 @@
   --md-primary-fg-color: #292524;
   --md-primary-fg-color--light: #575042;
   --md-primary-fg-color--dark: #1c1917;
-  --md-primary-bg-color: #f7f2e9;
-  --md-primary-bg-color--light: rgba(247, 242, 233, 0.7);
+  --md-primary-bg-color: #faf4ed;
+  --md-primary-bg-color--light: rgba(250, 244, 237, 0.7);
 
   /* accent (survol des liens, focus, boutons) = orange B alerte/frontière */
   --md-accent-fg-color: #c2410c;
@@ -39,7 +41,7 @@
   --md-typeset-a-color: #15803d;
 
   /* code : papier assombri, encre inchangée */
-  --md-code-bg-color: #efe8da;
+  --md-code-bg-color: #f0e8dd;
   --md-code-fg-color: #292524;
 
   --md-footer-bg-color: #292524;
@@ -54,4 +56,13 @@
 .md-typeset h4,
 .md-header__topic {
   font-family: "Excalifont", var(--md-text-font-family, sans-serif);
+}
+
+/* Titres à l'encre violette des schémas (Material grise h1 via
+   --md-default-fg-color--light, d'où le color explicite ici). */
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3,
+.md-typeset h4 {
+  color: #464261;
 }
