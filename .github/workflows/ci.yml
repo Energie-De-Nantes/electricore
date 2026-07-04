@@ -64,7 +64,7 @@ jobs:
       - name: Install dependencies (locked)
         # --extra dbt : active le filet d'ingestion (golden dbt + fixtures XSD) —
         # sans lui, les tests dbt sont skippés (importorskip).
-        run: uv sync --locked --extra ingestion --extra dbt --group test
+        run: uv sync --locked --extra ingestion --extra dbt --group test --group docs
 
       # sops + age : binaires statiques pinnés (mêmes versions que l'image, cf.
       # deploy/docker/Dockerfile) pour que le test de déchiffrement à l'entrypoint
