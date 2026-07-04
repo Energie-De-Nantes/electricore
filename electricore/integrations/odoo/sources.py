@@ -66,7 +66,7 @@ def _expr_est_brouillon() -> pl.Expr:
 
 
 def date_ancre(mois: str) -> str:
-    """Date-ancre de la campagne de facturation du mois cible (#561, ADR-0054).
+    """Date-ancre de la campagne de facturation du mois cible (#561, ADR-0055).
 
     Odoo pose `invoice_date = 05/(M+1)` sur tous les brouillons de la campagne
     du mois `mois` au moment de « lancer la facturation du mois » (conso de
@@ -88,7 +88,7 @@ def date_ancre(mois: str) -> str:
 
 
 def lignes_factures_du_mois(odoo: OdooReader, mois: str, domain: list | None = None) -> pl.LazyFrame:
-    """Lignes de factures Odoo du mois cible, sélectionnées par date-ancre (#561, ADR-0054).
+    """Lignes de factures Odoo du mois cible, sélectionnées par date-ancre (#561, ADR-0055).
 
     La campagne du mois cible est entièrement datée à l'ancre `date_ancre(mois)`
     (posée par Odoo à la génération) : la sélection est une égalité stricte sur
@@ -133,7 +133,7 @@ def lignes_factures_du_mois(odoo: OdooReader, mois: str, domain: list | None = N
         )
         .follow(
             "invoice_ids",
-            # Égalité stricte sur la date-ancre de la campagne (#561, ADR-0054).
+            # Égalité stricte sur la date-ancre de la campagne (#561, ADR-0055).
             domain=[("invoice_date", "=", ancre)],
             fields=["name", "invoice_date", "state", "invoice_line_ids"],
         )

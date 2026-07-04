@@ -90,7 +90,7 @@ async def check_facturation_odoo(api_key: str = Depends(get_current_api_key)):
     - `invoicing_state_counts` : répartition des `x_invoicing_state`
     - `factures_draft` : factures encore en draft (anomalie après campagne)
     - `brouillons_hors_ancre` : brouillons datés hors de l'ancre courante ou
-      sans date (check pré-campagne, #564, ADR-0054)
+      sans date (check pré-campagne, #564, ADR-0055)
 
     Chaque entrée contient un lien direct vers l'enregistrement Odoo (champ `url`).
     """
