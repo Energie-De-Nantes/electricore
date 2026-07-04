@@ -40,7 +40,7 @@ def verifier(odoo: OdooReader) -> ResultatVerification:
 
 
 def ancre_courante(aujourd_hui: date) -> str:
-    """Ancre de la campagne en cours : le 05 du mois courant (#564, ADR-0054).
+    """Ancre de la campagne en cours : le 05 du mois courant (#564, ADR-0055).
 
     = `date_ancre(dernier mois révolu)` — réutilise le calcul de la sélection
     (#561) pour ne jamais diverger. Relative à l'ancre plutôt qu'au mois
@@ -135,7 +135,7 @@ def _lisses_quantite_1(odoo: OdooReader) -> pl.DataFrame:
 def _brouillons_hors_ancre(odoo: OdooReader) -> pl.DataFrame:
     """Brouillons de facture d'une commande énergie hors date-ancre courante (#564).
 
-    La convention date-ancre (ADR-0054) pose `invoice_date = 05/(M+1)` sur tous
+    La convention date-ancre (ADR-0055) pose `invoice_date = 05/(M+1)` sur tous
     les brouillons de la campagne du mois M. Un brouillon énergie encore en
     draft, daté ailleurs qu'à l'ancre courante ou pas daté du tout, est une
     violation de la convention — détectée ici avant le lancement de la

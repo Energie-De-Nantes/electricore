@@ -1,4 +1,4 @@
-# ADR-0054 — Convention date-ancre pour la sélection des factures d'une campagne
+# ADR-0055 — Convention date-ancre pour la sélection des factures d'une campagne
 
 ## Statut
 
