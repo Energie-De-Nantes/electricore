@@ -17,6 +17,18 @@ exclude_docs: "*.excalidraw"
 
 nav:
   - Accueil: index.md
-  - Guide facturiste: facturiste/changelog-facturiste.md
-  - Bot Telegram (facturiste): guide-bot-facturiste.md
-  - Notebook opérateur: operateur-notebook.md
+  - Comprendre:
+      - comprendre/index.md
+  - Facturer:
+      - Guide facturiste: facturiste/changelog-facturiste.md
+      - Bot Telegram (facturiste): guide-bot-facturiste.md
+      - Notebook opérateur: operateur-notebook.md
+  - Déployer:
+      - deployer/index.md
+  - Contribuer:
+      - contribuer/index.md
+      - Charte de la documentation: contribuer/charte-documentation.md
+      - Carte des domaines: contribuer/carte-domaines.md
+      - Développer: contribuer/developper.md
+  - Maintenir:
+      - maintenir/index.md
