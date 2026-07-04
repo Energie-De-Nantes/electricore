@@ -14,6 +14,7 @@ def _resultat(**surcharges) -> dict:
         "invoicing_state_counts": {},
         "factures_draft": [],
         "lisses_quantite_1": [],
+        "brouillons_hors_ancre": [],
     }
     return {**base, **surcharges}
 
@@ -63,6 +64,63 @@ def test_lisses_rendus_avec_les_colonnes_reelles():
     )
 
     assert "S00043" in msg and "Base, HP" in msg
+
+
+def test_brouillons_hors_ancre_rendus_avec_la_date():
+    """#564 : le check pré-campagne signale la commande, la facture et la date fautive."""
+    msg, xlsx_needed = _format_check_odoo(
+        _resultat(
+            brouillons_hors_ancre=[
+                {
+                    "name": "S00099",
+                    "account_move_id": 9,
+                    "name_account_move": "INV/2026/0099",
+                    "invoice_date": "2026-06-05",
+                    "url": "https://o/9",
+                }
+            ]
+        )
+    )
+
+    assert "S00099" in msg and "INV/2026/0099" in msg and "2026-06-05" in msg
+    assert xlsx_needed is False
+
+
+def test_brouillon_sans_date_affiche_absente():
+    msg, _ = _format_check_odoo(
+        _resultat(
+            brouillons_hors_ancre=[
+                {
+                    "name": "S00100",
+                    "account_move_id": 10,
+                    "name_account_move": "INV/2026/0100",
+                    "invoice_date": None,
+                    "url": "https://o/10",
+                }
+            ]
+        )
+    )
+
+    assert "absente" in msg
+
+
+def test_brouillons_hors_ancre_comptent_dans_le_feu_vert():
+    """Une anomalie hors-ancre à elle seule empêche le feu vert."""
+    msg, _ = _format_check_odoo(
+        _resultat(
+            brouillons_hors_ancre=[
+                {
+                    "name": "S00099",
+                    "account_move_id": 9,
+                    "name_account_move": "INV/0099",
+                    "invoice_date": None,
+                    "url": "https://o/9",
+                }
+            ]
+        )
+    )
+
+    assert "OK pour lancer le cycle de facturation" not in msg
 
 
 def test_message_trop_long_bascule_sur_le_xlsx():
