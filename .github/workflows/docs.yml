@@ -3,20 +3,28 @@ name: Docs
 on:
   push:
     branches: [main]
+  pull_request:
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - "README.md"
   workflow_dispatch:
 
+# Défaut minimal (lecture seule) : le job build n'a besoin de rien de plus, y
+# compris quand il tourne sur une PR. `pages`/`id-token` sont réservés au job
+# deploy (garde-fou #560 : pas de permission Pages ni de lock `pages` depuis une PR).
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
+# Un seul build en vol par ref (PR ou main) : dédiée au job build, distincte du
+# lock `pages` du déploiement (job deploy, plus bas).
 concurrency:
-  group: pages
+  group: docs-build-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   build:
-    name: build (mkdocs)
+    name: build (mkdocs --strict)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -31,10 +39,13 @@ jobs:
       - name: Install docs dependencies
         run: uv sync --locked --group docs
 
-      - name: Build site
-        run: uv run --group docs mkdocs build
+      # --strict sur PR (garde-fou anti-pourrissement, #560) ET sur main : un lien
+      # interne mort casse la CI, où qu'il soit introduit.
+      - name: Build site (strict)
+        run: uv run --group docs mkdocs build --strict
 
       - name: Upload Pages artifact
+        if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v3
         with:
           path: site/
@@ -42,7 +53,14 @@ jobs:
   deploy:
     name: deploy (pages)
     needs: build
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: true
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
