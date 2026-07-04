@@ -55,3 +55,10 @@ _Éviter_ : réconciliation (anglicisme), jointure facturation, `updates_rsc` (a
 
 **`lignes_facture_rapprochees`** :
 DataFrame résultat du *Rapprochement facturation mensuelle*. Une ligne par ligne de facture Odoo du mois cible (tous états confondus), enrichie de la quantité calculée à partir des flux Enedis (`quantite_enedis`) et de deux flags : `a_facturer` (ligne en attente d'injection de quantité) et `a_supprimer` (ligne brouillon à quantité nulle, candidate à `unlink`). Sert de proposition de mise à jour : la décision d'écriture dans Odoo est prise par l'opérateur depuis un notebook (cf. [ADR-0012](../../../docs/adr/0012-api-read-only-odoo.md)).
+
+**Campagne de facturation** :
+Ensemble des factures (et brouillons de facture) générés par Odoo en une fois pour un mois donné, lors de l'action « lancer la facturation du mois ». Une seule campagne par mois (pas de distinction cycle automatique / campagne manuelle). C'est la campagne du mois M que sélectionne `lignes_factures_du_mois` pour le *Rapprochement facturation mensuelle*. Voir [ADR-0054](../../../docs/adr/0054-convention-date-ancre-campagne-facturation.md).
+
+**Date-ancre** :
+Convention inter-systèmes (Odoo ↔ electricore, [ADR-0054](../../../docs/adr/0054-convention-date-ancre-campagne-facturation.md)) : Odoo pose `invoice_date = 05/(M+1)` sur toutes les factures et brouillons de la *campagne de facturation* du mois M (conso de juin → factures datées 05/07 ; rollover décembre → 05/01/(N+1)). `date_ancre(mois)` (`sources.py`) calcule cette date ; `lignes_factures_du_mois` sélectionne par égalité stricte dessus (plus de fenêtre). Réutilisée par le check pré-campagne (`verification.py`, #564) sous la forme d'une *ancre courante* (le 05 du mois courant) qui détecte tout brouillon de commande énergie daté hors de cette ancre ou sans date — une violation de la convention, si l'un des deux systèmes bascule l'ancre sans l'autre, devient visible dans `/check odoo` au lieu de casser silencieusement la sélection.
+_Éviter_ : fenêtre de dates, antidatage.
