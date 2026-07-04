@@ -50,7 +50,7 @@ publication.
 
 ## 3. Promotion rc → stable : une PR, pas un rebuild
 
-Passer d'une release candidate validée à la stable correspondant est une **promotion
+Passer d'une release candidate validée à la stable correspondante est une **promotion
 pure** : le même arbre de fichiers, où **seuls les fichiers de version** changent
 (`pyproject.toml`, `uv.lock`, `CHANGELOG.md` qui documente la stable et son historique
 rc-par-rc). Pas de nouveau commit fonctionnel entre la dernière rc et la stable — la
