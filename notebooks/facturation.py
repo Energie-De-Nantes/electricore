@@ -51,10 +51,36 @@ with app.setup:
     _http_client = httpx.Client(verify=False, timeout=httpx.Timeout(30.0, read=120.0))
     client = ElectricoreClient(url=_api_url, api_key=_api_key, http_client=_http_client)
 
+    # Vérif API à l'ouverture, même pattern que le bloc Odoo ci-dessus (#571) : URL,
+    # clé, et un ping /health (endpoint public) — timeout court pour ne pas bloquer
+    # l'ouverture. Le blocage dur reste dans la cellule de chargement (mo.stop).
+    if not client.api_key:
+        api_msg = mo.md(
+            "⚠️ **Clé API electricore manquante**\n\n"
+            "`ELECTRICORE_API_KEY` (ou `API_KEYS`) n'est pas définie dans `.env`. "
+            "Le chargement des données restera bloqué tant qu'elle manque."
+        )
+    else:
+        try:
+            _health = _http_client.get(f"{client.url}/health", timeout=5.0)
+            _health.raise_for_status()
+            api_msg = mo.md(
+                "**API electricore joignable**\n\n"
+                f"- URL: `{client.url}`\n"
+                f"- Version serveur: `{_health.json().get('version', '?')}`\n"
+                f"- Clé API: `***`"
+            )
+        except Exception:
+            api_msg = mo.md(
+                f"⚠️ **API electricore injoignable** (`{client.url}`)\n\n"
+                "Vérifiez `ELECTRICORE_API_URL` dans `.env` et que le serveur répond, "
+                "sinon prévenez Virgile."
+            )
+
 
 @app.cell
 def _():
-    config_msg
+    mo.vstack([config_msg, api_msg])
     return
 
 
@@ -257,6 +283,14 @@ def _(fact_mois):
 def _():
     mo.md(r"""
     ## Préparation des quantités → Odoo
+
+    Le tableau ci-dessous liste les lignes de facture dont la quantité va être remplacée
+    par la mesure Enedis : `quantite` = valeur actuellement dans Odoo, `quantite_enedis` =
+    valeur qui sera écrite. Les abonnements lissés et les lignes sans mesure Enedis ne
+    sont pas touchés.
+
+    **À vérifier avant d'injecter** : les écarts importants entre les deux colonnes, et
+    les lignes portant une note de changement de puissance (`memo_puissance`).
     """)
     return
 
@@ -322,6 +356,18 @@ def _(fact_mois, filtre_a_injecter):
 def _():
     mo.md(r"""
     ## Préparation statut abonnement
+
+    Chaque commande d'abonnement reçoit un statut pour le circuit de validation :
+
+    - **draft** — le mois n'est pas calculable pour ce point de livraison : la commande
+      est à reprendre à la main ;
+    - **populated** — échantillon de contrôle tiré au hasard, à relire avant validation
+      (le curseur ci-dessous règle la proportion) ;
+    - **checked** — prêt à facturer.
+
+    **Quand s'inquiéter** : un nombre de *draft* inhabituellement élevé signale un
+    problème de données en amont (ingestion, relevés manquants) — dans ce cas, ne pas
+    injecter et prévenir Virgile.
     """)
     return
 
@@ -388,6 +434,11 @@ def _(fact_mois, taux_verification):
 def _():
     mo.md(r"""
     ## Préparation données factures
+
+    Chaque facture du mois reçoit ses informations d'en-tête : la période facturée
+    (début / fin), le montant d'acheminement réseau (TURPE, part fixe + part variable)
+    et le compteur (type et numéro de série). Ces champs alimentent les mentions
+    obligatoires de la facture — l'aperçu s'affiche ci-dessous, une ligne par facture.
     """)
     return
 
