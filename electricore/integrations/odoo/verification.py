@@ -1,11 +1,13 @@
 """Vérifications pré-facturation : détecte les anomalies sur les données Odoo."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import date
 
 import polars as pl
 
 from .helpers import query
 from .reader import OdooReader
+from .sources import date_ancre
 
 
 @dataclass(frozen=True, slots=True)
@@ -15,6 +17,7 @@ class ResultatVerification:
     invoicing_state_counts: pl.DataFrame
     factures_draft: pl.DataFrame
     lisses_quantite_1: pl.DataFrame
+    brouillons_hors_ancre: pl.DataFrame = field(default_factory=pl.DataFrame)
 
 
 # Discriminant commande énergie (#564) : solde les faux positifs hors énergie (ex. S00583).
@@ -28,7 +31,23 @@ def verifier(odoo: OdooReader) -> ResultatVerification:
         invoicing_state_counts=_invoicing_state_counts(odoo),
         factures_draft=_factures_draft(odoo),
         lisses_quantite_1=_lisses_quantite_1(odoo),
+        brouillons_hors_ancre=_brouillons_hors_ancre(odoo),
     )
+
+
+def ancre_courante(aujourd_hui: date) -> str:
+    """Ancre de la campagne en cours : le 05 du mois courant (#564, ADR-0054).
+
+    = `date_ancre(dernier mois révolu)` — réutilise le calcul de la sélection
+    (#561) pour ne jamais diverger. Relative à l'ancre plutôt qu'au mois
+    facturé : elle attrape aussi un brouillon périmé d'une campagne antérieure
+    qui traînerait encore en draft.
+    """
+    annee, mois = aujourd_hui.year, aujourd_hui.month - 1
+    if mois == 0:
+        annee, mois = annee - 1, 12
+    dernier_mois_revolu = date(annee, mois, 1).isoformat()
+    return date_ancre(dernier_mois_revolu)
 
 
 def _rsc_manquante(odoo: OdooReader) -> pl.DataFrame:
@@ -107,3 +126,37 @@ def _lisses_quantite_1(odoo: OdooReader) -> pl.DataFrame:
         .agg(pl.col("name_product_category").unique().sort().alias("categ_names"))
         .sort("name")
     )
+
+
+def _brouillons_hors_ancre(odoo: OdooReader) -> pl.DataFrame:
+    """Brouillons de facture d'une commande énergie hors date-ancre courante (#564).
+
+    La convention date-ancre (ADR-0054) pose `invoice_date = 05/(M+1)` sur tous
+    les brouillons de la campagne du mois M. Un brouillon énergie encore en
+    draft, daté ailleurs qu'à l'ancre courante ou pas daté du tout, est une
+    violation de la convention — détectée ici avant le lancement de la
+    campagne suivante, plutôt qu'absorbée silencieusement par la sélection
+    (`sources.lignes_factures_du_mois`).
+    """
+    ancre = ancre_courante(date.today())
+    raw = (
+        query(
+            odoo,
+            "sale.order",
+            domain=[("state", "=", "sale"), _ENERGIE],
+            fields=["name", "invoice_ids"],
+        )
+        .follow(
+            "invoice_ids",
+            domain=[("state", "=", "draft"), "|", ("invoice_date", "!=", ancre), ("invoice_date", "=", False)],
+            fields=["name", "invoice_date"],
+        )
+        .collect()
+    )
+    if raw.is_empty():
+        return (
+            raw.rename({"invoice_ids": "account_move_id"})
+            if "invoice_ids" in raw.columns
+            else raw.with_columns(pl.lit(None, dtype=pl.Int64).alias("account_move_id"))
+        )
+    return raw.rename({"invoice_ids": "account_move_id"})
