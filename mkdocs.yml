@@ -37,3 +37,6 @@ nav:
       - Développer: contribuer/developper.md
   - Maintenir:
       - maintenir/index.md
+      - Index thématique des ADRs: maintenir/index-adr.md
+      - Processus de release: maintenir/release.md
+      - Gouvernance du registre réglementaire: maintenir/gouvernance-reglementaire.md
