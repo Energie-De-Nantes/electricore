@@ -66,7 +66,12 @@ def _expr_est_brouillon() -> pl.Expr:
 
 
 def lignes_factures_du_mois(odoo: OdooReader, mois: str, domain: list | None = None) -> pl.LazyFrame:
-    """Toutes les lignes de factures Odoo dont `invoice_date` tombe dans le mois cible.
+    """Lignes de factures Odoo du mois cible : datées du mois **ou brouillon** (#561).
+
+    Les brouillons de campagne naissent sans `invoice_date` (elle se pose à la
+    validation) : une fenêtre par date seule ne peut jamais les voir. La sélection
+    est donc « `invoice_date` ∈ [mois, mois+1) OU `state = draft` » — la campagne
+    courante est toujours visible, l'historique validé reste fenêtré pour l'audit.
 
     Source du chemin facturation (déménagée de `helpers.py`, #144 — symétrie
     avec les sources taxes ci-dessus). Aucun filtre sur `x_invoicing_state` ni
@@ -83,7 +88,7 @@ def lignes_factures_du_mois(odoo: OdooReader, mois: str, domain: list | None = N
 
     Returns:
         LazyFrame Polars `LignesFacture`-compatible : une ligne par
-        `account.move.line` du mois cible.
+        `account.move.line` du mois cible ou en brouillon.
     """
     d = date.fromisoformat(mois)
     mois_suivant = (date(d.year + 1, 1, 1) if d.month == 12 else date(d.year, d.month + 1, 1)).isoformat()
@@ -106,7 +111,14 @@ def lignes_factures_du_mois(odoo: OdooReader, mois: str, domain: list | None = N
         )
         .follow(
             "invoice_ids",
-            domain=[("invoice_date", ">=", mois), ("invoice_date", "<", mois_suivant)],
+            # Notation préfixe Odoo : fenêtre du mois OU brouillon (#561).
+            domain=[
+                "|",
+                "&",
+                ("invoice_date", ">=", mois),
+                ("invoice_date", "<", mois_suivant),
+                ("state", "=", "draft"),
+            ],
             fields=["name", "invoice_date", "state", "invoice_line_ids"],
         )
         .follow("invoice_line_ids", fields=["name", "product_id", "quantity"])
