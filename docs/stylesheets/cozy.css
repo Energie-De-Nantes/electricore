@@ -12,7 +12,11 @@
   font-display: swap;
 }
 
-:root {
+/* Le body porte data-md-color-scheme="default" et Material y redéclare ces
+   variables : cibler :root seul ne suffit pas (la déclaration sur le body
+   masquerait les nôtres). Même sélecteur que le thème + chargé après = gagnant. */
+:root,
+[data-md-color-scheme="default"] {
   /* papier & encre */
   --md-default-bg-color: #f7f2e9;
   --md-default-fg-color: #292524;
