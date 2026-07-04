@@ -116,6 +116,14 @@ def _format_check_odoo(result: dict) -> tuple[str, bool]:
         lambda r: f"{r['name']} ({', '.join(r['categ_names'])})",
         "Aucun contrat lissé avec qty=1 sur Base/HP/HC",
     )
+    lines.append("")
+
+    _bloc(
+        "brouillons énergie hors date-ancre courante (#564)",
+        result.get("brouillons_hors_ancre", []),
+        lambda r: f"{r['name']} — {r['name_account_move']} (date : {r['invoice_date'] or 'absente'})",
+        "Aucun brouillon énergie hors date-ancre",
+    )
 
     all_ok = not any(
         [
@@ -123,6 +131,7 @@ def _format_check_odoo(result: dict) -> tuple[str, bool]:
             result["cfne_manquante"],
             result["factures_draft"],
             result.get("lisses_quantite_1", []),
+            result.get("brouillons_hors_ancre", []),
         ]
     )
     if all_ok:
