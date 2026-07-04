@@ -85,6 +85,6 @@ propriété de domaine.
 
 ## Implémentation
 
-Voir [electricore/core/loaders/duckdb/sql.py](../electricore/core/loaders/duckdb/sql.py) :
+Voir [electricore/core/loaders/duckdb/sql.py](https://github.com/Energie-De-Nantes/electricore/blob/main/electricore/core/loaders/duckdb/sql.py) :
 - Spécification de la table R151 : ajustement `+ INTERVAL '1 day'` sur `date_releve`
 - Requêtes unifiées `releves()` / `releves_harmonises()` : traçabilité via `flux_origine` et `date_ajustee`

@@ -2,7 +2,7 @@
 
 > Contrat d'intégration pour le consommateur (addon `souscriptions_odoo`).
 > Décision et justifications : [ADR-0027](adr/0027-endpoint-lecture-meta-periodes-odoo-tire.md).
-> Vocabulaire : [`electricore/core/CONTEXT.md`](../electricore/core/CONTEXT.md) (entrées *Méta-période mensuelle*, *Accise physique vs Accise de déclaration*).
+> Vocabulaire : [`electricore/core/CONTEXT.md`](https://github.com/Energie-De-Nantes/electricore/blob/main/electricore/core/CONTEXT.md) (entrées *Méta-période mensuelle*, *Accise physique vs Accise de déclaration*).
 
 `GET /facturation/meta-periodes` expose les **méta-périodes mensuelles** d'electricore :
 des quantités physiques et des montants réseau **non valorisés aux prix fournisseur**.

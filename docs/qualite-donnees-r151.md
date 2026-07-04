@@ -161,7 +161,7 @@ Liste des PDL à exclure de la validation :
 
 ## Références
 
-- Glossaire métier : [CONTEXT-MAP.md](../CONTEXT-MAP.md) (vocabulaire ingestion/flux dans [`electricore/ingestion/CONTEXT.md`](../electricore/ingestion/CONTEXT.md))
+- Glossaire métier : [CONTEXT-MAP.md](https://github.com/Energie-De-Nantes/electricore/blob/main/CONTEXT-MAP.md) (vocabulaire ingestion/flux dans [`electricore/ingestion/CONTEXT.md`](https://github.com/Energie-De-Nantes/electricore/blob/main/electricore/ingestion/CONTEXT.md))
 - Conventions de dates : [docs/conventions-dates-enedis.md](conventions-dates-enedis.md)
 - Calendriers distributeur Enedis :
   - `DI000001` : Base (tarif simple)

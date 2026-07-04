@@ -1,9 +1,9 @@
 # Déploiement VPS
 
 Guide opérationnel pour déployer ElectriCore sur un VPS via la stack Docker
-([`deploy/docker/`](../deploy/docker/)).
+([`deploy/docker/`](https://github.com/Energie-De-Nantes/electricore/tree/main/deploy/docker/)).
 
-Le script [`deploy/install.sh`](../deploy/install.sh) automatise la mise en place
+Le script [`deploy/install.sh`](https://github.com/Energie-De-Nantes/electricore/blob/main/deploy/install.sh) automatise la mise en place
 de bout en bout. Ce document décrit son usage, puis ce qu'il fait sous le capot
 (annexe « déploiement manuel »).
 
@@ -101,9 +101,9 @@ fichiers versionnés** dans le dépôt de déploiement privé sous `providers/<s
 
 - **`config.env`** — clair, versionné, **aucun secret** : config non secrète +
   substitutions `${...}` de `docker compose`. Modèle :
-  [`deploy/providers/example/config.env.example`](../deploy/providers/example/config.env.example).
+  [`deploy/providers/example/config.env.example`](https://github.com/Energie-De-Nantes/electricore/blob/main/deploy/providers/example/config.env.example).
 - **`secrets.env`** — **chiffré** (SOPS + age), **uniquement** des credentials. Modèle :
-  [`deploy/providers/example/secrets.env.example`](../deploy/providers/example/secrets.env.example)
+  [`deploy/providers/example/secrets.env.example`](https://github.com/Energie-De-Nantes/electricore/blob/main/deploy/providers/example/secrets.env.example)
   (montré en clair à titre pédagogique — il vit chiffré dans le dépôt).
 
 La colonne **Bloc** ci-dessous indique dans quel fichier chaque variable vit.
@@ -418,7 +418,7 @@ sudo bash /srv/<slug>/deploy/install.sh \
 Côté **machine admin**, dans le dépôt de déploiement privé :
 
 1. ajouter la **age pub** aux destinataires de `providers/<slug>/.sops.yaml` (cf.
-   [`add-provider.sh`](../deploy/add-provider.sh)), puis `sops updatekeys providers/<slug>/secrets.env` ;
+   [`add-provider.sh`](https://github.com/Energie-De-Nantes/electricore/blob/main/deploy/add-provider.sh)), puis `sops updatekeys providers/<slug>/secrets.env` ;
 2. enregistrer la **SSH pub** comme **deploy key RO** du dépôt (réglages GitHub/GitLab) ;
 3. commit + push.
 
@@ -534,7 +534,7 @@ Pourquoi 04:30 et pourquoi rebooter :
 ### Rétro-durcir un VPS existant
 
 Pour durcir une instance **déjà déployée** sans relancer un reconfigure complet,
-le script autonome [`deploy/harden.sh`](../deploy/harden.sh) source la même
+le script autonome [`deploy/harden.sh`](https://github.com/Energie-De-Nantes/electricore/blob/main/deploy/harden.sh) source la même
 logique (`harden_vps`) et l'applique seule. **Aucune hypothèse de layout** : la
 clé de `ops` est amorcée depuis `~root/.ssh/authorized_keys` quel que soit
 l'emplacement de la stack (`/srv/<slug>/` comme l'ancien `/opt/electricore/`).
@@ -556,7 +556,7 @@ Le même **garde-fou anti-verrouillage** s'applique (refus de couper root SSH si
 ### Réverser le durcissement (désinstallation)
 
 Pour revenir en arrière — repasser sur un accès root classique, ou annuler en cas
-de souci — [`deploy/unharden.sh`](../deploy/unharden.sh) défait ce que le
+de souci — [`deploy/unharden.sh`](https://github.com/Energie-De-Nantes/electricore/blob/main/deploy/unharden.sh) défait ce que le
 durcissement a posé :
 
 - retire le drop-in sshd → **SSH root rétabli** (défaut de l'image) ;
@@ -733,7 +733,7 @@ n'est (re)téléchargeable depuis le SFTP.
 
 > **`sops updatekeys` ≠ rotation de secret** (ADR-0044) : `updatekeys` ne rote que
 > l'**enveloppe** (re-wrap vers le jeu de destinataires, ex. ajout d'une box via
-> [`add-provider.sh`](../deploy/add-provider.sh)). Si une **clé AES a pu fuiter**, il
+> [`add-provider.sh`](https://github.com/Energie-De-Nantes/electricore/blob/main/deploy/add-provider.sh)). Si une **clé AES a pu fuiter**, il
 > faut la changer **à la source** (nouvelle clé Enedis) — `updatekeys` ne la protège pas.
 
 ## Sauvegarde et restauration
@@ -741,8 +741,8 @@ n'est (re)téléchargeable depuis le SFTP.
 ### Sauvegarde automatique
 
 Le scheduler crée un snapshot complet chaque nuit à 03:30 (Europe/Paris) — voir
-[`deploy/docker/crontab.example`](../deploy/docker/crontab.example) et
-[`deploy/docker/backup_duckdb.sh`](../deploy/docker/backup_duckdb.sh).
+[`deploy/docker/crontab.example`](https://github.com/Energie-De-Nantes/electricore/blob/main/deploy/docker/crontab.example) et
+[`deploy/docker/backup_duckdb.sh`](https://github.com/Energie-De-Nantes/electricore/blob/main/deploy/docker/backup_duckdb.sh).
 
 - Format : `EXPORT DATABASE` (SQL + parquet), compressé en `tar.gz`.
 - Emplacement : `/srv/<slug>/backups/` (bind-mount, lisible directement côté host).

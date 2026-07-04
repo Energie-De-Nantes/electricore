@@ -254,7 +254,7 @@ Les pipelines chargent ces règles via `load_turpe_rules()` / `load_accise_rules
 
 ## 9. Domaine : glossaire
 
-Le vocabulaire métier est éclaté par module : voir [CONTEXT-MAP.md](../CONTEXT-MAP.md) à la racine. L'essentiel (PDL, FTA, C5/C4, HP/HC, TURPE, accise, événements C15, périmètre, abonnement…) vit dans [`electricore/core/CONTEXT.md`](../electricore/core/CONTEXT.md).
+Le vocabulaire métier est éclaté par module : voir [CONTEXT-MAP.md](https://github.com/Energie-De-Nantes/electricore/blob/main/CONTEXT-MAP.md) à la racine. L'essentiel (PDL, FTA, C5/C4, HP/HC, TURPE, accise, événements C15, périmètre, abonnement…) vit dans [`electricore/core/CONTEXT.md`](https://github.com/Energie-De-Nantes/electricore/blob/main/electricore/core/CONTEXT.md).
 
 ---
 
@@ -299,8 +299,8 @@ Marimo est à Python ce qu'un Jupyter notebook est à R — mais avec une réact
 
 Pour comprendre le code dans l'ordre :
 
-1. [electricore/core/pipelines/historique.py](../electricore/core/pipelines/historique.py) — pipeline le plus simple, bien testé
-2. [electricore/core/pipelines/turpe.py](../electricore/core/pipelines/turpe.py) — expressions composables, bonne illustration du pattern
-3. [electricore/core/builds/contexte_mensuel.py](../electricore/core/builds/contexte_mensuel.py) — comment tout s'assemble
-4. [tests/unit/test_turpe.py](../tests/unit/test_turpe.py) — tests = documentation exécutable
+1. [electricore/core/pipelines/historique.py](https://github.com/Energie-De-Nantes/electricore/blob/main/electricore/core/pipelines/historique.py) — pipeline le plus simple, bien testé
+2. [electricore/core/pipelines/turpe.py](https://github.com/Energie-De-Nantes/electricore/blob/main/electricore/core/pipelines/turpe.py) — expressions composables, bonne illustration du pattern
+3. [electricore/core/builds/contexte_mensuel.py](https://github.com/Energie-De-Nantes/electricore/blob/main/electricore/core/builds/contexte_mensuel.py) — comment tout s'assemble
+4. [tests/unit/test_turpe.py](https://github.com/Energie-De-Nantes/electricore/blob/main/tests/unit/test_turpe.py) — tests = documentation exécutable
 5. [docs/conventions-dates-enedis.md](conventions-dates-enedis.md) — convention critique pour les dates
