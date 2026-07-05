@@ -1,5 +1,5 @@
 ---
-fraicheur: 2026-07-04
+fraicheur: 2026-07-05
 ---
 
 # Ce qui a changé pour le facturiste (juin 2026)
@@ -35,25 +35,8 @@ cher, donc aucun automate ne pousse de modification sans contrôle. Le **bot Tel
 votre cockpit (état de l'ingestion, contrôles, exports) — en **lecture seule**, il n'écrit
 jamais dans Odoo.
 
-![Comment la facturation arrive dans Odoo aujourd'hui](facturiste-vue-ensemble.png)
-
-### Le cycle de facturation, pas à pas
-
-Concrètement, voici le déroulé actuel — un poste à préparer **une fois**, puis un cycle
-**chaque mois** qui reste largement manuel (c'est temporaire, le temps qu'Odoo sache tirer
-ses données). À gauche, les étapes dans l'ordre ; à droite, la commande ou l'artefact concret.
-
-![Le cycle de facturation actuel, pas à pas](facturiste-cycle-actuel.png)
-
-**Préparer le poste (une fois) :** récupérez vos accès dans un fichier `.env` (connexion
-Odoo `ODOO__*` + `ELECTRICORE_API_URL` / `ELECTRICORE_API_KEY`), installez l'outil opérateur
-(`uv tool install "electricore[notebooks]"`), puis lancez `electricore-notebooks` — il sert
-les notebooks marimo en **lecture seule** sur `http://127.0.0.1:2718/apps/accueil`.
-
-**Le filet de sécurité :** chaque notebook qui écrit dans Odoo (`injection_rsc`,
-`facturation`) garde une **double garde** — mode *simulation* coché par défaut, et écriture
-réelle bloquée derrière le bouton « Injecter dans Odoo ». Rien ne part dans Odoo tant que
-vous n'avez pas regardé puis cliqué.
+Le déroulé complet du cycle (vue d'ensemble, préparation du poste, garde-fous) est
+décrit sur la [page d'accueil de la section Facturer](index.md).
 
 ---
 
