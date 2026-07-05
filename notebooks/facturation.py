@@ -440,6 +440,76 @@ def _(fact_mois, taux_verification):
 @app.cell(hide_code=True)
 def _():
     mo.md(r"""
+    ### Brouillons dont le contrat démarre après le mois facturé
+
+    Odoo génère un brouillon pour tout abonnement actif, y compris ceux dont la mise en
+    service Enedis est postérieure au mois facturé (cf. #579/#564) : rien à facturer ce
+    mois-ci, mais la règle draft ci-dessus ne nomme pas la cause. Le tableau ci-dessous la
+    nomme — **signalement seul, aucune écriture Odoo**.
+
+    Un contrat entré **en cours de mois** (prorata légitime) n'est pas signalé : seule une
+    mise en service **après la fin du mois facturé** l'est.
+    """)
+    return
+
+
+@app.cell
+def _(fact_mois, mois_input):
+    # Contrat cible #581 : parmi les brouillons sans correspondance Enedis (qualite null),
+    # ceux dont le PDL entre au C15 après la fin du mois facturé n'ont rien à facturer ce
+    # mois — cette cellule nomme la cause. `date_evenement` du 1er événement C15 de la RSC
+    # = date de mise en service (même mécanique que `contrats_par_pdl` dans injection_rsc.py).
+    _mois_str = mois_input.value.strip()[:7]  # YYYY-MM
+    _debut_mois = date.fromisoformat(f"{_mois_str}-01")
+    _fin_mois = (_debut_mois.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+
+    _brouillons_sans_match = (
+        fact_mois.filter(pl.col("qualite").is_null())
+        .select(["sale_order_id", "x_pdl", "ref_situation_contractuelle"])
+        .unique()
+    )
+
+    _debuts_contrat = (
+        client.flux("c15")
+        .group_by(["pdl", "ref_situation_contractuelle"])
+        .agg(pl.col("date_evenement").min().alias("date_mise_en_service"))
+        .with_columns(pl.col("date_mise_en_service").dt.replace_time_zone(None).dt.date())
+    )
+
+    _signalement_post_mois = (
+        _brouillons_sans_match.join(
+            _debuts_contrat,
+            left_on=["x_pdl", "ref_situation_contractuelle"],
+            right_on=["pdl", "ref_situation_contractuelle"],
+            how="left",
+        )
+        .filter(pl.col("date_mise_en_service") > _fin_mois)
+        .with_columns(
+            (
+                pl.lit(
+                    "contrat mis en service après le mois facturé — brouillon à écarter, "
+                    "la facturation démarre à la campagne suivante (mise en service le "
+                )
+                + pl.col("date_mise_en_service").dt.strftime("%Y-%m-%d")
+                + pl.lit(")")
+            ).alias("motif")
+        )
+    )
+
+    mo.vstack(
+        [
+            mo.md(
+                f"**{len(_signalement_post_mois)}** brouillon(s) signalé(s) — contrat mis en service après le mois"
+            ),
+            mo.ui.table(_signalement_post_mois) if not _signalement_post_mois.is_empty() else mo.md("✅ Aucun"),
+        ]
+    )
+    return
+
+
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
     ## Préparation données factures
 
     Chaque facture du mois reçoit ses informations d'en-tête : la période facturée
