@@ -20,7 +20,11 @@ from electricore.integrations.odoo.decorators import with_odoo
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(tags=["facturation"])
+# Pas de tag par défaut sur le router : les 6 endpoints ci-dessous sont tous
+# `legacy` (couplés au vieil Odoo, #584) — le tag est posé route par route plutôt
+# qu'hérité, pour ne pas les faire apparaître aussi sous `facturation` (réservé
+# à la famille ERP-tire dans d'autres routers : meta_periodes, chronologie…).
+router = APIRouter()
 
 
 @binary_endpoint(
@@ -29,6 +33,7 @@ router = APIRouter(tags=["facturation"])
     media_type=XLSX_MEDIA_TYPE,
     filename="facturation_rapport{mois}.xlsx",
     requires_odoo=True,
+    tags=["legacy"],
 )
 @with_odoo
 def export_facturation_rapport_xlsx(
@@ -49,6 +54,7 @@ def export_facturation_rapport_xlsx(
     media_type=XLSX_MEDIA_TYPE,
     filename="facturation_detail{mois}.xlsx",
     requires_odoo=True,
+    tags=["legacy"],
 )
 @with_odoo
 def export_facturation_detail_xlsx(
@@ -63,7 +69,7 @@ def export_facturation_detail_xlsx(
     return xlsx_multi_sheet({"Détail": facturation_du_mois(odoo, mois)})
 
 
-@binary_endpoint(router, "/facturation/detail.arrow", media_type=ARROW_MEDIA_TYPE, requires_odoo=True)
+@binary_endpoint(router, "/facturation/detail.arrow", media_type=ARROW_MEDIA_TYPE, requires_odoo=True, tags=["legacy"])
 @with_odoo
 def export_facturation_detail_arrow(
     odoo,
@@ -77,7 +83,7 @@ def export_facturation_detail_arrow(
     return arrow_stream(facturation_du_mois(odoo, mois))
 
 
-@router.get("/facturation/check/odoo")
+@router.get("/facturation/check/odoo", tags=["legacy"])
 async def check_facturation_odoo(api_key: str = Depends(get_current_api_key)):
     """
     Vérifications pré-facturation côté Odoo.
@@ -108,7 +114,12 @@ async def check_facturation_odoo(api_key: str = Depends(get_current_api_key)):
 
 
 @binary_endpoint(
-    router, "/facturation/check/odoo.xlsx", media_type=XLSX_MEDIA_TYPE, filename="check_odoo.xlsx", requires_odoo=True
+    router,
+    "/facturation/check/odoo.xlsx",
+    media_type=XLSX_MEDIA_TYPE,
+    filename="check_odoo.xlsx",
+    requires_odoo=True,
+    tags=["legacy"],
 )
 def export_check_odoo_xlsx() -> bytes:
     """Détail complet des vérifications pré-facturation Odoo en XLSX multi-onglets.
@@ -126,6 +137,7 @@ def export_check_odoo_xlsx() -> bytes:
     media_type=XLSX_MEDIA_TYPE,
     filename="facturation{mois}.xlsx",
     requires_odoo=True,
+    tags=["legacy"],
 )
 @with_odoo
 def export_facturation_documents(

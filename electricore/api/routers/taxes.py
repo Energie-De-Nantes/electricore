@@ -20,7 +20,10 @@ from electricore.core.millesimes import millesimes
 from electricore.core.peremption import avertissements_peremption
 from electricore.integrations.odoo.decorators import with_odoo
 
-router = APIRouter(tags=["taxes"])
+# Pas de tag par défaut sur le router : les endpoints `accise`/`cta` binaires
+# ci-dessous sont `legacy` (couplés au vieil Odoo, #584), seuls `millesimes` et
+# `peremption` restent `taxes` (registre des taux régulés, sans dépendance Odoo).
+router = APIRouter()
 
 
 # =============================================================================
@@ -28,7 +31,7 @@ router = APIRouter(tags=["taxes"])
 # =============================================================================
 
 
-@router.get("/taxes/millesimes", response_model=list[MillesimeResponse])
+@router.get("/taxes/millesimes", response_model=list[MillesimeResponse], tags=["taxes"])
 def get_millesimes(api_key: str = Depends(get_current_api_key)) -> list[MillesimeResponse]:
     """Millésimes des trois registres de taux régulés (TURPE, Accise, CTA).
 
@@ -38,7 +41,7 @@ def get_millesimes(api_key: str = Depends(get_current_api_key)) -> list[Millesim
     return [MillesimeResponse(**asdict(m)) for m in millesimes()]
 
 
-@router.get("/taxes/peremption", response_model=list[PeremptionResponse])
+@router.get("/taxes/peremption", response_model=list[PeremptionResponse], tags=["taxes"])
 def get_peremption(api_key: str = Depends(get_current_api_key)) -> list[PeremptionResponse]:
     """Avertissements de péremption des taux régulés à la date du jour (#186, ADR-0024).
 
@@ -59,6 +62,7 @@ def get_peremption(api_key: str = Depends(get_current_api_key)) -> list[Perempti
     media_type=XLSX_MEDIA_TYPE,
     filename="accise_rapport{trimestre}.xlsx",
     requires_odoo=True,
+    tags=["legacy"],
 )
 @with_odoo
 def export_accise_rapport_xlsx(
@@ -79,6 +83,7 @@ def export_accise_rapport_xlsx(
     media_type=XLSX_MEDIA_TYPE,
     filename="accise_detail{trimestre}.xlsx",
     requires_odoo=True,
+    tags=["legacy"],
 )
 @with_odoo
 def export_accise_detail_xlsx(
@@ -93,7 +98,7 @@ def export_accise_detail_xlsx(
     return xlsx_multi_sheet({"Détail": accise_par_contrat_service(odoo, trimestre)})
 
 
-@binary_endpoint(router, "/taxes/accise/detail.arrow", media_type=ARROW_MEDIA_TYPE, requires_odoo=True)
+@binary_endpoint(router, "/taxes/accise/detail.arrow", media_type=ARROW_MEDIA_TYPE, requires_odoo=True, tags=["legacy"])
 @with_odoo
 def export_accise_detail_arrow(
     odoo,
@@ -118,6 +123,7 @@ def export_accise_detail_arrow(
     media_type=XLSX_MEDIA_TYPE,
     filename="cta_rapport{trimestre}.xlsx",
     requires_odoo=True,
+    tags=["legacy"],
 )
 @with_odoo
 def export_cta_rapport_xlsx(
@@ -138,6 +144,7 @@ def export_cta_rapport_xlsx(
     media_type=XLSX_MEDIA_TYPE,
     filename="cta_detail{trimestre}.xlsx",
     requires_odoo=True,
+    tags=["legacy"],
 )
 @with_odoo
 def export_cta_detail_xlsx(
@@ -152,7 +159,7 @@ def export_cta_detail_xlsx(
     return xlsx_multi_sheet({"Détail": cta_par_contrat_service(odoo, trimestre)})
 
 
-@binary_endpoint(router, "/taxes/cta/detail.arrow", media_type=ARROW_MEDIA_TYPE, requires_odoo=True)
+@binary_endpoint(router, "/taxes/cta/detail.arrow", media_type=ARROW_MEDIA_TYPE, requires_odoo=True, tags=["legacy"])
 @with_odoo
 def export_cta_detail_arrow(
     odoo,
