@@ -92,6 +92,9 @@ def binary_endpoint(
 
         wrapper.__signature__ = inspect.signature(handler)  # type: ignore[attr-defined]
         wrapper.__name__ = handler.__name__
+        # Marqueur introspectable (pas juste comportemental) : le test d'invariant
+        # tag `legacy` ⟺ dépendance au vieil Odoo (#584) le lit via `route.endpoint`.
+        wrapper.requires_odoo = requires_odoo
 
         target.get(path, tags=tags, dependencies=[Depends(get_current_api_key)])(wrapper)
         return wrapper
