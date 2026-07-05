@@ -105,9 +105,20 @@ app = FastAPI(
         {"name": "admin", "description": "Endpoints d'administration (authentification requise)"},
         {
             "name": "taxes",
-            "description": "Calcul des taxes énergétiques CTA et Accise TICFE (authentification requise)",
+            "description": "Registre des taux régulés en vigueur — millésimes et péremption de TURPE, "
+            "Accise TICFE et CTA (authentification requise)",
         },
-        {"name": "facturation", "description": "Réconciliation facturation Odoo ↔ Enedis (authentification requise)"},
+        {
+            "name": "facturation",
+            "description": "Famille ERP-tire (ADR-0027) : méta-périodes, chronologie, turpe-variable, RSC — "
+            "l'ERP lit ou interroge electricore directement, sans passer par le vieil Odoo XML-RPC "
+            "(authentification requise)",
+        },
+        {
+            "name": "legacy",
+            "description": "Couplés au vieil Odoo (lecture XML-RPC). Chemin de production du cycle actuel "
+            "notebook→Odoo ; disparaîtront quand l'ERP tirera ses données (ADR-0027) (authentification requise)",
+        },
         {
             "name": "provision",
             "description": "Estimation de provision des lissés en kWh (cold-start R67, ADR-0048 ; "
