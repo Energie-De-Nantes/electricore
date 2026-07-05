@@ -23,8 +23,30 @@ facturation mensuelle des contrats énergie.
 Chaque mois : ElectriCore ingère les flux Enedis, calcule une proposition de
 facturation vérifiable (énergie, abonnement, TURPE, taxes), puis **toi** — via un
 notebook que tu valides à vue — l'écris dans Odoo. Aucune écriture n'a lieu sans que
-tu aies regardé et cliqué. Le détail pas à pas (préparation du poste, déroulé mensuel)
-est dans le [guide d'onboarding notebook](../operateur-notebook.md).
+tu aies regardé et cliqué.
+
+![Comment la facturation arrive dans Odoo aujourd'hui](facturiste-vue-ensemble.png)
+
+## Le cycle de facturation, pas à pas
+
+Concrètement, voici le déroulé — un poste à préparer **une fois**, puis un cycle
+**chaque mois** qui reste largement manuel (c'est temporaire, le temps qu'Odoo sache
+tirer ses données). À gauche, les étapes dans l'ordre ; à droite, la commande ou
+l'artefact concret.
+
+![Le cycle de facturation actuel, pas à pas](facturiste-cycle-actuel.png)
+
+**Préparer le poste (une fois) :** récupère tes accès dans un fichier `.env`
+(connexion Odoo `ODOO__*` + `ELECTRICORE_API_URL` / `ELECTRICORE_API_KEY`), installe
+l'outil opérateur (`uv tool install "electricore[notebooks]"`), puis lance
+`electricore-notebooks` — il sert les notebooks marimo en **lecture seule** sur
+`http://127.0.0.1:2718/apps/accueil`. Le détail est dans le
+[guide d'onboarding notebook](../operateur-notebook.md).
+
+**Le filet de sécurité :** chaque notebook qui écrit dans Odoo (`injection_rsc`,
+`facturation`) garde une **double garde** — mode *simulation* coché par défaut, et
+écriture réelle bloquée derrière le bouton « Injecter dans Odoo ». Rien ne part dans
+Odoo tant que tu n'as pas regardé puis cliqué.
 
 ## Tes outils aujourd'hui
 
