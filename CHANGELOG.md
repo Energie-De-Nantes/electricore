@@ -9,6 +9,56 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.6.0] - 2026-07-05
+
+Minor centrée sur l'**outillage facturiste** : fiabilisation des notebooks de campagne
+(enquête « 0 draft » de juin 2026 — #579/#580/#581), série d'ergonomie notebooks (#571,
+#554), et le **site de documentation** étoffé (section Maintenir, garde-fous CI).
+Purement additive — aucun changement incompatible.
+
+### 🐛 Corrigé — campagne de facturation (enquête « 0 draft », juin 2026)
+
+- **Règle draft null-safe** (#579) : la cellule statut du notebook de facturation traitait
+  `qualite` null (sans correspondance Enedis) et `x_lisse` null (jamais `false` côté Odoo)
+  comme « à jour » — propagation de null Polars, `pl.when(null)` vaut faux — donc un mois
+  incalculable non lissé passait en *checked* au lieu de *draft*. Règle cible :
+  draft ⟺ `qualite` null OU (incalculable ET non lissé), harmonisée avec
+  `filtre_a_injecter` ; table de vérité `qualite` × `x_lisse` en test.
+- **Attribution de la RSC en service** (#580) : `injection_rsc` résolvait la RSC par asof
+  `nearest` sur (PDL, `date_order`) — il figeait la RSC contemporaine de la souscription,
+  jamais réparée après re-création du contrat Enedis (RES→MES le même jour, CFN entrant).
+  Nouvelle règle : la RSC du PDL dont le **dernier état C15** n'est pas `RESILIE` ;
+  0 ou plusieurs candidates → commandes listées à part, **jamais d'écriture silencieuse** ;
+  l'asof reste affiché à titre de diagnostic.
+
+### ✨ Ajouté
+
+- **Signalement des brouillons post-mois facturé** (#581) : section lecture seule du
+  notebook de facturation qui nomme la cause des brouillons sans correspondance Enedis
+  dont le contrat démarre **après** la fin du mois facturé (date de mise en service
+  affichée) ; un contrat entré en cours de mois (prorata légitime) n'est pas signalé.
+- **Notebooks opérateur** (#571, #554) : vérification de l'API à l'ouverture (URL tentée
+  affichée si injoignable, `api_version` lue du `/health`), messages d'erreur sans
+  traceback et prose facturiste des sections Préparation ; saisie du mois en `YYYY-MM`
+  avec défaut au dernier mois révolu ; flag `--edit` sur `electricore-notebooks`
+  (délègue à `marimo edit`).
+
+### 🔧 Modifié
+
+- **`OdooWriter.update()` rapporte par-record** (#571) : un enregistrement en échec
+  n'interrompt plus le lot — le résultat détaille réussites et échecs.
+
+### 📚 Documentation
+
+- **Section Maintenir** du site (#559) : processus de release (bump en PR, tag publiant,
+  frontière à l'image), gouvernance du registre réglementaire.
+- **Garde-fous CI docs** (#560) : build strict sur PR touchant la doc, tests de parité
+  nav + fraîcheur des pages (front-matter `fraicheur`), validation des liens resserrée,
+  liens morts réparés.
+- **Palette Warm Cosy** du site MkDocs : papier `#faf4ed`, titres Excalifont, scopée sur
+  le thème clair.
+- Glossaire core : vocabulaire des communs (Commun, Usager·ère).
+
 ## [3.5.1] - 2026-07-04
 
 Patch de la **campagne de facturation** : sélection des factures Odoo du mois par
