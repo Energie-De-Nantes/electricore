@@ -394,10 +394,17 @@ def _(fact_mois, taux_verification):
     # (passe-plat de `rapprocher`) → 1 ligne par order après déduplication. L'ancienne
     # lecture Odoo directe + jointure sur la RSC était redondante (#417).
     # « à jour » ≡ énergie calculable (ADR-0033 : ancien data_complete=True ⇒ qualite ≠ incalculable).
+    # Harmonisé avec filtre_a_injecter (#579) : x_lisse arrive NULL (jamais false) d'Odoo, et
+    # qualite NULL (sans correspondance Enedis) n'est jamais « à jour », même lissé — sans
+    # is_not_null/fill_null explicites, pl.when(null) est traité comme faux et la commande
+    # passait à tort en checked/populated (23 draft attendues en juin 2026 au lieu de 0).
     _orders = fact_mois.select(["sale_order_id", "x_lisse", "qualite", "ref_situation_contractuelle"]).unique()
 
     _df = _orders.with_columns(
-        ((pl.col("qualite") != "incalculable") | pl.col("x_lisse")).alias("a_jour")
+        (
+            pl.col("qualite").is_not_null()
+            & ((pl.col("qualite") != "incalculable") | pl.col("x_lisse").fill_null(False))
+        ).alias("a_jour")
     ).with_columns(pl.Series("rand", np.random.rand(len(_orders))))
 
     orders_records = (
