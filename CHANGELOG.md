@@ -9,6 +9,33 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.6.1] - 2026-07-05
+
+Patch **documentaire** : la frontière **actuel (legacy) / futur (ERP tire)** est
+matérialisée des deux côtés — Swagger et site de doc (#584). Aucun changement de
+comportement ni d'URL.
+
+### ✨ Ajouté
+
+- **Tag OpenAPI `legacy`** (#584) : les 12 endpoints couplés au vieil Odoo (lecture
+  XML-RPC) sont regroupés sous un tag dédié dans Swagger, avec une description franche
+  (chemin de production du cycle actuel notebook→Odoo, disparaîtront à la bascule
+  ERP-tire, ADR-0027). Le tag `facturation` ne garde que la famille ERP-tire
+  (méta-périodes, chronologie, turpe-variable, RSC) ; `taxes` est recentré sur le
+  registre des taux régulés. Test d'invariant `legacy ⟺ requires_odoo`
+  (+ `check/odoo` à garde inline), marqueur introspectable posé par `binary_endpoint`.
+- Glossaire API : entrée **« Endpoint legacy »** dans `electricore/api/CONTEXT.md`,
+  par contraste avec le socle durable qui survit à la bascule.
+
+### 📚 Documentation
+
+- **Porte d'entrée de la section Facturer** (`docs/facturiste/index.md`, #584) :
+  le cycle actuel au premier plan (vue d'ensemble, pas à pas, préparation du poste,
+  filet de sécurité — basculés depuis le changelog facturiste), inventaire des outils
+  actuels, futur ERP-tire clairement balisé. Nav « Guide facturiste » → « Ce qui a
+  changé » ; l'entrée v3.4 ne présente plus la chronologie comme outillée (exposée
+  par l'API, outillage à venir).
+
 ## [3.6.0] - 2026-07-05
 
 Minor centrée sur l'**outillage facturiste** : fiabilisation des notebooks de campagne
