@@ -47,10 +47,17 @@ def _():
     # Attribution des ref_situation_contractuelle aux sale.order
 
     Ce notebook identifie la `ref_situation_contractuelle` (RSC) Enedis correspondant
-    à chaque `sale.order` Odoo, via un **asof join temporel** sur le PDL et la date.
+    à chaque `sale.order` Odoo actif (`state = sale`).
 
-    **Mécanisme** : pour un order créé à `date_order` sur le PDL `x_pdl`,
-    la RSC active est celle dont la date d'entrée C15 est la plus récente avant `date_order`.
+    **Règle d'attribution (#580)** : la RSC du PDL dont le **dernier état C15** n'est pas
+    `RESILIE`. Un PDL dont le contrat a été re-créé (RES→MES le même jour, CFN entrant…)
+    change de RSC active sans que la commande ne bouge — un asof join sur `date_order`
+    fige à tort la RSC contemporaine de la souscription et ne se répare jamais. L'asof
+    reste affiché ci-dessous à titre de **diagnostic/départage**, plus comme source
+    d'attribution.
+
+    0 ou plusieurs RSC en service sur le PDL → commande listée à part, **jamais
+    d'écriture silencieuse**.
 
     **Lecture seule** — aucune écriture dans Odoo.
     """)
@@ -68,11 +75,23 @@ def _():
 @app.cell(hide_code=True)
 def _():
     # Lecture C15 via l'API (cf. ADR-0009). Le serveur retourne un DataFrame collecté ;
-    # on agrège ensuite localement.
+    # on agrège ensuite localement. `dernier_etat_contractuel` (#580) : l'état C15 à
+    # l'événement le plus récent de la RSC (EN SERVICE / RESILIE) — `.unique(keep="last")`
+    # sur un flux trié par date_evenement, même pattern que `compteur_par_rsc` dans
+    # contexte_mensuel.py.
+    _c15 = client.flux("c15").sort("date_evenement")
+
+    _debuts = _c15.group_by(["pdl", "ref_situation_contractuelle"]).agg(
+        pl.col("date_evenement").min().alias("date_debut_contrat")
+    )
+    _derniers_etats = (
+        _c15.unique(subset=["pdl", "ref_situation_contractuelle"], keep="last")
+        .select(["pdl", "ref_situation_contractuelle", "etat_contractuel"])
+        .rename({"etat_contractuel": "dernier_etat_contractuel"})
+    )
+
     contrats_par_pdl = (
-        client.flux("c15")
-        .group_by(["pdl", "ref_situation_contractuelle"])
-        .agg(pl.col("date_evenement").min().alias("date_debut_contrat"))
+        _debuts.join(_derniers_etats, on=["pdl", "ref_situation_contractuelle"], how="left")
         # Supprimer la timezone pour compatibilité avec les dates Odoo
         .with_columns(pl.col("date_debut_contrat").dt.replace_time_zone(None))
         .sort(["pdl", "date_debut_contrat"])
@@ -117,7 +136,10 @@ def _():
 @app.cell
 def _():
     mo.md("""
-    ## 3. Asof join : PDL + date_order → RSC
+    ## 3. Asof join : PDL + date_order → RSC (diagnostic)
+
+    Contemporain de la souscription, pas de l'état actuel du PDL — gardé pour le
+    départage visuel, plus utilisé comme source d'attribution (#580, cf. section 3bis).
     """)
     return
 
@@ -186,6 +208,80 @@ def _(orders_avec_rsc):
 
 @app.cell
 def _():
+    mo.md(r"""
+    ## 3bis. RSC en service par PDL (règle d'attribution, #580)
+
+    Pour chaque PDL, les RSC dont le **dernier état C15** n'est pas `RESILIE`. Exactement
+    une candidate → attribuée à la commande. Zéro ou plusieurs → **à traiter à part**,
+    jamais d'écriture silencieuse.
+    """)
+    return
+
+
+@app.cell
+def _(contrats_par_pdl):
+    _en_service = contrats_par_pdl.filter(pl.col("dernier_etat_contractuel") != "RESILIE")
+    rsc_en_service_par_pdl = _en_service.group_by("pdl").agg(
+        pl.col("ref_situation_contractuelle").alias("rsc_en_service"),
+        pl.len().alias("nb_rsc_en_service"),
+    )
+    return (rsc_en_service_par_pdl,)
+
+
+@app.cell
+def _(orders_avec_rsc, rsc_en_service_par_pdl):
+    # Attribution cible (#580) : ignore l'asof (`rsc_asof`, gardé en diagnostic) — une seule
+    # RSC en service sur le PDL est attribuée ; 0 ou plusieurs → ref_situation_contractuelle
+    # null (jamais d'écriture silencieuse, cf. cellules 4 ci-dessous).
+    orders_attribution = (
+        orders_avec_rsc.rename({"ref_situation_contractuelle": "rsc_asof"})
+        .join(rsc_en_service_par_pdl, left_on="x_pdl", right_on="pdl", how="left")
+        .with_columns(pl.col("nb_rsc_en_service").fill_null(0))
+        .with_columns(
+            pl.when(pl.col("nb_rsc_en_service") == 1)
+            .then(pl.col("rsc_en_service").list.first())
+            .otherwise(None)
+            .alias("ref_situation_contractuelle")
+        )
+    )
+    return (orders_attribution,)
+
+
+@app.cell
+def _(orders_attribution):
+    _attribuees = orders_attribution.filter(pl.col("nb_rsc_en_service") == 1)
+    _a_part = orders_attribution.filter(pl.col("nb_rsc_en_service") != 1).with_columns(
+        pl.when(pl.col("nb_rsc_en_service") == 0)
+        .then(pl.lit("aucune RSC en service sur le PDL"))
+        .otherwise(pl.lit("plusieurs RSC en service sur le PDL"))
+        .alias("motif")
+    )
+    mo.vstack(
+        [
+            mo.md(f"""
+        ### Résultats de l'attribution
+
+        | | |
+        |---|---|
+        | ✅ Attribuées (1 RSC en service) | **{len(_attribuees)}** orders |
+        | ⚠️ À traiter à part (0 ou plusieurs) | **{len(_a_part)}** orders |
+        """),
+            mo.ui.table(
+                _attribuees.select(["sale_order_id", "name", "x_pdl", "rsc_asof", "ref_situation_contractuelle"])
+            ),
+            mo.md("### Commandes à traiter à part (jamais d'écriture silencieuse)")
+            if not _a_part.is_empty()
+            else mo.md(""),
+            mo.ui.table(_a_part.select(["sale_order_id", "name", "x_pdl", "motif", "nb_rsc_en_service"]))
+            if not _a_part.is_empty()
+            else mo.md(""),
+        ]
+    )
+    return
+
+
+@app.cell
+def _():
     mo.md("""
     ## 4. Injection RSC → Odoo
     """)
@@ -193,18 +289,21 @@ def _():
 
 
 @app.cell
-def _(orders_avec_rsc):
+def _(orders_attribution):
     from electricore.integrations.odoo import OdooWriter
 
-    _a_injecter = orders_avec_rsc.filter(pl.col("ref_situation_contractuelle").is_not_null())
-    _sans_rsc = orders_avec_rsc.filter(pl.col("ref_situation_contractuelle").is_null())
+    _a_injecter = orders_attribution.filter(pl.col("nb_rsc_en_service") == 1)
+    _a_part = orders_attribution.filter(pl.col("nb_rsc_en_service") != 1)
 
     sim_mode = mo.ui.checkbox(label="Mode simulation (aucune écriture réelle)", value=True)
     run_button = mo.ui.run_button(label="Injecter dans Odoo")
 
     mo.vstack(
         [
-            mo.md(f"**{len(_a_injecter)}** orders à mettre à jour · **{len(_sans_rsc)}** sans RSC (ignorés)"),
+            mo.md(
+                f"**{len(_a_injecter)}** orders à mettre à jour · "
+                f"**{len(_a_part)}** à traiter à part (ignorés, jamais d'écriture silencieuse)"
+            ),
             mo.ui.table(_a_injecter.select(["name", "x_pdl", "date_order", "ref_situation_contractuelle"])),
             sim_mode,
             run_button,
@@ -214,11 +313,11 @@ def _(orders_avec_rsc):
 
 
 @app.cell
-def _(OdooWriter, orders_avec_rsc, run_button, sim_mode):
+def _(OdooWriter, orders_attribution, run_button, sim_mode):
     mo.stop(not run_button.value, mo.md("Vérifiez les données ci-dessus puis cliquez sur **Injecter**."))
 
     _records = (
-        orders_avec_rsc.filter(pl.col("ref_situation_contractuelle").is_not_null())
+        orders_attribution.filter(pl.col("nb_rsc_en_service") == 1)
         .rename({"sale_order_id": "id", "ref_situation_contractuelle": "x_ref_situation_contractuelle"})
         .select(["id", "x_ref_situation_contractuelle"])
         .to_dicts()
