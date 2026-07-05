@@ -195,16 +195,18 @@ La release de fond. Au-delà des corrections de calcul :
 > au bon niveau de détail.
 
 ### v3.4 — Vue facturiste, provision des lissés *(29 juin)*
-- **Vue facturiste d'un point ou d'un contrat** : la **frise complète** d'un PDL/contrat —
-  tous les faits (changements de contrat, relevés) tissés avec les verdicts (qualité,
-  communication) de chaque période, **sans montant tarifaire**. De quoi comprendre l'histoire
-  d'un point d'un coup d'œil.
+- **Vue facturiste d'un point ou d'un contrat** *(chronologie)* : la **frise complète**
+  d'un PDL/contrat — tous les faits (changements de contrat, relevés) tissés avec les
+  verdicts (qualité, communication) de chaque période, **sans montant tarifaire**.
+  **Exposée par l'API, outillage à venir** : pas encore de notebook ni de commande bot
+  pour la consulter — voir « Ce qui se prépare » plus bas.
 - **Estimation de provision des contrats lissés** *(amorce)* : pour un contrat lissé démarrant
   sans historique, electricore estime la **provision d'énergie** (en kWh) à partir du profil
   sur 12 mois glissants. Disponible **dès aujourd'hui** via la commande bot `/provision`.
   **En kWh uniquement** (le prix reste au fournisseur), **en amont de la régularisation**.
-> **Pour vous :** vous voyez toute l'histoire d'un point sans ouvrir dix écrans, et vous
-> obtenez une provision de départ raisonnable pour un nouveau contrat lissé.
+> **Pour vous :** la donnée existe déjà côté API (de quoi comprendre l'histoire d'un
+> point une fois outillée), et vous obtenez dès maintenant une provision de départ
+> raisonnable pour un nouveau contrat lissé.
 
 ---
 
@@ -220,6 +222,8 @@ disparaîtront.**
   l'assiette, electricore renvoie le montant €).
 - **Résolution de contrat** : retrouver la situation contractuelle (RSC) à partir de
   l'identifiant d'affaire Enedis — le chaînon pour relier une demande à son contrat côté ERP.
+- **Chronologie** *(vue facturiste, v3.4)* : exposée par l'API, elle attend son outillage
+  facturiste (notebook ou bot) — pas de consommateur dans le repo aujourd'hui.
 - **Client léger + flux en continu** : un petit paquet (`electricore-client`) et des flux
   ligne-à-ligne permettront à Odoo (et au futur module `souscriptions_odoo`) de consommer
   electricore sans embarquer tout le moteur.

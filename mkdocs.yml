@@ -47,7 +47,8 @@ nav:
       - Pourquoi recalculer soi-même: comprendre/pourquoi-recalculer.md
       - ElectriCore vu de loin: comprendre/electricore-vu-de-loin.md
   - Facturer:
-      - Guide facturiste: facturiste/changelog-facturiste.md
+      - facturiste/index.md
+      - Ce qui a changé: facturiste/changelog-facturiste.md
       - Bot Telegram (facturiste): guide-bot-facturiste.md
       - Notebook opérateur: operateur-notebook.md
   - Déployer:
