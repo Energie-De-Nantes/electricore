@@ -1,6 +1,6 @@
 [project]
 name = "electricore-client"
-version = "0.2.0"
+version = "0.3.0"
 description = "Client Python léger (httpx + pydantic) vers l'API facturiste electricore — sans polars/duckdb/fastapi"
 authors = [
     {name = "Virgile"}
