@@ -19,6 +19,10 @@ from .models.meta_periodes import (
     CONTRAT_VERSION_META_PERIODES,
     PeriodeMeta,
 )
+from .models.prestations import (
+    CONTRAT_VERSION_PRESTATIONS,
+    PrestationF15,
+)
 from .models.rsc import (
     CONTRAT_VERSION_RSC,
     ResolutionRscRequest,
@@ -92,6 +96,46 @@ class ElectricoreClient(_BaseClient):
             headers=self._headers,
             validateur=PeriodeMeta.model_validate,
             version_attendue=CONTRAT_VERSION_META_PERIODES,
+            verifier_version=lambda attendue, servie: self._verifier_version(attendue=attendue, servie=servie),
+            raise_for_status=self._raise_for_status,
+        )
+
+    def prestations(
+        self,
+        *,
+        rsc: list[str] | None = None,
+    ) -> JsonlStream[PrestationF15]:
+        """Flux JSONL typé des prestations F15 à refacturer (contrat v1, pull-tout).
+
+        Le serveur streame **toutes** les lignes `unite='UNITE'` du F15, sans
+        fenêtre temporelle ni pagination — le volume est faible (~une par PDL)
+        et la dédup vit chez le consommateur, par `reference`
+        (souscriptions_odoo#37, ADR 0009 côté addon).
+
+        Args:
+            rsc: filtre optionnel sur une liste de `ref_situation_contractuelle`.
+
+        Returns:
+            Un `JsonlStream[PrestationF15]`, à consommer en context-manager :
+
+            ```python
+            with client.prestations() as stream:
+                for presta in stream:
+                    ...
+            ```
+        """
+        params: dict[str, object] = {}
+        if rsc:
+            params["rsc"] = rsc
+
+        return JsonlStream(
+            client=self._http,
+            method="GET",
+            url=f"{self.url}/facturation/prestations",
+            params=params or None,
+            headers=self._headers,
+            validateur=PrestationF15.model_validate,
+            version_attendue=CONTRAT_VERSION_PRESTATIONS,
             verifier_version=lambda attendue, servie: self._verifier_version(attendue=attendue, servie=servie),
             raise_for_status=self._raise_for_status,
         )
