@@ -56,9 +56,9 @@ class ElectricoreArrowClient(_BaseClient):
         prm: str | None = None,
         limit: int = 1_000_000,
     ) -> pl.DataFrame:
-        """Contenu brut d'un flux Enedis (c15, r151, f15, etc.) en Polars.
+        """Contenu brut d'un flux Enedis (c15, r151, f15_detail, etc.) en Polars.
 
-        Équivalent HTTP des `c15()`/`r151()`/`f15()` du `DuckDBQuery` — pour les
+        Équivalent HTTP des `c15()`/`r151()`/`f15_detail()` du `DuckDBQuery` — pour les
         notebooks distants sans accès local à la base (ADR-0009).
 
         Args:
