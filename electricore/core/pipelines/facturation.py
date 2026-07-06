@@ -44,7 +44,7 @@ def expr_memo_puissance_simple() -> pl.Expr:
     """
     Construit un mémo simple pour une période d'abonnement.
 
-    Format : "Xj à YkVA" (ex: "14j à 6kVA")
+    Format : "X jours à YkVA" (ex: "14 jours à 6kVA")
 
     Returns:
         Expression Polars retournant le mémo formaté
@@ -54,7 +54,7 @@ def expr_memo_puissance_simple() -> pl.Expr:
     """
     return (
         pl.col("nb_jours").cast(pl.Utf8)
-        + pl.lit("j à ")
+        + pl.lit(" jours à ")
         + pl.col("puissance_souscrite_kva").cast(pl.Int32).cast(pl.Utf8)
         + pl.lit("kVA")
     )
@@ -105,11 +105,20 @@ def agreger_abonnements_mensuel(periodes: LazyFrame[PeriodeAbonnement]) -> LazyF
         LazyFrame agrégé par mois avec puissance moyenne pondérée
     """
 
-    # Ajouter le mémo simple pour chaque ligne avant agrégation
-    periodes_avec_memo = periodes.with_columns(expr_memo_puissance_simple().alias("memo_simple"))
+    grp = ["ref_situation_contractuelle", "pdl", "mois_annee"]
+
+    # Mémo simple par ligne, puis chaque segment SAUF le premier de son groupe se voit
+    # préfixer la date de bascule (= son `debut`, qui EST le `date_evenement` C15 déclencheur —
+    # cf. abonnements.py) : "puis le JJ/MM/AAAA : ".
+    periodes_avec_memo = periodes.with_columns(expr_memo_puissance_simple().alias("memo_simple")).with_columns(
+        pl.when(pl.col("debut") == pl.col("debut").min().over(grp))
+        .then(pl.col("memo_simple"))
+        .otherwise(pl.lit("puis le ") + pl.col("debut").dt.strftime("%d/%m/%Y") + pl.lit(" : ") + pl.col("memo_simple"))
+        .alias("_chunk")
+    )
 
     return (
-        periodes_avec_memo.group_by(["ref_situation_contractuelle", "pdl", "mois_annee"])
+        periodes_avec_memo.group_by(grp)
         .agg(
             [
                 # Agrégations numériques
@@ -123,25 +132,27 @@ def agreger_abonnements_mensuel(periodes: LazyFrame[PeriodeAbonnement]) -> LazyF
                 pl.col("fin").max(),
                 # Comptage des sous-périodes
                 pl.col("ref_situation_contractuelle").len().alias("nb_sous_periodes_abo"),
-                # Construction du mémo des puissances
-                pl.col("memo_simple").str.join(", ").alias("memo_puissance_concat"),
+                # Construction du mémo des puissances, triée chronologiquement (ordre non
+                # garanti par le group_by lui-même)
+                pl.col("_chunk").sort_by("debut").str.join(", ").alias("memo_puissance_concat"),
+                # Nombre de puissances distinctes du groupe — sert de gate ci-dessous
+                pl.col("puissance_souscrite_kva").n_unique().alias("_n_puissances"),
             ]
         )
         .with_columns(
             [
-                # Flag de changement si plusieurs sous-périodes
+                # Flag de changement si plusieurs sous-périodes (FTA incluse)
                 (pl.col("nb_sous_periodes_abo") > 1).alias("has_changement_abo"),
-                # Mémo final : vide si pas de changement de puissance réel
-                pl.when(pl.col("nb_sous_periodes_abo") <= 1)
+                # Mémo final : vide sauf changement RÉEL de puissance.
+                # ponytail: gate sur la puissance réelle, pas le nombre de sous-périodes
+                # (un MCT qui ne change que la FTA à puissance égale ne doit pas produire de mémo)
+                pl.when(pl.col("_n_puissances") <= 1)
                 .then(pl.lit(""))
-                .otherwise(
-                    # TODO: Vérifier si changement réel de puissance
-                    pl.col("memo_puissance_concat")
-                )
+                .otherwise(pl.col("memo_puissance_concat"))
                 .alias("memo_puissance"),
             ]
         )
-        .drop("memo_puissance_concat")
+        .drop(["memo_puissance_concat", "_n_puissances"])
     )
 
 
