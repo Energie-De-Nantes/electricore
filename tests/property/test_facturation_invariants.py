@@ -169,9 +169,10 @@ def test_pipeline_stable_sous_permutation_des_entrees(abonnements: pl.DataFrame,
     endroit = pipeline_facturation(abonnements.lazy(), energies.lazy()).collect().sort(tri)
     envers = pipeline_facturation(abonnements.reverse().lazy(), energies.reverse().lazy()).collect().sort(tri)
 
-    # memo_puissance concatène dans l'ordre d'arrivée : hors du contrat d'ordre ;
+    # memo_puissance est désormais trié explicitement par `debut` (sort_by) à la jointure des
+    # segments : déterministe indépendamment de l'ordre d'arrivée des sous-périodes.
     # tolérance flottante : l'ordre de sommation peut différer au dernier ulp
-    assert_frame_equal(endroit.drop("memo_puissance"), envers.drop("memo_puissance"), rel_tol=1e-12, abs_tol=1e-9)
+    assert_frame_equal(endroit, envers, rel_tol=1e-12, abs_tol=1e-9)
 
 
 # =============================================================================
