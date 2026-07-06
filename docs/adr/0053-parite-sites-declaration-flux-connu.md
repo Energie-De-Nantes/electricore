@@ -3,6 +3,8 @@
 ## Statut
 
 Accepté (#535, #536, #537, #538 — grilling du 01/07).
+Amendé (#595 — modèle *flux → N extractions*, registre keyé par extraction, invariant
+menu↔export ; voir [Amendement](#amendement-595--flux--n-extractions)).
 
 ## Contexte
 
@@ -16,7 +18,8 @@ se déclare dans plusieurs sites répartis sur quatre modules :
    brutes que dbt peut lire.
 4. **Modèles dbt** (`electricore/ingestion/dbt/models/flux/*.sql`) — la linéarisation elle-même.
 5. **Registre des descripteurs loaders** (`electricore/core/loaders/duckdb/registry.py`) +
-   factories/exports (`helpers.py`, `__init__.py`) — l'accès requêtable côté cœur.
+   factories/exports (`helpers.py`, `__init__.py`) — l'accès requêtable côté cœur, keyé par
+   *extraction* (cf. [Amendement #595](#amendement-595--flux--n-extractions)).
 6. **Colonnes de date métier** (`COLONNE_DATE_METIER`,
    `electricore/api/services/duckdb_service.py`) — la fraîcheur exposée par les stats de table.
 7. **Libellés bot** (`DESCRIPTIONS`, `electricore/bot/handlers/flux.py`) — le menu `/flux`.
@@ -78,7 +81,38 @@ connaître).
   découverte des mois plus tard par un opérateur, comme celle qui a motivé cette série).
 - Retirer un flux d'un seul site (mutation locale, ex. l'oublier du registre loaders) fait
   échouer le test — verrou de non-régression explicite.
-- Les exceptions légitimes (grain différent par site, ex. `flux_r15_acc` qui n'a pas de
-  descripteur loader dédié — le registre est keyé par *flux ingéré*, pas par *modèle dbt* ; ou
-  `releves`/`spine_contrat` qui sont des marts dérivés, hors du périmètre des *flux connus*)
-  sont des exceptions **déclarées** dans le test, pas des trous silencieux.
+- Les exceptions légitimes (`releves`/`spine_contrat`/`chronologie_releves`, marts dérivés hors
+  du périmètre des *flux connus*, avec leurs propres factories) sont des exceptions **déclarées**
+  dans le test, pas des trous silencieux.
+
+## Amendement (#595) — flux → N extractions
+
+L'ADR initiale supposait implicitement **1 flux ingéré = 1 table requêtable** et keyait le
+registre loaders par flux ingéré (`f15`, `f12`), traitant `flux_r15_acc` comme une exception
+« modèle dbt sans descripteur ». Ce postulat était faux et il a **cassé un clic de menu en
+production** : le menu bot `/flux` liste les tables physiques `flux_*` (via `list_tables()`,
+`duckdb_service.py`), donc `f15_detail`, `f12_detail`, `r15_acc` — mais le registre ne
+connaissait que `f15`/`f12`, si bien qu'un export 📥 de `f15_detail` tombait sur `FluxInconnu`.
+
+**Le modèle correct est *1 flux → 1..N extractions*** (glossaire *Flux vs Extraction*,
+[`api/CONTEXT.md`](../../electricore/api/CONTEXT.md)) : un **flux** est ce qu'on ingère (clé de
+`flux.yaml`) ; une **extraction** est une des N tables qu'il produit — l'unité qu'on interroge et
+exporte (clé du registre = nom du modèle dbt = entrée menu = segment `/flux/{extraction}`). Ainsi
+F15 → `f15_detail` (l'agrégat `f15`, destiné à l'injection Odoo, est une extraction **future**,
+absente tant que `flux_f15` n'est pas matérialisé — d'où l'interdit de squatter `f15` pour
+pointer `flux_f15_detail`) ; R15 → `r15` (index) **+** `r15_acc` (autoconsommation).
+
+Décisions de l'amendement :
+
+- **Le registre est keyé par extraction**, pas par flux ingéré. Le flux parent vit dans
+  `FluxDescriptor.flux_name`, distinct de la clé (deux extractions partagent un flux : `r15` et
+  `r15_acc` ont toutes deux `flux_name="R15"`). La parité « chaque flux connu est requêtable »
+  (site 1 ↔ site 5) se vérifie donc via `flux_connus() ⊆ {d.flux_name.lower()}`, plus via une
+  clé homonyme.
+- **`MODELES_DBT_SANS_DESCRIPTOR_LOADER = ∅`** : `flux_r15_acc` n'est plus une exception, il a
+  son descripteur (`DESCRIPTOR_R15_ACC`). Tout modèle dbt `flux_*` a désormais une extraction au
+  registre.
+- **Nouvel invariant *nom affiché = nom exportable*** (`test_registre_couvre_exactement_les_tables_exposees`) :
+  `list_tables()` (⇔ ensemble des modèles dbt `flux_*`, préfixe retiré) **==** clés de
+  `FLUX_DESCRIPTORS`. C'est le garde-fou qui manquait — il transforme « le menu offre une table
+  que l'export ne sait pas résoudre » d'un clic cassé en production en un échec de test immédiat.
