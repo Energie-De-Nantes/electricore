@@ -50,7 +50,7 @@ def test_documents_facturation_du_mois_returns_fr_sheet_names(monkeypatch):
         facturation_mensuelle=df_fact_mensuelle,
     )
     # Un seul nom à patcher depuis #145 (contre charger + c15 + releves_harmonises avant) ;
-    # c15/f15 restent patchés plus bas pour les onglets bruts de documents() (topologie #87).
+    # c15/f15_detail restent patchés plus bas pour les onglets bruts de documents() (topologie #87).
     monkeypatch.setattr(facturation_service, "contexte_du_mois", lambda mois=None: contexte_prefab)
 
     df_lignes_odoo = pl.DataFrame(
@@ -93,7 +93,7 @@ def test_documents_facturation_du_mois_returns_fr_sheet_names(monkeypatch):
     )
     monkeypatch.setattr(facturation_service, "lignes_factures_du_mois", lambda odoo, mois: _QueryMock(df_lignes_odoo))
     monkeypatch.setattr(facturation_service, "c15", lambda: _QueryMock(df_flux_vide))
-    monkeypatch.setattr(facturation_service, "f15", lambda: _QueryMock(df_flux_vide))
+    monkeypatch.setattr(facturation_service, "f15_detail", lambda: _QueryMock(df_flux_vide))
 
     documents, suffix = facturation_service.documents_facturation_du_mois(odoo=None, mois="2025-01-01")
 
