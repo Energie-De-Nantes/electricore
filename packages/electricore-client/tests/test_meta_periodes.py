@@ -21,7 +21,7 @@ import pydantic
 import pytest
 from electricore_client import ElectricoreClient
 from electricore_client.exceptions import ContractVersionError
-from electricore_client.models import PeriodeMeta
+from electricore_client.models import ObjetReleve, PeriodeMeta
 
 # Deux méta-périodes représentatives (RSC-1 réelle avec relevés bornants ;
 # RSC-2 incalculable, trace vide) — copie fidèle de la sortie du service.
@@ -51,6 +51,7 @@ _LIGNES = [
                 "date_releve": "2026-05-01T00:00:00+02:00",
                 "nature_index": "réel",
                 "origine_releve": "périodique",
+                "famille_cadrans": "hp_hc",
                 "index_hp_kwh": 1000,
                 "index_hc_kwh": 500,
             },
@@ -131,6 +132,10 @@ def test_meta_periodes_streame_des_periodes_typees():
     assert isinstance(p0.releves_utilises[0].index_hp_kwh, int)
     assert p0.releves_utilises[1].evenement == "MCT"
     assert periodes[1].releves_utilises == []
+    # famille_cadrans (#603) : présente et typée si le calendrier était connu côté service,
+    # absente (None) sinon — même style que `evenement`.
+    assert p0.releves_utilises[0].famille_cadrans == "hp_hc"
+    assert p0.releves_utilises[1].famille_cadrans is None
 
 
 def test_meta_periodes_expose_les_metadonnees_den_tete():
@@ -212,6 +217,28 @@ def test_meta_periodes_accepte_les_verdicts_valides_ou_absents():
     p_sans = PeriodeMeta.model_validate(ligne_sans_verdicts)
     assert p_sans.qualite is None
     assert p_sans.statut_communication is None
+
+
+def test_objet_releve_famille_cadrans_valeurs_closes():
+    """`famille_cadrans` n'accepte que `base` / `hp_hc` / `4_cadrans`, ou l'absence (#603)."""
+    ligne = {**_LIGNES[0]["releves_utilises"][0], "famille_cadrans": "base"}
+    assert ObjetReleve.model_validate(ligne).famille_cadrans == "base"
+
+    ligne_absente = {k: v for k, v in ligne.items() if k != "famille_cadrans"}
+    assert ObjetReleve.model_validate(ligne_absente).famille_cadrans is None
+
+    with pytest.raises(pydantic.ValidationError):
+        ObjetReleve.model_validate({**ligne, "famille_cadrans": "quelque_chose_dautre"})
+
+
+def test_objet_releve_retrocompat_champ_inconnu_ignore():
+    """Rétro-compat contrat additif (#603) : un client qui reçoit un champ qu'il ne connaît
+    pas encore (ex. le serveur en ajoute un futur, symétrique de `famille_cadrans` avant ce
+    changement) ne lève pas — `extra='ignore'` avale la clé au lieu de la rejeter."""
+    ligne = {**_LIGNES[0]["releves_utilises"][0], "un_futur_champ_pas_encore_connu": 42}
+    objet = ObjetReleve.model_validate(ligne)
+    assert not hasattr(objet, "un_futur_champ_pas_encore_connu")
+    assert objet.releve_id == "a1b2c3d4e5f60718"
 
 
 def test_meta_periodes_libere_le_flux_mi_consomme():
