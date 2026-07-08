@@ -277,7 +277,7 @@ indépendamment).
 **Contribution** : `main` est protégé. Brancher → commit (Conventional Commits en français) →
 pousser → ouvrir une PR → la CI tourne → **le merge est une étape humaine** sur le site. Détails :
 [CONTRIBUTING.md](https://github.com/Energie-De-Nantes/electricore/blob/main/CONTRIBUTING.md).
-Nouvel arrivant (profil Rust/Java) : [docs/transmission.md](../transmission.md).
+Nouvel·le arrivant·e : [Prise en main](prise-en-main.md).
 
 ## Feuille de route
 

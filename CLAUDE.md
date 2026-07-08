@@ -358,7 +358,7 @@ uv run --group test pytest --cov=electricore tests/
 
 ## Documentation
 
-- **Transmission**: [docs/transmission.md](docs/transmission.md) - Guide pour nouvel arrivant (Rust/Java → Python)
+- **Prise en main**: [docs/contribuer/prise-en-main.md](docs/contribuer/prise-en-main.md) - Point d'entrée pour qui découvre le code
 - **Main README**: [README.md](README.md) - Complete project overview
 - **Ingestion Module**: [electricore/ingestion/README.md](electricore/ingestion/README.md)
 - **Configuration (inventaire complet)**: [docs/configuration.md](docs/configuration.md) - Env vars, fichiers versionnés, deploy, outillage
