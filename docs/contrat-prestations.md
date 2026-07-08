@@ -33,7 +33,7 @@ représentation du payload.
 | `libelle_ev` | Une retouche de libellé Enedis (texte affiché) n'est pas une nouvelle prestation. |
 | `taux_tva_applicable` | Même raison : une correction de taux affichée n'est pas un nouveau fait facturable. |
 | `nature_ev` | Fonctionnellement **déterminé** par `id_ev` — vérifié empiriquement : 0 `id_ev` porte plusieurs `nature_ev` distincts dans les flux réels. L'inclure serait redondant, pas plus précis. |
-| `ref_situation_contractuelle` | Métadonnée d'attachement, pas de contenu de la prestation. L'attachement Odoo se fait par **PDL**, pas par RSC (un PDL peut changer de RSC sans que la prestation change). |
+| `ref_situation_contractuelle` | Métadonnée d'attachement, pas de contenu de la prestation. C'est justement la clé par laquelle l'addon Odoo rattache la ligne (résolution **par RSC seule**, arbitrage souscriptions_odoo#147), pas un attribut du fait facturable. |
 | `date_facture` | Métadonnée de facturation, pas de contenu de la prestation — deux ré-émissions de la même ligne sur deux factures F15 différentes (retard de traitement Enedis) doivent fusionner. |
 
 ## Canonicalisation — Python pur, pas `pl.concat_str`
