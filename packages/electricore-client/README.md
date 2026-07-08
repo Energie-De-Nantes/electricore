@@ -34,6 +34,11 @@ with client.chronologie(pdl="12345678901234") as stream:
 
 # Calculateur TURPE variable (POST RPC, pas un stream)
 resultats = client.turpe_variable([...])  # résultats indexés par id opaque
+
+# Prestations F15 à refacturer (pull-tout, dédup par `reference` côté consommateur)
+with client.prestations() as stream:
+    for prestation in stream:             # itère des PrestationF15 typés
+        ...
 ```
 
 Le client Arrow historique (`flux/releves/facturation/accise/cta` → `pl.DataFrame`)
