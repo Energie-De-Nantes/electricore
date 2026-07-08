@@ -54,6 +54,7 @@ nav:
   - Déployer:
       - deployer/index.md
       - Déploiement VPS: deploiement.md
+      - Configuration — inventaire complet: configuration.md
   - Contribuer:
       - contribuer/index.md
       - Charte de la documentation: contribuer/charte-documentation.md

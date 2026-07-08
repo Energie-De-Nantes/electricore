@@ -1,4 +1,8 @@
-# Configuration du projet — l'inventaire complet
+---
+fraicheur: 2026-07-08
+---
+
+# Configuration — inventaire complet
 
 Tous les points de configuration d'ElectriCore, en un seul endroit. Quand tu cherches
 « où se règle X », c'est ici. Trois registres de savoir ([ADR-0024](adr/0024-trois-registres-de-savoir.md)) :
@@ -85,9 +89,17 @@ ce sont les modèles SQL `ingestion/dbt/models/` — voir [ingestion.md](ingesti
 
 ## 3. Déploiement (`deploy/docker/`)
 
+Depuis le cutover **secrets-as-code** ([ADR-0044](adr/0044-secrets-as-code-sops-age.md)), il n'y a
+plus de `.env` monolithique édité sur la box : la config d'instance est scindée en
+**`config.env`** (clair, versionné) et **`secrets.env`** (chiffré SOPS + age, versionné) dans un
+dépôt de déploiement privé, pullés dans `providers/<slug>/`. Détail complet des variables et de la
+procédure : [docs/deploiement.md](deploiement.md).
+
 | fichier | rôle |
 |---|---|
-| `docker-compose.yml` | services api/bot/ingestion-scheduler ; `env_file: .env` + `environment:` (`DUCKDB__PATH=/data/...`, `TZ=Europe/Paris`) ; volume `duckdb_data` |
+| `docker-compose.yml` | services `api`/`ingestion-scheduler`/`caddy` ; `env_file: ../../config.env` (clair) + `environment:` (`DUCKDB__PATH=/data/...`, `SOPS_AGE_KEY_FILE`, `SECRETS_ENV_FILE` — `TZ=Europe/Paris` posé uniquement sur `ingestion-scheduler`) ; volumes secrets `age.key` (RO) et `providers/<slug>/secrets.env` (RO, chiffré) ; volume `duckdb_data` |
+| `entrypoint.sh` | `electricore-entrypoint` : déchiffre `secrets.env` dans l'environnement du process (`sops exec-env`, jamais de clair sur disque) puis `exec` la commande — échec dur si secrets/clé absents (`ELECTRICORE_DECRYPT=off` en échappatoire dev/test) |
+| `smoke.sh` | fumée d'une image déjà buildée : importabilité (entrypoint contourné) + déchiffrement réel via fixtures SOPS de test |
 | `crontab` (copié de `crontab.example`) | planning : `/ingestion/run all` à 02:00 via l'API, backup à 03:30 |
 | `Caddyfile` (copié de `.example`) | reverse proxy TLS |
 | `backup_duckdb.sh` | sauvegarde quotidienne de la base |

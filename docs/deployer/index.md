@@ -10,7 +10,8 @@ Compose, secrets, sauvegardes).
 
 Le [guide de déploiement VPS](../deploiement.md) couvre l'installation,
 les secrets, la rotation de clés, la mise à jour de version et la
-sauvegarde. L'inventaire de configuration rejoindra cette section une fois
-remis à jour (issue #605, passe de lecture #557).
+sauvegarde. L'[inventaire de configuration](../configuration.md) recense
+toutes les variables d'environnement, fichiers versionnés et points de
+configuration du projet.
 
 [Retour à l'accueil](../index.md).
