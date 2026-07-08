@@ -11,6 +11,8 @@ plus récent qui ajoute une colonne ne casse pas un client plus ancien.
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict
 
 # Version du contrat (cf. meta_periodes_service.CONTRAT_VERSION). Source unique.
@@ -77,9 +79,10 @@ class PeriodeMeta(BaseModel):
 
     has_changement: bool | None = None
 
-    # Verdicts méta jumeaux (qualité ADR-0033 / communication ADR-0036).
-    qualite: str | None = None
-    statut_communication: str | None = None
+    # Verdicts méta jumeaux (qualité ADR-0033 / communication ADR-0036) — valeurs
+    # closes du contrat (#589), accents et underscore exacts.
+    qualite: Literal["réelle", "estimée", "incalculable"] | None = None
+    statut_communication: Literal["communicante", "non_communicante"] | None = None
 
     # Trace d'index légale (ADR-0038) — imbriquée, requise (peut être vide).
     releves_utilises: list[ObjetReleve] = []

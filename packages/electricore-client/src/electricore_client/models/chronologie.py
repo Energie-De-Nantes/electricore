@@ -82,8 +82,9 @@ class LignePeriodeEnergie(_LigneBase):
     debut: str | None = None
     fin: str | None = None
     nb_jours: int | None = None
-    qualite: str | None = None
-    statut_communication: str | None = None
+    # Verdicts jumeaux — valeurs closes du contrat (#589), accents et underscore exacts.
+    qualite: Literal["réelle", "estimée", "incalculable"] | None = None
+    statut_communication: Literal["communicante", "non_communicante"] | None = None
 
     # Énergies (energie_*_kwh) — flottants (ADR-0034), non-nulles uniquement.
     energie_base_kwh: float | None = None

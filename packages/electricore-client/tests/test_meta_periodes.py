@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 
 import httpx
+import pydantic
 import pytest
 from electricore_client import ElectricoreClient
 from electricore_client.exceptions import ContractVersionError
@@ -185,6 +186,32 @@ def test_meta_periodes_propage_filtres_en_query():
     url = captures[0]
     assert url.params.get("mois") == "2026-05-01"
     assert url.params.get_list("rsc") == ["RSC-1", "RSC-2"]
+
+
+def test_meta_periodes_rejette_qualite_desaccentuee():
+    """`qualite='reelle'` (désaccentué) échoue au parse pydantic (#589)."""
+    ligne = {**_LIGNES[0], "qualite": "reelle"}
+    with pytest.raises(pydantic.ValidationError):
+        PeriodeMeta.model_validate(ligne)
+
+
+def test_meta_periodes_rejette_statut_communication_invalide():
+    """`statut_communication='non-communicante'` (tiret) échoue au parse pydantic (#589)."""
+    ligne = {**_LIGNES[0], "statut_communication": "non-communicante"}
+    with pytest.raises(pydantic.ValidationError):
+        PeriodeMeta.model_validate(ligne)
+
+
+def test_meta_periodes_accepte_les_verdicts_valides_ou_absents():
+    """Valeurs accentuées valides et absence (None) restent acceptées."""
+    p = PeriodeMeta.model_validate(_LIGNES[0])
+    assert p.qualite == "réelle"
+    assert p.statut_communication == "communicante"
+
+    ligne_sans_verdicts = {k: v for k, v in _LIGNES[0].items() if k not in ("qualite", "statut_communication")}
+    p_sans = PeriodeMeta.model_validate(ligne_sans_verdicts)
+    assert p_sans.qualite is None
+    assert p_sans.statut_communication is None
 
 
 def test_meta_periodes_libere_le_flux_mi_consomme():
