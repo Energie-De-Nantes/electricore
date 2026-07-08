@@ -4,6 +4,18 @@ Toutes les évolutions notables de ce paquet sont consignées ici.
 Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/) ;
 le versionnage suit [SemVer](https://semver.org/lang/fr/).
 
+## [0.3.0] — 2026-07-08
+
+### Ajouté
+- Méthode `prestations(rsc=...)` : flux JSONL typé de `PrestationF15`, les
+  prestations et indemnités ponctuelles du flux F15 (`unite='UNITE'`) à
+  refacturer côté Odoo (contrat v1, souscriptions_odoo#37). Pull-tout sans
+  fenêtre temporelle ni pagination — dédup côté consommateur par
+  `reference`, une **référence de contenu electricore** (sha256 tronqué du
+  contenu canonique de la ligne, construit en Python pur ; ce n'est pas une
+  référence Enedis, le F15 n'a aucun identifiant de ligne). Contrat :
+  `docs/contrat-prestations.md`.
+
 ## [0.2.0] — 2026-07-02
 
 ### Ajouté
