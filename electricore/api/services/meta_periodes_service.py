@@ -17,7 +17,7 @@ import json
 import polars as pl
 
 from electricore.core.builds.contexte_mensuel import contexte_du_mois
-from electricore.core.models.cadrans import CADRANS, col_index
+from electricore.core.models.cadrans import CADRANS, col_index, famille_cadrans
 from electricore.core.pipelines.accise import load_accise_rules
 from electricore.core.pipelines.cta import ajouter_cta
 from electricore.core.pipelines.taux import ajouter_taux_en_vigueur
@@ -74,6 +74,9 @@ _COLONNES_RELEVE: tuple[str, ...] = (
     # `evenement_declencheur` (porté nativement au mart depuis flux_c15) en précise la cause.
     "source",
     "evenement_declencheur",
+    # Calendrier de comptage du compteur au moment du relevé — source de `famille_cadrans`
+    # (#603), déjà porté par la chronologie pour toutes les sources, aucun changement dbt.
+    "id_calendrier_distributeur",
     *REGISTRES_REELS,
 )
 
@@ -87,13 +90,17 @@ def _objet_releve(ligne: dict) -> dict:
     """Projette une ligne de relevé sur l'objet de contrat (ADR-0038).
 
     `{ releve_id, date_releve (ISO), nature_index, origine_releve, [evenement],
-    <registres réels non nuls> }`.
+    [famille_cadrans], <registres réels non nuls> }`.
 
     - `origine_releve` (label, demande Virgile) : `événementiel` si le relevé vient d'un
       événement contractuel C15 (`source = flux_C15`), `périodique` pour un télérelevé
       automatique (R151/R64). Pour un relevé **événementiel**, `evenement` précise la cause
       (code C15 brut `Nature_Evenement`, ex. `MCT` = changement) ; un périodique n'a pas de
       clé `evenement`.
+    - `famille_cadrans` (#603) : calendrier de comptage du compteur au moment de **ce**
+      relevé (grain relevé, pas période — cf. glossaire *Famille de cadrans*, CONTEXT.md),
+      mappé depuis `id_calendrier_distributeur` par `cadrans.famille_cadrans` (source
+      unique DI→famille, ADR-0035 §1). Absente si le calendrier est inconnu ou `null`.
     - Un registre nul n'est pas exposé (registres réels uniquement — jamais de cadran
       synthétisé). `date_releve` est rendue en ISO8601 pour un payload + un `source_hash`
       déterministes.
@@ -108,6 +115,9 @@ def _objet_releve(ligne: dict) -> dict:
     }
     if evenementiel and ligne.get("evenement_declencheur") is not None:
         objet["evenement"] = ligne["evenement_declencheur"]
+    famille = famille_cadrans(ligne.get("id_calendrier_distributeur"))
+    if famille is not None:
+        objet["famille_cadrans"] = famille
     for registre in REGISTRES_REELS:
         if ligne.get(registre) is not None:
             objet[registre] = ligne[registre]
