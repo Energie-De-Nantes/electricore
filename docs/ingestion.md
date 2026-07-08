@@ -1,4 +1,8 @@
-# Ingestion des flux Enedis — architecture ELT (dlt + dbt)
+---
+fraicheur: 2026-07-08
+---
+
+# Ingestion des flux Enedis (ELT dlt + dbt)
 
 > **La thèse en une phrase : le mouvement ne casse jamais ; la transformation est rejouable.**
 
@@ -165,6 +169,9 @@ bimestriel, estimé).
   legacy/dbt prouvée 3× (golden, 4 400 XML du cache local, corpus SFTP complet ~700 k lignes),
   5 défauts du legacy corrigés en route (grain PDL, index/conso R15 ~75 % faux, chimères
   multi-relevés, double-comptage des re-livraisons F15, gagnant R64 arbitraire).
-- Conventions de dates : [conventions-dates-enedis.md](conventions-dates-enedis.md) (ADR-0003
-  amendé #294 : R151 J → J+1 portée par le **mart `releves`** uniquement ; l'endpoint brut
-  `/flux/r151` sert la date nue, fidèle source, dépréciable).
+- Conventions de dates : [conventions-dates-enedis.md](conventions-dates-enedis.md) — R151
+  J → J+1 posée au **boundary d'ingestion**, dans le modèle dbt `flux_r151` lui-même
+  ([ADR-0042](adr/0042-convention-date-instant-jour-civil-boundary-flux.md), révise
+  l'amendement #294 d'[ADR-0003](adr/0003-r151-date-harmonisation.md)) : l'endpoint
+  `/flux/r151` sert directement l'instant J+1 harmonisé, plus la date nue ; le mart
+  `releves` ne fait que la consommer en passthrough.
