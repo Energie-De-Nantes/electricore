@@ -1,4 +1,8 @@
-# TURPE Fixe C4 (BT > 36 kVA) - Spécificités et Optimisation
+---
+fraicheur: 2026-07-08
+---
+
+# TURPE fixe C4 (BT > 36 kVA)
 
 ## Vue d'ensemble
 
@@ -13,18 +17,20 @@ Cette modulation permet des **économies significatives** (jusqu'à 20%) pour le
 ### Formule générale
 
 ```
-CS = b₁×P₁ + Σ(i=2 to 4) bᵢ×(Pᵢ - Pᵢ₋₁) + Σ(i=1 to 4) cᵢ×Eᵢ
+CS = cg + cc + b₁×P₁ + Σ(i=2 to 4) bᵢ×(Pᵢ - Pᵢ₋₁) + Σ(i=1 to 4) cᵢ×Eᵢ
 ```
 
 Développée :
 ```
-CS = b₁×P₁ + b₂×(P₂-P₁) + b₃×(P₃-P₂) + b₄×(P₄-P₃) + c₁×E₁ + c₂×E₂ + c₃×E₃ + c₄×E₄
+CS = cg + cc + b₁×P₁ + b₂×(P₂-P₁) + b₃×(P₃-P₂) + b₄×(P₄-P₃) + c₁×E₁ + c₂×E₂ + c₃×E₃ + c₄×E₄
 ```
 
 ### Composantes
 
-- **Composante puissance** (fixe) : `b₁×P₁ + Σ bᵢ×(Pᵢ - Pᵢ₋₁)`
-- **Composante énergie** (variable) : `Σ cᵢ×Eᵢ`
+- **Composante d'accès** (fixe, indépendante de la modulation) : `cg` (gestion) + `cc`
+  (comptage) — les mêmes composantes qu'en C5 ([turpe-usage-standalone.md](turpe-usage-standalone.md)).
+- **Composante puissance** (fixe, modulable) : `b₁×P₁ + Σ bᵢ×(Pᵢ - Pᵢ₋₁)`
+- **Composante énergie** (variable, TURPE variable — hors de ce document) : `Σ cᵢ×Eᵢ`
 
 ### Définition des plages temporelles
 
@@ -82,6 +88,11 @@ Le gestionnaire de réseau **impose** une souscription croissante pour refléter
 
 ## Exemples de calcul
 
+Coefficients CU utilisés ci-dessous (`turpe_rules.csv`, ligne `BTSUPCU` en vigueur depuis
+le 2025-08-01) : `cg=217.8`, `cc=283.27`, `b_hph=17.61`, `b_hch=15.96`, `b_hpb=14.56`,
+`b_hcb=11.98`. Valeurs recalculées via `ajouter_turpe_fixe()` contre le CSV courant
+(pas recopiées d'une version antérieure de ce document).
+
 ### Exemple 1 : Puissance constante (baseline)
 
 **Profil** : 60 kVA toute l'année
@@ -89,9 +100,9 @@ P₁ = P₂ = P₃ = P₄ = 60 kVA
 
 **Calcul (CU)** :
 ```
-CS = 17.96×60 + 16.28×(60-60) + 14.85×(60-60) + 12.21×(60-60)
-   = 1077.6 + 0 + 0 + 0
-   = 1077.6 €/an
+CS = 217.8 + 283.27 + 17.61×60 + 15.96×(60-60) + 14.56×(60-60) + 11.98×(60-60)
+   = 501.07 + 1056.6 + 0 + 0 + 0
+   = 1557.67 €/an
 ```
 
 ### Exemple 2 : Modulation modérée
@@ -101,12 +112,13 @@ P₁ = 36 kVA, P₂ = 36 kVA, P₃ = 60 kVA, P₄ = 60 kVA
 
 **Calcul (CU)** :
 ```
-CS = 17.96×36 + 16.28×(36-36) + 14.85×(60-36) + 12.21×(60-60)
-   = 646.56 + 0 + 356.4 + 0
-   = 1002.96 €/an
+CS = 217.8 + 283.27 + 17.61×36 + 15.96×(36-36) + 14.56×(60-36) + 11.98×(60-60)
+   = 501.07 + 633.96 + 0 + 349.44 + 0
+   = 1484.47 €/an
 ```
 
-**Économie** : 1077.6 - 1002.96 = **74.64 €/an** (soit -7%)
+**Économie vs baseline 60 kVA constant (exemple 1)** : 1557.67 - 1484.47 = **73.20 €/an**
+(soit environ -4.7 %)
 
 ### Exemple 3 : Modulation extrême
 
@@ -115,17 +127,17 @@ P₁ = 36 kVA, P₂ = 36 kVA, P₃ = 36 kVA, P₄ = 100 kVA
 
 **Calcul (CU)** :
 ```
-CS = 17.96×36 + 16.28×(36-36) + 14.85×(36-36) + 12.21×(100-36)
-   = 646.56 + 0 + 0 + 781.44
-   = 1428 €/an
+CS = 217.8 + 283.27 + 17.61×36 + 15.96×(36-36) + 14.56×(36-36) + 11.98×(100-36)
+   = 501.07 + 633.96 + 0 + 0 + 766.72
+   = 1901.75 €/an
 ```
 
 **Baseline 100 kVA constant** :
 ```
-CS = 17.96×100 = 1796 €/an
+CS = 217.8 + 283.27 + 17.61×100 = 501.07 + 1761 = 2262.07 €/an
 ```
 
-**Économie** : 1796 - 1428 = **368 €/an** (soit -20% !)
+**Économie** : 2262.07 - 1901.75 = **360.32 €/an** (soit environ -15.9 %)
 
 ---
 
@@ -135,12 +147,12 @@ CS = 17.96×100 = 1796 €/an
 
 Le TURPE C4 avec 4 puissances reflète les **contraintes réelles du réseau** :
 
-| Période | Contrainte réseau | Coefficient | Stratégie tarifaire |
+| Période | Contrainte réseau | Coefficient (CU) | Stratégie tarifaire |
 |---------|------------------|-------------|---------------------|
-| **HPH** | ⚠️ Pointe nationale (chauffage) | b₁ = 17.96 (max) | **Pénalise** les fortes puissances |
-| **HCH** | Tension moyenne | b₂ = 16.28 | Tarif intermédiaire |
-| **HPB** | Charge modérée | b₃ = 14.85 | Tarif réduit |
-| **HCB** | ✅ Période creuse | b₄ = 12.21 (min) | **Encourage** les fortes puissances |
+| **HPH** | ⚠️ Pointe nationale (chauffage) | b_hph = 17.61 (max) | **Pénalise** les fortes puissances |
+| **HCH** | Tension moyenne | b_hch = 15.96 | Tarif intermédiaire |
+| **HPB** | Charge modérée | b_hpb = 14.56 | Tarif réduit |
+| **HCB** | ✅ Période creuse | b_hcb = 11.98 (min) | **Encourage** les fortes puissances |
 
 ### Incitations comportementales
 
@@ -162,7 +174,7 @@ Le TURPE C4 avec 4 puissances reflète les **contraintes réelles du réseau** :
 | Aspect | C5 (BT ≤ 36 kVA) | C4 (BT > 36 kVA) |
 |--------|------------------|------------------|
 | **Puissances souscrites** | 1 seule (P) | 4 différentes (P₁, P₂, P₃, P₄) |
-| **Formule TURPE fixe** | `cg + cc + b×P` | `b₁×P₁ + Σ bᵢ×(Pᵢ-Pᵢ₋₁)` |
+| **Formule TURPE fixe** | `cg + cc + b×P` | `cg + cc + b₁×P₁ + Σ bᵢ×(Pᵢ-Pᵢ₋₁)` |
 | **Optimisation possible** | ❌ Non | ✅ Oui (modulation saisonnière) |
 | **Gestion dépassements** | Disjoncteur (coupure) | CMDPS (pénalité financière) |
 | **Complexité contractuelle** | Faible | Élevée (4 choix de puissance) |
@@ -171,62 +183,83 @@ Le TURPE C4 avec 4 puissances reflète les **contraintes réelles du réseau** :
 
 ## Implémentation dans electricore
 
+Implémenté et validé (pas une intention future) : `expr_calculer_turpe_fixe_annuel()`
+gère C4 **et** C5 dans une seule expression unifiée
+([electricore/core/pipelines/turpe.py:103-145](https://github.com/Energie-De-Nantes/electricore/blob/main/electricore/core/pipelines/turpe.py)),
+appelée par `ajouter_turpe_fixe()` — voir [turpe-usage-standalone.md](turpe-usage-standalone.md)
+pour l'usage complet du pipeline.
+
 ### Données d'entrée nécessaires
 
 Pour calculer le TURPE fixe C4, les périodes d'abonnement doivent contenir :
 
 ```python
-# C5 actuel (1 puissance)
-puissance_souscrite: float  # kVA
+# C5 (1 puissance) — colonne toujours requise par expr_calculer_turpe_fixe_annuel(),
+# même sur une période C4 (le schéma Polars évalue les deux branches C4/C5).
+puissance_souscrite_kva: float
 
 # C4 (4 puissances)
-puissance_souscrite_hph: float  # P₁ - Heures Pleines Hiver
-puissance_souscrite_hch: float  # P₂ - Heures Creuses Hiver
-puissance_souscrite_hpb: float  # P₃ - Heures Pleines Été
-puissance_souscrite_hcb: float  # P₄ - Heures Creuses Été
+puissance_souscrite_hph_kva: float  # P₁ - Heures Pleines Hiver
+puissance_souscrite_hch_kva: float  # P₂ - Heures Creuses Hiver
+puissance_souscrite_hpb_kva: float  # P₃ - Heures Pleines Été
+puissance_souscrite_hcb_kva: float  # P₄ - Heures Creuses Été
 ```
+
+La **détection C4 vs C5** se fait sur la présence des 4 coefficients `b_hph`/`b_hch`/`b_hpb`/`b_hcb`
+dans la règle jointe (non-NULL) — pas sur une colonne dédiée côté périodes.
 
 **Validation** : Vérifier la contrainte `P₁ ≤ P₂ ≤ P₃ ≤ P₄`
 
 ### Structure turpe_rules.csv
 
 ```csv
-Formule_Tarifaire_Acheminement,start,end,cg,cc,b1,b2,b3,b4,c1,c2,c3,c4,cmdps
-BTSUPCU,2025-08-01,,16.8,22,17.96,16.28,14.85,12.21,7.04,4.29,2.18,1.55,12.41
-BTSUPLU,2025-08-01,,16.8,22,30.75,21.59,16.97,12.61,5.81,3.53,2.05,1.52,12.41
+Formule_Tarifaire_Acheminement,start,end,cg,cc,b,b_hph,b_hch,b_hpb,b_hcb,c_hph,c_hch,c_hpb,c_hcb,c_hp,c_hc,c_base,cmdps,reference
+BTSUPCU,2025-08-01,,217.8,283.27,,17.61,15.96,14.56,11.98,6.91,4.21,2.13,1.52,0,0,0,12.41,Délibération CRE n° 2025-40…
+BTSUPLU,2025-08-01,,217.8,283.27,,30.16,21.18,16.64,12.37,5.69,3.47,2.01,1.49,0,0,0,12.41,Délibération CRE n° 2025-40…
 ```
 
-**Notes** :
-- `b1, b2, b3, b4` : Coefficients pondérateurs de puissance (€/kVA/an)
-- `c1, c2, c3, c4` : Coefficients pondérateurs d'énergie (c€/kWh)
-- `cmdps` : Composante Mensuelle de Dépassement de Puissance Souscrite (€/h)
+**Notes** (colonnes réelles du fichier — une seule table pour toutes les FTA, C4 et C5) :
+- `b` : coefficient de puissance C5 (vide pour les lignes C4)
+- `b_hph, b_hch, b_hpb, b_hcb` : coefficients pondérateurs de puissance C4 (€/kVA/an) —
+  vides pour les lignes C5
+- `c_hph, c_hch, c_hpb, c_hcb` : coefficients pondérateurs d'énergie (c€/kWh) — utilisés
+  pour toute FTA à 4 cadrans temporels (Tempo/EJP), C4 **ou** C5
+- `c_hp, c_hc, c_base` : coefficients d'énergie pour les FTA C5 à 2 cadrans (HP/HC) ou
+  1 cadran (Base)
+- `cmdps` : Composante Mensuelle de Dépassement de Puissance Souscrite (€/h), vide pour
+  les FTA sans CMDPS (C5)
 
 ### Expression Polars pour le calcul
 
 ```python
-def expr_calculer_turpe_fixe_annuel_c4() -> pl.Expr:
+def expr_calculer_turpe_fixe_annuel() -> pl.Expr:
     """
-    Expression pour calculer le TURPE fixe annuel C4 (BT > 36 kVA).
+    Expression pour calculer le TURPE fixe annuel avec détection automatique C4/C5.
 
-    Formule : b₁×P₁ + b₂×(P₂-P₁) + b₃×(P₃-P₂) + b₄×(P₄-P₃)
+    Formule C5 (BT ≤ 36 kVA) : (b × P) + cg + cc (par défaut)
+    Formule C4 (BT > 36 kVA) : b_hph×P₁ + b_hch×(P₂-P₁) + b_hpb×(P₃-P₂) + b_hcb×(P₄-P₃) + cg + cc
 
-    Returns:
-        Expression Polars retournant le TURPE fixe annuel en €
-
-    Prérequis:
-        - Colonnes : puissance_souscrite_hph, _hch, _hpb, _hcb (kVA)
-        - Colonnes : b1, b2, b3, b4 (€/kVA/an)
-        - Contrainte : P₁ ≤ P₂ ≤ P₃ ≤ P₄
-
-    Example:
-        >>> df.with_columns(expr_calculer_turpe_fixe_annuel_c4().alias("turpe_fixe_annuel"))
+    La détection se fait sur la présence des 4 coefficients C4 (b_hph, b_hch, b_hpb, b_hcb).
     """
-    return (
-        pl.col("b1") * pl.col("puissance_souscrite_hph") +
-        pl.col("b2") * (pl.col("puissance_souscrite_hch") - pl.col("puissance_souscrite_hph")) +
-        pl.col("b3") * (pl.col("puissance_souscrite_hpb") - pl.col("puissance_souscrite_hch")) +
-        pl.col("b4") * (pl.col("puissance_souscrite_hcb") - pl.col("puissance_souscrite_hpb"))
+    turpe_c5 = (pl.col("b") * pl.col("puissance_souscrite_kva")) + pl.col("cg") + pl.col("cc")
+
+    turpe_c4 = (
+        (pl.col("b_hph") * pl.col("puissance_souscrite_hph_kva"))
+        + (pl.col("b_hch") * (pl.col("puissance_souscrite_hch_kva") - pl.col("puissance_souscrite_hph_kva")))
+        + (pl.col("b_hpb") * (pl.col("puissance_souscrite_hpb_kva") - pl.col("puissance_souscrite_hch_kva")))
+        + (pl.col("b_hcb") * (pl.col("puissance_souscrite_hcb_kva") - pl.col("puissance_souscrite_hpb_kva")))
+        + pl.col("cg")
+        + pl.col("cc")
     )
+
+    is_c4 = (
+        pl.col("b_hph").is_not_null()
+        & pl.col("b_hch").is_not_null()
+        & pl.col("b_hpb").is_not_null()
+        & pl.col("b_hcb").is_not_null()
+    )
+
+    return pl.when(is_c4).then(turpe_c4).otherwise(turpe_c5)
 ```
 
 ### Validation de la contrainte
@@ -237,14 +270,17 @@ def expr_valider_puissances_croissantes_c4() -> pl.Expr:
     Vérifie que les puissances souscrites respectent P₁ ≤ P₂ ≤ P₃ ≤ P₄.
 
     Returns:
-        Expression booléenne : True si contrainte respectée
+        Expression booléenne : True si contrainte respectée, False sinon
     """
     return (
-        (pl.col("puissance_souscrite_hph") <= pl.col("puissance_souscrite_hch")) &
-        (pl.col("puissance_souscrite_hch") <= pl.col("puissance_souscrite_hpb")) &
-        (pl.col("puissance_souscrite_hpb") <= pl.col("puissance_souscrite_hcb"))
+        (pl.col("puissance_souscrite_hph_kva") <= pl.col("puissance_souscrite_hch_kva"))
+        & (pl.col("puissance_souscrite_hch_kva") <= pl.col("puissance_souscrite_hpb_kva"))
+        & (pl.col("puissance_souscrite_hpb_kva") <= pl.col("puissance_souscrite_hcb_kva"))
     )
 ```
+
+Cette expression est disponible mais **pas appliquée automatiquement** par `ajouter_turpe_fixe()` —
+à l'appelant de filtrer/valider les périodes C4 en amont si la contrainte doit être imposée.
 
 ---
 
@@ -257,20 +293,9 @@ def expr_valider_puissances_croissantes_c4() -> pl.Expr:
 
 ---
 
-## Notes de mise en œuvre
+## État de l'implémentation
 
-### Phase 1 : CMDPS uniquement (priorité actuelle)
-- ✅ Ajouter colonne `cmdps` dans `turpe_rules.csv`
-- ✅ Implémenter `expr_calculer_composante_depassement()`
-- ✅ Intégrer dans `turpe_variable`
-
-### Phase 2 : TURPE fixe C4 complet (future)
-- ⏳ Refonte du pipeline abonnements pour supporter 4 puissances
-- ⏳ Modification de `expr_calculer_turpe_fixe_annuel()` avec détection C4/C5
-- ⏳ Ajout validation `P₁ ≤ P₂ ≤ P₃ ≤ P₄`
-- ⏳ Tests avec données réelles Enedis
-
-### Limitations actuelles
-- electricore calcule le TURPE fixe C5 uniquement (1 puissance)
-- Pour C4, les utilisateurs doivent calculer manuellement ou attendre Phase 2
-- La composante CMDPS (Phase 1) fonctionne indépendamment du TURPE fixe
+Le TURPE fixe C4 (4 puissances, détection automatique, validation `P₁≤P₂≤P₃≤P₄`) et la
+composante CMDPS de dépassement sont **implémentés et testés** — voir
+[tests/unit/test_turpe.py](https://github.com/Energie-De-Nantes/electricore/blob/main/tests/unit/test_turpe.py)
+(40 scénarios, C4 et C5). Rien de ce document ne décrit une fonctionnalité future.

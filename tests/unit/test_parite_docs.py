@@ -54,7 +54,6 @@ _FICHIERS_EN_ATTENTE_557 = {
     "electricore-client-design.md",  # à fusionner (note de conception ADR-0043) — issue fille #611
     "qualite-donnees-r151.md",  # rapport daté, candidat archives — issue fille #608
     "transmission.md",  # à fusionner (recouvre contribuer/developper.md) — issue fille #618
-    "turpe-fixe-c4-btsup36kva.md",  # périmé (colonnes/coefficients) — issue fille #609
     "turpe-usage-standalone.md",  # périmé (colonnes _kva/_eur) — issue fille #610
 }
 
