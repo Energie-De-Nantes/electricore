@@ -4,12 +4,15 @@
 
 ElectriCore suit une approche de traitement de données **fonctionnelle** utilisant Polars. La stratégie de test doit être **pragmatique** et **maintenable**, sans devenir plus complexe que le code testé.
 
-**✨ Mise à jour 2025** : La batterie de tests a été modernisée avec :
+**Modernisation 2025** : la batterie de tests a été modernisée avec :
 - Configuration pytest centralisée avec markers
 - Fixtures partagées via `conftest.py`
 - Tests paramétrés pour réduire la duplication
 - Tests snapshot avec Syrupy pour détection de régression automatique
 - Script d'anonymisation pour fixtures basées sur données réelles
+
+**Reprise 2026** : property-based testing via `polars.testing.parametric` (issue #194,
+[tests/property/](property/)) — voir « Niveau 4 » ci-dessous.
 
 ## Problématique initiale
 
@@ -365,7 +368,10 @@ uv run --group test pytest -q
 - Extraire et anonymiser les 4 cas métier restants
 
 ### 📋 À venir
-- Coverage report automatique en CI (mesure locale : ~77%, juin 2026)
+- Coverage report automatique en CI (mesure locale : ~77%, juin 2026) — [ci.yml](../.github/workflows/ci.yml)
+  lance `pytest` sans `--cov` : la couverture n'est pour l'instant pas mesurée ni appliquée comme
+  gate en CI, malgré le « plancher CI : 45 % » mentionné dans
+  [docs/contribuer/developper.md](../docs/contribuer/developper.md)
 - Tests de performance (benchmarks)
 - Documentation auto-générée des cas métier
 
