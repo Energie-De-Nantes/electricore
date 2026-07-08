@@ -2,55 +2,28 @@
 
 API REST sécurisée pour accéder aux données flux Enedis avec authentification par clés API.
 
-## 🔐 Authentification
+## 🔐 Authentification & configuration
 
-L'API utilise un système de clés API pour sécuriser l'accès aux données. Deux méthodes sont supportées :
+Authentification par `X-API-Key` (header ou query param), trousseau
+`API__TROUSSEAU__<consommateur>__KEY` (une clé par consommateur, ADR-0046 §4). Le volet
+déploiement (génération des clés, secrets-as-code en prod, révocation ciblée, dépannage
+401) est synthétisé côté site : voir
+[docs/deployer/authentification-api.md](https://github.com/Energie-De-Nantes/electricore/blob/main/docs/deployer/authentification-api.md).
+L'inventaire complet des variables d'environnement du domaine `api` (registre runtime,
+`electricore/config/runtime.py`) vit dans
+[docs/configuration.md](https://github.com/Energie-De-Nantes/electricore/blob/main/docs/configuration.md).
 
-### Header HTTP (Recommandé)
-```bash
-curl -H "X-API-Key: votre_cle_api" "http://localhost:8000/flux/r151"
-```
-
-### Query Parameter
-```bash
-curl "http://localhost:8000/flux/r151?api_key=votre_cle_api"
-```
-
-## ⚙️ Configuration
-
-### 1. Créer le fichier .env
-
-Créer un fichier `.env` à la racine du projet avec les variables nécessaires
-(voir [docs/configuration.md](../../docs/configuration.md)).
-
-### 2. Générer une clé API sécurisée
+Aperçu minimal, développement local :
 
 ```bash
-# Méthode 1 : Python
-python -c "import secrets; print(secrets.token_urlsafe(32))"
-
-# Méthode 2 : OpenSSL
-openssl rand -base64 32
+curl -H "X-API-Key: $API_KEY" "http://localhost:8000/flux/r151"
+python -c "import secrets; print(secrets.token_urlsafe(32))"   # générer une clé
 ```
-
-### 3. Configurer le trousseau de consommateurs (ADR-0046 §4)
 
 ```env
-# Une clé par consommateur (label DYNAMIQUE) → révocation ciblée + attribution.
+# .env local — une clé par consommateur (label dynamique)
 API__TROUSSEAU__librewatt__KEY=votre-cle-consommateur-generee-ici
 API__TROUSSEAU__bot__KEY=une-autre-cle-pour-le-bot
-```
-
-### 4. Configuration optionnelle
-
-```env
-# Désactiver certaines méthodes d'authentification
-ENABLE_API_KEY_HEADER=true
-ENABLE_API_KEY_QUERY=false
-
-# Personnaliser les métadonnées
-API__TITLE="Mon API ElectriCore"
-API__VERSION="1.0.0"
 ```
 
 ## 📡 Endpoints
@@ -59,18 +32,24 @@ API__VERSION="1.0.0"
 
 - `GET /` - Informations générales et exemples
 - `GET /health` - Statut de l'API et de la base de données
-- `GET /docs` - Documentation interactive Swagger
+- `GET /docs` - Documentation interactive Swagger (**source de vérité de la surface
+  d'endpoints** — la liste ci-dessous n'en donne qu'un aperçu par domaine, elle se périme
+  vite)
 - `GET /redoc` - Documentation alternative
 
-### Endpoints Sécurisés (authentification requise)
+### Endpoints Sécurisés (authentification requise, aperçu par domaine)
 
-- `GET /flux/{table_name}` - Données d'une table flux
-- `GET /flux/{table_name}/info` - Métadonnées d'une table (lignes, fraîcheur `derniere_date`)
-- `POST /ingestion/run` - Déclencher un job d'ingestion (modes `test`/`all`/`rebuild`/`resync`, sélection de flux)
-- `GET /ingestion/jobs`, `GET /ingestion/jobs/{id}` - Suivi des jobs d'ingestion
-- `GET /taxes/...` - Calculs accise et CTA (exports Arrow/XLSX)
-- `GET /facturation/...` - Documents mensuels ; `GET /facturation/check/odoo.xlsx` - check pré-facturation
+- `GET /flux/{table_name}` · `/info` - Flux Enedis bruts (métadonnées : lignes, fraîcheur `derniere_date`)
+- `GET /releves` · `/info` - Mart canonique des relevés (ADR-0029)
+- `POST /ingestion/run` · `GET /ingestion/jobs` · `/jobs/{id}` - Jobs d'ingestion (modes `test`/`all`/`rebuild`/`resync`)
+- `GET /taxes/...` - Calculs accise et CTA (exports Arrow/XLSX) — *requiert Odoo*
+- `GET /facturation/meta-periodes` · `/chronologie` - Flux JSONL typés (méta-périodes, frise facturiste)
+- `POST /facturation/turpe-variable` - Calculateur TURPE variable (RPC typé)
+- `GET /facturation/rapport.xlsx` · `/documents.xlsx` · `/check/odoo` - Rapports & contrôles pré-facturation — *requiert Odoo*
+- `GET /perimetre/affaires` - Cockpit des affaires SGE ouvertes (X12/X13)
 - `GET /admin/api-keys` - Configuration des clés API
+
+Pour la liste exhaustive et à jour (schémas, paramètres, exemples) : `/docs`.
 
 ## 🚀 Exemples d'utilisation
 
@@ -99,51 +78,17 @@ curl -H "X-API-Key: $API_KEY" "http://localhost:8000/flux/r151/info"
 curl -H "X-API-Key: $API_KEY" "http://localhost:8000/flux/r151?limit=50&offset=100"
 ```
 
-## 🛡️ Sécurité
-
-### Bonnes pratiques
-
-1. **Clés longues et aléatoires** : Utilisez au minimum 32 caractères
-2. **Variables d'environnement** : Ne jamais hard-coder les clés dans le code
-3. **HTTPS en production** : Toujours utiliser une connexion chiffrée
-4. **Rotation régulière** : Changez les clés API périodiquement
-5. **Principe du moindre privilège** : Une clé par service/utilisateur
-
-### Fichier .env
-
-**⚠️ Important** : Le fichier `.env` ne doit jamais être commité dans le contrôle de version.
-
-```bash
-# Ajouter .env au .gitignore
-echo ".env" >> .gitignore
-```
-
 ## 🔍 Monitoring
 
-### Vérifier le statut de l'API
 ```bash
 curl "http://localhost:8000/health"
-```
-
-### Informations sur votre clé API
-```bash
-curl -H "X-API-Key: $API_KEY" "http://localhost:8000/admin/api-keys"
+curl -H "X-API-Key: $API_KEY" "http://localhost:8000/admin/api-keys"   # infos sur la clé
 ```
 
 ## 🚨 Dépannage
 
-### Erreur 401 - Unauthorized
-
-```json
-{
-  "detail": "Clé API requise. Utilisez le header 'X-API-Key' ou le paramètre '?api_key='"
-}
-```
-
-**Solutions** :
-- Vérifiez que la clé API est bien fournie
-- Vérifiez le format du header : `X-API-Key: votre_cle`
-- Vérifiez que la clé correspond à celle dans `.env`
+Bonnes pratiques clés, rotation, secrets-as-code et dépannage du 401 : voir
+[docs/deployer/authentification-api.md](https://github.com/Energie-De-Nantes/electricore/blob/main/docs/deployer/authentification-api.md).
 
 ### Erreur 500 - Internal Server Error
 
@@ -170,7 +115,10 @@ electricore/api/
 ├── security.py      # Système d'authentification
 ├── models.py        # Modèles Pydantic
 ├── decorators.py    # Décorateurs transverses (gestion d'erreurs)
-├── routers/         # Un router par domaine : admin, flux, ingestion, taxes, facturation
+├── routers/         # Un router par domaine (13, issue #82) :
+│                    #   admin, affaires, chronologie, facturation, flux, ingestion,
+│                    #   meta_periodes, prestations, provision, releves, rsc, taxes,
+│                    #   turpe_variable — liste vivante : electricore/api/routers/
 ├── serializers/     # Sérialisation des réponses (Arrow, XLSX)
 ├── services/        # Services métier : duckdb, ingestion, taxes, facturation, check_facturation
 └── README.md        # Cette documentation
