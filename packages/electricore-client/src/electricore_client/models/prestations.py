@@ -1,7 +1,8 @@
 """Modèle de contrat des prestations F15 à refacturer (contrat v1, souscriptions_odoo#37).
 
-Miroir de `prestations_service.COLONNES_CONTRAT` + `reference` (clé de dédup
-calculée serveur : le F15 n'a pas d'identifiant de ligne, cf. service). Les
+Miroir de `prestations_service.COLONNES_CONTRAT` + `reference` (référence de
+contenu electricore, clé de dédup calculée serveur : le F15 n'a pas
+d'identifiant de ligne, cf. service et `docs/contrat-prestations.md`). Les
 dates F15 sont des JOURS CIVILS rendus en ISO (`YYYY-MM-DD`), pas des instants.
 
 `taux_tva_applicable` reste la chaîne Enedis brute (`'NS'` = non soumis, sinon
