@@ -4,7 +4,7 @@ API REST sécurisée pour accéder aux données flux Enedis avec authentificatio
 
 ## 🔐 Authentification & configuration
 
-Authentification par `X-API-Key` (header ou query param), trousseau
+Authentification par header `X-API-Key` (uniquement — pas de query param), trousseau
 `API__TROUSSEAU__<consommateur>__KEY` (une clé par consommateur, ADR-0046 §4). Le volet
 déploiement (génération des clés, secrets-as-code en prod, révocation ciblée, dépannage
 401) est synthétisé côté site : voir
@@ -47,7 +47,6 @@ API__TROUSSEAU__bot__KEY=une-autre-cle-pour-le-bot
 - `POST /facturation/turpe-variable` - Calculateur TURPE variable (RPC typé)
 - `GET /facturation/rapport.xlsx` · `/documents.xlsx` · `/check/odoo` - Rapports & contrôles pré-facturation — *requiert Odoo*
 - `GET /perimetre/affaires` - Cockpit des affaires SGE ouvertes (X12/X13)
-- `GET /admin/api-keys` - Configuration des clés API
 
 Pour la liste exhaustive et à jour (schémas, paramètres, exemples) : `/docs`.
 
@@ -60,11 +59,8 @@ curl "http://localhost:8000/"
 
 ### Accéder aux données avec authentification
 ```bash
-# Via header (recommandé)
+# Header X-API-Key (seul transport supporté)
 curl -H "X-API-Key: $API_KEY" "http://localhost:8000/flux/r151?limit=10"
-
-# Via query parameter
-curl "http://localhost:8000/flux/r151?api_key=$API_KEY&limit=10"
 
 # Filtrer par PRM
 curl -H "X-API-Key: $API_KEY" "http://localhost:8000/flux/c15?prm=12345678901234"
@@ -82,7 +78,6 @@ curl -H "X-API-Key: $API_KEY" "http://localhost:8000/flux/r151?limit=50&offset=1
 
 ```bash
 curl "http://localhost:8000/health"
-curl -H "X-API-Key: $API_KEY" "http://localhost:8000/admin/api-keys"   # infos sur la clé
 ```
 
 ## 🚨 Dépannage

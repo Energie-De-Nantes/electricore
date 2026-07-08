@@ -9,14 +9,13 @@ session. Ce document synthétise ce qu'un·e déployeur·euse doit savoir pour p
 et faire tourner des clés ; le détail code (`security.py`, modèles Pydantic) reste dans le
 [README de l'API](https://github.com/Energie-De-Nantes/electricore/blob/main/electricore/api/README.md).
 
-## Deux méthodes de transport
+## Transport : header uniquement
+
+La clé passe **exclusivement** par le header `X-API-Key` (`security.py`, `APIKeyHeader`) —
+pas de paramètre de requête.
 
 ```bash
-# Header (recommandé)
 curl -H "X-API-Key: $API_KEY" "https://<slug>.electricore.fr/flux/r151"
-
-# Query parameter (dépannage / clients qui ne posent pas de header custom)
-curl "https://<slug>.electricore.fr/flux/r151?api_key=$API_KEY"
 ```
 
 Endpoints publics (aucune clé requise) : `GET /`, `GET /health`, `GET /docs`, `GET /redoc`,
@@ -60,17 +59,20 @@ immédiate.
 
 ## Vérifier une clé
 
+Appeler n'importe quel endpoint protégé : `200` = clé valide, `401` = clé absente ou
+retirée du trousseau.
+
 ```bash
-curl -H "X-API-Key: $API_KEY" "https://<slug>.electricore.fr/admin/api-keys"
+curl -H "X-API-Key: $API_KEY" "https://<slug>.electricore.fr/flux/r151?limit=1"
 ```
 
 ## Dépannage — 401 Unauthorized
 
 ```json
-{"detail": "Clé API requise. Utilisez le header 'X-API-Key' ou le paramètre '?api_key='"}
+{"detail": "Clé API requise dans le header 'X-API-Key'"}
 ```
 
-- Vérifier que la clé est bien fournie (header ou query param).
+- Vérifier que la clé est bien fournie dans le header `X-API-Key`.
 - Vérifier qu'elle correspond à une entrée du trousseau `secrets.env` déchiffré côté box
   (`docker compose exec api env | grep API__TROUSSEAU` pour un diagnostic in-container).
 - Une clé retirée du trousseau (rotation) cesse immédiatement de fonctionner — pas de
