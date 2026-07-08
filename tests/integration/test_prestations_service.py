@@ -1,6 +1,6 @@
 """Tests du service prestations F15 (pull-tout, souscriptions_odoo#37).
 
-Le seam est le loader `f15` (monkeypatché par un stub dont `.lazy()` rend un
+Le seam est le loader `f15_detail` (monkeypatché par un stub dont `.lazy()` rend un
 LazyFrame synthétique) ; le filtre `unite='UNITE'`, la projection contrat v1 et
 le calcul de `reference` (sha256 de contenu — le F15 n'a pas d'id de ligne)
 restent réels.
@@ -46,7 +46,7 @@ def _f15_synthetique() -> pl.DataFrame:
 
 
 def test_prestations_filtre_unite_et_projette_le_contrat(monkeypatch):
-    monkeypatch.setattr(prestations_service, "f15", lambda: _StubF15(_f15_synthetique()))
+    monkeypatch.setattr(prestations_service, "f15_detail", lambda: _StubF15(_f15_synthetique()))
 
     df = prestations_service.prestations()
 
@@ -56,9 +56,9 @@ def test_prestations_filtre_unite_et_projette_le_contrat(monkeypatch):
 
 
 def test_reference_deterministe_et_unique_par_contenu(monkeypatch):
-    monkeypatch.setattr(prestations_service, "f15", lambda: _StubF15(_f15_synthetique()))
+    monkeypatch.setattr(prestations_service, "f15_detail", lambda: _StubF15(_f15_synthetique()))
     a = prestations_service.prestations()
-    monkeypatch.setattr(prestations_service, "f15", lambda: _StubF15(_f15_synthetique()))
+    monkeypatch.setattr(prestations_service, "f15_detail", lambda: _StubF15(_f15_synthetique()))
     b = prestations_service.prestations()
 
     assert a["reference"].to_list() == b["reference"].to_list()  # stable entre runs
@@ -68,11 +68,11 @@ def test_reference_deterministe_et_unique_par_contenu(monkeypatch):
 def test_reference_insensible_au_libelle(monkeypatch):
     """Une retouche de libellé Enedis n'est pas une nouvelle prestation (assiette du hash)."""
     df = _f15_synthetique()
-    monkeypatch.setattr(prestations_service, "f15", lambda: _StubF15(df))
+    monkeypatch.setattr(prestations_service, "f15_detail", lambda: _StubF15(df))
     avant = prestations_service.prestations()["reference"].to_list()
 
     retouche = df.with_columns(pl.lit("Libellé retouché").alias("libelle_ev"))
-    monkeypatch.setattr(prestations_service, "f15", lambda: _StubF15(retouche))
+    monkeypatch.setattr(prestations_service, "f15_detail", lambda: _StubF15(retouche))
     apres = prestations_service.prestations()["reference"].to_list()
 
     assert avant == apres
@@ -86,7 +86,7 @@ def test_reference_golden_canon_python_pur(monkeypatch):
     → sha256(...).hexdigest()[:16] = "d28a0f23d8ef6c4f". Casse si le canon
     passe par le formateur float de Polars (non déterministe entre versions).
     """
-    monkeypatch.setattr(prestations_service, "f15", lambda: _StubF15(_f15_synthetique()))
+    monkeypatch.setattr(prestations_service, "f15_detail", lambda: _StubF15(_f15_synthetique()))
 
     df = prestations_service.prestations()
 
@@ -94,7 +94,7 @@ def test_reference_golden_canon_python_pur(monkeypatch):
 
 
 def test_prestations_filtre_rsc(monkeypatch):
-    monkeypatch.setattr(prestations_service, "f15", lambda: _StubF15(_f15_synthetique()))
+    monkeypatch.setattr(prestations_service, "f15_detail", lambda: _StubF15(_f15_synthetique()))
 
     df = prestations_service.prestations(rsc=["833195558"])
 

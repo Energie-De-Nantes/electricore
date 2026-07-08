@@ -20,7 +20,7 @@ import hashlib
 
 import polars as pl
 
-from electricore.core.loaders import f15
+from electricore.core.loaders import f15_detail
 
 # Version du contrat exposée dans les en-têtes. Bump sur rupture (une évolution
 # additive est tolérée par les clients, `extra="ignore"`).
@@ -71,7 +71,7 @@ def prestations(rsc: list[str] | None = None) -> pl.DataFrame:
         DataFrame des prestations (colonnes du contrat + `reference`), dates
         des JOURS CIVILS rendus en ISO (`YYYY-MM-DD`).
     """
-    lf = f15().lazy().filter(pl.col("unite") == "UNITE")
+    lf = f15_detail().lazy().filter(pl.col("unite") == "UNITE")
     if rsc:
         lf = lf.filter(pl.col("ref_situation_contractuelle").is_in(rsc))
     df = lf.select(COLONNES_CONTRAT).collect()
