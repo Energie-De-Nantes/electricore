@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 
 import httpx
+import pydantic
 import pytest
 from electricore_client import ElectricoreClient
 from electricore_client.models import LigneEvenement, LignePeriodeEnergie, LigneReleve
@@ -143,6 +144,13 @@ def test_chronologie_refuse_les_deux_grains():
     with pytest.raises(ValueError):
         client.chronologie(pdl="PDL_X", rsc="REF_1")
     assert appels == []
+
+
+def test_chronologie_rejette_qualite_desaccentuee():
+    """`qualite='reelle'` (désaccentué) échoue au parse pydantic (#589)."""
+    ligne = {**_LIGNES[2], "qualite": "reelle"}
+    with pytest.raises(pydantic.ValidationError):
+        LignePeriodeEnergie.model_validate(ligne)
 
 
 def test_chronologie_pas_de_montant_tarifaire():
