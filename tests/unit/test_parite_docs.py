@@ -52,7 +52,6 @@ _PREFIXES_EXCLUS = (
 # entre en nav et sort de cette liste (elle a vocation à fondre).
 _FICHIERS_EN_ATTENTE_557 = {
     "electricore-client-design.md",  # à fusionner (note de conception ADR-0043) — issue fille #611
-    "ingestion.md",  # périmé (footer dates pré-ADR-0042) — issue fille #607
     "qualite-donnees-r151.md",  # rapport daté, candidat archives — issue fille #608
     "transmission.md",  # à fusionner (recouvre contribuer/developper.md) — issue fille #618
     "turpe-fixe-c4-btsup36kva.md",  # périmé (colonnes/coefficients) — issue fille #609

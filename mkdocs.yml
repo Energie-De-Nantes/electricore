@@ -60,6 +60,7 @@ nav:
       - Charte de la documentation: contribuer/charte-documentation.md
       - Carte des domaines: contribuer/carte-domaines.md
       - Développer: contribuer/developper.md
+      - Ingestion des flux Enedis (ELT dlt + dbt): ingestion.md
       - Conventions de dates Enedis: conventions-dates-enedis.md
       - Query builder Odoo: odoo-query-builder.md
       - Contrats d'intégration:
