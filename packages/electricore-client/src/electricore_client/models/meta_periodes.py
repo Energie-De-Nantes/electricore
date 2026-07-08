@@ -24,7 +24,8 @@ class ObjetReleve(BaseModel):
 
     Seuls les registres réellement affichés par le compteur ressortent (les
     autres sont absents, pas null). `evenement` n'est présent que pour un relevé
-    d'origine événementielle (C15).
+    d'origine événementielle (C15). `famille_cadrans` (#603) porte le calendrier de
+    comptage de CE relevé (grain relevé, pas période) ; absent si inconnu.
     """
 
     model_config = ConfigDict(extra="ignore")
@@ -34,6 +35,12 @@ class ObjetReleve(BaseModel):
     nature_index: str | None = None
     origine_releve: str | None = None
     evenement: str | None = None
+
+    # Calendrier de comptage du compteur au moment de CE relevé (grain relevé, pas
+    # période — glossaire *Famille de cadrans*, CONTEXT.md, #603). Absent si le calendrier
+    # est inconnu ou hors des trois DI connus (DI000001/2/3) — Odoo garde son inférence en
+    # repli dans ce cas.
+    famille_cadrans: Literal["base", "hp_hc", "4_cadrans"] | None = None
 
     # Registres réels (index_*_kwh) — entiers (ADR-0034), seuls les non-nuls émis.
     index_base_kwh: int | None = None
