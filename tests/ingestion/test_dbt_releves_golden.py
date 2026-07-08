@@ -186,6 +186,32 @@ def test_runner_construit_releves_via_sa_propre_selection(base_periodiques):
     assert n > 0, "releves doit être matérialisé et non vide"
 
 
+def test_construire_dbt_materialise_tous_les_marts(base_periodiques):
+    """Garde anti-dérive (#553) : `construire_dbt` sélectionne les marts à bâtir via des
+    gardes tenues à la main (`periodiques_ok` → +releves/+chronologie_releves, `raw_c15` →
+    +spine_contrat) — rien ne maintient cette liste en phase avec l'ensemble des marts dbt.
+    Un nouveau mart sous `dbt/models/marts/` sans sa ligne de garde ne serait jamais bâti en
+    prod, silencieusement, CI verte. Piloté par GLOB (pas de liste en dur) : chaque mart doit
+    apparaître dans `information_schema.tables` (qui inclut les vues, dont `chronologie_releves`)
+    une fois `construire_dbt` lancé sur un landing C15+R151+R64 complet. Garde POSITIVE,
+    complémentaire à la garde négative `test_flux_r67_exclu_des_marts_periodiques`
+    (exclusion sur landing partiel / R67 seul)."""
+    from electricore.ingestion.runner import construire_dbt
+
+    assert construire_dbt(base_periodiques), "le runner doit construire les marts sur un landing C15+R151+R64 complet"
+
+    marts_attendus = {f.stem for f in (PROJET_DBT / "models" / "marts").glob("*.sql")}
+
+    con = duckdb.connect(str(base_periodiques))
+    materialisees = {t for (t,) in con.execute("select table_name from information_schema.tables").fetchall()}
+    con.close()
+
+    manquants = marts_attendus - materialisees
+    assert not manquants, (
+        f"mart(s) dbt non matérialisé(s) par construire_dbt (garde de sélection manquante ?) : {sorted(manquants)}"
+    )
+
+
 def test_releves_dbt_respecte_le_contrat_pandera(base_periodiques):
     """Parité de typage dbt↔cœur (ADR-0035, #291). Le schéma réellement émis par le
     mart `releves` doit être type-compatible avec le contrat Pandera `RelevéIndex`, via
