@@ -7,9 +7,13 @@ les lignes F15 arrivent en retard datées dans le passé, un curseur de date les
 manquerait (ADR 0009 côté souscriptions_odoo).
 
 `reference` : le F15 n'a **aucun identifiant de ligne** (`id_ev` est un code
-d'événement, ex. `DCOUP_PEN`) — la clé de dédup est un sha256 tronqué du contenu
-canonique de la ligne. Deux lignes strictement identiques d'une même facture
-fusionneraient (cas non observé dans les flux réels ; assumé et documenté).
+d'événement, ex. `DCOUP_PEN` ; le `Num_Sequence` d'`Element_Valorise` est
+inutilisable — nul sur les pénalités, non-unique, non-stable) — la
+`reference` est une **référence de contenu electricore** : un sha256 tronqué
+du contenu canonique de la ligne (pas une référence Enedis). Deux lignes
+strictement identiques d'une même facture fusionnent en une seule prestation
+— forcé par le pull-tout-et-dédup, pas un choix libre. Contrat complet,
+5 exclusions motivées et preuve de collision : `docs/contrat-prestations.md`.
 """
 
 import hashlib
@@ -39,9 +43,12 @@ COLONNES_CONTRAT: tuple[str, ...] = (
     "date_facture",
 )
 
-# Assiette de la clé de dédup : l'identité d'une ligne par son contenu.
-# `libelle_ev` en est exclu (une retouche de libellé Enedis n'est pas une
-# nouvelle prestation) ; `taux_tva_applicable` aussi (même raison).
+# Assiette de la clé de dédup (référence de contenu electricore) : l'identité
+# d'une ligne par son contenu. 5 exclusions motivées (détail :
+# docs/contrat-prestations.md) : `libelle_ev`/`taux_tva_applicable` (une
+# retouche Enedis n'est pas une nouvelle prestation) ; `nature_ev`
+# (fonctionnellement déterminé par `id_ev`) ;
+# `ref_situation_contractuelle`/`date_facture` (métadonnées, pas de contenu).
 _COLONNES_REFERENCE: tuple[str, ...] = (
     "num_facture",
     "pdl",
@@ -76,14 +83,15 @@ def prestations(rsc: list[str] | None = None) -> pl.DataFrame:
 def _ajouter_reference(df: pl.DataFrame) -> pl.DataFrame:
     """Ajoute `reference` : sha256 (tronqué à 16) du contenu canonique de la ligne.
 
-    Même façon que `source_hash` des méta-périodes (#229) : repr texte stable
-    (robuste aux versions de Polars), séparateur `␟`, nuls rendus `∅`.
+    Canon construit en **Python pur** (`str()` par champ, séparateur `␟`, nuls
+    rendus `∅`) plutôt que via `pl.concat_str(cast(Utf8))` : sortie déterministe,
+    indépendante du formateur float de Polars (peut varier entre versions —
+    cf. `docs/contrat-prestations.md`). Assiette de 8 colonnes : voir
+    `_COLONNES_REFERENCE`.
     """
-    canon = df.select(
-        pl.concat_str(
-            [pl.col(c).cast(pl.Utf8).fill_null("∅") for c in _COLONNES_REFERENCE],
-            separator="␟",
-        ).alias("_canon")
-    ).to_series()
-    hashes = [hashlib.sha256(ligne.encode()).hexdigest()[:16] for ligne in canon.to_list()]
+    colonnes = [df[c].to_list() for c in _COLONNES_REFERENCE]
+    hashes = [
+        hashlib.sha256("␟".join("∅" if v is None else str(v) for v in ligne).encode()).hexdigest()[:16]
+        for ligne in zip(*colonnes, strict=True)
+    ]
     return df.with_columns(pl.Series("reference", hashes, dtype=pl.Utf8))

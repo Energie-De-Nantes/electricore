@@ -38,9 +38,11 @@ async def get_prestations(
 
     **Authentification requise** (`X-API-Key`).
 
-    Une ligne JSON = une `PrestationF15` (contrat v1) ; `reference` est la clé de
+    Une ligne JSON = une `PrestationF15` (contrat v1) ; `reference` est la
+    **référence de contenu electricore** (pas une référence Enedis), clé de
     dédup calculée serveur (le F15 n'a pas d'identifiant de ligne). Flux non
     paginé, sans fenêtre temporelle : le consommateur upsert par `reference`.
+    Contrat figé : `docs/contrat-prestations.md`.
 
     **Réponse JSONL streamé** (`application/x-ndjson`, NDJSON) : à consommer
     **ligne par ligne** — pour inspecter à la main : `curl … | jq -c .`.

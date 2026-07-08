@@ -78,6 +78,21 @@ def test_reference_insensible_au_libelle(monkeypatch):
     assert avant == apres
 
 
+def test_reference_golden_canon_python_pur(monkeypatch):
+    """Golden : la référence de la ligne DCOUP_PEN est figée en dur.
+
+    Canon attendu (Python pur, `str()` par champ, séparateur `␟`) :
+    "3210619182009␟99510061232830␟DCOUP_PEN␟2025-01-17␟2025-01-17␟-24.0␟2.0␟-48.0"
+    → sha256(...).hexdigest()[:16] = "d28a0f23d8ef6c4f". Casse si le canon
+    passe par le formateur float de Polars (non déterministe entre versions).
+    """
+    monkeypatch.setattr(prestations_service, "f15", lambda: _StubF15(_f15_synthetique()))
+
+    df = prestations_service.prestations()
+
+    assert df.filter(pl.col("id_ev") == "DCOUP_PEN")["reference"].item() == "d28a0f23d8ef6c4f"
+
+
 def test_prestations_filtre_rsc(monkeypatch):
     monkeypatch.setattr(prestations_service, "f15", lambda: _StubF15(_f15_synthetique()))
 
