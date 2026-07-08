@@ -92,6 +92,10 @@ Calendrier HP / HC (deux cadrans).
 **DI000003** :
 Calendrier 4 cadrans (HPH / HCH / HPB / HCB).
 
+**Famille de cadrans** :
+Découpage en cadrans d'un calendrier distributeur, débarrassé de l'identifiant Enedis : `base` (DI000001), `hp_hc` (DI000002), `4_cadrans` (DI000003). C'est le *calendrier de comptage* d'un relevé vu par les consommateurs du contrat méta-périodes (`ObjetReleve.famille_cadrans`) — au grain **relevé**, pas période : un changement de compteur en cours de mois donne deux relevés de familles différentes. Absente quand le calendrier du relevé est inconnu ou hors des trois DI connus. À ne pas confondre avec la **FTA** (structure acheminement/TURPE, par période), corrélée mais distincte.
+_Éviter_ : type de calendrier, structure de comptage.
+
 ---
 
 ## Tarification réseau et taxes
