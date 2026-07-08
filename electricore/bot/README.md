@@ -81,6 +81,7 @@ bot/
 ├── auth.py            # @require_allowed (allowlist), @require_odoo (no-ERP)
 ├── client.py          # client HTTP async vers l'API (X-API-Key)
 ├── format.py          # rendu HTML (escape) — parse_mode=HTML partout
+├── livraison.py       # primitives etape()/envoyer_document() — remise d'un livrable (#174)
 ├── surveillance.py    # alertes proactives (polling /ingestion/jobs, péremption des taux)
 ├── tasks.py           # tâches de fond (annulées au shutdown)
 └── handlers/          # un module par domaine de commande
@@ -89,7 +90,8 @@ bot/
     ├── flux.py
     ├── perimetre.py
     ├── taxes.py
-    └── facturation.py
+    ├── facturation.py
+    └── provision.py   # /provision — estimation de provision d'un lissé par PDL (#487, ADR-0048)
 ```
 
 Un seul poller Telegram par token : pour tester en local avec le token de prod,
