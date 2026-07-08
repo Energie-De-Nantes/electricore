@@ -59,6 +59,7 @@ GET /facturation/meta-periodes?mois=YYYY-MM-DD&rsc=RSC-A&rsc=RSC-B&limit=500&off
           "date_releve": "2025-03-01T00:00:00+01:00",
           "nature_index": "réel",
           "origine_releve": "périodique",
+          "famille_cadrans": "hp_hc",
           "index_hp_kwh": 1000,
           "index_hc_kwh": 500
         },
@@ -68,6 +69,7 @@ GET /facturation/meta-periodes?mois=YYYY-MM-DD&rsc=RSC-A&rsc=RSC-B&limit=500&off
           "nature_index": "réel",
           "origine_releve": "événementiel",
           "evenement": "MCT",
+          "famille_cadrans": "hp_hc",
           "index_hp_kwh": 1312,
           "index_hc_kwh": 645
         }
@@ -132,6 +134,7 @@ Chaque entrée du tableau :
 | `nature_index` | `str` | non | Mention légale : `réel` / `estimé` / `corrigé`. |
 | `origine_releve` | `str` | non | Origine du relevé : `périodique` (télérelevé automatique R151/R64) ou `événementiel` (relevé pris à un événement contractuel C15). |
 | `evenement` | `str` | — | **Présent uniquement si `origine_releve = événementiel`** : code C15 `Nature_Evenement` qui a déclenché le relevé (ex. `MCT` = modification contractuelle / changement, `MES` = mise en service, `RES` = résiliation). Clé absente pour un relevé périodique. |
+| `famille_cadrans` | `str` | — | **Calendrier de comptage de CE relevé** (#603) : `base` / `hp_hc` / `4_cadrans` — cf. glossaire *Famille de cadrans*. Grain **relevé**, pas période : un changement de compteur en cours de mois donne deux relevés de familles différentes dans le même tableau. Clé **absente** si le calendrier est inconnu ou `null` (Odoo garde son inférence en repli). À ne pas confondre avec la FTA (structure acheminement/TURPE, par période). |
 | `index_<cadran>_kwh` | `int` | — | **Registres réels** (kWh) du relevé, pour les 7 cadrans canoniques : `base`, `hp`, `hc` (C5) **et** `hph`/`hch`/`hpb`/`hcb` (4 quadrants C4/Tempo). **Seuls les registres présents** sur le compteur ressortent (clé non émise sinon) — jamais de cadran agrégé synthétisé (le mart ne pose un index que pour les cadrans réellement portés par le flux). |
 
 **Invariant « vide ssi incalculable ».** `releves_utilises` non vide **⟺**
@@ -140,10 +143,11 @@ d'ADR-0033/0036 : un mois incalculable n'est pas facturé en réel, donc ne port
 paire d'index à imprimer). Un mois à **MCT** (changement de config mid-mois) porte ses
 relevés intermédiaires — le tableau n'est **pas** borné à 2 entrées.
 
-**`source_hash` couvre le tableau.** Toute dérive d'un index **imprimé**, de sa nature ou de
-son identité flippe `source_hash` — **même à delta kWh du mois constant** (reset compteur,
-correction ±k aux deux bornes). C'est ce qui rend `source_hash` = *déclencheur* +
-`releve_id` = *reprise* fidèle à la promesse de régularisation.
+**`source_hash` couvre le tableau.** Toute dérive d'un index **imprimé**, de sa nature, de
+son identité **ou de sa `famille_cadrans`** flippe `source_hash` — **même à delta kWh du
+mois constant** (reset compteur, correction ±k aux deux bornes, calendrier corrigé
+rétroactivement). C'est ce qui rend `source_hash` = *déclencheur* + `releve_id` = *reprise*
+fidèle à la promesse de régularisation.
 
 #### Pourquoi un taux pour l'accise mais des montants pour le reste
 
