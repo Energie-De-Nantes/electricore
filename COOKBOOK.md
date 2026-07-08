@@ -12,7 +12,7 @@ jamais sa valeur — ce fichier est commité.
 mode: afk
 when: tout changement de code Python (core, api, bot, ingestion)
 do: uv run --group test pytest -q  # ciblé : uv run --group test pytest {chemin_test} -v
-observe: sortie pytest — référence saine ~671 passed, 35 skipped ; tout failed/error est à examiner
+observe: sortie pytest — référence saine ~1180 passed, 3 skipped (juillet 2026) ; tout failed/error est à examiner
 
 ## lint
 
@@ -94,6 +94,20 @@ when: changement sous deploy/ (install.sh, lib/, docker/)
 do: bash deploy/tests/unit.sh
 look: sortie du script
 expect: exit 0 (même gate que le job CI deploy ; secrets_roundtrip.sh en plus côté CI)
+
+## client-release
+
+mode: human
+when: publier electricore-client sur PyPI (après merge dans main du bump de version : pyproject + `__version__` + uv.lock)
+do:
+```
+git fetch origin main
+git tag client-v{version} origin/main   # {version} = celle du pyproject mergé, ex. 0.4.0 (pré-releases PEP 440 : a1/b1/rc1/.devN)
+git push origin client-v{version}       # hors sandbox ; le tag déclenche .github/workflows/release-client.yml
+gh run view --workflow release-client.yml
+```
+look: le run "Release electricore-client" et https://pypi.org/project/electricore-client/
+expect: job vert (build uv → vérif artefacts vs tag → Trusted Publishing OIDC, aucun token PyPI) ; la version apparaît sur PyPI, puis souscriptions_odoo peut bumper son pin
 
 ## docs-eyeball
 
