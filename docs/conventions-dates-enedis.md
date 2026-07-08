@@ -1,4 +1,8 @@
-# Conventions de Date dans les Flux Enedis
+---
+fraicheur: 2026-07-08
+---
+
+# Conventions de dates Enedis
 
 ## Problématique
 
@@ -25,24 +29,31 @@ Sans harmonisation, on observe des écarts systématiques :
 
 ## Solution d'Harmonisation
 
-> **Où vit l'harmonisation (#294)** : le `+1 jour` R151 est porté en **un seul endroit**,
-> le mart dbt `releves` (la ligne de temps consommée par la chaîne énergie). Il a été
-> **retiré du loader** : l'endpoint brut `/flux/r151` sert la date **nue** (fin de journée),
-> fidèle à la source, et est dépréciable (cf. [ADR-0003](adr/0003-r151-date-harmonisation.md)).
+> **Où vit l'harmonisation (ADR-0042, révise l'amendement #294 d'[ADR-0003](adr/0003-r151-date-harmonisation.md))** :
+> le `+1 jour` R151 est porté au **boundary d'ingestion**, dans le modèle dbt `flux_r151`
+> lui-même — comme la conversion native de chaque source (R64 fait de même pour son
+> ancrage en instant). Après ce boundary, `flux_r151.date_releve` sert directement
+> l'**instant harmonisé** (convention « début de journée », comme R64/R15/C15) : ce n'est
+> plus « fidèle au label brut », l'endpoint `/flux/r151` sert donc la date **déjà
+> harmonisée**, pas la date nue. Le mart `releves` ne réapplique plus le `+1j` — il
+> consomme `flux_r151.date_releve` en passthrough.
 
 ### Stratégie
 1. **Convention cible** : "Début de journée" (majoritaire)
-2. **Ajustement R151** : `date J → J+1` (dans le mart `releves`)
-3. **Traçabilité** : la convention se lit via `source = 'flux_R151'`
+2. **Ajustement R151** : `date J → J+1`, posé dans `flux_r151` (dbt) — le mart `releves` ne
+   fait plus que consommer l'instant déjà harmonisé
+3. **Traçabilité** : la convention se lit via `source = 'flux_R151'` ; l'identité du relevé
+   (`releve_id`, ADR-0028) reste, elle, mintée sur la date **brute** — stable malgré le `+1j`
 
-### Transformation R151
+### Transformation R151 (dbt, `flux_r151.sql`)
 ```sql
--- AVANT harmonisation
-date_releve = '2024-01-15'  -- Index fin jour 15/01
+-- Date BRUTE (xs:date, convention « fin de journée »), lue depuis le document Enedis
+date_releve_brute := cast(releve ->> '$.Date_Releve' as date)  -- ex. 2024-01-15
 
--- APRÈS harmonisation
-date_releve = '2024-01-16'  -- Index début jour 16/01 (équivalent)
-date_ajustee = true         -- Traçabilité
+-- date_releve = INSTANT minuit Paris du jour J+1 (ADR-0042) : la conversion
+-- « fin de journée → début de journée » devient la conversion NATIVE de R151.
+date_releve := timezone('Europe/Paris', date_releve_brute::timestamp + interval '1 day')
+-- → 2024-01-16T00:00:00+01:00 (équivalent, en convention "début de journée")
 ```
 
 ## Validation
@@ -54,9 +65,10 @@ date_ajustee = true         -- Traçabilité
 ## Exclusions
 
 ### Flux R15
-- **Statut** : Exclu des relevés harmonisés
+- **Statut** : Exclu du mart canonique `releves` (union C15 + R64 + R151, ADR-0029)
 - **Raison** : Cause erreurs TURPE sur clients professionnels
-- **Alternative** : Utiliser R151 + R64 pour couverture complète
+- **Alternative** : Le mart `releves` (C15 + R64 + R151) couvre le besoin ; R15 reste
+  interrogeable directement via le loader `r15()` pour ses propres cas d'usage
 
 ## Fuseau horaire : heure légale française, propriété par flux
 
@@ -85,6 +97,17 @@ propriété de domaine.
 
 ## Implémentation
 
-Voir [electricore/core/loaders/duckdb/sql.py](https://github.com/Energie-De-Nantes/electricore/blob/main/electricore/core/loaders/duckdb/sql.py) :
-- Spécification de la table R151 : ajustement `+ INTERVAL '1 day'` sur `date_releve`
-- Requêtes unifiées `releves()` / `releves_harmonises()` : traçabilité via `flux_origine` et `date_ajustee`
+- [electricore/ingestion/dbt/models/flux/flux_r151.sql](https://github.com/Energie-De-Nantes/electricore/blob/main/electricore/ingestion/dbt/models/flux/flux_r151.sql) —
+  le `+ interval '1 day'` sur `date_releve_brute`, posé au **boundary d'ingestion**
+  (ADR-0042).
+- [electricore/ingestion/dbt/models/marts/releves.sql](https://github.com/Energie-De-Nantes/electricore/blob/main/electricore/ingestion/dbt/models/marts/releves.sql) —
+  le mart canonique des relevés (ADR-0029) : l'adapter R151 lit `flux_r151.date_releve`
+  **en passthrough**, sans plus réappliquer d'ajustement.
+- [electricore/core/loaders/duckdb/registry.py](https://github.com/Energie-De-Nantes/electricore/blob/main/electricore/core/loaders/duckdb/registry.py) —
+  `DESCRIPTOR_R151` : le loader `r151()` est un `SELECT *` sur `flux_enedis.flux_r151`
+  (aucune projection résiduelle côté Python) et son `where_clause` filtre sur les
+  calendriers distributeur valides (`DI000001`/`DI000002`/`DI000003`). Il n'y a plus de
+  `releves_harmonises()` ni de flag `date_ajustee` : l'arbitrage entre sources de relevés
+  (C15 > R64 > R151) est entièrement porté par le mart dbt `releves`
+  ([ADR-0029](adr/0029-modele-releves-canonique-dbt-assemble-coeur-arbitre.md)), lu via le
+  loader `releves()`.

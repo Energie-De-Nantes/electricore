@@ -51,7 +51,6 @@ _PREFIXES_EXCLUS = (
 # de lecture #557 — chacun a son issue fille de mise à jour ; un doc remis à jour
 # entre en nav et sort de cette liste (elle a vocation à fondre).
 _FICHIERS_EN_ATTENTE_557 = {
-    "conventions-dates-enedis.md",  # périmé (pointeurs impl. pré-ADR-0042) — issue fille #606
     "electricore-client-design.md",  # à fusionner (note de conception ADR-0043) — issue fille #611
     "ingestion.md",  # périmé (footer dates pré-ADR-0042) — issue fille #607
     "qualite-donnees-r151.md",  # rapport daté, candidat archives — issue fille #608
