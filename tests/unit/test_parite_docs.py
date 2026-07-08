@@ -53,6 +53,7 @@ _PREFIXES_EXCLUS = (
 _FICHIERS_EN_ATTENTE_557 = {
     "configuration.md",  # en attente d'affectation — #557
     "contrat-meta-periodes.md",  # en attente d'affectation — #557
+    "contrat-prestations.md",  # en attente d'affectation — #557
     "contrat-rsc.md",  # en attente d'affectation — #557
     "contrat-turpe-variable.md",  # en attente d'affectation — #557
     "conventions-dates-enedis.md",  # en attente d'affectation — #557
