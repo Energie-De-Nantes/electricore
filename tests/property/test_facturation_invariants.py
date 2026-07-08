@@ -169,7 +169,12 @@ def test_pipeline_stable_sous_permutation_des_entrees(abonnements: pl.DataFrame,
     endroit = pipeline_facturation(abonnements.lazy(), energies.lazy()).collect().sort(tri)
     envers = pipeline_facturation(abonnements.reverse().lazy(), energies.reverse().lazy()).collect().sort(tri)
 
-    # memo_puissance concatène dans l'ordre d'arrivée : hors du contrat d'ordre ;
+    # memo_puissance est trié par `debut` (sort_by) : déterministe pour des debuts DISTINCTS —
+    # ce que la prod garantit (sous-périodes disjointes, `nb_jours > 0`). Mais le générateur
+    # Hypothesis peut tirer deux sous-périodes au même `debut` dans un groupe (aucune contrainte
+    # d'unicité) ; sort_by n'est alors pas un ordre total et l'ordre des segments diffère
+    # endroit/envers. La déterminité du mémo est déjà épinglée par les tests unitaires (debuts
+    # distincts) ; ici on reste sur l'invariant numérique.
     # tolérance flottante : l'ordre de sommation peut différer au dernier ulp
     assert_frame_equal(endroit.drop("memo_puissance"), envers.drop("memo_puissance"), rel_tol=1e-12, abs_tol=1e-9)
 

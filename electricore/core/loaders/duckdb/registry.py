@@ -97,6 +97,20 @@ DESCRIPTOR_R15 = FluxDescriptor(
 )
 
 
+# Extraction R15_ACC - Relevés d'autoconsommation (énergies), seconde linéarisation du flux
+# R15 (`flux_name="R15"`, comme DESCRIPTOR_R15 : deux extractions d'un même flux ingéré, cf.
+# glossaire *Flux vs Extraction*, ADR-0053). SELECT * (ADR-0042) sur le modèle dbt
+# `flux_r15_acc`. Pas de validateur Pandera : même raisonnement que F12/R64 (ADR-0035 §5) —
+# aucun seam de calcul core n'établit encore de contrat sur sa forme. Ajouté (#595) parce
+# que le menu bot offrait déjà l'extraction `r15_acc` alors que le registre l'ignorait.
+DESCRIPTOR_R15_ACC = FluxDescriptor(
+    flux_name="R15",
+    table="flux_enedis.flux_r15_acc",
+    transform=None,
+    validator=None,
+)
+
+
 # Flux F12 - Synthèse mensuelle de facturation distributeur (volumes agrégés). SELECT *
 # (ADR-0042) : la forme résiduelle vit dans le modèle dbt `flux_f12_detail`. Pas de
 # validateur Pandera : même raisonnement que F15 (ADR-0035 §5) — pas de seam de calcul
@@ -177,13 +191,19 @@ DESCRIPTOR_AFFAIRES = FluxDescriptor(
 # REGISTRE FONCTIONNEL (Mapping immutable)
 # =============================================================================
 
+# Keyé par *extraction* (table interrogeable/exportable = modèle dbt = entrée menu bot =
+# segment `/flux/{extraction}`), pas par *flux* ingéré (ADR-0053, #595). Un flux donne
+# 1..N extractions : F15 → `f15_detail` (l'agrégat `f15` est réservé, extraction future,
+# absente tant que `flux_f15` n'est pas matérialisé) ; R15 → `r15` (index) + `r15_acc`
+# (autoconsommation). Le flux parent vit dans `FluxDescriptor.flux_name`, distinct de la clé.
 FLUX_DESCRIPTORS: dict[str, FluxDescriptor] = {
     "c15": DESCRIPTOR_C15,
     "c12": DESCRIPTOR_C12,
     "r151": DESCRIPTOR_R151,
     "r15": DESCRIPTOR_R15,
-    "f15": DESCRIPTOR_F15,
-    "f12": DESCRIPTOR_F12,
+    "r15_acc": DESCRIPTOR_R15_ACC,
+    "f15_detail": DESCRIPTOR_F15,
+    "f12_detail": DESCRIPTOR_F12,
     "r64": DESCRIPTOR_R64,
     "r67": DESCRIPTOR_R67,
     "affaires": DESCRIPTOR_AFFAIRES,

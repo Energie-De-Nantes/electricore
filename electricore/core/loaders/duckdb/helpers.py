@@ -23,8 +23,9 @@ def flux(nom: str, database_path: str | Path | None = None) -> DuckDBQuery:
     """Crée un DuckDBQuery pour un flux Enedis enregistré (résolution registre).
 
     Point d'entrée dynamique : résout `nom` dans `FLUX_DESCRIPTORS` et retourne le
-    builder configuré. Pour les 5 flux Enedis (`c15`, `r151`, `r15`, `f15`,
-    `r64`) ; le modèle de relevés canonique a sa propre factory `releves()`
+    builder configuré. `nom` est une *extraction* (`c15`, `r151`, `r15`, `r15_acc`,
+    `f15_detail`, `f12_detail`, `r64`, …), pas un flux — un flux donne 1..N extractions
+    (ADR-0053). Le modèle de relevés canonique a sa propre factory `releves()`
     (ADR-0029), hors périmètre.
 
     Args:
@@ -123,30 +124,34 @@ def r15(database_path: str | Path | None = None) -> DuckDBQuery:
     return flux("r15", database_path)
 
 
-def f15(database_path: str | Path | None = None) -> DuckDBQuery:
+def f15_detail(database_path: str | Path | None = None) -> DuckDBQuery:
     """
-    Crée un DuckDBQuery pour les données flux F15 (factures détaillées).
+    Crée un DuckDBQuery pour l'extraction `f15_detail` (factures F15 détaillées).
+
+    `f15_detail` est le *détail* du flux F15 ; l'agrégat `f15` (factures agrégées,
+    injection Odoo) est une extraction future, absente tant que `flux_f15` n'est pas
+    matérialisé (glossaire *Flux vs Extraction*, ADR-0053).
 
     Args:
         database_path: Chemin vers la base DuckDB (optionnel)
 
     Returns:
-        DuckDBQuery configuré pour flux F15
+        DuckDBQuery configuré pour l'extraction `f15_detail`
 
     Example:
         >>> # Factures pour un PDL spécifique
-        >>> df = f15().filter({"pdl": "PDL123"}).collect()
+        >>> df = f15_detail().filter({"pdl": "PDL123"}).collect()
         >>>
         >>> # Factures sur une période
-        >>> df = f15().filter({"date_facture": ">= '2024-01-01'"}).limit(100).collect()
+        >>> df = f15_detail().filter({"date_facture": ">= '2024-01-01'"}).limit(100).collect()
     """
-    return flux("f15", database_path)
+    return flux("f15_detail", database_path)
 
 
-def f12(database_path: str | Path | None = None) -> DuckDBQuery:
+def f12_detail(database_path: str | Path | None = None) -> DuckDBQuery:
     """
-    Crée un DuckDBQuery pour les données flux F12 (synthèse mensuelle de facturation
-    distributeur, volumes agrégés).
+    Crée un DuckDBQuery pour l'extraction `f12_detail` (synthèse mensuelle de
+    facturation distributeur, volumes agrégés).
 
     # ponytail: symétrie de registre, arbitrage revue d'architecture 07/2026 — ne pas
     # purger comme code mort (précédent #476) : cette factory n'a, à sa création, encore
@@ -157,12 +162,32 @@ def f12(database_path: str | Path | None = None) -> DuckDBQuery:
         database_path: Chemin vers la base DuckDB (optionnel)
 
     Returns:
-        DuckDBQuery configuré pour flux F12
+        DuckDBQuery configuré pour l'extraction `f12_detail`
 
     Example:
-        >>> df = f12().filter({"pdl": "PDL123"}).collect()
+        >>> df = f12_detail().filter({"pdl": "PDL123"}).collect()
     """
-    return flux("f12", database_path)
+    return flux("f12_detail", database_path)
+
+
+def r15_acc(database_path: str | Path | None = None) -> DuckDBQuery:
+    """
+    Crée un DuckDBQuery pour l'extraction `r15_acc` (relevés d'autoconsommation R15).
+
+    Seconde linéarisation du flux R15 (le même flux ingéré que `r15`, cf. glossaire
+    *Flux vs Extraction*, ADR-0053) : énergies d'autoconsommation plutôt qu'index
+    distributeur.
+
+    Args:
+        database_path: Chemin vers la base DuckDB (optionnel)
+
+    Returns:
+        DuckDBQuery configuré pour l'extraction `r15_acc`
+
+    Example:
+        >>> df = r15_acc().filter({"pdl": "PDL123"}).collect()
+    """
+    return flux("r15_acc", database_path)
 
 
 def r64(database_path: str | Path | None = None) -> DuckDBQuery:

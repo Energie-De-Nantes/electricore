@@ -25,7 +25,7 @@ from electricore.core.builds.contexte_mensuel import (
 )
 from electricore.core.builds.rapport_facturation import RapportFacturation
 from electricore.core.builds.rapport_facturation import rapport_facturation as _rapport_facturation_core
-from electricore.core.loaders import c15, f15
+from electricore.core.loaders import c15, f15_detail
 from electricore.integrations.odoo.reader import OdooReader
 from electricore.integrations.odoo.sources import lignes_factures_du_mois
 
@@ -105,4 +105,4 @@ def documents_facturation_du_mois(odoo: OdooReader, mois: str | None = None) -> 
         mois: format "YYYY-MM-DD". `None` = dernier mois des données.
     """
     contexte, lignes_df = _contexte_et_lignes(odoo, mois)
-    return documents(contexte, lignes_df, f15=f15().lazy(), c15=c15().lazy())
+    return documents(contexte, lignes_df, f15=f15_detail().lazy(), c15=c15().lazy())

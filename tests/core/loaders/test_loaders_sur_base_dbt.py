@@ -179,11 +179,11 @@ def test_r64_charge_le_flux_brut(base_prod_dbt):
 
 def test_f15_sert_des_jours_civils(base_prod_dbt):
     """ADR-0042 (#396) : les dates F15 (date_facture/date_debut/date_fin) sont des JOURS
-    CIVILS — servies en DATE par /flux/f15, plus en instant Paris (le loader les ancrait
+    CIVILS — servies en DATE par /flux/f15_detail, plus en instant Paris (le loader les ancrait
     à tort comme des naïves heure-mur). La source résiduelle est portée par flux_f15_detail."""
-    from electricore.core.loaders import f15
+    from electricore.core.loaders import f15_detail
 
-    df = f15(database_path=base_prod_dbt).collect()
+    df = f15_detail(database_path=base_prod_dbt).collect()
     assert df.schema["date_facture"] == pl.Date
     assert df.schema["date_debut"] == pl.Date
     assert df.schema["date_fin"] == pl.Date

@@ -155,7 +155,7 @@ async def get_flux(
     - /flux/r151 : Relevés quotidiens (date brute, fin de journée)
     - /flux/c15 : Changements contractuels
     - /flux/r64 : Relevés demandés sur SGE
-    - /flux/f15 : Facturation Enedis détaillée
+    - /flux/f15_detail : Facturation Enedis détaillée
     """
     df = _load_flux_df(table_name, prm, limit + offset)
     rows = df.slice(offset, limit).to_dicts()

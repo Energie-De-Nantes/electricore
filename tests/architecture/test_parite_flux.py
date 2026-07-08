@@ -40,10 +40,12 @@ MODELES_FLUX_DIR = DBT_MODELS / "flux"
 # `spine_contrat()`, `chronologie_releves()`), non couvertes ici par construction.
 MARTS_HORS_PERIMETRE = {"releves", "spine_contrat", "chronologie_releves"}
 
-# `flux_r15_acc` est un second modèle dbt issu de `raw_r15` (même flux ingéré, deux
-# linéarisations) : le registre loaders est keyé par *flux ingéré* (une entrée `r15`),
-# pas par *modèle dbt* — `flux_r15_acc` n'a pas de descripteur dédié.
-MODELES_DBT_SANS_DESCRIPTOR_LOADER = {"flux_r15_acc"}
+# Le registre loaders est keyé par *extraction* (= modèle dbt), pas par *flux ingéré*
+# (ADR-0053, #595) : chaque modèle `flux_*` a désormais son descripteur, y compris
+# `flux_r15_acc` (extraction `r15_acc`, seconde linéarisation de R15). Plus aucun modèle
+# orphelin — l'ancien trou `flux_r15_acc` (que le menu bot exportait sans que le registre
+# le connaisse) est comblé. Toute future entrée non couverte est une vraie régression.
+MODELES_DBT_SANS_DESCRIPTOR_LOADER: set[str] = set()
 
 
 def _sources_yml_raw_tables() -> set[str]:
@@ -112,13 +114,21 @@ def test_chaque_valeur_du_mapping_est_un_modele_dbt_existant():
 
 def _assert_chaque_flux_a_un_descripteur(descriptors: dict) -> None:
     """Invariant partagé avec le test de mutation : l'affaiblir ici fait échouer
-    `test_mutation_locale_retirer_un_flux_du_registre_loaders_fait_echouer`."""
+    `test_mutation_locale_retirer_un_flux_du_registre_loaders_fait_echouer`.
+
+    Le registre est keyé par *extraction*, pas par flux ingéré (ADR-0053, #595) : un flux
+    connu se retrouve donc via le `flux_name` **parent** d'au moins une extraction, pas via
+    une clé homonyme (`f15` est ingéré mais sa seule extraction actuelle est `f15_detail`,
+    de `flux_name="F15"`)."""
+    flux_parents = {d.flux_name.lower() for d in descriptors.values()}
     for f in flux_connus():
-        assert f in descriptors, f"flux '{f}' ingéré (flux.yaml) mais absent de FLUX_DESCRIPTORS"
+        assert f in flux_parents, (
+            f"flux '{f}' ingéré (flux.yaml) mais aucune extraction de flux_name='{f}' dans FLUX_DESCRIPTORS"
+        )
 
 
 def test_chaque_flux_ingere_a_un_descripteur_loader():
-    """Chaque flux connu doit être requêtable côté cœur (registre loaders)."""
+    """Chaque flux connu doit être requêtable côté cœur (au moins une extraction au registre)."""
     _assert_chaque_flux_a_un_descripteur(_flux_descriptors())
 
 
@@ -132,11 +142,24 @@ def test_chaque_descriptor_pointe_un_modele_dbt_existant():
 
 
 def test_modeles_dbt_orphelins_de_descriptor_sont_exactement_l_exception_declaree():
-    """Tout modèle dbt sans descripteur loader doit être l'exception `r15_acc` connue
-    (ADR-0053) — pas une nouvelle lacune de registre silencieuse."""
+    """Aucun modèle dbt `flux_*` ne doit être sans descripteur loader (ensemble vide depuis
+    #595 : `flux_r15_acc` a désormais le sien) — sinon c'est une lacune de registre
+    silencieuse, la classe de bug qu'ADR-0053 verrouille."""
     modeles_pointes = {d.table.rsplit(".", 1)[-1] for d in _flux_descriptors().values() if d.table is not None}
     orphelins = _modeles_dbt_existants() - modeles_pointes
     assert orphelins == MODELES_DBT_SANS_DESCRIPTOR_LOADER
+
+
+def test_registre_couvre_exactement_les_tables_exposees():
+    """*Nom affiché = nom exportable* (ADR-0053, #595) — le garde-fou qui manquait.
+
+    `list_tables()` (menu bot, stats, `/flux/{table}`) énumère les tables physiques
+    `flux_*` matérialisées par dbt, préfixe retiré ; `FLUX_DESCRIPTORS` est ce que le
+    loader/export sait résoudre. L'égalité des deux ensembles est l'invariant que le bug
+    #595 violait : le menu offrait `f15_detail`/`r15_acc` alors que le registre n'exposait
+    que `f15`/`f12` — un clic 📥 tombait sur `FluxInconnu`. Toute table exposée sans
+    descripteur (ou l'inverse) casse ici, au lieu d'un clic de menu en production."""
+    assert _tables_exposees() == set(_flux_descriptors())
 
 
 def test_factories_exportees_correspondent_au_registre_des_descriptors():

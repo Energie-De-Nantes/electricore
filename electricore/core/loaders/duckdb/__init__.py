@@ -13,8 +13,8 @@ Architecture :
 - helpers.py : Fonctions factory
 
 API publique :
-- c15(), c12(), r151(), r15(), f15(), f12(), r64(), r67(), affaires() : Query builders
-  par flux individuel
+- c15(), c12(), r151(), r15(), r15_acc(), f15_detail(), f12_detail(), r64(), r67(),
+  affaires() : Query builders par extraction (ADR-0053)
 - releves() : modèle de relevés canonique dbt (C15 + R64 + R151, ADR-0029)
 - DuckDBQuery : Builder immutable avec méthodes chainables
 """
@@ -27,10 +27,11 @@ from .helpers import (
     c12,
     c15,
     chronologie_releves,
-    f12,
-    f15,
+    f12_detail,
+    f15_detail,
     flux,
     r15,
+    r15_acc,
     r64,
     r67,
     r151,
@@ -57,8 +58,9 @@ __all__ = [
     "c15",
     "r151",
     "r15",
-    "f15",
-    "f12",
+    "r15_acc",
+    "f15_detail",
+    "f12_detail",
     "r64",
     "r67",
     "releves",

@@ -84,7 +84,7 @@ class TestExpressionsAtomiques:
 
         result = data.with_columns(expr_memo_puissance_simple().alias("memo"))
 
-        expected_memos = ["14j à 6kVA", "17j à 9kVA"]
+        expected_memos = ["14 jours à 6kVA", "17 jours à 9kVA"]
         assert result["memo"].to_list() == expected_memos
 
 
@@ -153,7 +153,58 @@ class TestAgregatioAbonnements:
         assert collected["turpe_fixe_eur"][0] == 55.0  # Somme
         assert collected["nb_sous_periodes_abo"][0] == 2
         assert collected["has_changement_abo"][0] is True
-        assert "15j à 6kVA, 16j à 9kVA" in collected["memo_puissance"][0]
+        assert collected["memo_puissance"][0] == "15 jours à 6kVA, puis le 16/03/2025 : 16 jours à 9kVA"
+
+    def test_agregation_deux_changements_dates_dans_l_ordre(self):
+        """Deux bascules de puissance dans le mois : les deux dates apparaissent, dans l'ordre."""
+        data = pl.LazyFrame(
+            {
+                "ref_situation_contractuelle": ["REF1", "REF1", "REF1"],
+                "pdl": ["PDL1", "PDL1", "PDL1"],
+                "mois_annee": ["2025-07", "2025-07", "2025-07"],
+                "puissance_souscrite_kva": [6.0, 9.0, 12.0],
+                "nb_jours": [3, 10, 17],
+                "turpe_fixe_eur": [10.0, 20.0, 30.0],
+                "formule_tarifaire_acheminement": ["BTINF", "BTINF", "BTINF"],
+                "debut": [datetime(2025, 7, 1), datetime(2025, 7, 8), datetime(2025, 7, 18)],
+                "fin": [datetime(2025, 7, 8), datetime(2025, 7, 18), datetime(2025, 7, 31)],
+                "debut_lisible": ["1 juillet 2025", "8 juillet 2025", "18 juillet 2025"],
+                "fin_lisible": ["8 juillet 2025", "18 juillet 2025", "31 juillet 2025"],
+            }
+        )
+
+        result = agreger_abonnements_mensuel(data)
+        collected = result.collect()
+
+        assert collected["memo_puissance"][0] == (
+            "3 jours à 6kVA, puis le 08/07/2025 : 10 jours à 9kVA, puis le 18/07/2025 : 17 jours à 12kVA"
+        )
+
+    def test_agregation_mct_fta_seule_a_puissance_egale_pas_de_memo(self):
+        """Un MCT qui ne change QUE la FTA à puissance identique n'est pas un vrai changement
+        de puissance : plusieurs sous-périodes, mais memo_puissance reste vide (gate n_unique)."""
+        data = pl.LazyFrame(
+            {
+                "ref_situation_contractuelle": ["REF1", "REF1"],
+                "pdl": ["PDL1", "PDL1"],
+                "mois_annee": ["2025-03", "2025-03"],
+                "puissance_souscrite_kva": [6.0, 6.0],
+                "nb_jours": [15, 16],
+                "turpe_fixe_eur": [25.0, 30.0],
+                "formule_tarifaire_acheminement": ["BTINFCU4", "BTINFCUST"],
+                "debut": [datetime(2025, 3, 1), datetime(2025, 3, 16)],
+                "fin": [datetime(2025, 3, 16), datetime(2025, 3, 31)],
+                "debut_lisible": ["1 mars 2025", "16 mars 2025"],
+                "fin_lisible": ["16 mars 2025", "31 mars 2025"],
+            }
+        )
+
+        result = agreger_abonnements_mensuel(data)
+        collected = result.collect()
+
+        assert collected["nb_sous_periodes_abo"][0] == 2
+        assert collected["has_changement_abo"][0] is True  # la subscription a bien changé (FTA)
+        assert collected["memo_puissance"][0] == ""  # mais pas de vrai changement de puissance
 
 
 class TestAgregatioEnergies:
