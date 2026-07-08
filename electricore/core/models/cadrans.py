@@ -42,3 +42,25 @@ def col_energie(cadran: str) -> str:
 def col_index(cadran: str) -> str:
     """Nom de la colonne d'index d'un cadran (ex : `index_hp_kwh`)."""
     return f"index_{_verifier(cadran)}_kwh"
+
+
+# Table DI→famille (ADR-0035 §1, #603) : SOURCE UNIQUE du mapping entre l'identifiant
+# calendrier distributeur Enedis (`Id_Calendrier_Distributeur`, natif C15/R151/R64/R15) et
+# la *Famille de cadrans* du glossaire (CONTEXT.md) — le calendrier de comptage débarrassé
+# de l'identifiant Enedis. Les 3 valeurs connues ; tout DI hors de cette table est inconnu.
+FAMILLES_CADRANS: dict[str, str] = {
+    "DI000001": "base",
+    "DI000002": "hp_hc",
+    "DI000003": "4_cadrans",
+}
+
+
+def famille_cadrans(id_calendrier_distributeur: str | None) -> str | None:
+    """Famille de cadrans d'un relevé, dérivée de son `id_calendrier_distributeur`.
+
+    `None` si le calendrier est absent (null) ou hors des trois DI connus — au consommateur
+    (Odoo) de garder son inférence en repli dans ce cas.
+    """
+    if id_calendrier_distributeur is None:
+        return None
+    return FAMILLES_CADRANS.get(id_calendrier_distributeur)

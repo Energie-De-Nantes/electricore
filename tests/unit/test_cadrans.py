@@ -6,7 +6,7 @@ Le module porte la liste canonique des cadrans et la convention de nommage
 
 import pytest
 
-from electricore.core.models.cadrans import CADRANS, SOUS_CADRANS, col_energie, col_index
+from electricore.core.models.cadrans import CADRANS, SOUS_CADRANS, col_energie, col_index, famille_cadrans
 
 
 class TestCadrans:
@@ -37,3 +37,22 @@ class TestConstructeursDeColonnes:
             col_energie("hpc")
         with pytest.raises(ValueError, match="HP"):
             col_index("HP")  # les cadrans sont en minuscules
+
+
+class TestFamilleCadrans:
+    """Table DI→famille (ADR-0035 §1, #603) : source unique du glossaire *Famille de cadrans*."""
+
+    def test_di000001_base(self):
+        assert famille_cadrans("DI000001") == "base"
+
+    def test_di000002_hp_hc(self):
+        assert famille_cadrans("DI000002") == "hp_hc"
+
+    def test_di000003_4_cadrans(self):
+        assert famille_cadrans("DI000003") == "4_cadrans"
+
+    def test_di_inconnu_absent(self):
+        assert famille_cadrans("DI999999") is None
+
+    def test_none_absent(self):
+        assert famille_cadrans(None) is None

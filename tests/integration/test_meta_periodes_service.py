@@ -80,6 +80,9 @@ def _releves_utilises_synthetiques(decalage_index: int = 0) -> pl.LazyFrame:
             "evenement_declencheur": [None, "MCT", None, None],
             "releve_id": ["a1b2c3d4e5f60718", "1122334455667788", "99aabbccddeeff00", "deadbeefdeadbeef"],
             "nature_index": ["réel", "réel", "réel", "réel"],
+            # Calendrier distributeur : RSC-1 compteur HP/HC (DI000002) tout du long ; RSC-2
+            # Base (DI000001) — cf. `famille_cadrans` (#603).
+            "id_calendrier_distributeur": ["DI000002", "DI000002", "DI000002", "DI000001"],
             # Compteur HP/HC : seuls hp/hc portés (le mart ne synthétise jamais → les
             # 4 cadrans saisonniers restent nuls, donc non exposés).
             "index_base_kwh": [None, None, None, 420],
@@ -193,16 +196,19 @@ def test_releves_utilises_present_si_calculable_vide_si_incalculable(monkeypatch
     # RSC-2 (incalculable) → [] même si un relevé existe dans le frame.
     assert ru[1] == []
 
-    # Objet relevé = { releve_id, date_releve, nature_index, origine_releve, registres réels }.
+    # Objet relevé = { releve_id, date_releve, nature_index, origine_releve, famille_cadrans,
+    # registres réels }.
     premier = ru[0][0]
     assert set(premier) == {
         "releve_id",
         "date_releve",
         "nature_index",
         "origine_releve",
+        "famille_cadrans",
         "index_hp_kwh",
         "index_hc_kwh",
     }
+    assert premier["famille_cadrans"] == "hp_hc"
     assert "index_base_kwh" not in premier  # registre nul → jamais exposé
     assert premier["releve_id"] == "a1b2c3d4e5f60718"
     assert premier["nature_index"] == "réel"
@@ -246,6 +252,7 @@ def test_releves_utilises_expose_tous_les_cadrans_reels(monkeypatch):
             "evenement_declencheur": [None, None],
             "releve_id": ["1111111111111111", "2222222222222222"],
             "nature_index": ["réel", "réel"],
+            "id_calendrier_distributeur": ["DI000003", "DI000003"],
             "index_base_kwh": [None, None],
             "index_hp_kwh": [None, None],
             "index_hc_kwh": [None, None],
@@ -274,11 +281,13 @@ def test_releves_utilises_expose_tous_les_cadrans_reels(monkeypatch):
         "date_releve",
         "nature_index",
         "origine_releve",
+        "famille_cadrans",
         "index_hph_kwh",
         "index_hch_kwh",
         "index_hpb_kwh",
         "index_hcb_kwh",
     }
+    assert objet["famille_cadrans"] == "4_cadrans"
     assert objet["index_hph_kwh"] == 100 and objet["index_hcb_kwh"] == 400
     # Jamais de cadran agrégé absent du compteur (hp/hc nuls non synthétisés).
     assert "index_hp_kwh" not in objet and "index_hc_kwh" not in objet
@@ -338,3 +347,92 @@ def test_source_hash_couvre_releves_utilises_a_delta_kwh_constant(monkeypatch):
     h_apres = apres.sort("ref_situation_contractuelle")["source_hash"][0]
 
     assert h_avant != h_apres, "une dérive d'index imprimé à delta constant doit flipper source_hash"
+
+
+# --- Famille de cadrans par relevé (#603) -------------------------------------------
+
+
+def test_famille_cadrans_absente_si_calendrier_inconnu_ou_null(monkeypatch):
+    """`famille_cadrans` n'est émise que pour un calendrier connu (DI000001/2/3) — un
+    calendrier `null` ou hors des trois DI connus n'émet pas la clé (Odoo garde son
+    inférence en repli, #603)."""
+    # Remplace le calendrier de la borne milieu (DI000002) par un DI inconnu, et de la
+    # borne fin par null.
+    releves = _releves_utilises_synthetiques().with_columns(
+        pl.when(pl.col("releve_id") == "1122334455667788")
+        .then(pl.lit("DI999999"))
+        .when(pl.col("releve_id") == "99aabbccddeeff00")
+        .then(pl.lit(None, dtype=pl.Utf8))
+        .otherwise(pl.col("id_calendrier_distributeur"))
+        .alias("id_calendrier_distributeur")
+    )
+    ctx = _contexte_synthetique(releves)
+    monkeypatch.setattr(meta_periodes_service, "contexte_du_mois", lambda mois=None: ctx)
+
+    _, df = meta_periodes_service.meta_periodes("2025-03-01")
+    ru = df.sort("ref_situation_contractuelle")["releves_utilises"].to_list()[0]
+    par_id = {o["releve_id"]: o for o in ru}
+
+    assert par_id["a1b2c3d4e5f60718"]["famille_cadrans"] == "hp_hc"  # DI000002 connu
+    assert "famille_cadrans" not in par_id["1122334455667788"]  # DI inconnu
+    assert "famille_cadrans" not in par_id["99aabbccddeeff00"]  # calendrier null
+
+
+def test_grain_releve_changement_compteur_en_cours_de_periode(monkeypatch):
+    """Grain **relevé**, pas période (#603) : un changement de compteur en cours de mois
+    produit deux relevés de familles différentes dans la même méta-période — la famille
+    n'est jamais rollupée sur la période, contrairement à la FTA."""
+    releves = pl.DataFrame(
+        {
+            "ref_situation_contractuelle": ["RSC-1", "RSC-1"],
+            "date_releve": [
+                datetime(2025, 3, 1, tzinfo=PARIS),
+                datetime(2025, 4, 1, tzinfo=PARIS),
+            ],
+            "ordre_index": [False, False],
+            "source": ["flux_R151", "flux_R151"],
+            "evenement_declencheur": [None, None],
+            "releve_id": ["a1b2c3d4e5f60718", "99aabbccddeeff00"],
+            "nature_index": ["réel", "réel"],
+            # Compteur base au début, remplacé par un compteur HP/HC au relevé de fin.
+            "id_calendrier_distributeur": ["DI000001", "DI000002"],
+            "index_base_kwh": [420, None],
+            "index_hp_kwh": [None, 1312],
+            "index_hc_kwh": [None, 645],
+            "index_hph_kwh": [None, None],
+            "index_hch_kwh": [None, None],
+            "index_hpb_kwh": [None, None],
+            "index_hcb_kwh": [None, None],
+        }
+    ).lazy()
+    ctx = _contexte_synthetique(releves)
+    monkeypatch.setattr(meta_periodes_service, "contexte_du_mois", lambda mois=None: ctx)
+
+    _, df = meta_periodes_service.meta_periodes("2025-03-01")
+    ru = df.sort("ref_situation_contractuelle")["releves_utilises"].to_list()[0]
+
+    familles = [o["famille_cadrans"] for o in ru]
+    assert familles == ["base", "hp_hc"], "les deux relevés de la même méta-période portent chacun leur famille"
+
+
+def test_source_hash_sensible_au_changement_de_famille_cadrans(monkeypatch):
+    """`source_hash` change si `id_calendrier_distributeur` change — même index, même
+    delta kWh — car `famille_cadrans` fait partie du repli canonicalisé du tableau (#603)."""
+    releves_base = _releves_utilises_synthetiques()
+    ctx = _contexte_synthetique(releves_base)
+    monkeypatch.setattr(meta_periodes_service, "contexte_du_mois", lambda mois=None: ctx)
+    _, avant = meta_periodes_service.meta_periodes("2025-03-01")
+    h_avant = avant.sort("ref_situation_contractuelle")["source_hash"][0]
+
+    releves_modifie = releves_base.with_columns(
+        pl.when(pl.col("releve_id") == "a1b2c3d4e5f60718")
+        .then(pl.lit("DI000003"))
+        .otherwise(pl.col("id_calendrier_distributeur"))
+        .alias("id_calendrier_distributeur")
+    )
+    ctx_modifie = _contexte_synthetique(releves_modifie)
+    monkeypatch.setattr(meta_periodes_service, "contexte_du_mois", lambda mois=None: ctx_modifie)
+    _, apres = meta_periodes_service.meta_periodes("2025-03-01")
+    h_apres = apres.sort("ref_situation_contractuelle")["source_hash"][0]
+
+    assert h_avant != h_apres
