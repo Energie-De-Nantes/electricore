@@ -55,6 +55,7 @@ nav:
       - deployer/index.md
       - Déploiement VPS: deploiement.md
       - Configuration — inventaire complet: configuration.md
+      - Authentification de l'API: deployer/authentification-api.md
   - Contribuer:
       - contribuer/index.md
       - Charte de la documentation: contribuer/charte-documentation.md
