@@ -39,6 +39,10 @@ resultats = client.turpe_variable([...])  # résultats indexés par id opaque
 with client.prestations() as stream:
     for prestation in stream:             # itère des PrestationF15 typés
         ...
+
+# Résolution RSC : lot d'id_Affaire (X12) → ref_situation_contractuelle (POST RPC)
+resultats = client.resoudre_rsc(["id_affaire_1", "id_affaire_2"])
+par_id = {r.id_affaire: r for r in resultats}   # chaque résultat porte ref ou error
 ```
 
 Le client Arrow historique (`flux/releves/facturation/accise/cta` → `pl.DataFrame`)
