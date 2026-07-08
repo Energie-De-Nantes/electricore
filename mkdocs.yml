@@ -62,6 +62,7 @@ nav:
       - Développer: contribuer/developper.md
       - Ingestion des flux Enedis (ELT dlt + dbt): ingestion.md
       - Conventions de dates Enedis: conventions-dates-enedis.md
+      - TURPE en standalone: turpe-usage-standalone.md
       - Query builder Odoo: odoo-query-builder.md
       - Contrats d'intégration:
           - Méta-périodes: contrat-meta-periodes.md
