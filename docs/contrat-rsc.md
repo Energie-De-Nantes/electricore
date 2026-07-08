@@ -1,3 +1,7 @@
+---
+fraicheur: 2026-07-08
+---
+
 # Contrat — résolution RSC
 
 > Contrat d'intégration **figé** pour le consommateur (addon `souscriptions_odoo`).

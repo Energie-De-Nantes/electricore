@@ -1,3 +1,7 @@
+---
+fraicheur: 2026-07-08
+---
+
 # Contrat — calculateur TURPE variable
 
 > Contrat d'intégration **figé** pour le consommateur (addon `souscriptions_odoo`).

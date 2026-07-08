@@ -1,3 +1,7 @@
+---
+fraicheur: 2026-07-08
+---
+
 # Déploiement VPS
 
 Guide opérationnel pour déployer ElectriCore sur un VPS via la stack Docker
@@ -87,8 +91,9 @@ du layout `/srv/<slug>/` + user dédié.
   [Durcissement du VPS](#durcissement-du-vps).
 - **Un nom de domaine** avec un A-record pointant vers l'IP publique du VPS.
 - **Ports 80 et 443** ouverts dans le pare-feu cloud (ACME HTTP-01 + HTTPS).
-- **Les clés AES Enedis** (clé + IV en hexadécimal) — fournies par Enedis au
-  fournisseur.
+- **Les clés AES Enedis** (clé en hexadécimal ; IV seulement si Enedis en
+  fournit un — schéma IV-fixe, sans IV ⇒ IV-préfixé, ADR-0040) — fournies par
+  Enedis au fournisseur.
 - **Source SFTP Enedis** :
   - Soit identifiants SFTP distants (mode A).
   - Soit le dépôt Enedis collocé sur le VPS (mode B — recommandé si possible).

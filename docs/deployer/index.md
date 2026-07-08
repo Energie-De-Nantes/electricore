@@ -8,10 +8,9 @@ Cette section s'adresse à toi si tu es **déployeur·euse** : tu installes et t
 administres une instance ElectriCore pour un fournisseur (VPS, Docker
 Compose, secrets, sauvegardes).
 
-Elle rassemblera à terme le guide de déploiement, l'inventaire de
-configuration et les procédures d'exploitation (rotation de clés, mise à
-jour de version, sauvegarde). Ce contenu existe déjà dans `docs/` sous forme
-de pages techniques ; leur rattachement à cette section arrive dans une
-tranche à venir du chemin de documentation par rôles.
+Le [guide de déploiement VPS](../deploiement.md) couvre l'installation,
+les secrets, la rotation de clés, la mise à jour de version et la
+sauvegarde. L'inventaire de configuration rejoindra cette section une fois
+remis à jour (issue #605, passe de lecture #557).
 
 [Retour à l'accueil](../index.md).

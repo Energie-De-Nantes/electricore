@@ -53,11 +53,18 @@ nav:
       - Notebook opérateur: operateur-notebook.md
   - Déployer:
       - deployer/index.md
+      - Déploiement VPS: deploiement.md
   - Contribuer:
       - contribuer/index.md
       - Charte de la documentation: contribuer/charte-documentation.md
       - Carte des domaines: contribuer/carte-domaines.md
       - Développer: contribuer/developper.md
+      - Query builder Odoo: odoo-query-builder.md
+      - Contrats d'intégration:
+          - Méta-périodes: contrat-meta-periodes.md
+          - Prestations F15: contrat-prestations.md
+          - Résolution RSC: contrat-rsc.md
+          - TURPE variable: contrat-turpe-variable.md
   - Maintenir:
       - maintenir/index.md
       - Index thématique des ADRs: maintenir/index-adr.md
