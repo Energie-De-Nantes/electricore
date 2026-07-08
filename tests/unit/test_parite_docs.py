@@ -47,24 +47,18 @@ _PREFIXES_EXCLUS = (
     "agents/",  # registres agent (CLAUDE.md-adjacent), hors chemin doc-par-rôles
 )
 
-# Docs techniques à la racine de docs/, en attente d'affectation à une section du
-# chemin par rôles (#557) — liste NOMMÉE, a vocation à fondre au fil des tranches
-# suivantes (chaque doc affecté à une section doit sortir de cette liste).
+# Docs techniques à la racine de docs/, jugés périmés ou à fusionner par la passe
+# de lecture #557 — chacun a son issue fille de mise à jour ; un doc remis à jour
+# entre en nav et sort de cette liste (elle a vocation à fondre).
 _FICHIERS_EN_ATTENTE_557 = {
-    "configuration.md",  # en attente d'affectation — #557
-    "contrat-meta-periodes.md",  # en attente d'affectation — #557
-    "contrat-prestations.md",  # en attente d'affectation — #557
-    "contrat-rsc.md",  # en attente d'affectation — #557
-    "contrat-turpe-variable.md",  # en attente d'affectation — #557
-    "conventions-dates-enedis.md",  # en attente d'affectation — #557
-    "deploiement.md",  # en attente d'affectation — #557
-    "electricore-client-design.md",  # en attente d'affectation — #557
-    "ingestion.md",  # en attente d'affectation — #557
-    "odoo-query-builder.md",  # en attente d'affectation — #557
-    "qualite-donnees-r151.md",  # en attente d'affectation — #557
-    "transmission.md",  # en attente d'affectation — #557
-    "turpe-fixe-c4-btsup36kva.md",  # en attente d'affectation — #557
-    "turpe-usage-standalone.md",  # en attente d'affectation — #557
+    "configuration.md",  # périmé (§3 pré-secrets-as-code) — issue fille #605
+    "conventions-dates-enedis.md",  # périmé (pointeurs impl. pré-ADR-0042) — issue fille #606
+    "electricore-client-design.md",  # à fusionner (note de conception ADR-0043) — issue fille #611
+    "ingestion.md",  # périmé (footer dates pré-ADR-0042) — issue fille #607
+    "qualite-donnees-r151.md",  # rapport daté, candidat archives — issue fille #608
+    "transmission.md",  # à fusionner (recouvre contribuer/developper.md) — issue fille #618
+    "turpe-fixe-c4-btsup36kva.md",  # périmé (colonnes/coefficients) — issue fille #609
+    "turpe-usage-standalone.md",  # périmé (colonnes _kva/_eur) — issue fille #610
 }
 
 _AGE_MAX_FRAICHEUR_JOURS = 365

@@ -48,7 +48,7 @@ uv run --group test pytest -n auto
 uv run --group test pytest --cov=electricore
 ```
 
-La suite compte ~671 tests qui passent en une trentaine de secondes. 35 tests sont volontairement skippés (intégration Odoo nécessitant des secrets, génération de snapshots).
+La suite complète passe en une trentaine de secondes. Quelques tests sont volontairement skippés (intégration Odoo nécessitant des secrets, génération de snapshots).
 
 Le hook **pre-push** exécute automatiquement la suite avant chaque `git push` (cf. installation ci-dessus). Pour le lancer manuellement sans pousser :
 

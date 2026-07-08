@@ -1,3 +1,7 @@
+---
+fraicheur: 2026-07-08
+---
+
 # Contrat — prestations F15
 
 > Contrat d'intégration **figé** pour le consommateur (addon `souscriptions_odoo`).

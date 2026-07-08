@@ -1,3 +1,7 @@
+---
+fraicheur: 2026-07-08
+---
+
 # Odoo Query Builder - Philosophie et Architecture
 
 ## Vue d'ensemble

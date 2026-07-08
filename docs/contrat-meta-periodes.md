@@ -1,3 +1,7 @@
+---
+fraicheur: 2026-07-08
+---
+
 # Contrat — endpoint de lecture des méta-périodes
 
 > Contrat d'intégration pour le consommateur (addon `souscriptions_odoo`).

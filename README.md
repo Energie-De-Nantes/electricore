@@ -29,7 +29,7 @@ de lecture, en escalier (quoi → comment s'en servir → comment c'est fait →
 
 - **[Comprendre](https://energie-de-nantes.github.io/electricore/comprendre/)** — ce qu'ElectriCore
   calcule et pourquoi, pour un public non technique.
-- **[Facturer](https://energie-de-nantes.github.io/electricore/facturiste/changelog-facturiste/)** —
+- **[Facturer](https://energie-de-nantes.github.io/electricore/facturiste/)** —
   le cycle de facturation au quotidien, bot Telegram et notebooks.
 - **[Déployer](https://energie-de-nantes.github.io/electricore/deployer/)** — installer et
   administrer une instance (VPS, Docker Compose, secrets).
