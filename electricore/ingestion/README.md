@@ -11,16 +11,22 @@ electricore/ingestion/
 ├── transformers/
 │   ├── crypto.py           # Déchiffrement AES (chaîne de clés, rotation)
 │   ├── archive.py          # Extraction ZIP
-│   └── parsers.py          # Parsing XML/CSV/JSON
+│   └── chaine.py           # Discipline « attraper → compter → continuer » (ADR-0037)
+├── parsing/
+│   └── xml.py               # Conversion XML → dict générique (landing brut, ADR-0020)
 ├── sources/
-│   └── sftp_enedis.py      # Source DLT SFTP multi-flux
+│   ├── sftp_enedis_brut.py # Source DLT « brut » (landing JSON, ADR-0020) — production
+│   └── sftp_enedis.py      # Brique SFTP partagée (listing incrémental, mouvement)
 ├── tools/
-│   └── reset_incremental_state.py  # Reset curseurs DLT
+│   ├── reset_incremental_state.py   # Reset curseurs DLT
+│   ├── check_incremental_state.py   # Inspecte les curseurs incrémentaux par namespace
+│   └── diagnostic_flux.py           # Diagnostic SFTP read-only (que livre Enedis ?)
 ├── config/
-│   ├── flux.yaml           # Configuration des flux
-│   └── settings.py
+│   └── flux.yaml           # Configuration de mouvement des flux
+├── raw_landing.py       # Landing brut : document Enedis intégral en colonne JSON
 ├── runner.py            # Ingestion (landing brut → dbt build)
 ├── __main__.py          # CLI : python -m electricore.ingestion
+├── CONTEXT.md            # Vocabulaire spécifique à l'ingestion
 └── dbt/                    # Modèles dbt (staging + flux_*)
 
 # Secrets (trousseau AES, URL SFTP) : variables d'environnement / .env à la racine
@@ -64,6 +70,9 @@ AES__TROUSSEAU__aes128_2024__IV=iv_hex_32     # IV-fixe
 | **R15** | Relevés index | `flux_r15`, `flux_r15_acc` |
 | **R151** | Relevés périodiques Linky | `flux_r151` |
 | **R64** | Timeseries JSON | `flux_r64` |
+| **R67** | Mesures facturantes (ponctuel, ADR-0047) | `flux_r67` |
+| **C12** | Spine contractuelle C4 (>36 kVA, ADR-0051) | `flux_c12` |
+| **X12/X13** | Affaires SGE (initiées/reçues) | `flux_affaires` |
 
 ## Rotation des clés AES (trousseau N-clés, ADR-0037)
 
@@ -86,10 +95,10 @@ DLT stocke l'état dans deux endroits (fichier local + DuckDB). Pour réinitiali
 uv run --extra ingestion --extra dbt python -m electricore.ingestion resync
 
 # Reset des curseurs uniquement (conserve les données)
-uv run --extra ingestion python tools/reset_incremental_state.py --clear
+uv run --extra ingestion python -m electricore.ingestion.tools.reset_incremental_state --clear
 
 # Recul à une date précise (retraite les fichiers depuis cette date)
-uv run --extra ingestion python tools/reset_incremental_state.py 2026-03-17
+uv run --extra ingestion python -m electricore.ingestion.tools.reset_incremental_state 2026-03-17
 ```
 
 ## Vérification de l'état
