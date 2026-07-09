@@ -9,6 +9,30 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.7.0rc1] - 2026-07-09
+
+Release candidate : **endpoint prestations** pour souscriptions_odoo, `famille_cadrans`
+par relevé, date de bascule dans `memo_puissance`, et réparation de l'export bot.
+
+### ✨ Ajouté
+
+- **`GET /facturation/prestations`** (souscriptions_odoo#37) : pull-tout des refacturables
+  F15, `resoudre_rsc()` côté client. Consommé par le client `electricore-client` 0.4.0.
+- **`famille_cadrans` par relevé** dans `releves_utilises` (#603) : la famille de cadrans
+  est exposée relevé par relevé côté API.
+- **Date de bascule intercalée dans `memo_puissance`** (#598) : la bascule de puissance
+  est tracée dans le mémo de facturation.
+
+### 🐛 Corrigé
+
+- **Export bot réparé** (#596) : le registre des flux est keyé par extraction (f15→f15_detail,
+  +r15_acc) et non par flux, ce qui répare l'export « flux → N extractions ».
+- **Canon `reference` prestations en Python pur** (#600).
+
+### ✅ Tests
+
+- Garde anti-drift : `construire_dbt` matérialise tous les marts dbt (#553).
+
 ## [3.6.1] - 2026-07-05
 
 Patch **documentaire** : la frontière **actuel (legacy) / futur (ERP tire)** est
