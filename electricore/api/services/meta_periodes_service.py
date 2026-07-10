@@ -11,11 +11,9 @@ facturé, possédé par l'ERP — pas d'`accise_eur` ici). ERP-agnostique : aucu
 `integrations/odoo` (ADR-0016). L'intégrité (`source_hash`) arrive en #229.
 """
 
-import hashlib
-import json
-
 import polars as pl
 
+from electricore.api.serializers import empreinte_contenu
 from electricore.core.builds.contexte_mensuel import contexte_du_mois
 from electricore.core.models.cadrans import CADRANS, col_index, famille_cadrans
 from electricore.core.pipelines.accise import load_accise_rules
@@ -199,32 +197,11 @@ def meta_periodes(mois: str | None = None, rsc: list[str] | None = None) -> tupl
     traces = _slicer_releves_utilises(contexte.releves_utilises, df)
     df = df.with_columns(pl.Series("releves_utilises", traces, dtype=pl.Object))
 
-    return contexte.mois, _ajouter_source_hash(df)
-
-
-def _ajouter_source_hash(df: pl.DataFrame) -> pl.DataFrame:
-    """Ajoute `source_hash` : sha256 (tronqué) de la ligne canonique du contrat (#229).
-
-    Hash de contenu sur **toutes** les colonnes du contrat **et le tableau imbriqué
-    `releves_utilises`** (ADR-0038, #360) — déterministe (même état DuckDB → même hash) et
-    robuste aux versions de Polars (repr texte stable, pas le hash interne). Le repli du
-    tableau (canonicalisation JSON à clés triées : `releve_id`, `date_releve`,
-    `nature_index`, registres) rend le hash sensible à toute dérive d'un index **imprimé**,
-    d'une nature ou d'une identité — **même à delta kWh du mois constant** (reset compteur,
-    correction ±k aux deux bornes). Outille l'upsert non destructif côté Odoo : skip-si-
-    inchangé + détection de dérive sous verrou (ADR-0027/0038).
-    """
-    canon = df.select(
-        pl.concat_str(
-            [pl.col(c).cast(pl.Utf8).fill_null("∅") for c in COLONNES_CONTRAT],
-            separator="␟",
-        ).alias("_canon")
-    ).to_series()
-    traces = df["releves_utilises"].to_list() if "releves_utilises" in df.columns else [None] * df.height
-    hashes = [
-        hashlib.sha256(
-            f"{ligne}␟{json.dumps(trace, sort_keys=True, ensure_ascii=False, default=str)}".encode()
-        ).hexdigest()[:16]
-        for ligne, trace in zip(canon.to_list(), traces, strict=True)
-    ]
-    return df.with_columns(pl.Series("source_hash", hashes, dtype=pl.Utf8))
+    # `source_hash` : kernel commun (#625, `api/serializers/hash.py`) — hash de contenu
+    # sur toutes les colonnes du contrat **et le tableau imbriqué `releves_utilises`**
+    # (ADR-0038, #360), en dernière colonne. Sensible à toute dérive d'un index
+    # **imprimé**, d'une nature ou d'une identité — même à delta kWh du mois constant
+    # (reset compteur, correction ±k aux deux bornes). Outille l'upsert non destructif
+    # côté Odoo : skip-si-inchangé + détection de dérive sous verrou (ADR-0027/0038).
+    hash_source = empreinte_contenu(df, [*COLONNES_CONTRAT, "releves_utilises"])
+    return contexte.mois, df.with_columns(hash_source.alias("source_hash"))
