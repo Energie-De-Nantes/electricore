@@ -10,6 +10,8 @@ import io
 import polars as pl
 import xlsxwriter
 
+from electricore.api.serializers.hash import empreinte_contenu
+
 
 def xlsx_multi_sheet(onglets: dict[str, pl.DataFrame]) -> bytes:
     """Construit un fichier XLSX multi-onglets à partir d'un dict {nom: DataFrame}.
@@ -46,4 +48,4 @@ def arrow_stream(df: pl.DataFrame) -> bytes:
     return buf.getvalue()
 
 
-__all__ = ["xlsx_multi_sheet", "arrow_stream"]
+__all__ = ["xlsx_multi_sheet", "arrow_stream", "empreinte_contenu"]
