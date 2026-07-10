@@ -256,6 +256,19 @@ Matérialisation de la *Traçabilité des index* : la liste des relevés effecti
 **Exposé à l'ERP** imbriqué dans chaque *méta-période* (l'ERP tire et stocke les relevés bornants pour satisfaire l'exigence légale d'index sur la facture et l'affichage en espace usager) : chaque relevé porte son *identité* (`releve_id`, **handle de reprise** pour la *régularisation*), sa *date*, sa *nature d'index* (mention légale), son *origine de relevé* et ses registres réels (les 7 cadrans canoniques, registres présents seulement). Le cœur reste **sans état** — il ne persiste rien : l'ERP stocke une copie de travail, le gel légal vit dans la facture postée ; une dérive ultérieure d'un index est un signal de *régularisation*, pas une réécriture.
 _Éviter_ : journal des relevés (connote un log append-only / event-sourcing, alors que le cœur est sans état et **recalcule**).
 
+**Empreinte de contenu** (kernel `empreinte_contenu`, `api/serializers/hash.py`, #625) :
+Hash de contenu déterministe (sha256 tronqué à 16 caractères) d'une ligne de *livrable*,
+utilisé comme handle d'intégrité (`source_hash` des *méta-périodes*, `reference` des
+prestations F15) ou de dédup — jamais un identifiant Enedis. Politique dtype→string en
+**Python pur** (pas `pl.concat_str(cast(Utf8))`) : `null` → `∅`, `date`/`datetime` →
+ISO, `float` → `str()` (repr du langage, stable — le formateur `Utf8` de Polars, lui,
+peut dériver entre versions et re-keyer silencieusement des lignes déjà upsertées côté
+Odoo), `list`/`dict`/`Object` → JSON à clés triées ; champs joints par `␟`. Kernel unique
+qui remplace deux canonicaliseurs divergents historiques (`_ajouter_source_hash` /
+`_ajouter_reference`, cf. `docs/contrat-prestations.md`).
+_Éviter_ : hash Polars natif (`pl.Expr.hash()`, instable entre versions, ne couvre pas
+les colonnes `pl.Object`).
+
 **Origine de relevé** :
 Axe qui distingue **comment** un relevé a été pris : *périodique* (télérelevé automatique R151/R64, à cadence régulière) ou *événementiel* (relevé pris à un *événement* contractuel C15 — `evenement_declencheur` en précise la cause : `MES` mise en service, `MCT` modification/changement, `RES` résiliation…). Porté aux champs `origine_releve` (+ `evenement` si événementiel) des *Relevés utilisés* exposés ; dérivé à l'exposition de la `source` du relevé et de l'`evenement_declencheur` que le mart `releves` porte **nativement** depuis les relevés C15 (non forward-fillé — un télérelevé n'est déclenché par aucun événement ; comme RSC/FTA/niveau, désormais natifs eux aussi, plus recopiés, [ADR-0039](../../docs/adr/0039-chronologie-substrat-attributs-situation-hors-mart.md)). Axe **orthogonal** à la *nature d'index* (réel/estimé/corrigé, qui qualifie la *valeur* lue, pas l'origine).
 _Éviter_ : « quotidien » (un R151 est périodique sans être quotidien), confondre avec la *nature d'index*.
