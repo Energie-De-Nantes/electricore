@@ -16,10 +16,9 @@ strictement identiques d'une même facture fusionnent en une seule prestation
 5 exclusions motivées et preuve de collision : `docs/contrat-prestations.md`.
 """
 
-import hashlib
-
 import polars as pl
 
+from electricore.api.serializers import empreinte_contenu
 from electricore.core.loaders import f15_detail
 
 # Version du contrat exposée dans les en-têtes. Bump sur rupture (une évolution
@@ -77,21 +76,6 @@ def prestations(rsc: list[str] | None = None) -> pl.DataFrame:
     df = lf.select(COLONNES_CONTRAT).collect()
     # Dates F15 = jours civils : ISO déterministe pour le payload ET l'assiette du hash.
     df = df.with_columns(pl.col("date_debut", "date_fin", "date_facture").cast(pl.Utf8))
-    return _ajouter_reference(df)
-
-
-def _ajouter_reference(df: pl.DataFrame) -> pl.DataFrame:
-    """Ajoute `reference` : sha256 (tronqué à 16) du contenu canonique de la ligne.
-
-    Canon construit en **Python pur** (`str()` par champ, séparateur `␟`, nuls
-    rendus `∅`) plutôt que via `pl.concat_str(cast(Utf8))` : sortie déterministe,
-    indépendante du formateur float de Polars (peut varier entre versions —
-    cf. `docs/contrat-prestations.md`). Assiette de 8 colonnes : voir
-    `_COLONNES_REFERENCE`.
-    """
-    colonnes = [df[c].to_list() for c in _COLONNES_REFERENCE]
-    hashes = [
-        hashlib.sha256("␟".join("∅" if v is None else str(v) for v in ligne).encode()).hexdigest()[:16]
-        for ligne in zip(*colonnes, strict=True)
-    ]
-    return df.with_columns(pl.Series("reference", hashes, dtype=pl.Utf8))
+    # `reference` : kernel commun (#625, `api/serializers/hash.py`) sur l'assiette de
+    # 8 colonnes — le `cast(Utf8)` ci-dessus sert le payload JSON, pas le hash.
+    return df.with_columns(empreinte_contenu(df, list(_COLONNES_REFERENCE)).alias("reference"))
