@@ -9,6 +9,24 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.7.0rc2] - 2026-07-11
+
+Release candidate : **empreinte de contenu** — kernel unique de hash canonique,
+embarqué avant toute utilisation prod du canon `reference` des prestations.
+
+### ♻️ Modifié
+
+- **`empreinte_contenu`** (#625) : kernel Python pur de hash de contenu canonique,
+  remplace `_ajouter_source_hash` (meta_periodes_service) et `_ajouter_reference`
+  (prestations_service). Corrige le bug de canonisation des flottants
+  (`cast(Utf8)` Polars) : les valeurs de `source_hash` et `reference` changent
+  par rapport à la rc1 — aucune n'a encore été consommée en prod.
+
+### 📝 Documentation
+
+- ADR-0056 : secrets dev via Proton Pass par espace.
+- Glossaire core : « Empreinte de contenu » (#625).
+
 ## [3.7.0rc1] - 2026-07-09
 
 Release candidate : **endpoint prestations** pour souscriptions_odoo, `famille_cadrans`
