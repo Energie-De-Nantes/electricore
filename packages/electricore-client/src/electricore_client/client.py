@@ -32,6 +32,11 @@ from .models.rsc import (
     ResolutionRscRequest,
     ResultatResolutionRsc,
 )
+from .models.sorties import (
+    CONTRAT_VERSION_SORTIES,
+    LigneSortie,
+    SortiesRequest,
+)
 from .models.turpe_variable import (
     CONTRAT_VERSION_TURPE_VARIABLE,
     LigneTurpeVariable,
@@ -293,3 +298,36 @@ class ElectricoreClient(_BaseClient):
             self._verifier_version(attendue=CONTRAT_VERSION_PROVISION, servie=int(version_servie))
 
         return RapportProvision.model_validate(response.json())
+
+    def sorties(self, rsc: list[str]) -> list[LigneSortie]:
+        """Sorties du périmètre pour un lot de RSC — **POST RPC** (pas un stream).
+
+        Fin de souscription gouvernée par le fait C15 (souscriptions_odoo#21, ADR 0031
+        côté addon) : une RSC encore présente ou inconnue **n'apparaît simplement pas**
+        dans la réponse — pas d'erreur, c'est le cas nominal « pas sortie ». Le filtre
+        RSC est à la requête : la liste vient de l'appelant (l'autorité du « à nous »
+        est la souscription Odoo). `date_sortie` est un jour civil demi-ouvert
+        (ADR-0042/0052) : la RSC est absente du périmètre dès ce jour — la conversion
+        en « dernier jour servi » appartient à l'appelant.
+
+        Args:
+            rsc: lot de `ref_situation_contractuelle` à interroger.
+
+        Returns:
+            Une `LigneSortie` par RSC **sortie** — sous-ensemble du lot envoyé, jamais
+            plus, jamais dans un ordre garanti par rapport à l'entrée.
+        """
+        requete = SortiesRequest(rsc=list(rsc))
+        response = self._http.post(
+            f"{self.url}/perimetre/sorties",
+            content=requete.model_dump_json(),
+            headers={**self._headers, "Content-Type": "application/json"},
+        )
+        self._raise_for_status(response)
+
+        version_servie = response.headers.get("X-Contract-Version")
+        if version_servie is not None:
+            self._verifier_version(attendue=CONTRAT_VERSION_SORTIES, servie=int(version_servie))
+
+        corps = response.json()
+        return [LigneSortie.model_validate(r) for r in corps["sorties"]]
