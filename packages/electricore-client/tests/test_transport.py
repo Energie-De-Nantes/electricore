@@ -8,7 +8,10 @@ retard). Tout est testé via `httpx.MockTransport` (aucun serveur réel).
 Contrat X-Error-Kind (3 familles, #424) :
 1. 503 + X-Error-Kind: ingestion-lock → IngestionEnCours (verrou, réessayable).
 2. 503 sans header               → httpx.HTTPStatusError (erreur générique).
-3. 422 + X-Error-Kind: precondition → PreconditionNonRemplie (actionnable).
+3. X-Error-Kind: precondition (422 ou 503) → PreconditionNonRemplie (actionnable).
+   Le mapping est **header-first, pas code-first** (#630) : une précondition métier
+   peut être portée par un 422 (RSC non réconcilié) ou un 503 (flux R67 absent) — c'est
+   `X-Error-Kind` qui discrimine, jamais le code HTTP seul.
 """
 
 import json
@@ -74,6 +77,25 @@ def test_raise_for_status_mappe_422_precondition_sur_precondition_non_remplie():
     client = _client(handler)
     response = client._http.get("http://testserver/x")
     with pytest.raises(PreconditionNonRemplie, match="RSC"):
+        client._raise_for_status(response)
+
+
+def test_raise_for_status_mappe_503_precondition_sur_precondition_non_remplie():
+    """503 + X-Error-Kind: precondition → PreconditionNonRemplie aussi (#630) : le mapping
+    suit le header, pas le code — precondition n'est plus 422-only (flux R67 absent,
+    ADR-0048/#487, remonte en 503)."""
+    detail_serveur = "Données R67 indisponibles : ... Déclencher une demande M023 ..."
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            503,
+            headers={"X-Error-Kind": "precondition", "Content-Type": "application/json"},
+            content=json.dumps({"detail": detail_serveur}).encode(),
+        )
+
+    client = _client(handler)
+    response = client._http.get("http://testserver/x")
+    with pytest.raises(PreconditionNonRemplie, match="M023"):
         client._raise_for_status(response)
 
 
