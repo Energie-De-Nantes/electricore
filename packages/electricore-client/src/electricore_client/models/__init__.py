@@ -27,6 +27,11 @@ from .rsc import (
     ResolutionRscRequest,
     ResultatResolutionRsc,
 )
+from .sorties import (
+    CONTRAT_VERSION_SORTIES,
+    LigneSortie,
+    SortiesRequest,
+)
 from .turpe_variable import (
     CONTRAT_VERSION_TURPE_VARIABLE,
     LigneTurpeVariable,
@@ -56,4 +61,7 @@ __all__ = [
     "EstimationProvision",
     "RapportProvision",
     "CONTRAT_VERSION_PROVISION",
+    "SortiesRequest",
+    "LigneSortie",
+    "CONTRAT_VERSION_SORTIES",
 ]
