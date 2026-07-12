@@ -47,6 +47,7 @@ API__TROUSSEAU__bot__KEY=une-autre-cle-pour-le-bot
 - `POST /facturation/turpe-variable` - Calculateur TURPE variable (RPC typé)
 - `GET /facturation/rapport.xlsx` · `/documents.xlsx` · `/check/odoo` - Rapports & contrôles pré-facturation — *requiert Odoo*
 - `GET /perimetre/affaires` - Cockpit des affaires SGE ouvertes (X12/X13)
+- `POST /perimetre/sorties` - Sorties du périmètre par lot de RSC (RPC typé, ADR-0052)
 - `GET /admin/api-keys` - Configuration des clés API
 
 Pour la liste exhaustive et à jour (schémas, paramètres, exemples) : `/docs`.
@@ -115,10 +116,10 @@ electricore/api/
 ├── security.py      # Système d'authentification
 ├── models.py        # Modèles Pydantic
 ├── decorators.py    # Décorateurs transverses (gestion d'erreurs)
-├── routers/         # Un router par domaine (13, issue #82) :
+├── routers/         # Un router par domaine (14, issue #82) :
 │                    #   admin, affaires, chronologie, facturation, flux, ingestion,
-│                    #   meta_periodes, prestations, provision, releves, rsc, taxes,
-│                    #   turpe_variable — liste vivante : electricore/api/routers/
+│                    #   meta_periodes, prestations, provision, releves, rsc, sorties,
+│                    #   taxes, turpe_variable — liste vivante : electricore/api/routers/
 ├── serializers/     # Sérialisation des réponses (Arrow, XLSX)
 ├── services/        # Services métier : duckdb, ingestion, taxes, facturation, check_facturation
 └── README.md        # Cette documentation
