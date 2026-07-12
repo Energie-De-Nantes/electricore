@@ -25,6 +25,7 @@ from .models import (
     LigneEvenement,
     LignePeriodeEnergie,
     LigneReleve,
+    LigneSortie,
     LigneTurpeVariable,
     ObjetReleve,
     PeriodeMeta,
@@ -32,6 +33,7 @@ from .models import (
     ResolutionRscRequest,
     ResultatResolutionRsc,
     ResultatTurpeVariable,
+    SortiesRequest,
     TurpeVariableRequest,
 )
 from .streaming import JsonlStream
@@ -59,5 +61,7 @@ __all__ = [
     "ResultatResolutionRsc",
     "EstimationProvision",
     "RapportProvision",
+    "SortiesRequest",
+    "LigneSortie",
     "__version__",
 ]
