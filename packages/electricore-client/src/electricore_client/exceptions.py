@@ -6,8 +6,9 @@ Toutes dérivent d'`ElectricoreClientError` pour qu'un appelant puisse attraper
 Contrat X-Error-Kind (#424) — les erreurs sont discriminées par l'en-tête de
 réponse `X-Error-Kind`, pas par le code HTTP seul :
 - `ingestion-lock` (503) → `IngestionEnCours` : verrou writer, réessayable.
-- `precondition`  (422) → `PreconditionNonRemplie` : précondition métier non
-  remplie, l'appelant doit agir (pas retryable).
+- `precondition` (422 **ou** 503, #630) → `PreconditionNonRemplie` : précondition
+  métier non remplie, l'appelant doit agir (pas retryable). Le code HTTP varie
+  selon l'endpoint — c'est le *kind* qui discrimine, pas le code.
 - header absent → `httpx.HTTPStatusError` : erreur inattendue.
 """
 
@@ -28,8 +29,8 @@ class IngestionEnCours(ElectricoreClientError):
 
 
 class PreconditionNonRemplie(ElectricoreClientError):
-    """L'API a répondu 422 + X-Error-Kind: precondition : une précondition métier
-    n'est pas remplie (#424).
+    """L'API a répondu X-Error-Kind: precondition (422 ou 503 selon l'endpoint, #630) :
+    une précondition métier n'est pas remplie (#424).
 
     Non retryable — l'appelant doit corriger la situation côté Odoo/données avant
     de réessayer (ex. : réconcilier les RSC avant de facturer le mois).

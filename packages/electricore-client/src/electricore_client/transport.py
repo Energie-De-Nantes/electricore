@@ -7,7 +7,9 @@ d'erreur HTTP et la garde de version de contrat.
 Contrat X-Error-Kind (#424) — `_raise_for_status` discrimine les erreurs via
 l'en-tête `X-Error-Kind` de la réponse, pas le code HTTP seul :
 - `ingestion-lock` (503) → `IngestionEnCours` : verrou writer DuckDB, réessayable.
-- `precondition`  (422) → `PreconditionNonRemplie` : précondition métier, actionnable.
+- `precondition` (422 **ou** 503, #630) → `PreconditionNonRemplie` : précondition
+  métier, actionnable. Le code HTTP varie selon l'endpoint (ex. 422 RSC non
+  réconcilié, 503 flux R67 absent) — c'est le *kind* qui discrimine, pas le code.
 - header absent → `httpx.HTTPStatusError` (raise_for_status standard).
 
 Les méthodes d'endpoint (méta-périodes, chronologie, turpe variable, Arrow)
@@ -64,7 +66,8 @@ class _BaseClient:
 
         Priorité à l'en-tête `X-Error-Kind` pour discriminer les cas :
         - `ingestion-lock` → `IngestionEnCours` (503 verrou writer, réessayable).
-        - `precondition`   → `PreconditionNonRemplie` (422, action requise côté Odoo).
+        - `precondition`   → `PreconditionNonRemplie` (422 ou 503 selon l'endpoint,
+          #630 ; action requise côté Odoo).
         - absent           → `httpx.HTTPStatusError` (raise_for_status standard).
         """
         kind = response.headers.get("X-Error-Kind")
