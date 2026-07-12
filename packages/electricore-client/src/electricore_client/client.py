@@ -23,6 +23,10 @@ from .models.prestations import (
     CONTRAT_VERSION_PRESTATIONS,
     PrestationF15,
 )
+from .models.provision import (
+    CONTRAT_VERSION_PROVISION,
+    RapportProvision,
+)
 from .models.rsc import (
     CONTRAT_VERSION_RSC,
     ResolutionRscRequest,
@@ -257,3 +261,35 @@ class ElectricoreClient(_BaseClient):
 
         corps = response.json()
         return [ResultatResolutionRsc.model_validate(r) for r in corps["results"]]
+
+    def provision_estimation(self, pdl: str) -> RapportProvision:
+        """Estime la provision d'énergie d'un lissé depuis R67 — **GET RPC** (#487/#630).
+
+        Petite lecture stateless, un round-trip : le serveur dérive l'estimation
+        **cœur-pure** depuis `flux_r67` (cold-start, ADR-0048), en kWh (annuel par
+        cadran + provision mensuelle `/12` plate) + couverture / profondeur / qualité
+        / signal alertable. `trouve == False` (estimation `None`) si le PDL n'a aucune
+        période R67 dans la fenêtre de 12 mois. **Zéro €** (ADR-0016/0027).
+
+        Si `flux_r67` n'est pas (encore) matérialisé, le serveur répond 503 avec
+        `X-Error-Kind: precondition` — `_raise_for_status` lève `PreconditionNonRemplie`
+        (message actionnable : déclencher une demande M023 sur le portail SGE).
+
+        Args:
+            pdl: point de livraison à estimer.
+
+        Returns:
+            `RapportProvision` : `{pdl, as_of, trouve, estimation}`.
+        """
+        response = self._http.get(
+            f"{self.url}/provision/estimation",
+            params={"pdl": pdl},
+            headers=self._headers,
+        )
+        self._raise_for_status(response)
+
+        version_servie = response.headers.get("X-Contract-Version")
+        if version_servie is not None:
+            self._verifier_version(attendue=CONTRAT_VERSION_PROVISION, servie=int(version_servie))
+
+        return RapportProvision.model_validate(response.json())

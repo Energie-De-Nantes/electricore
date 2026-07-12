@@ -20,6 +20,7 @@ from .exceptions import (
 )
 from .headers import EnTetesMeta
 from .models import (
+    EstimationProvision,
     LigneChronologie,
     LigneEvenement,
     LignePeriodeEnergie,
@@ -27,6 +28,7 @@ from .models import (
     LigneTurpeVariable,
     ObjetReleve,
     PeriodeMeta,
+    RapportProvision,
     ResolutionRscRequest,
     ResultatResolutionRsc,
     ResultatTurpeVariable,
@@ -55,5 +57,7 @@ __all__ = [
     "ResultatTurpeVariable",
     "ResolutionRscRequest",
     "ResultatResolutionRsc",
+    "EstimationProvision",
+    "RapportProvision",
     "__version__",
 ]

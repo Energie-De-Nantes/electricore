@@ -17,6 +17,11 @@ from .chronologie import (
 )
 from .meta_periodes import CONTRAT_VERSION_META_PERIODES, ObjetReleve, PeriodeMeta
 from .prestations import CONTRAT_VERSION_PRESTATIONS, PrestationF15
+from .provision import (
+    CONTRAT_VERSION_PROVISION,
+    EstimationProvision,
+    RapportProvision,
+)
 from .rsc import (
     CONTRAT_VERSION_RSC,
     ResolutionRscRequest,
@@ -48,4 +53,7 @@ __all__ = [
     "CONTRAT_VERSION_RSC",
     "PrestationF15",
     "CONTRAT_VERSION_PRESTATIONS",
+    "EstimationProvision",
+    "RapportProvision",
+    "CONTRAT_VERSION_PROVISION",
 ]
