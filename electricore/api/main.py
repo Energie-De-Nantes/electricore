@@ -23,6 +23,7 @@ from electricore.api.routers import prestations as prestations_router
 from electricore.api.routers import provision as provision_router
 from electricore.api.routers import releves as releves_router
 from electricore.api.routers import rsc as rsc_router
+from electricore.api.routers import sorties as sorties_router
 from electricore.api.routers import taxes as taxes_router
 from electricore.api.routers import turpe_variable as turpe_variable_router
 from electricore.api.serializers.jsonl import lever_defs_itemschema_jsonl
@@ -165,6 +166,7 @@ app.include_router(chronologie_router.router)
 app.include_router(turpe_variable_router.router)
 app.include_router(affaires_router.router)
 app.include_router(rsc_router.router)
+app.include_router(sorties_router.router)
 app.include_router(provision_router.router)
 
 
