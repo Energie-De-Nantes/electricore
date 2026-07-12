@@ -65,6 +65,10 @@ async def get_estimation_provision(
             "Données R67 indisponibles : le flux flux_r67 n'est pas matérialisé (aucune "
             "mesure facturante M023 ingérée). Déclencher une demande M023 sur le portail "
             "SGE, l'ingérer, puis réessayer.",
+            # Précondition métier actionnable (#630, X-Error-Kind #424) : le client public
+            # la mappe en PreconditionNonRemplie. Code HTTP inchangé (503, pas 422) — le bot
+            # (lecture brute du status) n'est pas affecté.
+            headers={"X-Error-Kind": "precondition"},
         ) from e
     except FileNotFoundError as e:
         logger.warning("provision/estimation: base DuckDB absente — %s", e)
