@@ -90,6 +90,9 @@ def test_flux_r67_absent_renvoie_503_actionnable(client, monkeypatch):
     assert response.status_code == 503
     detail = response.json()["detail"]
     assert "flux_r67" in detail and "M023" in detail  # message qui dit quoi faire
+    # #630 : précondition actionnable typée — le client public la mappe en
+    # PreconditionNonRemplie (X-Error-Kind, pas le code HTTP qui reste 503).
+    assert response.headers["X-Error-Kind"] == "precondition"
 
 
 def test_erreur_inattendue_renvoie_503_pas_500(client, monkeypatch):
@@ -102,6 +105,9 @@ def test_erreur_inattendue_renvoie_503_pas_500(client, monkeypatch):
     monkeypatch.setattr("electricore.api.routers.provision._estimer", _boom)
     response = client.get("/provision/estimation", params={"pdl": "12345678901234"})
     assert response.status_code == 503
+    # #630 : ce 503 générique (erreur inattendue) reste NU — pas de X-Error-Kind, à
+    # la différence du flux_r67 absent (précondition actionnable).
+    assert "X-Error-Kind" not in response.headers
 
 
 def _rapport_4_cadrans(pdl: str) -> RapportProvision:
