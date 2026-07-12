@@ -104,7 +104,7 @@ do:
 git fetch origin main
 git tag client-v{version} origin/main   # {version} = celle du pyproject mergé, ex. 0.4.0 (pré-releases PEP 440 : a1/b1/rc1/.devN)
 git push origin client-v{version}       # hors sandbox ; le tag déclenche .github/workflows/release-client.yml
-gh run view --workflow release-client.yml
+gh run list --workflow release-client.yml --limit 1
 ```
 look: le run "Release electricore-client" et https://pypi.org/project/electricore-client/
 expect: job vert (build uv → vérif artefacts vs tag → Trusted Publishing OIDC, aucun token PyPI) ; la version apparaît sur PyPI, puis souscriptions_odoo peut bumper son pin
