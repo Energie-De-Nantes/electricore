@@ -4,6 +4,21 @@ Toutes les évolutions notables de ce paquet sont consignées ici.
 Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/) ;
 le versionnage suit [SemVer](https://semver.org/lang/fr/).
 
+## [0.5.0] — 2026-07-12
+
+### Ajouté
+- Méthode `provision_estimation(pdl)` : GET RPC typé `/provision/estimation`,
+  estimation de provision d'un lissé dérivée de R67 (cold-start, ADR-0048,
+  #630). `RapportProvision` en kWh, zéro € ; `flux_r67` absent → 503
+  `precondition` → `PreconditionNonRemplie`.
+- Méthode `sorties(rsc=...)` : POST `/perimetre/sorties`, fin de souscription
+  gouvernée par le fait C15 (souscriptions_odoo#21, ADR 0031 côté addon,
+  #632). Renvoie une `LigneSortie` (code `RES`/`CFNS`, `date_sortie` jour
+  civil demi-ouvert ADR-0042/0052) pour chaque RSC **sortie** du lot demandé
+  — une RSC encore présente ou inconnue n'apparaît simplement pas (pas
+  d'erreur, cas nominal). Modèles `SortiesRequest` / `LigneSortie`
+  single-sourcés.
+
 ## [0.3.0] — 2026-07-08
 
 ### Ajouté

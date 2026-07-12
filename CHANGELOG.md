@@ -9,6 +9,13 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+### ✨ Ajouté
+
+- **`POST /perimetre/sorties`** (#632) : sorties du périmètre par lot de RSC
+  (événement C15 `RES`/`CFNS`), filtre à la requête (l'autorité du « à
+  nous » est la souscription Odoo). Consommé par le client
+  `electricore-client` 0.5.0 (`sorties(rsc=...)`).
+
 ## [3.7.0rc2] - 2026-07-11
 
 Release candidate : **empreinte de contenu** — kernel unique de hash canonique,
