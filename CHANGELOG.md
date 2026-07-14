@@ -9,12 +9,24 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.7.0rc3] - 2026-07-14
+
+Release candidate : **fin de souscription Odoo** — l'endpoint sorties C15 arrive
+côté moteur, consommable par `electricore-client` 0.5.0 (en ligne sur PyPI).
+
 ### ✨ Ajouté
 
 - **`POST /perimetre/sorties`** (#632) : sorties du périmètre par lot de RSC
   (événement C15 `RES`/`CFNS`), filtre à la requête (l'autorité du « à
   nous » est la souscription Odoo). Consommé par le client
   `electricore-client` 0.5.0 (`sorties(rsc=...)`).
+
+### ♻️ Modifié
+
+- **`GET /provision/estimation`** (#630) : le 503 « `flux_r67` non matérialisé »
+  est tagué `X-Error-Kind: precondition` (code HTTP inchangé) → le client typé
+  le mappe en `PreconditionNonRemplie` au lieu d'un `HTTPStatusError`
+  inattrapable. Nouvelle méthode client `provision_estimation(pdl)` (0.5.0).
 
 ## [3.7.0rc2] - 2026-07-11
 
