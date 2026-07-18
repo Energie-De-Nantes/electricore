@@ -1,0 +1,58 @@
+# Relais de flux Enedis déchiffrés → SFTP partenaire (#637)
+
+Unité de déploiement **séparée** de la stack docker compose de l'ingestion
+([../docker/](../docker/)) : le relais est un outil autonome, pose-et-oublie,
+qui n'importe aucune surface mouvante de l'ingestion (runner, curseur, état,
+DuckDB — voir `electricore/ingestion/relais/pipeline.py`). Il tourne via un
+timer systemd dédié, **pas** le service inotify existant de l'ingestion et pas
+`crontab.example` (qui, lui, appelle l'API du stack principal).
+
+## Installation (poste avec accès à la fois à la source déchiffrable et à la cible partenaire)
+
+```bash
+# 1. Environnement Python avec l'extra [ingestion] (dlt, PyCryptodome, fsspec)
+uv sync --extra ingestion   # ou pip install "electricore[ingestion]"
+
+# 2. Config (RELAIS__* + AES__TROUSSEAU__* — même format que l'ingestion, voir CLAUDE.md)
+sudo mkdir -p /etc/electricore-relais
+sudo tee /etc/electricore-relais/relais.env <<'ENV'
+RELAIS__SOURCE_URL=sftp://user:pass@source.example/flux
+RELAIS__PARTNER_URL=sftp://relais@partenaire.example/in
+RELAIS__DESTINATION_DB=/opt/electricore-relais/relais.duckdb
+RELAIS__FLUX=C15,R151,R15,F12,F15   # phase 1 : liste explicite, vide = tous
+RELAIS__DEPUIS=2026-06-01           # phase 1 : flux postérieurs à cette date
+AES__TROUSSEAU__aes256_2026__KEY=...
+ENV
+sudo chmod 600 /etc/electricore-relais/relais.env
+
+# 3. Auth SFTP partenaire : clé SSH ed25519 DÉDIÉE (jamais de mot de passe en dur),
+#    générée pour ce seul usage — pas de réutilisation d'une clé d'ingestion existante.
+
+# 4. Units
+sudo cp electricore-relais.service electricore-relais.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now electricore-relais.timer
+```
+
+## Vérifier
+
+```bash
+systemctl status electricore-relais.timer
+journalctl -u electricore-relais.service -f
+```
+
+## Complétude
+
+Requête ad hoc (zips reçus jamais relayés) :
+
+```python
+from electricore.ingestion.relais.pipeline import zips_non_relayes
+zips_non_relayes("sftp://user:pass@source.example/flux", "/opt/electricore-relais/relais.duckdb")
+```
+
+## Pourquoi systemd et pas docker compose / crontab.example
+
+`crontab.example` (voir [../docker/](../docker/)) appelle l'API du stack principal — il
+suppose l'ingestion et sa DuckDB. Le relais n'a ni l'un ni l'autre comme dépendance
+(design #637) : un timer systemd autonome garde cette indépendance visible au niveau
+déploiement, pas seulement au niveau code.

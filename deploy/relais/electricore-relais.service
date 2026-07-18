@@ -1,0 +1,19 @@
+[Unit]
+Description=Relais de flux Enedis déchiffrés vers SFTP partenaire (#637)
+# Outil autonome, indépendant de la stack docker compose de l'ingestion :
+# un run = un balayage réconciliant complet (incremental:false), déclenché
+# par electricore-relais.timer. Ni inotify, ni le service d'ingestion existant.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Adapter le user/chemins au poste d'installation (voir README.md de ce dossier).
+User=electricore-relais
+WorkingDirectory=/opt/electricore-relais
+EnvironmentFile=/etc/electricore-relais/relais.env
+ExecStart=/usr/bin/env python -m electricore.ingestion.relais
+# Un run qui échoue (config manquante, pipeline en erreur) ressort en erreur non-zéro ;
+# les échecs par-zip (push injoignable, clé AES incorrecte…) sont, eux, avalés en
+# interne (direction d'échec sûre, cf. electricore/ingestion/relais/pipeline.py) —
+# ils NE font PAS échouer le service, le zip est simplement retenté au run suivant.
