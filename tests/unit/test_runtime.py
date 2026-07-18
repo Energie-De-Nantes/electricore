@@ -368,6 +368,39 @@ class TestDomaineBot:
         assert bot.notify_chat_id == ""
 
 
+class TestDomaineRelais:
+    """Relais de flux Enedis déchiffrés vers SFTP partenaire (#637) — domaine dédié."""
+
+    def test_urls_lues_depuis_l_env(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("RELAIS__SOURCE_URL", "file:///var/enedis/")
+        monkeypatch.setenv("RELAIS__PARTNER_URL", "sftp://user:pass@partenaire.example/in")
+        r = runtime.relais()
+        assert r.source_url == "file:///var/enedis/"
+        assert r.partner_url == "sftp://user:pass@partenaire.example/in"
+
+    def test_schema_invalide_rejete(self, monkeypatch):
+        monkeypatch.setenv("RELAIS__SOURCE_URL", "not-a-url")
+        monkeypatch.setenv("RELAIS__PARTNER_URL", "file:///tmp/out")
+        with pytest.raises(runtime.ConfigurationManquante) as exc:
+            runtime.relais()
+        assert "RELAIS__SOURCE_URL" in str(exc.value)
+
+    def test_destination_db_par_defaut_absolue(self, monkeypatch):
+        monkeypatch.setenv("RELAIS__SOURCE_URL", "file:///a")
+        monkeypatch.setenv("RELAIS__PARTNER_URL", "file:///b")
+        assert runtime.relais().destination_db.is_absolute()
+        assert runtime.relais().destination_db.name == "relais.duckdb"
+
+    def test_flux_filtres_vide_par_defaut(self):
+        r = runtime.Relais(source_url="file:///a", partner_url="file:///b")
+        assert r.flux_filtres() is None
+        assert r.depuis == "2026-06-01"
+
+    def test_flux_filtres_parse_csv_majuscule(self):
+        r = runtime.Relais(source_url="file:///a", partner_url="file:///b", flux="c15, r151 ,")
+        assert r.flux_filtres() == {"C15", "R151"}
+
+
 class TestValider:
     """Fail-fast par point d'entrée : une seule erreur listant tout ce qui manque."""
 
