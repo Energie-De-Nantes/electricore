@@ -15,7 +15,7 @@ le push échoue (le bug de classe R67, cf. `ingestion/sources/sftp_enedis.py`).
 — un membership set committé atomiquement par dlt à la fin d'un run réussi. Un
 zip n'y entre **qu'après** un push réussi (`_pousser_et_enregistrer`) : la
 seule direction d'échec possible est le « re-push », jamais le « oubli ». Le
-nom de resource est **épingle explicitement** (`NOM_RESOURCE`, passé à
+nom de resource est **épinglé explicitement** (`NOM_RESOURCE`, passé à
 `resource_state()`) plutôt que laissé à la résolution automatique : dans une
 chaîne pipée (`sftp | filtre | decrypt | push`), chaque étage a sa propre
 identité de pipe tant que dlt ne l'a pas figée — sans épingle, `_filtre_zip`
