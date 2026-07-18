@@ -257,6 +257,40 @@ class Api(BaseSettings):
         return None
 
 
+_DEFAUT_BASE_RELAIS = Path(__file__).parents[1] / "ingestion" / "relais" / "relais.duckdb"
+
+
+class Relais(BaseSettings):
+    """Domaine relais : recopie déchiffrée des flux Enedis vers le SFTP d'un partenaire (#637).
+
+    Outil autonome, pipeline dlt et destination DuckDB DÉDIÉS (distincts de l'ingestion) :
+    `source_url` (bucket local ou SFTP d'origine, déjà chiffré Enedis), `partner_url`
+    (cible du partenaire — fsspec-agnostic, `file://` en test), `destination_db` (journal
+    des livraisons + resource_state). `flux`/`depuis` portent le filtre phase 1 (liste de
+    flux CSV, fenêtre date) — en config, pas dans le code.
+    """
+
+    model_config = SettingsConfigDict(env_prefix="RELAIS__", populate_by_name=True, extra="ignore")
+
+    source_url: str
+    partner_url: str
+    destination_db: Path = _DEFAUT_BASE_RELAIS
+    flux: str = ""  # CSV de codes flux (C15,R151,…) — vide = tous
+    depuis: str = "2026-06-01"  # date ISO, filtre modification_date >= depuis (phase 1)
+
+    @field_validator("source_url", "partner_url")
+    @classmethod
+    def _valider_schema(cls, v: str) -> str:
+        if not _SCHEMAS_SFTP.match(v):
+            raise ValueError(f"schéma non supporté (attendu sftp://, file://, http(s)://) : {v!r}")
+        return v
+
+    def flux_filtres(self) -> set[str] | None:
+        """Codes flux filtrés (majuscules), ou None si le filtre est désactivé (tous les flux)."""
+        valeurs = {f.strip().upper() for f in self.flux.split(",") if f.strip()}
+        return valeurs or None
+
+
 class Bot(BaseSettings):
     """Domaine bot : Telegram uniquement (API_BASE_URL supprimée, ADR-0025)."""
 
@@ -307,7 +341,12 @@ def bot() -> Bot:
     return _instancier("bot", Bot, "")
 
 
-_ACCESSORS = (duckdb, sftp, aes, odoo, api, bot)
+@lru_cache
+def relais() -> Relais:
+    return _instancier("relais", Relais, "RELAIS__")
+
+
+_ACCESSORS = (duckdb, sftp, aes, odoo, api, bot, relais)
 
 
 def valider(*accessors) -> None:
