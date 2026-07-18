@@ -1,0 +1,14 @@
+[Unit]
+Description=Déclenche electricore-relais.service périodiquement (balayage réconciliant, #637)
+
+[Timer]
+# Balayage réconciliant : la continuité tient au RE-LISTING périodique, pas à un
+# événement — un intervalle raisonnable suffit (ajuster au besoin, pas de curseur à
+# perdre : incremental:false relit tout à chaque déclenchement).
+OnBootSec=5min
+OnUnitActiveSec=15min
+Persistent=true
+Unit=electricore-relais.service
+
+[Install]
+WantedBy=timers.target
