@@ -148,6 +148,62 @@ occupant) il est coupé à l'entrée → sans valeur (mur occupant RGPD). La voi
 recevable **aussi** pour les non-communicants, mais le contenu y est grossier (BASE,
 bimestriel, estimé).
 
+### Audit de séquences (complétude des flux)
+
+Le mart `audit_sequences` ([#645](https://github.com/Energie-De-Nantes/electricore/issues/645),
+PRD [#644](https://github.com/Energie-De-Nantes/electricore/issues/644)) répond à une seule
+question : *a-t-on manqué une archive Enedis ?* Le *numéro de séquence* porté par le nom de
+chaque zip est le seul témoin qu'Enedis fournit — glossaire complet (numéro/clé de séquence,
+trou, compteur intra-zip) dans
+[`electricore/ingestion/CONTEXT.md`](https://github.com/Energie-De-Nantes/electricore/blob/main/electricore/ingestion/CONTEXT.md)
+§ Complétude des flux.
+
+**Consultation** — une ligne par anomalie, jamais 0 ligne sur un historique non-vide (la
+queue est toujours signalée) :
+
+```sql
+select * from flux_enedis.audit_sequences order by flux, type_anomalie;
+```
+
+Colonnes : `flux`, `cle_sequence` (nullable), `type_anomalie` (`trou` /
+`queue_inverifiable` / `nom_non_reconnu` / `intra_zip_incomplet`), `seq_ou_plage` (numéro,
+plage `"00003-00005"`, nom de zip, ou décompte `"<zip> (2/3)"`).
+
+**Où vivent les règles.** Toute la nomenclature (regexp par flux, clé de séquence,
+découpage en segments, trous, queue) vit dans **une seule macro**,
+`macros/audit_sequences.sql` — brique commune destinée à être réutilisée telle quelle par
+le relais de flux ([#646](https://github.com/Energie-De-Nantes/electricore/issues/646), import
+dbt package local). Le mart ingestion l'appelle sur l'union des tables brutes du landing, et
+y ajoute son propre volet : le **contrôle intra-zip rétrospectif** (chaque zip atterri a-t-il
+un XML en base pour chaque rang 1..Y de son compteur `_XXXXX_YYYYY` ?) — spécifique à
+l'ingestion (le relais ne dézippe rien en base), donc hors macro.
+
+**Sélection runner.** Comme les marts périodiques (`releves`/`chronologie_releves`),
+`construire_dbt()` n'ajoute `+audit_sequences` que si **toutes** ses tables brutes sources
+(C15, R15, F12, F15, R151, C12, X12/X13) sont présentes — sinon dbt échoue sur une source
+absente (landing partiel, smoke `max_files`).
+
+**Limites à connaître avant d'agir sur une ligne :**
+
+- **R64/R67 hors champ.** Publications ponctuelles (à la demande M023) — leur séquence est
+  toujours figée à `00001`, elles ne portent aucune notion de continuité. Ne pas les
+  chercher dans la vue, ne pas s'étonner de leur absence.
+- **`trou` = « à vérifier », pas certain.** Un trou signale qu'Enedis a annoncé un numéro
+  jamais atterri — mais une re-livraison sous un nom de zip *différent* pour le même
+  contenu (dédoublonnée par le merge dlt sur `file_name`) peut ponctuellement produire un
+  faux positif. Vérifier sur le SFTP / auprès d'Enedis avant d'escalader.
+- **`queue_inverifiable` n'est jamais un feu vert.** Le dernier numéro observé d'une clé
+  n'est jamais requalifié en « sain » — un trou n'est constatable qu'*entre* deux numéros ;
+  le suivant n'est simplement pas encore arrivé.
+- **R17 pas encore couvert.** Aucune table `raw_r17` n'existe côté ingestion — pas de zip
+  réel à caler contre la macro pour l'instant. Le jour où `sources.yml` la déclarera,
+  ajouter sa règle (clé = contrat seul, guide SGE, même forme que C12) au dict `regles`
+  de la macro et l'unioner dans `source_union` du mart.
+- **Data test `warn`, jamais bloquant.** `aucune_anomalie` (0 ligne attendue) tourne en
+  `severity: warn` à chaque `dbt build` — il trace les trous dans la sortie du job sans
+  jamais le faire échouer (l'ingestion reste verte sur une base réelle qui a ses trous
+  historiques connus).
+
 ### Les trois pièges DuckDB (appris sur données réelles, encodés dans les modèles)
 
 1. **Pushdown sous unnest** : un `WHERE` sur un chemin JSON d'un élément unnesté peut être poussé
