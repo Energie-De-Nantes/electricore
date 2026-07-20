@@ -266,8 +266,10 @@ class Relais(BaseSettings):
     Outil autonome, pipeline dlt et destination DuckDB DÉDIÉS (distincts de l'ingestion) :
     `source_url` (bucket local ou SFTP d'origine, déjà chiffré Enedis), `partner_url`
     (cible du partenaire — fsspec-agnostic, `file://` en test), `destination_db` (journal
-    des livraisons + resource_state). `flux`/`depuis` portent le filtre phase 1 (liste de
-    flux CSV, fenêtre date) — en config, pas dans le code.
+    des livraisons + resource_state). `flux` porte le filtre (liste de codes CSV) — en
+    config, pas dans le code. Pas de filtre date permanent (#643) : l'amorçage
+    (`relais seed --avant <date>`) est un acte unique, pas un knob de config — voir
+    `electricore/ingestion/relais/pipeline.py::seed_avant`.
     """
 
     model_config = SettingsConfigDict(env_prefix="RELAIS__", populate_by_name=True, extra="ignore")
@@ -276,7 +278,6 @@ class Relais(BaseSettings):
     partner_url: str
     destination_db: Path = _DEFAUT_BASE_RELAIS
     flux: str = ""  # CSV de codes flux (C15,R151,…) — vide = tous
-    depuis: str = "2026-06-01"  # date ISO, filtre modification_date >= depuis (phase 1)
 
     @field_validator("source_url", "partner_url")
     @classmethod
