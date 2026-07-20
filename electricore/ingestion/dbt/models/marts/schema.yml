@@ -105,3 +105,36 @@ models:
           Référence (clé métier ADR-0028) vers `releves` — la relation par laquelle le payload
           d'index est ré-attaché. NULLABLE : une borne sans relevé apparié (releve_manquant)
           ne référence rien (payload nul).
+
+  - name: audit_sequences
+    description: >
+      Audit de séquences Enedis (#645, PRD #644) — VUE, une ligne par anomalie détectée :
+      trou de séquence, queue invérifiable, nom de zip non reconnu (macro `audit_sequences`,
+      brique commune réutilisée par le relais de flux #646) + intra-zip incomplet (contrôle
+      spécifique ingestion, R151 en inter-zips). Publications ponctuelles R64/R67 hors champ
+      (séquence toujours figée à 00001). Voir docs/ingestion.md pour la requête de
+      consultation et les limites (trous « à vérifier », queue jamais saine).
+    data_tests:
+      - aucune_anomalie:
+          config:
+            severity: warn
+    columns:
+      - name: flux
+        description: Code flux Enedis de l'anomalie (C15, R15, F15, F12, R151, C12, X12, X13).
+        data_tests: [not_null]
+      - name: cle_sequence
+        description: >
+          Clé de séquence (préfixée du flux) — NULLABLE : absente pour `nom_non_reconnu`
+          (le nom n'a pas pu être décomposé) et `intra_zip_incomplet` (anomalie par zip, pas
+          par clé de séquence).
+      - name: type_anomalie
+        description: Classification — trou / queue_inverifiable / nom_non_reconnu / intra_zip_incomplet.
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ["trou", "queue_inverifiable", "nom_non_reconnu", "intra_zip_incomplet"]
+      - name: seq_ou_plage
+        description: >
+          Numéro(s) ou zip concerné(s) — un numéro seul ("00003"), une plage ("00003-00005"),
+          un nom de zip non reconnu, ou un décompte intra-zip ("<zip> (2/3)").
+        data_tests: [not_null]
