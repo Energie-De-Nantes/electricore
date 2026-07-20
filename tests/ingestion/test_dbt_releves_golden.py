@@ -51,6 +51,7 @@ def base_periodiques(tmp_path, monkeypatch):
                 "file_name": "r151.xml",
                 "modification_date": "2026-01-01T00:00:00",
                 "content": xml_vers_dict((FIXTURES / "r151.xml").read_bytes()),
+                "_source_zip": ("ERDF_R151_17X000001117366M_GRD-F139_108529521_00001_Q_00001_00001_20260608030716.zip"),
             }
         ],
     )
@@ -73,9 +74,53 @@ def base_periodiques(tmp_path, monkeypatch):
                 "file_name": "c15_avec_releves.xml",
                 "modification_date": "2026-01-01T00:00:00",
                 "content": xml_vers_dict((FIXTURES / "c15_avec_releves.xml").read_bytes()),
+                "_source_zip": "17X100A100A0001A_C15_17X000001117366M_GRD-F139_0327_00011_20240530050823.zip",
             }
         ],
     )
+    # Le reste des flux (R15/F12/F15/C12/X12) n'apporte rien à `releves`/`spine_contrat` —
+    # landé uniquement pour que `audit_sequences` (#645) ait toutes ses sources et entre
+    # dans le périmètre de la garde anti-dérive `test_construire_dbt_materialise_tous_les_marts`
+    # ci-dessous (sinon ce mart, comme tout mart aux sources partielles, resterait absent).
+    for raw, fixture, zip_name in [
+        (
+            "raw_r15",
+            "r15.xml",
+            "17X100A100A0001A_R15_17X000001117366M_GRD-F139_0321_00001_20140923034411.zip",
+        ),
+        (
+            "raw_f12",
+            "f12.xml",
+            "ENEDIS_F12_17X000001117366M_GRD-F139_0322_00001_D_30_20240601183412.zip",
+        ),
+        (
+            "raw_f15",
+            "f15.xml",
+            "17X100A100A0001A_F15_17X000001117366M_GRD-F139_0321_C_M_1_P_00001_20140923034411.zip",
+        ),
+        (
+            "raw_c12",
+            "c12_xsd.xml",
+            "ENEDIS_C12_17X000001117366M_GRD-F139_00001_20240401091056.zip",
+        ),
+        (
+            "raw_affaires",
+            "affaires_X12.xml",
+            "ENEDIS_X12_17X000001117366M_00001_20240401091056.zip",
+        ),
+    ]:
+        lander_documents_bruts(
+            pipeline,
+            raw,
+            [
+                {
+                    "file_name": fixture,
+                    "modification_date": "2026-01-01T00:00:00",
+                    "content": xml_vers_dict((FIXTURES / fixture).read_bytes()),
+                    "_source_zip": zip_name,
+                }
+            ],
+        )
     monkeypatch.setenv("DBT_DUCKDB_PATH", str(db_path))
     return db_path
 
