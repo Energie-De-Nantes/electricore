@@ -5,14 +5,23 @@ Couvre les critères d'acceptation, dans l'ordre tracer-bullet de l'issue :
   2. idempotence : un second run ne re-pousse aucun zip déjà livré ;
   3. direction d'échec sûre : un push qui échoue ne marque PAS le zip comme livré ;
   4. incremental: false : re-liste l'intégralité de la source à chaque run ;
-  5. filtre configurable (flux + fenêtre date), en config ;
+  5. filtre configurable (flux), en config ;
   6. vérification de complétude (zips reçus jamais relayés).
+
+Complété (#643, revue de la PR #638) :
+  7. le push réutilise `etape_chaine` (StatsRelais) — compte succès/échecs, journalise
+     `statut='pousse'` ; `relais_aveugle()` = 0 push réussi et ≥1 échec, un échec isolé
+     noyé dans des succès ne l'est pas ;
+  8. amorçage explicite (`seed_avant`) : marque les zips antérieurs comme livrés sans les
+     pousser, refuse si le journal est déjà peuplé (`force` outrepasse), journalise
+     `statut='amorce'`.
 
 Nécessite l'extra [ingestion] (dlt, PyCryptodome) : uv sync --extra ingestion
 """
 
 import io
 import os
+import sys
 import time
 import zipfile
 from pathlib import Path
@@ -26,7 +35,13 @@ from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
 
 from electricore.config import runtime
-from electricore.ingestion.relais.pipeline import NOM_DATASET, NOM_RESOURCE, executer, zips_non_relayes
+from electricore.ingestion.relais.pipeline import (
+    NOM_DATASET,
+    NOM_RESOURCE,
+    executer,
+    seed_avant,
+    zips_non_relayes,
+)
 
 AES_KEY = bytes.fromhex("0102030405060708090a0b0c0d0e0f10")
 AES_IV = bytes.fromhex("1112131415161718191a1b1c1d1e1f20")
@@ -58,12 +73,11 @@ def _deposer_zip(bucket: Path, nom: str, contenu_interne: bytes, date=(2026, 6, 
     return chemin
 
 
-def _configurer_env(monkeypatch, source: Path, cible: Path, db: Path, *, flux: str = "", depuis: str = "2026-06-01"):
+def _configurer_env(monkeypatch, source: Path, cible: Path, db: Path, *, flux: str = ""):
     monkeypatch.setenv("RELAIS__SOURCE_URL", f"file://{source}/")
     monkeypatch.setenv("RELAIS__PARTNER_URL", f"file://{cible}/")
     monkeypatch.setenv("RELAIS__DESTINATION_DB", str(db))
     monkeypatch.setenv("RELAIS__FLUX", flux)
-    monkeypatch.setenv("RELAIS__DEPUIS", depuis)
     monkeypatch.setenv("AES__TROUSSEAU__test__KEY", AES_KEY.hex())
     monkeypatch.setenv("AES__TROUSSEAU__test__IV", AES_IV.hex())
     runtime.vider_cache()
@@ -87,6 +101,36 @@ def _zips_journalises(db: Path) -> list[str]:
         return []
     finally:
         con.close()
+
+
+def _statuts_journalises(db: Path) -> dict[str, str]:
+    """`{zip: statut}` du journal — `'pousse'` (push réussi) ou `'amorce'` (seed, #643)."""
+    con = duckdb.connect(str(db), read_only=True)
+    try:
+        rows = con.execute(f'select "zip", "statut" from "{NOM_DATASET}"."{NOM_RESOURCE}"').fetchall()
+        return dict(rows)
+    except duckdb.CatalogException:
+        return {}
+    finally:
+        con.close()
+
+
+def _deposer_octets_chiffres_non_zip(bucket: Path, nom: str, date=(2026, 6, 15, 12, 0, 0)) -> Path:
+    """Dépose un fichier déchiffrable (bonne clé AES) mais dont le contenu clair N'EST PAS
+    un ZIP valide — decrypt réussit, `extract_files_from_zip` lève `BadZipFile` : isole
+    l'échec à l'étage push, sans dépendre d'une cible injoignable (#643).
+
+    Le contenu clair commence par le magic bytes ZIP (`PK\\x03\\x04`, oracle de l'étage
+    decrypt, cf. `tests/ingestion/test_escalade_chaine.py`) mais n'a pas d'enregistrement
+    de fin de catalogue → passe decrypt, échoue à l'extraction."""
+    bucket.mkdir(parents=True, exist_ok=True)
+    chemin = bucket / nom
+    clair = b"PK\x03\x04" + b"ceci commence par le magic ZIP mais n'en est pas un" + b"\x00" * 16
+    cipher = AES.new(AES_KEY, AES.MODE_CBC, AES_IV)
+    chemin.write_bytes(cipher.encrypt(pad(clair, AES.block_size)))
+    ts = time.mktime((*date, 0, 0, -1))
+    os.utime(chemin, (ts, ts))
+    return chemin
 
 
 @pytest.mark.integration
@@ -172,21 +216,6 @@ def test_filtre_flux_configure_exclut_les_flux_non_retenus(tmp_path, monkeypatch
 
 
 @pytest.mark.integration
-def test_filtre_date_exclut_les_zips_anterieurs_a_depuis(tmp_path, monkeypatch):
-    """Critère 5 (filtre) : RELAIS__DEPUIS exclut un zip antérieur à la fenêtre configurée."""
-    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
-    _deposer_zip(source, "ENEDIS_C15_20260101_001.zip", b"<data>vieux</data>", date=(2026, 1, 1, 12, 0, 0))
-    _deposer_zip(source, "ENEDIS_C15_20260615_002.zip", b"<data>neuf</data>")
-    _configurer_env(monkeypatch, source, cible, db, depuis="2026-06-01")
-
-    executer(_pipeline(tmp_path, db))
-
-    assert not (cible / "ENEDIS_C15_20260101_001.xml").exists()
-    assert (cible / "ENEDIS_C15_20260615_002.xml").exists()
-    assert _zips_journalises(db) == ["ENEDIS_C15_20260615_002.zip"]
-
-
-@pytest.mark.integration
 def test_completude_liste_les_zips_source_jamais_relayes(tmp_path, monkeypatch):
     """Critère 6 : requête de complétude — zips source absents du journal de destination."""
     source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
@@ -197,3 +226,189 @@ def test_completude_liste_les_zips_source_jamais_relayes(tmp_path, monkeypatch):
 
     manquants = zips_non_relayes(f"file://{source}/", db)
     assert manquants == ["ENEDIS_C15_20260615_001.zip"]
+
+
+# =============================================================================
+# Critère 7 (#643) : push via etape_chaine — StatsRelais, statut journalisé, escalade
+# =============================================================================
+
+
+@pytest.mark.integration
+def test_push_reussi_compte_stats_et_journalise_statut_pousse(tmp_path, monkeypatch):
+    """`_pousser` réutilise `etape_chaine` : un push réussi incrémente `stats.pousses`,
+    journalise `statut='pousse'`."""
+    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
+    _deposer_zip(source, "ENEDIS_C15_20260615_001.zip", b"<data>c15</data>")
+    _configurer_env(monkeypatch, source, cible, db)
+
+    info, stats = executer(_pipeline(tmp_path, db))
+
+    assert (stats.candidats, stats.pousses, stats.echecs_push) == (1, 1, 0)
+    assert stats.relais_aveugle() is False
+    assert _statuts_journalises(db) == {"ENEDIS_C15_20260615_001.zip": "pousse"}
+
+
+@pytest.mark.integration
+def test_run_tous_push_echoues_est_aveugle(tmp_path, monkeypatch):
+    """Critère escalade : des candidats mais 0 push réussi et ≥1 échec → `relais_aveugle()`
+    vrai (un relais qui retenterait pour toujours en silence sinon, le reproche fait à
+    inotify dans #637)."""
+    source = tmp_path / "source"
+    cible_injoignable = Path("/n_existe_pas") / "sous_repertoire_impossible"
+    db = tmp_path / "relais.duckdb"
+    _deposer_zip(source, "ENEDIS_C15_20260615_001.zip", b"<data>c15</data>")
+    _configurer_env(monkeypatch, source, cible_injoignable, db)
+
+    info, stats = executer(_pipeline(tmp_path, db))
+
+    assert (stats.candidats, stats.pousses, stats.echecs_push) == (1, 0, 1)
+    assert stats.relais_aveugle() is True
+
+
+@pytest.mark.integration
+def test_echec_isole_parmi_des_succes_n_est_pas_aveugle(tmp_path, monkeypatch):
+    """Critère escalade : un échec isolé noyé dans des push réussis ne fait PAS échouer
+    le run (`relais_aveugle()` faux) — retenté au run suivant, comme avant #643."""
+    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
+    _deposer_zip(source, "ENEDIS_C15_20260615_001.zip", b"<data>ok</data>")
+    _deposer_octets_chiffres_non_zip(source, "ENEDIS_C15_20260615_002.zip", date=(2026, 6, 15, 13, 0, 0))
+    _configurer_env(monkeypatch, source, cible, db)
+
+    info, stats = executer(_pipeline(tmp_path, db))
+
+    assert (stats.candidats, stats.pousses, stats.echecs_push) == (2, 1, 1)
+    assert stats.relais_aveugle() is False
+
+
+# =============================================================================
+# Critère 8 (#643) : amorçage explicite (`relais seed --avant`)
+# =============================================================================
+
+
+@pytest.mark.integration
+def test_seed_marque_livre_sans_pousser_et_journalise_statut_amorce(tmp_path, monkeypatch):
+    """`seed_avant` marque un zip antérieur comme livré SANS le pousser (rien sur la cible),
+    journalise `statut='amorce'`, et un run normal qui suit ne le pousse pas non plus
+    (même état `zips_livrés` que le push)."""
+    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
+    _deposer_zip(source, "ENEDIS_C15_20260101_001.zip", b"<data>vieux</data>", date=(2026, 1, 1, 12, 0, 0))
+    _configurer_env(monkeypatch, source, cible, db)
+
+    seed_avant("2026-06-01", pipeline=_pipeline(tmp_path, db))
+
+    assert not (cible / "ENEDIS_C15_20260101_001.xml").exists()
+    assert _statuts_journalises(db) == {"ENEDIS_C15_20260101_001.zip": "amorce"}
+
+    executer(_pipeline(tmp_path, db))  # run normal : ne repousse pas le zip amorcé
+
+    assert not (cible / "ENEDIS_C15_20260101_001.xml").exists()
+    assert _statuts_journalises(db) == {"ENEDIS_C15_20260101_001.zip": "amorce"}
+
+
+@pytest.mark.integration
+def test_seed_n_amorce_pas_les_zips_posterieurs_a_avant(tmp_path, monkeypatch):
+    """Seuls les zips strictement antérieurs à `--avant` sont amorcés — les nouveaux zips
+    restent candidats à un push normal."""
+    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
+    _deposer_zip(source, "ENEDIS_C15_20260101_001.zip", b"<data>vieux</data>", date=(2026, 1, 1, 12, 0, 0))
+    _deposer_zip(source, "ENEDIS_C15_20260615_002.zip", b"<data>neuf</data>")
+    _configurer_env(monkeypatch, source, cible, db)
+
+    seed_avant("2026-06-01", pipeline=_pipeline(tmp_path, db))
+    executer(_pipeline(tmp_path, db))
+
+    assert not (cible / "ENEDIS_C15_20260101_001.xml").exists()
+    assert (cible / "ENEDIS_C15_20260615_002.xml").exists()
+    assert _statuts_journalises(db) == {
+        "ENEDIS_C15_20260101_001.zip": "amorce",
+        "ENEDIS_C15_20260615_002.zip": "pousse",
+    }
+
+
+@pytest.mark.integration
+def test_seed_refuse_si_journal_deja_peuple(tmp_path, monkeypatch):
+    """Garde-fou (#643) : le seed refuse si le journal contient déjà des livraisons —
+    lancé par erreur après la mise en service, il enterrerait silencieusement tout ce
+    qui restait à relayer."""
+    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
+    _deposer_zip(source, "ENEDIS_C15_20260615_001.zip", b"<data>deja livre</data>")
+    _configurer_env(monkeypatch, source, cible, db)
+    executer(_pipeline(tmp_path, db))  # peuple le journal (statut='pousse')
+
+    with pytest.raises(RuntimeError, match="Amorçage refusé"):
+        seed_avant("2026-06-01", pipeline=_pipeline(tmp_path, db))
+
+
+@pytest.mark.integration
+def test_seed_force_outrepasse_le_refus(tmp_path, monkeypatch):
+    """`force=True` outrepasse le refus — l'opérateur qui sait ce qu'il fait."""
+    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
+    _deposer_zip(source, "ENEDIS_C15_20260615_001.zip", b"<data>deja livre</data>")
+    _deposer_zip(source, "ENEDIS_C15_20260101_002.zip", b"<data>vieux</data>", date=(2026, 1, 1, 12, 0, 0))
+    _configurer_env(monkeypatch, source, cible, db)
+    executer(_pipeline(tmp_path, db))  # peuple le journal
+
+    seed_avant("2026-06-01", force=True, pipeline=_pipeline(tmp_path, db))  # ne lève pas
+
+    assert _statuts_journalises(db)["ENEDIS_C15_20260101_002.zip"] == "amorce"
+
+
+# =============================================================================
+# CLI (__main__.py, #643) : escalade en sortie de process, sous-commande seed
+# =============================================================================
+
+
+@pytest.mark.integration
+def test_cli_run_aveugle_sort_en_erreur(tmp_path, monkeypatch):
+    """`main()` sort en non-zéro quand `relais_aveugle()` — l'escalade s'arrête au
+    processus (systemd marque l'unité failed), pas de retry silencieux pour toujours."""
+    from electricore.ingestion.relais.__main__ import main
+
+    source = tmp_path / "source"
+    cible_injoignable = Path("/n_existe_pas") / "sous_repertoire_impossible"
+    db = tmp_path / "relais.duckdb"
+    _deposer_zip(source, "ENEDIS_C15_20260615_001.zip", b"<data>c15</data>")
+    _configurer_env(monkeypatch, source, cible_injoignable, db)
+    monkeypatch.setattr(sys, "argv", ["relais"])
+
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code != 0
+
+
+@pytest.mark.integration
+def test_cli_run_normal_reussi_ne_sort_pas_en_erreur(tmp_path, monkeypatch):
+    """Un run normal réussi ne lève pas — `pipelines_dir` épinglé (`destination_db.parent`,
+    #643) isole l'état de test sans pipeline injecté (sinon dlt tomberait sur
+    `~/.dlt/pipelines`, partagé entre tests)."""
+    from electricore.ingestion.relais.__main__ import main
+
+    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
+    _deposer_zip(source, "ENEDIS_C15_20260615_001.zip", b"<data>c15</data>")
+    _configurer_env(monkeypatch, source, cible, db)
+    monkeypatch.setattr(sys, "argv", ["relais"])
+
+    main()  # ne lève pas
+
+    assert (cible / "ENEDIS_C15_20260615_001.xml").exists()
+
+
+@pytest.mark.integration
+def test_cli_seed_marque_livre_et_refuse_sans_force_si_deja_peuple(tmp_path, monkeypatch):
+    """`relais seed --avant <date>` marque les zips antérieurs livrés sans les pousser ;
+    relancé sans `--force` alors que le journal est déjà peuplé → refuse (sortie non-zéro)."""
+    from electricore.ingestion.relais.__main__ import main
+
+    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
+    _deposer_zip(source, "ENEDIS_C15_20260101_001.zip", b"<data>vieux</data>", date=(2026, 1, 1, 12, 0, 0))
+    _configurer_env(monkeypatch, source, cible, db)
+    monkeypatch.setattr(sys, "argv", ["relais", "seed", "--avant", "2026-06-01"])
+
+    main()  # ne lève pas
+
+    assert not (cible / "ENEDIS_C15_20260101_001.xml").exists()
+    assert _statuts_journalises(db) == {"ENEDIS_C15_20260101_001.zip": "amorce"}
+
+    with pytest.raises(SystemExit) as exc:
+        main()  # relancé sans --force : journal déjà peuplé → refuse
+    assert exc.value.code != 0
