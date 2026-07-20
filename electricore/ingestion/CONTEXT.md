@@ -76,6 +76,23 @@ _Éviter_ : recopier la liste ailleurs (toute copie manuelle dérive en silence 
 
 ---
 
+## Complétude des flux
+
+**Numéro de séquence** :
+Compteur sur 5 chiffres (00001 → 99999) porté par le **nom** de chaque archive Enedis, incrémenté de 1 à chaque flux produit — lisible sans déchiffrer. C'est le seul témoin qu'Enedis fournit pour prouver qu'aucune archive n'a été manquée.
+_Éviter_ : confondre avec `Num_Sequence` du contenu C15/C12 (numéro de la situation contractuelle d'un PRM, sans rapport).
+
+**Clé de séquence** :
+Périmètre au sein duquel un *numéro de séquence* est continu — **propre à chaque type de flux** : (contrat, DIR) pour C15/R15, sextuplet contrat×DIR×type_facture×fréquence×type_client pour F15, triplet contrat×DIR pour F12, contrat seul pour C12/R17, destinataire×flux pour X12/X13, abonnement pour R151, demande pour R64. Un contrôle qui ignore la clé produit de faux trous en pagaille (une séquence *par DIR* pour C15/R15).
+
+**Trou de séquence** :
+Numéro absent entre deux numéros observés d'une même *clé de séquence* : l'archive a été émise par Enedis mais n'a jamais atterri (jamais reçue, ou reçue et jamais déchiffrée/traitée — les deux sont des anomalies). Un trou n'est constatable qu'*entre* deux numéros observés : la queue de séquence est invérifiable jusqu'à l'arrivée du numéro suivant. Une séquence peut légitimement **redémarrer** à 00001 (F15 à la bascule Ginko v2) — un redémarrage n'est pas un trou.
+
+**Compteur intra-zip** :
+Paire `XXXXX_YYYYY` dans le nom de chaque XML d'une archive (C15, R15, C12, R17, X12, F12) : « fichier X sur Y » — un dézippage est complet ssi chaque rang de 1 à Y est présent une fois. **R151 fait exception** : son compteur est *inter-zips* (un XML par zip, Y = nombre de zips de la même séquence).
+
+---
+
 ## Déchiffrement
 
 **Trousseau de clés AES** :
