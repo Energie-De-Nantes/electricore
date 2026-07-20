@@ -232,6 +232,21 @@ def construire_dbt(db_path: Path) -> bool:
     # (C15 + R151/R64) ; `+chronologie_releves` tire ses ancêtres (spine, releves, flux_*).
     if periodiques_ok:
         selection.append("+chronologie_releves")
+    # L'audit de séquences (mart, #645/PRD #644) union TOUTES les tables brutes portant
+    # un numéro de séquence nommé (R64/R67 ponctuels exclus, hors champ des règles) : même
+    # motif que les marts périodiques — on ne le construit que si toutes ses sources sont
+    # matérialisables, sinon dbt échoue sur une source absente (smoke/dev partiel).
+    audit_sequences_ok = {
+        "raw_c15",
+        "raw_r15",
+        "raw_f12",
+        "raw_f15",
+        "raw_r151",
+        "raw_c12",
+        "raw_affaires",
+    } <= presentes
+    if audit_sequences_ok:
+        selection.append("+audit_sequences")
     if not selection:
         _out("  aucune table brute landée — rien à construire")
         return False
