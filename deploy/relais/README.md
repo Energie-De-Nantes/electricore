@@ -20,7 +20,6 @@ RELAIS__SOURCE_URL=sftp://user:pass@source.example/flux
 RELAIS__PARTNER_URL=sftp://relais@partenaire.example/in
 RELAIS__DESTINATION_DB=/opt/electricore-relais/relais.duckdb
 RELAIS__FLUX=C15,R151,R15,F12,F15   # phase 1 : liste explicite, vide = tous
-RELAIS__DEPUIS=2026-06-01           # phase 1 : flux postérieurs à cette date
 AES__TROUSSEAU__aes256_2026__KEY=...
 ENV
 sudo chmod 600 /etc/electricore-relais/relais.env
@@ -28,7 +27,13 @@ sudo chmod 600 /etc/electricore-relais/relais.env
 # 3. Auth SFTP partenaire : clé SSH ed25519 DÉDIÉE (jamais de mot de passe en dur),
 #    générée pour ce seul usage — pas de réutilisation d'une clé d'ingestion existante.
 
-# 4. Units
+# 4. Amorçage (#643) : marque l'historique existant comme livré SANS le pousser au
+#    partenaire — acte UNIQUE, à faire une fois avant d'activer le timer (sinon le
+#    premier run pousserait tout l'historique). Refuse s'il y a déjà des livraisons.
+sudo -u electricore-relais env $(cat /etc/electricore-relais/relais.env | xargs) \
+  python -m electricore.ingestion.relais seed --avant 2026-06-01
+
+# 5. Units
 sudo cp electricore-relais.service electricore-relais.timer /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now electricore-relais.timer

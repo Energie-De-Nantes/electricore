@@ -13,7 +13,10 @@ User=electricore-relais
 WorkingDirectory=/opt/electricore-relais
 EnvironmentFile=/etc/electricore-relais/relais.env
 ExecStart=/usr/bin/env python -m electricore.ingestion.relais
-# Un run qui échoue (config manquante, pipeline en erreur) ressort en erreur non-zéro ;
-# les échecs par-zip (push injoignable, clé AES incorrecte…) sont, eux, avalés en
-# interne (direction d'échec sûre, cf. electricore/ingestion/relais/pipeline.py) —
-# ils NE font PAS échouer le service, le zip est simplement retenté au run suivant.
+# Un run qui échoue (config manquante, pipeline en erreur) ressort en erreur non-zéro.
+# Un échec par-zip ISOLÉ (push injoignable, clé AES incorrecte…) est avalé en interne
+# (direction d'échec sûre, cf. electricore/ingestion/relais/pipeline.py) — le zip est
+# simplement retenté au run suivant, le service NE échoue PAS. Mais un run « aveugle »
+# (0 push réussi, ≥1 échec — cible partenaire injoignable, clé refusée, disque plein…)
+# fait échouer le service (#643) : sans ça, un relais cassé retenterait indéfiniment
+# en silence — journalctl -u electricore-relais.service pour le détail.
