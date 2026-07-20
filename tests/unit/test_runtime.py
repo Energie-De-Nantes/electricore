@@ -394,7 +394,12 @@ class TestDomaineRelais:
     def test_flux_filtres_vide_par_defaut(self):
         r = runtime.Relais(source_url="file:///a", partner_url="file:///b")
         assert r.flux_filtres() is None
-        assert r.depuis == "2026-06-01"
+
+    def test_depuis_n_est_plus_un_champ_du_domaine(self):
+        """L'amorçage (#643) remplace le knob permanent `depuis` par un acte unique
+        (`relais seed --avant`) : le domaine runtime ne porte plus ce champ."""
+        r = runtime.Relais(source_url="file:///a", partner_url="file:///b")
+        assert not hasattr(r, "depuis")
 
     def test_flux_filtres_parse_csv_majuscule(self):
         r = runtime.Relais(source_url="file:///a", partner_url="file:///b", flux="c15, r151 ,")
