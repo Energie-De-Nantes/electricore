@@ -93,7 +93,7 @@ Périmètre au sein duquel un *numéro de séquence* est continu — **propre à
 Numéro absent entre deux numéros observés d'une même *clé de séquence* : l'archive a été émise par Enedis mais n'a jamais atterri (jamais reçue, ou reçue et jamais déchiffrée/traitée — les deux sont des anomalies). Un trou n'est constatable qu'*entre* deux numéros observés : la queue de séquence est invérifiable jusqu'à l'arrivée du numéro suivant. Une séquence peut légitimement **redémarrer** à 00001 (F15 à la bascule Ginko v2) — un redémarrage n'est pas un trou.
 
 **Compteur intra-zip** :
-Paire `XXXXX_YYYYY` dans le nom de chaque XML d'une archive (C15, R15, C12, R17, X12, F12) : « fichier X sur Y » — un dézippage est complet ssi chaque rang de 1 à Y est présent une fois. **R151 fait exception** : son compteur est *inter-zips* (un XML par zip, Y = nombre de zips de la même séquence).
+Paire `XXXXX_YYYYY` dans le nom de chaque XML d'une archive (C15, R15, C12, R17, X12, F12) : « fichier X sur Y » — un dézippage est complet ssi chaque rang de 1 à Y est présent une fois, avec un Y identique sur tous les fichiers (des Y distincts = archive malformée). **R151 fait exception** : son compteur est *inter-zips* (un XML par zip, Y = nombre de zips de la même séquence). Les archives de facturation portent en plus des fichiers **hors numérotation** au suffixe explicite : `_FA` (données générales, obligatoire — F15 et F12) et `_FR` (récapitulatif, F12) ; seuls les fichiers de détail portent le compteur.
 
 ---
 

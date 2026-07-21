@@ -548,6 +548,29 @@ def test_intra_zip_complet_pousse_normalement(tmp_path, monkeypatch):
 
 
 @pytest.mark.integration
+def test_intra_zip_totaux_incoherents_bloque(tmp_path, monkeypatch):
+    """Des totaux Y distincts entre fichiers d'une même archive (`_00001_00002` +
+    `_00002_00003`) = archive malformée (le guide garantit un Y unique) → échec + alerte,
+    rien n'est poussé — plutôt que de faire silencieusement confiance au premier Y vu."""
+    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
+    zip_name = "17X100A100A0001A_C15_17X000001117366M_GRD-F139_0327_00001_20260615120000.zip"
+    _deposer_zip_multi(
+        source,
+        zip_name,
+        [
+            ("17X100A100A0001A_C15_17X000001117366M_GRD-F139_00017_00001_00002.xml", b"un"),
+            ("17X100A100A0001A_C15_17X000001117366M_GRD-F139_00017_00002_00003.xml", b"deux"),
+        ],
+    )
+    _configurer_env(monkeypatch, source, cible, db)
+
+    info, stats = executer(_pipeline(tmp_path, db))
+
+    assert (stats.candidats, stats.pousses, stats.echecs_push) == (1, 0, 1)
+    assert dict(_toutes_lignes_journal(db))[zip_name] == "echec"
+
+
+@pytest.mark.integration
 def test_r151_echappe_au_controle_intra_zip(tmp_path, monkeypatch):
     """R151 : le compteur est INTER-zips (CONTEXT.md) — un contenu interne « incomplet »
     au sens du compteur X/Y n'est PAS bloqué, contrairement aux autres flux."""
@@ -568,8 +591,8 @@ def test_r151_echappe_au_controle_intra_zip(tmp_path, monkeypatch):
 
 @pytest.mark.integration
 def test_f15_sans_fichier_donnees_generales_bloque(tmp_path, monkeypatch):
-    """F15 : tous les fichiers internes portent le suffixe `_XXXXX_YYYYY` (aucun fichier de
-    données générales) → échec + alerte, rien n'est poussé."""
+    """F15 : aucun fichier au suffixe `_FA` (données générales, guide SGE 0298) → échec +
+    alerte, rien n'est poussé."""
     source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
     zip_name = "17X100A100A0001A_F15_17X000001117366M_GRD-F139_0321_C_M_1_P_00001_20260615120000.zip"
     _deposer_zip_multi(
@@ -587,16 +610,17 @@ def test_f15_sans_fichier_donnees_generales_bloque(tmp_path, monkeypatch):
 
 @pytest.mark.integration
 def test_f15_avec_fichier_donnees_generales_pousse_normalement(tmp_path, monkeypatch):
-    """F15 : un fichier SANS le suffixe `_XXXXX_YYYYY` (données générales) est présent en
-    plus des fichiers de détail numérotés → push normal."""
+    """F15 : le fichier de données générales `_FA` est présent en plus des fichiers de
+    détail numérotés (forme réelle du corpus EDN : `…_<seq>_FA.xml` + `…_FL_XXXXX_YYYYY.xml`)
+    → push normal."""
     source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
     zip_name = "17X100A100A0001A_F15_17X000001117366M_GRD-F139_0321_C_M_1_P_00001_20260615120000.zip"
     _deposer_zip_multi(
         source,
         zip_name,
         [
-            ("f15_detail_00001_00001.xml", b"detail"),
-            ("f15_donnees_generales.xml", b"generalites"),
+            ("17X100A100A0001A_F15_17X000001117366M_GRD-F139_0321_C_M_1_P_00001_FL_00001_00001.xml", b"detail"),
+            ("17X100A100A0001A_F15_17X000001117366M_GRD-F139_0321_C_M_1_P_00001_FA.xml", b"generalites"),
         ],
     )
     _configurer_env(monkeypatch, source, cible, db)
