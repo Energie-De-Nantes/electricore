@@ -10,8 +10,10 @@ timer systemd dédié, **pas** le service inotify existant de l'ingestion et pas
 ## Installation (poste avec accès à la fois à la source déchiffrable et à la cible partenaire)
 
 ```bash
-# 1. Environnement Python avec l'extra [ingestion] (dlt, PyCryptodome, fsspec)
-uv sync --extra ingestion   # ou pip install "electricore[ingestion]"
+# 1. Environnement Python avec les extras [ingestion] (dlt, PyCryptodome, fsspec) et [dbt]
+#    (dbt-core + dbt-duckdb, #646 : étage Transform embarqué — vue journal.relais_audit_sequences,
+#    même versions figées que le projet dbt principal, aucun pin dupliqué)
+uv sync --extra ingestion --extra dbt   # ou pip install "electricore[ingestion,dbt]"
 
 # 2. Config (RELAIS__* + AES__TROUSSEAU__* — même format que l'ingestion, voir CLAUDE.md)
 sudo mkdir -p /etc/electricore-relais
@@ -53,6 +55,21 @@ Requête ad hoc (zips reçus jamais relayés) :
 ```python
 from electricore.ingestion.relais.pipeline import zips_non_relayes
 zips_non_relayes("sftp://user:pass@source.example/flux", "/opt/electricore-relais/relais.duckdb")
+```
+
+## Vue d'audit (#646)
+
+`journal.relais_audit_sequences` (matérialisée en fin de chaque passage du timer) audite
+la nomenclature des zips VUS par le relais (trous de séquence, queue invérifiable, noms non
+reconnus) — même macro que l'audit côté ingestion (#645), zéro règle dupliquée. Vue
+**passive** : aucune alerte, consultation à la demande (rapprochement Haulogy) :
+
+```bash
+uv run python -c "
+import duckdb
+con = duckdb.connect('/opt/electricore-relais/relais.duckdb')
+print(con.execute('select * from journal.relais_audit_sequences').fetchall())
+"
 ```
 
 ## Pourquoi systemd et pas docker compose / crontab.example
