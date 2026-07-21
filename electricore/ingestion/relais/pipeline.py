@@ -48,6 +48,7 @@ silencieusement tout ce qui restait à relayer.
 """
 
 import logging
+import re
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -140,6 +141,54 @@ def _verifier_ecriture(fs, chemin: str, taille_locale: int) -> None:
         )
 
 
+_RE_RANG_TOTAL = re.compile(r"_([0-9]{5})_([0-9]{5})(?:\.[^.]*)?$")  # convention Enedis « XXXXX_YYYYY » (CONTEXT.md)
+
+
+def _flux_du_zip(nom_zip: str) -> str | None:
+    """Code flux porté par un nom de zip Enedis — convention stable `<emetteur>_<FLUX>_...`
+    (2e segment `_`-délimité, cf. macro dbt `audit_sequences`, #645) : `None` si le nom n'a
+    pas au moins deux segments (jamais rencontré sur un vrai zip Enedis)."""
+    segments = nom_zip.split("_")
+    return segments[1] if len(segments) > 1 else None
+
+
+def _controle_intra_zip(flux: str | None, fichiers: list[tuple[str, bytes]], zip_name: str) -> None:
+    """Contrôle intra-zip au dézippage (#646) : le compteur `_XXXXX_YYYYY` porté par les
+    noms de fichiers d'une archive (« fichier X sur Y », CONTEXT.md « Complétude des flux »)
+    doit être complet — chaque rang de 1 à Y présent une fois. **R151 excepté** : son
+    compteur est INTER-zips (un XML par zip), pas de sens à l'appliquer DANS un zip.
+
+    F15 : contrôle additionnel — au moins un fichier SANS le suffixe `_XXXXX_YYYYY` doit
+    être présent (le « fichier de données générales », distinct des fichiers de détail
+    numérotés). ponytail : heuristique faute de spec de nommage exacte disponible dans ce
+    dépôt (aucun zip F15 réel échantillonné) — à corriger contre un vrai zip F15 si le
+    marqueur diffère ; le principe (échec + alerte, rien poussé) reste correct quel que
+    soit le marqueur exact.
+
+    Lève sur toute incohérence — **rien n'est poussé** pour ce zip (appelé avant
+    `pousser_vers_partenaire` dans `_pousser`, discipline `etape_chaine` : compté en échec,
+    jamais un dépôt partiel silencieux)."""
+    fichier_hors_numerotation = False
+    rangs_vus: set[int] = set()
+    total_attendu: int | None = None
+    for nom, _ in fichiers:
+        m = _RE_RANG_TOTAL.search(nom)
+        if not m:
+            fichier_hors_numerotation = True
+            continue
+        rang, total = int(m.group(1)), int(m.group(2))
+        total_attendu = total_attendu if total_attendu is not None else total
+        rangs_vus.add(rang)
+
+    if flux != "R151" and total_attendu is not None:
+        manquants = set(range(1, total_attendu + 1)) - rangs_vus
+        if manquants:
+            raise ValueError(f"{zip_name} : intra-zip incomplet ({len(rangs_vus)}/{total_attendu})")
+
+    if flux == "F15" and not fichier_hors_numerotation:
+        raise ValueError(f"{zip_name} : F15 sans fichier de données générales")
+
+
 def pousser_vers_partenaire(fichiers: list[tuple[str, bytes]], partner_url: str) -> None:
     """Pousse les fichiers extraits vers la cible partenaire (fsspec-agnostic : file://, sftp://).
 
@@ -176,6 +225,7 @@ def _pousser(decrypted_file: dict, partner_url: str) -> Iterator[dict]:
     # file_extension="" : `str.endswith("")` est toujours vrai → extrait TOUT le
     # contenu du zip (xml et json compris), pas seulement les .xml.
     fichiers = extract_files_from_zip(decrypted_file["decrypted_content"], file_extension="")
+    _controle_intra_zip(_flux_du_zip(zip_name), fichiers, zip_name)
     pousser_vers_partenaire(fichiers, partner_url)
 
     livres = dlt.current.resource_state(NOM_RESOURCE).setdefault("zips_livrés", [])

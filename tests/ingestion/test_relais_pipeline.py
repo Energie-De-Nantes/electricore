@@ -56,21 +56,31 @@ def _isoler_env(monkeypatch):
     runtime.vider_cache()
 
 
-def _zip_chiffre(nom_interne: str, contenu: bytes) -> bytes:
+def _zip_chiffre_multi(fichiers: list[tuple[str, bytes]]) -> bytes:
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr(nom_interne, contenu)
+        for nom_interne, contenu in fichiers:
+            zf.writestr(nom_interne, contenu)
     cipher = AES.new(AES_KEY, AES.MODE_CBC, AES_IV)
     return cipher.encrypt(pad(buf.getvalue(), AES.block_size))
 
 
-def _deposer_zip(bucket: Path, nom: str, contenu_interne: bytes, date=(2026, 6, 15, 12, 0, 0)) -> Path:
+def _zip_chiffre(nom_interne: str, contenu: bytes) -> bytes:
+    return _zip_chiffre_multi([(nom_interne, contenu)])
+
+
+def _deposer_zip_multi(bucket: Path, nom: str, fichiers: list[tuple[str, bytes]], date=(2026, 6, 15, 12, 0, 0)) -> Path:
+    """Dépose un zip chiffré à PLUSIEURS fichiers internes — intra-zip (#646)."""
     bucket.mkdir(parents=True, exist_ok=True)
     chemin = bucket / nom
-    chemin.write_bytes(_zip_chiffre(f"{nom.replace('.zip', '')}.xml", contenu_interne))
+    chemin.write_bytes(_zip_chiffre_multi(fichiers))
     ts = time.mktime((*date, 0, 0, -1))
     os.utime(chemin, (ts, ts))
     return chemin
+
+
+def _deposer_zip(bucket: Path, nom: str, contenu_interne: bytes, date=(2026, 6, 15, 12, 0, 0)) -> Path:
+    return _deposer_zip_multi(bucket, nom, [(f"{nom.replace('.zip', '')}.xml", contenu_interne)], date=date)
 
 
 def _configurer_env(monkeypatch, source: Path, cible: Path, db: Path, *, flux: str = ""):
@@ -472,6 +482,117 @@ def test_ecriture_tronquee_ne_marque_pas_livre_et_retente(tmp_path, monkeypatch)
     executer(_pipeline(tmp_path, db))  # retente
     assert (cible / "ENEDIS_C15_20260615_001.xml").read_bytes() == b"<data>c15</data>"
     assert _zips_journalises(db) == ["ENEDIS_C15_20260615_001.zip"]
+
+
+# =============================================================================
+# Contrôle intra-zip au dézippage (#646) : compteur X/Y, exception R151, F15
+# =============================================================================
+
+
+@pytest.mark.integration
+def test_intra_zip_incomplet_bloque_le_push(tmp_path, monkeypatch):
+    """Un zip C15 annonçant 3 fichiers (`_XXXXX_00003`) mais n'en contenant que 2 → rien
+    n'est poussé, le zip reste non-livré, échec compté et alerté."""
+    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
+    zip_name = "17X100A100A0001A_C15_17X000001117366M_GRD-F139_0327_00001_20260615120000.zip"
+    _deposer_zip_multi(
+        source,
+        zip_name,
+        [
+            ("17X100A100A0001A_C15_17X000001117366M_GRD-F139_00017_00001_00003.xml", b"un"),
+            ("17X100A100A0001A_C15_17X000001117366M_GRD-F139_00017_00002_00003.xml", b"deux"),
+            # rang 00003 manque
+        ],
+    )
+    _configurer_env(monkeypatch, source, cible, db)
+
+    info, stats = executer(_pipeline(tmp_path, db))
+
+    assert not cible.exists() or list(cible.iterdir()) == []  # rien poussé pour ce zip
+    assert (stats.candidats, stats.pousses, stats.echecs_push) == (1, 0, 1)
+    assert dict(_toutes_lignes_journal(db))[zip_name] == "echec"
+
+
+@pytest.mark.integration
+def test_intra_zip_complet_pousse_normalement(tmp_path, monkeypatch):
+    """Les 3 rangs annoncés sont tous présents → push normal, aucune anomalie."""
+    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
+    zip_name = "17X100A100A0001A_C15_17X000001117366M_GRD-F139_0327_00001_20260615120000.zip"
+    _deposer_zip_multi(
+        source,
+        zip_name,
+        [
+            ("17X100A100A0001A_C15_17X000001117366M_GRD-F139_00017_00001_00003.xml", b"un"),
+            ("17X100A100A0001A_C15_17X000001117366M_GRD-F139_00017_00002_00003.xml", b"deux"),
+            ("17X100A100A0001A_C15_17X000001117366M_GRD-F139_00017_00003_00003.xml", b"trois"),
+        ],
+    )
+    _configurer_env(monkeypatch, source, cible, db)
+
+    info, stats = executer(_pipeline(tmp_path, db))
+
+    assert (stats.candidats, stats.pousses, stats.echecs_push) == (1, 1, 0)
+    assert _zips_journalises(db) == [zip_name]
+
+
+@pytest.mark.integration
+def test_r151_echappe_au_controle_intra_zip(tmp_path, monkeypatch):
+    """R151 : le compteur est INTER-zips (CONTEXT.md) — un contenu interne « incomplet »
+    au sens du compteur X/Y n'est PAS bloqué, contrairement aux autres flux."""
+    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
+    zip_name = "ERDF_R151_17X000001117366M_GRD-F139_108529521_00794_Q_00001_00002_20260615120000.zip"
+    _deposer_zip_multi(
+        source,
+        zip_name,
+        [("r151_interne_00001_00002.xml", b"releve")],  # 1/2 au sens du compteur — ignoré pour R151
+    )
+    _configurer_env(monkeypatch, source, cible, db)
+
+    info, stats = executer(_pipeline(tmp_path, db))
+
+    assert (stats.candidats, stats.pousses, stats.echecs_push) == (1, 1, 0)
+    assert _zips_journalises(db) == [zip_name]
+
+
+@pytest.mark.integration
+def test_f15_sans_fichier_donnees_generales_bloque(tmp_path, monkeypatch):
+    """F15 : tous les fichiers internes portent le suffixe `_XXXXX_YYYYY` (aucun fichier de
+    données générales) → échec + alerte, rien n'est poussé."""
+    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
+    zip_name = "17X100A100A0001A_F15_17X000001117366M_GRD-F139_0321_C_M_1_P_00001_20260615120000.zip"
+    _deposer_zip_multi(
+        source,
+        zip_name,
+        [("f15_detail_00001_00001.xml", b"detail")],
+    )
+    _configurer_env(monkeypatch, source, cible, db)
+
+    info, stats = executer(_pipeline(tmp_path, db))
+
+    assert (stats.candidats, stats.pousses, stats.echecs_push) == (1, 0, 1)
+    assert dict(_toutes_lignes_journal(db))[zip_name] == "echec"
+
+
+@pytest.mark.integration
+def test_f15_avec_fichier_donnees_generales_pousse_normalement(tmp_path, monkeypatch):
+    """F15 : un fichier SANS le suffixe `_XXXXX_YYYYY` (données générales) est présent en
+    plus des fichiers de détail numérotés → push normal."""
+    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
+    zip_name = "17X100A100A0001A_F15_17X000001117366M_GRD-F139_0321_C_M_1_P_00001_20260615120000.zip"
+    _deposer_zip_multi(
+        source,
+        zip_name,
+        [
+            ("f15_detail_00001_00001.xml", b"detail"),
+            ("f15_donnees_generales.xml", b"generalites"),
+        ],
+    )
+    _configurer_env(monkeypatch, source, cible, db)
+
+    info, stats = executer(_pipeline(tmp_path, db))
+
+    assert (stats.candidats, stats.pousses, stats.echecs_push) == (1, 1, 0)
+    assert _zips_journalises(db) == [zip_name]
 
 
 # =============================================================================
