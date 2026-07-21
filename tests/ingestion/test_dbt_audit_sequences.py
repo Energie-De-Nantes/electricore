@@ -312,3 +312,12 @@ def test_data_test_severity_warn_zero_anomalie_sur_landing_partiel(tmp_path):
     # échouer le build romprait ce test avant même d'atteindre les assertions ci-dessous.
     lignes = _construire_audit(tmp_path, {"raw_c15": docs})
     assert any(ligne["type_anomalie"] == "trou" for ligne in lignes)
+
+
+def test_base_saine_aucune_anomalie_actionnable(tmp_path):
+    """Pas de trou dans le vérifiable = valide : sur un landing sain, la vue ne contient
+    QUE des queues (état permanent de toute séquence ouverte, exclues du data test warn) —
+    le warn est discriminant : silencieux ici, il ne tire que sur une anomalie actionnable."""
+    lignes = _construire_audit(tmp_path, {})
+    assert lignes, "une queue par clé de séquence est attendue même sur base saine"
+    assert {ligne["type_anomalie"] for ligne in lignes} == {"queue_inverifiable"}

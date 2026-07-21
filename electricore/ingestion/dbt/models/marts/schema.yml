@@ -115,6 +115,8 @@ models:
       (séquence toujours figée à 00001). Voir docs/ingestion.md pour la requête de
       consultation et les limites (trous « à vérifier », queue jamais saine).
     data_tests:
+      # Warn discriminant : ne compte que les anomalies actionnables (trou, nom_non_reconnu,
+      # intra_zip_incomplet) — les queues, permanentes par nature, en sont exclues (macro).
       - aucune_anomalie:
           config:
             severity: warn
