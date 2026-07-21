@@ -190,9 +190,27 @@ def _pousser(decrypted_file: dict, partner_url: str) -> Iterator[dict]:
 
 def _pousser_et_enregistrer(decrypted_file: dict, partner_url: str, stats: StatsRelais) -> Iterator[dict]:
     """Pré-compte le candidat (`stats.candidats`, hors discipline — symétrie avec
-    `stats.fichiers` dans `crypto.py::_decrypt_aes_transformer_base`) puis délègue à `_pousser`."""
+    `stats.fichiers` dans `crypto.py::_decrypt_aes_transformer_base`) puis délègue à `_pousser`.
+
+    Journal enrichi (#646) : `etape_chaine` avale toute exception de `_pousser` en silence
+    (compte `echecs_push`, log, ne yield RIEN) — un zip qui échoue (extraction, contrôle
+    intra-zip, push, vérification d'écriture) sortirait du journal sans trace. Ce wrapper
+    observe si `_pousser` a yieldé quoi que ce soit ; sinon il journalise lui-même une ligne
+    `statut='echec'` — même table, comptage `echecs_push` déjà fait par `etape_chaine`, pas
+    de double compte ici (ce wrapper n'est PAS décoré par `etape_chaine`)."""
     stats.candidats += 1
-    yield from _pousser(decrypted_file, partner_url, stats)  # stats : dernier positionnel (injecté)
+    zip_name = decrypted_file["file_name"]
+    pousse = False
+    for doc in _pousser(decrypted_file, partner_url, stats):  # stats : dernier positionnel (injecté)
+        pousse = True
+        yield doc
+    if not pousse:
+        yield {
+            "zip": zip_name,
+            "fichiers": [],
+            "statut": "echec",
+            "at": datetime.now(UTC).isoformat(),
+        }
 
 
 def _create_push_transformer(partner_url: str, stats: StatsRelais):
@@ -250,6 +268,7 @@ def executer(pipeline: "dlt.Pipeline | None" = None) -> tuple["dlt.common.pipeli
     if pipeline is None:
         pipeline = _pipeline_par_defaut(cfg)
     info = pipeline.run(relais_source(cfg.source_url, cfg.partner_url, cfg.flux_filtres(), key_chain, stats))
+    _journaliser_vus(pipeline, cfg)
     return info, stats
 
 
@@ -299,19 +318,13 @@ def _journal_deja_peuple(db_path: Path) -> bool:
     """Le journal (`relais_livraisons`) contient-il déjà au moins une livraison (push ou
     amorce) ? Garde-fou de `seed_avant` : le journal et l'état `zips_livrés` sont toujours
     peuplés ENSEMBLE (même transaction dlt, `_pousser`/`_amorcer` ci-dessus) — un journal
-    non vide implique donc un état non vide, sans avoir à lire l'état dlt hors contexte de run."""
-    import duckdb
+    non vide implique donc un état non vide, sans avoir à lire l'état dlt hors contexte de run.
 
-    if not db_path.exists():
-        return False
-    con = duckdb.connect(str(db_path), read_only=True)
-    try:
-        (n,) = con.execute(f'select count(*) from "{NOM_DATASET}"."{NOM_RESOURCE}"').fetchone()
-        return n > 0
-    except duckdb.CatalogException:
-        return False
-    finally:
-        con.close()
+    Restreint aux statuts `_STATUTS_LIVRES` (#646, journal enrichi) : un journal qui ne
+    contient QUE des lignes `'vu'`/`'echec'` (un run normal qui n'a encore rien livré avec
+    succès) n'est PAS « déjà peuplé » — sinon le premier `executer()` (même sans aucun push
+    réussi) condamnerait tout `seed_avant` ultérieur au refus."""
+    return bool(_zips_dans_journal(db_path, statuts=_STATUTS_LIVRES))
 
 
 def seed_avant(avant: str, *, force: bool = False, pipeline: "dlt.Pipeline | None" = None):
@@ -338,24 +351,66 @@ def seed_avant(avant: str, *, force: bool = False, pipeline: "dlt.Pipeline | Non
     return pipeline.run(_seed_source(cfg.source_url, cfg.flux_filtres(), avant))
 
 
+_STATUTS_LIVRES = ("pousse", "amorce")  # les deux seuls statuts qui valent « relayé » (#646)
+
+
+def _zips_dans_journal(db_path: Path, *, statuts: tuple[str, ...] | None = None) -> set[str]:
+    """Noms de zip présents dans le journal — `statuts=None` : toute ligne, quel que soit son
+    statut (vu/pousse/amorce/echec) ; `statuts=(...)` : restreint à ces statuts. Base absente
+    ou table pas encore créée (aucune ligne écrite) → ensemble vide, jamais une exception."""
+    import duckdb
+
+    if not db_path.exists():
+        return set()
+    con = duckdb.connect(str(db_path), read_only=True)
+    try:
+        if statuts is None:
+            requete = f'select "zip" from "{NOM_DATASET}"."{NOM_RESOURCE}"'
+        else:
+            placeholders = ", ".join(
+                f"'{s}'" for s in statuts
+            )  # statuts = constantes internes, pas une entrée utilisateur
+            requete = f'select "zip" from "{NOM_DATASET}"."{NOM_RESOURCE}" where "statut" in ({placeholders})'
+        return {row[0] for row in con.execute(requete).fetchall()}
+    except duckdb.CatalogException:
+        return set()
+    finally:
+        con.close()
+
+
+def _journaliser_vus(pipeline: "dlt.Pipeline", cfg: "runtime.Relais") -> None:
+    """Journal enrichi (#646) : tout zip VU au balayage entre dans le journal, pas
+    seulement les livrés — l'audit de réception (vue `audit_sequences`) ne dépend alors ni
+    du filtre `RELAIS__FLUX`, ni du cycle de vie d'electricore (un flux comme R17, jamais
+    couvert côté ingestion, apparaît quand même dès qu'il transite par le relais).
+
+    Complète APRÈS le run principal (`push`/`echec` déjà journalisés par la chaîne
+    `relais_source`) : ne journalise `statut='vu'` que les zips du listing source ENCORE
+    absents du journal — un zip filtré-flux (jamais candidat au push) resterait sinon
+    invisible ; un zip déjà journalisé (quel que soit son statut) n'est PAS re-journalisé
+    à chaque passage, sinon le balayage réconciliant (`incremental=False`) le re-listerait
+    et le re-journaliserait indéfiniment."""
+    fs, base_path = fsspec.core.url_to_fs(cfg.source_url)
+    zips_source = {Path(p).name for p in fs.glob(f"{base_path.rstrip('/')}/**/*.zip")}
+    deja_journalises = _zips_dans_journal(cfg.destination_db)
+    nouveaux = sorted(zips_source - deja_journalises)
+    if not nouveaux:
+        return
+    maintenant = datetime.now(UTC).isoformat()
+    lignes = [{"zip": nom, "fichiers": [], "statut": "vu", "at": maintenant} for nom in nouveaux]
+    pipeline.run(lignes, table_name=NOM_RESOURCE, write_disposition="append")
+
+
 def zips_non_relayes(source_url: str, db_path: Path) -> list[str]:
     """Vérification de complétude (#637) : zips de la source absents du journal de destination.
 
-    Écart entre le listing source (fsspec, tous les `*.zip` récursivement) et la table
-    `relais.relais_livraisons` (peuplée par `executer`/`seed_avant`) — une requête simple,
-    indépendante du `resource_state` (qui gouverne seulement le skip du run suivant). Un zip
-    amorcé (`statut='amorce'`) est dans cette table au même titre qu'un zip poussé — pas de
-    filtre sur `statut`, il ne remonte donc pas ici (#643)."""
-    import duckdb
-
+    Écart entre le listing source (fsspec, tous les `*.zip` récursivement) et les zips
+    EFFECTIVEMENT relayés (`statut` 'pousse'/'amorce') — une requête simple, indépendante du
+    `resource_state` (qui gouverne seulement le skip du run suivant). Journal enrichi (#646) :
+    un zip seulement `'vu'` ou en `'echec'` N'EST PAS relayé — il doit rester manquant ici,
+    sinon `zips_non_relayes` perdrait sa sémantique « jamais relayé » (un push qui échoue en
+    boucle disparaîtrait à tort de cette liste dès sa première tentative)."""
     fs, base_path = fsspec.core.url_to_fs(source_url)
     zips_source = {Path(p).name for p in fs.glob(f"{base_path.rstrip('/')}/**/*.zip")}
-
-    con = duckdb.connect(str(db_path), read_only=True)
-    try:
-        livres = {row[0] for row in con.execute(f'select "zip" from "{NOM_DATASET}"."{NOM_RESOURCE}"').fetchall()}
-    except duckdb.CatalogException:
-        livres = set()
-    finally:
-        con.close()
+    livres = _zips_dans_journal(db_path, statuts=_STATUTS_LIVRES)
     return sorted(zips_source - livres)

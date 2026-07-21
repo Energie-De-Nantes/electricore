@@ -93,10 +93,14 @@ def _pipeline(tmp_path: Path, db: Path, nom: str = "relais_test") -> dlt.Pipelin
 
 
 def _zips_journalises(db: Path) -> list[str]:
-    """Zips journalisés — table absente (aucun push réussi pour l'instant) → liste vide."""
+    """Zips effectivement LIVRÉS (`statut` 'pousse'/'amorce') — exclut 'vu'/'echec' (journal
+    enrichi, #646) : table absente (aucun push réussi pour l'instant) → liste vide."""
     con = duckdb.connect(str(db), read_only=True)
     try:
-        return [row[0] for row in con.execute(f'select "zip" from "{NOM_DATASET}"."{NOM_RESOURCE}"').fetchall()]
+        lignes = con.execute(
+            f'select "zip" from "{NOM_DATASET}"."{NOM_RESOURCE}" where "statut" in (\'pousse\', \'amorce\')'
+        ).fetchall()
+        return [row[0] for row in lignes]
     except duckdb.CatalogException:
         return []
     finally:
@@ -104,13 +108,29 @@ def _zips_journalises(db: Path) -> list[str]:
 
 
 def _statuts_journalises(db: Path) -> dict[str, str]:
-    """`{zip: statut}` du journal — `'pousse'` (push réussi) ou `'amorce'` (seed, #643)."""
+    """`{zip: statut}` du journal — `'pousse'` (push réussi) ou `'amorce'` (seed, #643).
+
+    N'utiliser que sur un journal où chaque zip n'a qu'UNE ligne (`dict()` collapse sinon
+    silencieusement sur la dernière) — `_toutes_lignes_journal` pour les scénarios à
+    plusieurs lignes par zip (retry après 'echec', #646)."""
     con = duckdb.connect(str(db), read_only=True)
     try:
         rows = con.execute(f'select "zip", "statut" from "{NOM_DATASET}"."{NOM_RESOURCE}"').fetchall()
         return dict(rows)
     except duckdb.CatalogException:
         return {}
+    finally:
+        con.close()
+
+
+def _toutes_lignes_journal(db: Path) -> list[tuple[str, str]]:
+    """`[(zip, statut), …]` — TOUTES les lignes, y compris les zips à plusieurs lignes
+    (retry après 'echec') — journal enrichi (#646) : 'vu' / 'pousse' / 'amorce' / 'echec'."""
+    con = duckdb.connect(str(db), read_only=True)
+    try:
+        return con.execute(f'select "zip", "statut" from "{NOM_DATASET}"."{NOM_RESOURCE}"').fetchall()
+    except duckdb.CatalogException:
+        return []
     finally:
         con.close()
 
@@ -223,6 +243,24 @@ def test_completude_liste_les_zips_source_jamais_relayes(tmp_path, monkeypatch):
     _configurer_env(monkeypatch, source, cible, db, flux="R151")  # exclut le C15 déposé → jamais relayé
 
     executer(_pipeline(tmp_path, db))
+
+    manquants = zips_non_relayes(f"file://{source}/", db)
+    assert manquants == ["ENEDIS_C15_20260615_001.zip"]
+
+
+@pytest.mark.integration
+def test_completude_reste_correcte_avec_un_zip_en_echec(tmp_path, monkeypatch):
+    """Journal enrichi (#646) : un zip journalisé `statut='echec'` (push qui a échoué) DOIT
+    rester « manquant » pour `zips_non_relayes` — sinon un échec de push disparaîtrait à
+    tort de la complétude dès sa première tentative (la sémantique « jamais relayé » ne
+    doit filtrer que 'pousse'/'amorce', pas toute présence dans le journal)."""
+    source = tmp_path / "source"
+    cible_injoignable = Path("/n_existe_pas") / "sous_repertoire_impossible"
+    db = tmp_path / "relais.duckdb"
+    _deposer_zip(source, "ENEDIS_C15_20260615_001.zip", b"<data>c15</data>")
+    _configurer_env(monkeypatch, source, cible_injoignable, db)
+
+    executer(_pipeline(tmp_path, db))  # journalise 'echec' (cible injoignable)
 
     manquants = zips_non_relayes(f"file://{source}/", db)
     assert manquants == ["ENEDIS_C15_20260615_001.zip"]
@@ -351,6 +389,58 @@ def test_seed_force_outrepasse_le_refus(tmp_path, monkeypatch):
     seed_avant("2026-06-01", force=True, pipeline=_pipeline(tmp_path, db))  # ne lève pas
 
     assert _statuts_journalises(db)["ENEDIS_C15_20260101_002.zip"] == "amorce"
+
+
+# =============================================================================
+# Journal enrichi (#646) : tout zip VU au balayage est journalisé (pas seulement livré)
+# =============================================================================
+
+
+@pytest.mark.integration
+def test_echec_push_journalise_statut_echec(tmp_path, monkeypatch):
+    """Journal enrichi : un push qui échoue (cible injoignable) journalise une ligne
+    `statut='echec'` — le zip reste visible dans le journal, pas seulement absent."""
+    source = tmp_path / "source"
+    cible_injoignable = Path("/n_existe_pas") / "sous_repertoire_impossible"
+    db = tmp_path / "relais.duckdb"
+    _deposer_zip(source, "ENEDIS_C15_20260615_001.zip", b"<data>c15</data>")
+    _configurer_env(monkeypatch, source, cible_injoignable, db)
+
+    executer(_pipeline(tmp_path, db))
+
+    assert _toutes_lignes_journal(db) == [("ENEDIS_C15_20260615_001.zip", "echec")]
+    assert _zips_journalises(db) == []  # toujours pas considéré livré
+
+
+@pytest.mark.integration
+def test_zip_exclu_par_filtre_flux_est_journalise_vu(tmp_path, monkeypatch):
+    """Un zip vu au balayage mais exclu par le filtre flux (jamais candidat au push) est
+    tout de même journalisé `statut='vu'` — l'audit de réception ne dépend pas du routage
+    configuré côté relais (R151 compris si `RELAIS__FLUX` ne le liste pas)."""
+    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
+    _deposer_zip(source, "ENEDIS_C15_20260615_001.zip", b"<data>c15</data>")
+    _deposer_zip(source, "ENEDIS_R151_20260615_002.zip", b"<data>r151</data>")
+    _configurer_env(monkeypatch, source, cible, db, flux="C15")
+
+    executer(_pipeline(tmp_path, db))
+
+    lignes = dict(_toutes_lignes_journal(db))
+    assert lignes["ENEDIS_C15_20260615_001.zip"] == "pousse"
+    assert lignes["ENEDIS_R151_20260615_002.zip"] == "vu"
+
+
+@pytest.mark.integration
+def test_zip_vu_n_est_pas_rejournalise_au_run_suivant(tmp_path, monkeypatch):
+    """Un zip déjà journalisé `statut='vu'` ne l'est pas une seconde fois au run suivant —
+    une ligne par zip par issue, pas un doublon à chaque balayage réconciliant."""
+    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
+    _deposer_zip(source, "ENEDIS_R151_20260615_002.zip", b"<data>r151</data>")
+    _configurer_env(monkeypatch, source, cible, db, flux="C15")
+
+    executer(_pipeline(tmp_path, db))
+    executer(_pipeline(tmp_path, db))
+
+    assert _toutes_lignes_journal(db) == [("ENEDIS_R151_20260615_002.zip", "vu")]
 
 
 # =============================================================================
