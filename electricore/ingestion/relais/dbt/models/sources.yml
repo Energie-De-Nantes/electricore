@@ -1,0 +1,19 @@
+version: 2
+
+sources:
+  - name: journal
+    description: >
+      Journal des zips vus par le relais (#637/#646) — une ligne par zip par issue de
+      balayage (statut vu/pousse/amorce/echec), écrite par dlt (pipeline.py).
+    schema: journal
+    tables:
+      - name: relais_livraisons
+        description: >
+          Une ligne par zip par issue observée au balayage. `zip` (nom d'archive Enedis,
+          traçabilité), `statut` ('vu' non traité / 'pousse' livré / 'amorce' marqué livré
+          sans push / 'echec' push tenté et raté — retenté au passage suivant).
+        columns:
+          - name: zip
+            description: Nom du zip source (convention Enedis, porte le numéro de séquence).
+          - name: statut
+            description: vu / pousse / amorce / echec (#646, journal enrichi).

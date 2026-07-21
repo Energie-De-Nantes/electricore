@@ -48,6 +48,7 @@ silencieusement tout ce qui restait à relayer.
 """
 
 import logging
+import re
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -126,19 +127,90 @@ def _create_filtre_transformer(flux_filtres: set[str] | None):
     return filtre_zip
 
 
+def _verifier_ecriture(fs, chemin: str, taille_locale: int) -> None:
+    """Vérification d'écriture (#646) : la taille distante doit égaler la taille locale
+    juste déposée — sinon transfert tronqué. Lève (direction d'échec sûre, comme le reste
+    de `_pousser`) : le zip N'EST PAS marqué livré, retenté au passage suivant, jamais
+    oublié. Seam dédié (plutôt qu'inline) : monkeypatchable isolément en test sans avoir à
+    simuler une vraie troncature réseau."""
+    taille_distante = fs.size(chemin)
+    if taille_distante != taille_locale:
+        raise OSError(
+            f"Vérification d'écriture échouée pour {chemin} : "
+            f"taille distante={taille_distante} ≠ locale={taille_locale}"
+        )
+
+
+_RE_RANG_TOTAL = re.compile(r"_([0-9]{5})_([0-9]{5})(?:\.[^.]*)?$")  # convention Enedis « XXXXX_YYYYY » (CONTEXT.md)
+
+
+def _flux_du_zip(nom_zip: str) -> str | None:
+    """Code flux porté par un nom de zip Enedis — convention stable `<emetteur>_<FLUX>_...`
+    (2e segment `_`-délimité, cf. macro dbt `audit_sequences`, #645) : `None` si le nom n'a
+    pas au moins deux segments (jamais rencontré sur un vrai zip Enedis)."""
+    segments = nom_zip.split("_")
+    return segments[1] if len(segments) > 1 else None
+
+
+def _controle_intra_zip(flux: str | None, fichiers: list[tuple[str, bytes]], zip_name: str) -> None:
+    """Contrôle intra-zip au dézippage (#646) : le compteur `_XXXXX_YYYYY` porté par les
+    noms de fichiers d'une archive (« fichier X sur Y », CONTEXT.md « Complétude des flux »)
+    doit être complet — chaque rang de 1 à Y présent une fois. **R151 excepté** : son
+    compteur est INTER-zips (un XML par zip), pas de sens à l'appliquer DANS un zip.
+
+    F15 : contrôle additionnel — le fichier de données générales, au suffixe `_FA`
+    (guide SGE 0298 ; marqueur vérifié sur le corpus EDN du 21/07/2026 : 2 199/2 199 zips
+    F15 en portent un, zéro fichier ni `_FA` ni numéroté), doit être présent. F12 porte
+    aussi `_FA` (plus `_FR` récapitulatif) mais sans exigence posée ici — son absence n'a
+    jamais été observée et F12 n'a pas de présence obligatoire équivalente dans nos usages.
+
+    Des totaux Y **distincts** entre fichiers d'une même archive = archive malformée
+    (le guide garantit un Y unique) — même politique que l'incomplet : échec + alerte.
+
+    Lève sur toute incohérence — **rien n'est poussé** pour ce zip (appelé avant
+    `pousser_vers_partenaire` dans `_pousser`, discipline `etape_chaine` : compté en échec,
+    jamais un dépôt partiel silencieux)."""
+    a_donnees_generales = False
+    rangs_vus: set[int] = set()
+    totaux: set[int] = set()
+    for nom, _ in fichiers:
+        if nom.upper().endswith("_FA.XML"):
+            a_donnees_generales = True
+        m = _RE_RANG_TOTAL.search(nom)
+        if not m:
+            continue
+        rangs_vus.add(int(m.group(1)))
+        totaux.add(int(m.group(2)))
+
+    if flux != "R151" and totaux:
+        if len(totaux) > 1:
+            raise ValueError(f"{zip_name} : compteurs intra-zip incohérents (totaux {sorted(totaux)})")
+        (total_attendu,) = totaux
+        manquants = set(range(1, total_attendu + 1)) - rangs_vus
+        if manquants:
+            raise ValueError(f"{zip_name} : intra-zip incomplet ({len(rangs_vus)}/{total_attendu})")
+
+    if flux == "F15" and not a_donnees_generales:
+        raise ValueError(f"{zip_name} : F15 sans fichier de données générales (_FA)")
+
+
 def pousser_vers_partenaire(fichiers: list[tuple[str, bytes]], partner_url: str) -> None:
     """Pousse les fichiers extraits vers la cible partenaire (fsspec-agnostic : file://, sftp://).
 
     Effet de bord : une cible injoignable (permission, réseau…) **lève** — direction
     d'échec sûre, le zip n'est alors PAS enregistré comme livré (discipline `etape_chaine`
-    autour de `_pousser`, ci-dessous).
+    autour de `_pousser`, ci-dessous). Vérification d'écriture (#646) APRÈS chaque dépôt,
+    AVANT de considérer le fichier posé — un mismatch lève au même titre qu'une cible
+    injoignable, retenté au passage suivant.
     """
     fs, base_path = fsspec.core.url_to_fs(partner_url)
     fs.makedirs(base_path, exist_ok=True)
     base = base_path.rstrip("/")
     for nom, contenu in fichiers:
-        with fs.open(f"{base}/{nom}", "wb") as f:
+        chemin = f"{base}/{nom}"
+        with fs.open(chemin, "wb") as f:
             f.write(contenu)
+        _verifier_ecriture(fs, chemin, len(contenu))
 
 
 @etape_chaine(
@@ -158,6 +230,7 @@ def _pousser(decrypted_file: dict, partner_url: str) -> Iterator[dict]:
     # file_extension="" : `str.endswith("")` est toujours vrai → extrait TOUT le
     # contenu du zip (xml et json compris), pas seulement les .xml.
     fichiers = extract_files_from_zip(decrypted_file["decrypted_content"], file_extension="")
+    _controle_intra_zip(_flux_du_zip(zip_name), fichiers, zip_name)
     pousser_vers_partenaire(fichiers, partner_url)
 
     livres = dlt.current.resource_state(NOM_RESOURCE).setdefault("zips_livrés", [])
@@ -172,9 +245,27 @@ def _pousser(decrypted_file: dict, partner_url: str) -> Iterator[dict]:
 
 def _pousser_et_enregistrer(decrypted_file: dict, partner_url: str, stats: StatsRelais) -> Iterator[dict]:
     """Pré-compte le candidat (`stats.candidats`, hors discipline — symétrie avec
-    `stats.fichiers` dans `crypto.py::_decrypt_aes_transformer_base`) puis délègue à `_pousser`."""
+    `stats.fichiers` dans `crypto.py::_decrypt_aes_transformer_base`) puis délègue à `_pousser`.
+
+    Journal enrichi (#646) : `etape_chaine` avale toute exception de `_pousser` en silence
+    (compte `echecs_push`, log, ne yield RIEN) — un zip qui échoue (extraction, contrôle
+    intra-zip, push, vérification d'écriture) sortirait du journal sans trace. Ce wrapper
+    observe si `_pousser` a yieldé quoi que ce soit ; sinon il journalise lui-même une ligne
+    `statut='echec'` — même table, comptage `echecs_push` déjà fait par `etape_chaine`, pas
+    de double compte ici (ce wrapper n'est PAS décoré par `etape_chaine`)."""
     stats.candidats += 1
-    yield from _pousser(decrypted_file, partner_url, stats)  # stats : dernier positionnel (injecté)
+    zip_name = decrypted_file["file_name"]
+    pousse = False
+    for doc in _pousser(decrypted_file, partner_url, stats):  # stats : dernier positionnel (injecté)
+        pousse = True
+        yield doc
+    if not pousse:
+        yield {
+            "zip": zip_name,
+            "fichiers": [],
+            "statut": "echec",
+            "at": datetime.now(UTC).isoformat(),
+        }
 
 
 def _create_push_transformer(partner_url: str, stats: StatsRelais):
@@ -219,6 +310,64 @@ def _pipeline_par_defaut(cfg: "runtime.Relais") -> "dlt.Pipeline":
     )
 
 
+_RELAIS_DBT_PROJET = Path(__file__).parent / "dbt"
+
+
+def _construire_vue_audit(cfg: "runtime.Relais") -> None:
+    """Étage Transform du relais (#646) : matérialise `journal.relais_audit_sequences` en
+    fin de passe de balayage, MÊME PROCESS — `dbtRunner` ouvre puis referme sa propre
+    connexion DuckDB (comme le `pipeline.run()` dlt qui précède) : aucune connexion
+    persistante, la base journal reste requêtable entre deux passages du timer.
+
+    Mini-projet dbt EMBARQUÉ (`electricore/ingestion/relais/dbt/`) qui importe la macro
+    `audit_sequences` (#645) en PACKAGE LOCAL (`packages.yml` → `local: ../../dbt`) — zéro
+    regexp de nomenclature recopiée ici. `--select package:electricore_relais` restreint le
+    build au SEUL modèle du relais (le package importé porte aussi ses propres modèles et
+    tests, hors de propos ici — et une éventuelle collision de nom).
+
+    Dégradé (loggé, PAS levé) sur échec : la vue est une consultation passive (#646, « vue
+    passive : aucune alerte de trous côté relais ») — un souci dbt (macro incompatible,
+    dbt absent) ne doit jamais faire échouer la mission E-L du relais (pousser les flux),
+    la supervision du relais reste `StatsRelais`/exit code (#643), pas cette vue.
+    """
+    import os
+
+    try:
+        from dbt.cli.main import dbtRunner
+    except ImportError:
+        logger.warning("Vue d'audit du relais : dbt absent (uv sync --extra dbt) — vue non (re)matérialisée.")
+        return
+
+    ancien = os.environ.get("DBT_DUCKDB_PATH")
+    os.environ["DBT_DUCKDB_PATH"] = str(cfg.destination_db)
+    try:
+        runner = dbtRunner()
+        deps = runner.invoke(
+            ["deps", "--project-dir", str(_RELAIS_DBT_PROJET), "--profiles-dir", str(_RELAIS_DBT_PROJET)]
+        )
+        if not deps.success:
+            logger.warning("Vue d'audit du relais : échec `dbt deps` : %s", deps.exception)
+            return
+        build = runner.invoke(
+            [
+                "build",
+                "--select",
+                "package:electricore_relais",
+                "--project-dir",
+                str(_RELAIS_DBT_PROJET),
+                "--profiles-dir",
+                str(_RELAIS_DBT_PROJET),
+            ]
+        )
+        if not build.success:
+            logger.warning("Vue d'audit du relais : échec `dbt build` : %s", build.exception)
+    finally:
+        if ancien is None:
+            os.environ.pop("DBT_DUCKDB_PATH", None)
+        else:
+            os.environ["DBT_DUCKDB_PATH"] = ancien
+
+
 def executer(pipeline: "dlt.Pipeline | None" = None) -> tuple["dlt.common.pipeline.LoadInfo", StatsRelais]:
     """Point d'entrée programmatique : construit (ou reçoit, pour les tests) un pipeline
     dlt dédié et l'exécute contre la config du domaine runtime `relais` (#637).
@@ -232,6 +381,8 @@ def executer(pipeline: "dlt.Pipeline | None" = None) -> tuple["dlt.common.pipeli
     if pipeline is None:
         pipeline = _pipeline_par_defaut(cfg)
     info = pipeline.run(relais_source(cfg.source_url, cfg.partner_url, cfg.flux_filtres(), key_chain, stats))
+    _journaliser_vus(pipeline, cfg)
+    _construire_vue_audit(cfg)
     return info, stats
 
 
@@ -281,19 +432,13 @@ def _journal_deja_peuple(db_path: Path) -> bool:
     """Le journal (`relais_livraisons`) contient-il déjà au moins une livraison (push ou
     amorce) ? Garde-fou de `seed_avant` : le journal et l'état `zips_livrés` sont toujours
     peuplés ENSEMBLE (même transaction dlt, `_pousser`/`_amorcer` ci-dessus) — un journal
-    non vide implique donc un état non vide, sans avoir à lire l'état dlt hors contexte de run."""
-    import duckdb
+    non vide implique donc un état non vide, sans avoir à lire l'état dlt hors contexte de run.
 
-    if not db_path.exists():
-        return False
-    con = duckdb.connect(str(db_path), read_only=True)
-    try:
-        (n,) = con.execute(f'select count(*) from "{NOM_DATASET}"."{NOM_RESOURCE}"').fetchone()
-        return n > 0
-    except duckdb.CatalogException:
-        return False
-    finally:
-        con.close()
+    Restreint aux statuts `_STATUTS_LIVRES` (#646, journal enrichi) : un journal qui ne
+    contient QUE des lignes `'vu'`/`'echec'` (un run normal qui n'a encore rien livré avec
+    succès) n'est PAS « déjà peuplé » — sinon le premier `executer()` (même sans aucun push
+    réussi) condamnerait tout `seed_avant` ultérieur au refus."""
+    return bool(_zips_dans_journal(db_path, statuts=_STATUTS_LIVRES))
 
 
 def seed_avant(avant: str, *, force: bool = False, pipeline: "dlt.Pipeline | None" = None):
@@ -320,24 +465,78 @@ def seed_avant(avant: str, *, force: bool = False, pipeline: "dlt.Pipeline | Non
     return pipeline.run(_seed_source(cfg.source_url, cfg.flux_filtres(), avant))
 
 
+_STATUTS_LIVRES = ("pousse", "amorce")  # les deux seuls statuts qui valent « relayé » (#646)
+
+
+def _zips_dans_journal(db_path: Path, *, statuts: tuple[str, ...] | None = None) -> set[str]:
+    """Noms de zip présents dans le journal — `statuts=None` : toute ligne, quel que soit son
+    statut (vu/pousse/amorce/echec) ; `statuts=(...)` : restreint à ces statuts. Base absente
+    ou table pas encore créée (aucune ligne écrite) → ensemble vide, jamais une exception.
+
+    Connexion `read_only` d'abord, repli lecture-écriture (#646, revue) : les chemins
+    opérateur (`zips_non_relayes`, garde-fou du seed) sont des lectures pures — plusieurs
+    lecteurs coexistent et un opérateur ne prend jamais le verrou d'écriture sous le pied
+    du timer. Mais dans un process qui a déjà bâti la vue dbt (`_construire_vue_audit` —
+    double run, tests), DuckDB refuse une config `read_only` sur un fichier tenu par la
+    connexion dbt encore vive (même piège que `runner.py::bilan`) : on rejoint alors la
+    config existante. Conflit résiduel inhérent au mono-écrivain DuckDB : une lecture
+    opérateur pendant la passe du timer échoue proprement sur le verrou — relancer après."""
+    import duckdb
+
+    if not db_path.exists():
+        return set()
+    try:
+        con = duckdb.connect(str(db_path), read_only=True)
+    except duckdb.ConnectionException:
+        con = duckdb.connect(str(db_path))  # même process qu'une connexion rw vive (dbt)
+    try:
+        if statuts is None:
+            requete = f'select "zip" from "{NOM_DATASET}"."{NOM_RESOURCE}"'
+        else:
+            placeholders = ", ".join(
+                f"'{s}'" for s in statuts
+            )  # statuts = constantes internes, pas une entrée utilisateur
+            requete = f'select "zip" from "{NOM_DATASET}"."{NOM_RESOURCE}" where "statut" in ({placeholders})'
+        return {row[0] for row in con.execute(requete).fetchall()}
+    except duckdb.CatalogException:
+        return set()
+    finally:
+        con.close()
+
+
+def _journaliser_vus(pipeline: "dlt.Pipeline", cfg: "runtime.Relais") -> None:
+    """Journal enrichi (#646) : tout zip VU au balayage entre dans le journal, pas
+    seulement les livrés — l'audit de réception (vue `audit_sequences`) ne dépend alors ni
+    du filtre `RELAIS__FLUX`, ni du cycle de vie d'electricore (un flux comme R17, jamais
+    couvert côté ingestion, apparaît quand même dès qu'il transite par le relais).
+
+    Complète APRÈS le run principal (`push`/`echec` déjà journalisés par la chaîne
+    `relais_source`) : ne journalise `statut='vu'` que les zips du listing source ENCORE
+    absents du journal — un zip filtré-flux (jamais candidat au push) resterait sinon
+    invisible ; un zip déjà journalisé (quel que soit son statut) n'est PAS re-journalisé
+    à chaque passage, sinon le balayage réconciliant (`incremental=False`) le re-listerait
+    et le re-journaliserait indéfiniment."""
+    fs, base_path = fsspec.core.url_to_fs(cfg.source_url)
+    zips_source = {Path(p).name for p in fs.glob(f"{base_path.rstrip('/')}/**/*.zip")}
+    deja_journalises = _zips_dans_journal(cfg.destination_db)
+    nouveaux = sorted(zips_source - deja_journalises)
+    if not nouveaux:
+        return
+    maintenant = datetime.now(UTC).isoformat()
+    lignes = [{"zip": nom, "fichiers": [], "statut": "vu", "at": maintenant} for nom in nouveaux]
+    pipeline.run(lignes, table_name=NOM_RESOURCE, write_disposition="append")
+
+
 def zips_non_relayes(source_url: str, db_path: Path) -> list[str]:
     """Vérification de complétude (#637) : zips de la source absents du journal de destination.
 
-    Écart entre le listing source (fsspec, tous les `*.zip` récursivement) et la table
-    `relais.relais_livraisons` (peuplée par `executer`/`seed_avant`) — une requête simple,
-    indépendante du `resource_state` (qui gouverne seulement le skip du run suivant). Un zip
-    amorcé (`statut='amorce'`) est dans cette table au même titre qu'un zip poussé — pas de
-    filtre sur `statut`, il ne remonte donc pas ici (#643)."""
-    import duckdb
-
+    Écart entre le listing source (fsspec, tous les `*.zip` récursivement) et les zips
+    EFFECTIVEMENT relayés (`statut` 'pousse'/'amorce') — une requête simple, indépendante du
+    `resource_state` (qui gouverne seulement le skip du run suivant). Journal enrichi (#646) :
+    un zip seulement `'vu'` ou en `'echec'` N'EST PAS relayé — il doit rester manquant ici,
+    sinon `zips_non_relayes` perdrait sa sémantique « jamais relayé » (un push qui échoue en
+    boucle disparaîtrait à tort de cette liste dès sa première tentative)."""
     fs, base_path = fsspec.core.url_to_fs(source_url)
     zips_source = {Path(p).name for p in fs.glob(f"{base_path.rstrip('/')}/**/*.zip")}
-
-    con = duckdb.connect(str(db_path), read_only=True)
-    try:
-        livres = {row[0] for row in con.execute(f'select "zip" from "{NOM_DATASET}"."{NOM_RESOURCE}"').fetchall()}
-    except duckdb.CatalogException:
-        livres = set()
-    finally:
-        con.close()
+    livres = _zips_dans_journal(db_path, statuts=_STATUTS_LIVRES)
     return sorted(zips_source - livres)

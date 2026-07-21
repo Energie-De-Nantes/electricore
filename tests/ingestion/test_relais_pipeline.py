@@ -43,6 +43,14 @@ from electricore.ingestion.relais.pipeline import (
     zips_non_relayes,
 )
 
+# Monkeypatcher des fonctions internes du module (`_verifier_ecriture`) se fait via
+# `executer.__globals__` (le namespace où `executer` résout ses appels), PAS via un `import
+# electricore.ingestion.relais.pipeline as pipeline_module` local à un test : `test_relais_
+# independance.py` fait `del sys.modules[...]` puis ré-importe (garde dynamique) — un import
+# local exécuté APRÈS ce reload (ordre alphabétique de fichiers) résoudrait un AUTRE objet
+# module que celui qu'`executer` référence en interne, et un monkeypatch dessus n'aurait
+# alors aucun effet sur le code réellement exécuté (bug constaté, #646).
+
 AES_KEY = bytes.fromhex("0102030405060708090a0b0c0d0e0f10")
 AES_IV = bytes.fromhex("1112131415161718191a1b1c1d1e1f20")
 
@@ -56,21 +64,31 @@ def _isoler_env(monkeypatch):
     runtime.vider_cache()
 
 
-def _zip_chiffre(nom_interne: str, contenu: bytes) -> bytes:
+def _zip_chiffre_multi(fichiers: list[tuple[str, bytes]]) -> bytes:
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr(nom_interne, contenu)
+        for nom_interne, contenu in fichiers:
+            zf.writestr(nom_interne, contenu)
     cipher = AES.new(AES_KEY, AES.MODE_CBC, AES_IV)
     return cipher.encrypt(pad(buf.getvalue(), AES.block_size))
 
 
-def _deposer_zip(bucket: Path, nom: str, contenu_interne: bytes, date=(2026, 6, 15, 12, 0, 0)) -> Path:
+def _zip_chiffre(nom_interne: str, contenu: bytes) -> bytes:
+    return _zip_chiffre_multi([(nom_interne, contenu)])
+
+
+def _deposer_zip_multi(bucket: Path, nom: str, fichiers: list[tuple[str, bytes]], date=(2026, 6, 15, 12, 0, 0)) -> Path:
+    """Dépose un zip chiffré à PLUSIEURS fichiers internes — intra-zip (#646)."""
     bucket.mkdir(parents=True, exist_ok=True)
     chemin = bucket / nom
-    chemin.write_bytes(_zip_chiffre(f"{nom.replace('.zip', '')}.xml", contenu_interne))
+    chemin.write_bytes(_zip_chiffre_multi(fichiers))
     ts = time.mktime((*date, 0, 0, -1))
     os.utime(chemin, (ts, ts))
     return chemin
+
+
+def _deposer_zip(bucket: Path, nom: str, contenu_interne: bytes, date=(2026, 6, 15, 12, 0, 0)) -> Path:
+    return _deposer_zip_multi(bucket, nom, [(f"{nom.replace('.zip', '')}.xml", contenu_interne)], date=date)
 
 
 def _configurer_env(monkeypatch, source: Path, cible: Path, db: Path, *, flux: str = ""):
@@ -92,11 +110,21 @@ def _pipeline(tmp_path: Path, db: Path, nom: str = "relais_test") -> dlt.Pipelin
     )
 
 
+# NB : ces trois helpers ouvrent une connexion LECTURE-ÉCRITURE (pas `read_only=True`) —
+# `executer()` enchaîne un `dbt build` en fin de passe (#646) ; une connexion `read_only`
+# juste après aurait une config DuckDB incompatible avec la connexion dbt encore en vie
+# dans ce même process (même piège documenté dans `runner.py::bilan`).
+
+
 def _zips_journalises(db: Path) -> list[str]:
-    """Zips journalisés — table absente (aucun push réussi pour l'instant) → liste vide."""
-    con = duckdb.connect(str(db), read_only=True)
+    """Zips effectivement LIVRÉS (`statut` 'pousse'/'amorce') — exclut 'vu'/'echec' (journal
+    enrichi, #646) : table absente (aucun push réussi pour l'instant) → liste vide."""
+    con = duckdb.connect(str(db))
     try:
-        return [row[0] for row in con.execute(f'select "zip" from "{NOM_DATASET}"."{NOM_RESOURCE}"').fetchall()]
+        lignes = con.execute(
+            f'select "zip" from "{NOM_DATASET}"."{NOM_RESOURCE}" where "statut" in (\'pousse\', \'amorce\')'
+        ).fetchall()
+        return [row[0] for row in lignes]
     except duckdb.CatalogException:
         return []
     finally:
@@ -104,13 +132,29 @@ def _zips_journalises(db: Path) -> list[str]:
 
 
 def _statuts_journalises(db: Path) -> dict[str, str]:
-    """`{zip: statut}` du journal — `'pousse'` (push réussi) ou `'amorce'` (seed, #643)."""
-    con = duckdb.connect(str(db), read_only=True)
+    """`{zip: statut}` du journal — `'pousse'` (push réussi) ou `'amorce'` (seed, #643).
+
+    N'utiliser que sur un journal où chaque zip n'a qu'UNE ligne (`dict()` collapse sinon
+    silencieusement sur la dernière) — `_toutes_lignes_journal` pour les scénarios à
+    plusieurs lignes par zip (retry après 'echec', #646)."""
+    con = duckdb.connect(str(db))
     try:
         rows = con.execute(f'select "zip", "statut" from "{NOM_DATASET}"."{NOM_RESOURCE}"').fetchall()
         return dict(rows)
     except duckdb.CatalogException:
         return {}
+    finally:
+        con.close()
+
+
+def _toutes_lignes_journal(db: Path) -> list[tuple[str, str]]:
+    """`[(zip, statut), …]` — TOUTES les lignes, y compris les zips à plusieurs lignes
+    (retry après 'echec') — journal enrichi (#646) : 'vu' / 'pousse' / 'amorce' / 'echec'."""
+    con = duckdb.connect(str(db))
+    try:
+        return con.execute(f'select "zip", "statut" from "{NOM_DATASET}"."{NOM_RESOURCE}"').fetchall()
+    except duckdb.CatalogException:
+        return []
     finally:
         con.close()
 
@@ -223,6 +267,24 @@ def test_completude_liste_les_zips_source_jamais_relayes(tmp_path, monkeypatch):
     _configurer_env(monkeypatch, source, cible, db, flux="R151")  # exclut le C15 déposé → jamais relayé
 
     executer(_pipeline(tmp_path, db))
+
+    manquants = zips_non_relayes(f"file://{source}/", db)
+    assert manquants == ["ENEDIS_C15_20260615_001.zip"]
+
+
+@pytest.mark.integration
+def test_completude_reste_correcte_avec_un_zip_en_echec(tmp_path, monkeypatch):
+    """Journal enrichi (#646) : un zip journalisé `statut='echec'` (push qui a échoué) DOIT
+    rester « manquant » pour `zips_non_relayes` — sinon un échec de push disparaîtrait à
+    tort de la complétude dès sa première tentative (la sémantique « jamais relayé » ne
+    doit filtrer que 'pousse'/'amorce', pas toute présence dans le journal)."""
+    source = tmp_path / "source"
+    cible_injoignable = Path("/n_existe_pas") / "sous_repertoire_impossible"
+    db = tmp_path / "relais.duckdb"
+    _deposer_zip(source, "ENEDIS_C15_20260615_001.zip", b"<data>c15</data>")
+    _configurer_env(monkeypatch, source, cible_injoignable, db)
+
+    executer(_pipeline(tmp_path, db))  # journalise 'echec' (cible injoignable)
 
     manquants = zips_non_relayes(f"file://{source}/", db)
     assert manquants == ["ENEDIS_C15_20260615_001.zip"]
@@ -351,6 +413,284 @@ def test_seed_force_outrepasse_le_refus(tmp_path, monkeypatch):
     seed_avant("2026-06-01", force=True, pipeline=_pipeline(tmp_path, db))  # ne lève pas
 
     assert _statuts_journalises(db)["ENEDIS_C15_20260101_002.zip"] == "amorce"
+
+
+# =============================================================================
+# Journal enrichi (#646) : tout zip VU au balayage est journalisé (pas seulement livré)
+# =============================================================================
+
+
+@pytest.mark.integration
+def test_echec_push_journalise_statut_echec(tmp_path, monkeypatch):
+    """Journal enrichi : un push qui échoue (cible injoignable) journalise une ligne
+    `statut='echec'` — le zip reste visible dans le journal, pas seulement absent."""
+    source = tmp_path / "source"
+    cible_injoignable = Path("/n_existe_pas") / "sous_repertoire_impossible"
+    db = tmp_path / "relais.duckdb"
+    _deposer_zip(source, "ENEDIS_C15_20260615_001.zip", b"<data>c15</data>")
+    _configurer_env(monkeypatch, source, cible_injoignable, db)
+
+    executer(_pipeline(tmp_path, db))
+
+    assert _toutes_lignes_journal(db) == [("ENEDIS_C15_20260615_001.zip", "echec")]
+    assert _zips_journalises(db) == []  # toujours pas considéré livré
+
+
+@pytest.mark.integration
+def test_zip_exclu_par_filtre_flux_est_journalise_vu(tmp_path, monkeypatch):
+    """Un zip vu au balayage mais exclu par le filtre flux (jamais candidat au push) est
+    tout de même journalisé `statut='vu'` — l'audit de réception ne dépend pas du routage
+    configuré côté relais (R151 compris si `RELAIS__FLUX` ne le liste pas)."""
+    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
+    _deposer_zip(source, "ENEDIS_C15_20260615_001.zip", b"<data>c15</data>")
+    _deposer_zip(source, "ENEDIS_R151_20260615_002.zip", b"<data>r151</data>")
+    _configurer_env(monkeypatch, source, cible, db, flux="C15")
+
+    executer(_pipeline(tmp_path, db))
+
+    lignes = dict(_toutes_lignes_journal(db))
+    assert lignes["ENEDIS_C15_20260615_001.zip"] == "pousse"
+    assert lignes["ENEDIS_R151_20260615_002.zip"] == "vu"
+
+
+@pytest.mark.integration
+def test_zip_vu_n_est_pas_rejournalise_au_run_suivant(tmp_path, monkeypatch):
+    """Un zip déjà journalisé `statut='vu'` ne l'est pas une seconde fois au run suivant —
+    une ligne par zip par issue, pas un doublon à chaque balayage réconciliant."""
+    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
+    _deposer_zip(source, "ENEDIS_R151_20260615_002.zip", b"<data>r151</data>")
+    _configurer_env(monkeypatch, source, cible, db, flux="C15")
+
+    executer(_pipeline(tmp_path, db))
+    executer(_pipeline(tmp_path, db))
+
+    assert _toutes_lignes_journal(db) == [("ENEDIS_R151_20260615_002.zip", "vu")]
+
+
+# =============================================================================
+# Vérification d'écriture (#646) : taille distante vs locale AVANT de marquer livré
+# =============================================================================
+
+
+@pytest.mark.integration
+def test_ecriture_tronquee_ne_marque_pas_livre_et_retente(tmp_path, monkeypatch):
+    """Critère : un mismatch taille distante/locale (dépôt tronqué) ne marque PAS le zip
+    livré — retenté au passage suivant, poussé avec succès une fois la vérification saine."""
+    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
+    _deposer_zip(source, "ENEDIS_C15_20260615_001.zip", b"<data>c15</data>")
+    _configurer_env(monkeypatch, source, cible, db)
+
+    verif_originale = executer.__globals__["_verifier_ecriture"]
+    monkeypatch.setitem(
+        executer.__globals__,
+        "_verifier_ecriture",
+        lambda fs, chemin, taille_locale: (_ for _ in ()).throw(OSError("tronqué")),
+    )
+    info, stats = executer(_pipeline(tmp_path, db))
+    assert _zips_journalises(db) == []  # PAS marqué livré
+    assert (stats.candidats, stats.pousses, stats.echecs_push) == (1, 0, 1)
+
+    monkeypatch.setitem(executer.__globals__, "_verifier_ecriture", verif_originale)  # vérification désormais saine
+    executer(_pipeline(tmp_path, db))  # retente
+    assert (cible / "ENEDIS_C15_20260615_001.xml").read_bytes() == b"<data>c15</data>"
+    assert _zips_journalises(db) == ["ENEDIS_C15_20260615_001.zip"]
+
+
+# =============================================================================
+# Contrôle intra-zip au dézippage (#646) : compteur X/Y, exception R151, F15
+# =============================================================================
+
+
+@pytest.mark.integration
+def test_intra_zip_incomplet_bloque_le_push(tmp_path, monkeypatch):
+    """Un zip C15 annonçant 3 fichiers (`_XXXXX_00003`) mais n'en contenant que 2 → rien
+    n'est poussé, le zip reste non-livré, échec compté et alerté."""
+    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
+    zip_name = "17X100A100A0001A_C15_17X000001117366M_GRD-F139_0327_00001_20260615120000.zip"
+    _deposer_zip_multi(
+        source,
+        zip_name,
+        [
+            ("17X100A100A0001A_C15_17X000001117366M_GRD-F139_00017_00001_00003.xml", b"un"),
+            ("17X100A100A0001A_C15_17X000001117366M_GRD-F139_00017_00002_00003.xml", b"deux"),
+            # rang 00003 manque
+        ],
+    )
+    _configurer_env(monkeypatch, source, cible, db)
+
+    info, stats = executer(_pipeline(tmp_path, db))
+
+    assert not cible.exists() or list(cible.iterdir()) == []  # rien poussé pour ce zip
+    assert (stats.candidats, stats.pousses, stats.echecs_push) == (1, 0, 1)
+    assert dict(_toutes_lignes_journal(db))[zip_name] == "echec"
+
+
+@pytest.mark.integration
+def test_intra_zip_complet_pousse_normalement(tmp_path, monkeypatch):
+    """Les 3 rangs annoncés sont tous présents → push normal, aucune anomalie."""
+    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
+    zip_name = "17X100A100A0001A_C15_17X000001117366M_GRD-F139_0327_00001_20260615120000.zip"
+    _deposer_zip_multi(
+        source,
+        zip_name,
+        [
+            ("17X100A100A0001A_C15_17X000001117366M_GRD-F139_00017_00001_00003.xml", b"un"),
+            ("17X100A100A0001A_C15_17X000001117366M_GRD-F139_00017_00002_00003.xml", b"deux"),
+            ("17X100A100A0001A_C15_17X000001117366M_GRD-F139_00017_00003_00003.xml", b"trois"),
+        ],
+    )
+    _configurer_env(monkeypatch, source, cible, db)
+
+    info, stats = executer(_pipeline(tmp_path, db))
+
+    assert (stats.candidats, stats.pousses, stats.echecs_push) == (1, 1, 0)
+    assert _zips_journalises(db) == [zip_name]
+
+
+@pytest.mark.integration
+def test_intra_zip_totaux_incoherents_bloque(tmp_path, monkeypatch):
+    """Des totaux Y distincts entre fichiers d'une même archive (`_00001_00002` +
+    `_00002_00003`) = archive malformée (le guide garantit un Y unique) → échec + alerte,
+    rien n'est poussé — plutôt que de faire silencieusement confiance au premier Y vu."""
+    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
+    zip_name = "17X100A100A0001A_C15_17X000001117366M_GRD-F139_0327_00001_20260615120000.zip"
+    _deposer_zip_multi(
+        source,
+        zip_name,
+        [
+            ("17X100A100A0001A_C15_17X000001117366M_GRD-F139_00017_00001_00002.xml", b"un"),
+            ("17X100A100A0001A_C15_17X000001117366M_GRD-F139_00017_00002_00003.xml", b"deux"),
+        ],
+    )
+    _configurer_env(monkeypatch, source, cible, db)
+
+    info, stats = executer(_pipeline(tmp_path, db))
+
+    assert (stats.candidats, stats.pousses, stats.echecs_push) == (1, 0, 1)
+    assert dict(_toutes_lignes_journal(db))[zip_name] == "echec"
+
+
+@pytest.mark.integration
+def test_r151_echappe_au_controle_intra_zip(tmp_path, monkeypatch):
+    """R151 : le compteur est INTER-zips (CONTEXT.md) — un contenu interne « incomplet »
+    au sens du compteur X/Y n'est PAS bloqué, contrairement aux autres flux."""
+    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
+    zip_name = "ERDF_R151_17X000001117366M_GRD-F139_108529521_00794_Q_00001_00002_20260615120000.zip"
+    _deposer_zip_multi(
+        source,
+        zip_name,
+        [("r151_interne_00001_00002.xml", b"releve")],  # 1/2 au sens du compteur — ignoré pour R151
+    )
+    _configurer_env(monkeypatch, source, cible, db)
+
+    info, stats = executer(_pipeline(tmp_path, db))
+
+    assert (stats.candidats, stats.pousses, stats.echecs_push) == (1, 1, 0)
+    assert _zips_journalises(db) == [zip_name]
+
+
+@pytest.mark.integration
+def test_f15_sans_fichier_donnees_generales_bloque(tmp_path, monkeypatch):
+    """F15 : aucun fichier au suffixe `_FA` (données générales, guide SGE 0298) → échec +
+    alerte, rien n'est poussé."""
+    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
+    zip_name = "17X100A100A0001A_F15_17X000001117366M_GRD-F139_0321_C_M_1_P_00001_20260615120000.zip"
+    _deposer_zip_multi(
+        source,
+        zip_name,
+        [("f15_detail_00001_00001.xml", b"detail")],
+    )
+    _configurer_env(monkeypatch, source, cible, db)
+
+    info, stats = executer(_pipeline(tmp_path, db))
+
+    assert (stats.candidats, stats.pousses, stats.echecs_push) == (1, 0, 1)
+    assert dict(_toutes_lignes_journal(db))[zip_name] == "echec"
+
+
+@pytest.mark.integration
+def test_f15_avec_fichier_donnees_generales_pousse_normalement(tmp_path, monkeypatch):
+    """F15 : le fichier de données générales `_FA` est présent en plus des fichiers de
+    détail numérotés (forme réelle du corpus EDN : `…_<seq>_FA.xml` + `…_FL_XXXXX_YYYYY.xml`)
+    → push normal."""
+    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
+    zip_name = "17X100A100A0001A_F15_17X000001117366M_GRD-F139_0321_C_M_1_P_00001_20260615120000.zip"
+    _deposer_zip_multi(
+        source,
+        zip_name,
+        [
+            ("17X100A100A0001A_F15_17X000001117366M_GRD-F139_0321_C_M_1_P_00001_FL_00001_00001.xml", b"detail"),
+            ("17X100A100A0001A_F15_17X000001117366M_GRD-F139_0321_C_M_1_P_00001_FA.xml", b"generalites"),
+        ],
+    )
+    _configurer_env(monkeypatch, source, cible, db)
+
+    info, stats = executer(_pipeline(tmp_path, db))
+
+    assert (stats.candidats, stats.pousses, stats.echecs_push) == (1, 1, 0)
+    assert _zips_journalises(db) == [zip_name]
+
+
+# =============================================================================
+# Vue d'audit embarquée (#646) : bout-en-bout file:// → journal → SELECT sur la vue
+# =============================================================================
+
+
+@pytest.mark.integration
+def test_bout_en_bout_journal_puis_vue_audit_couvre_troncature_et_intra_zip(tmp_path, monkeypatch):
+    """Critère d'acceptation bout-en-bout : source locale (file://) → dépôt local → journal
+    → `SELECT` sur `journal.relais_audit_sequences` — `executer()` enchaîne dlt (push +
+    journal enrichi) puis le dbt build embarqué dans le MÊME appel, la vue est donc
+    directement requêtable en sortie. Couvre les DEUX cas de durcissement dans le même
+    passage : un dépôt tronqué (vérification d'écriture) et un zip intra-zip incomplet —
+    tous deux journalisés `statut='echec'` et VISIBLES dans l'audit de réception (ils
+    prouvent que Enedis a bien émis ces numéros de séquence, cf. `zip_en_echec_compte_dans_l_audit_de_reception`)."""
+    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
+    zip_sain = "17X100A100A0001A_C15_17X000001117366M_GRD-F139_0327_00001_20260615120000.zip"
+    zip_tronque = "17X100A100A0001A_C15_17X000001117366M_GRD-F139_0327_00002_20260616120000.zip"
+    zip_incomplet = "17X100A100A0001A_C15_17X000001117366M_GRD-F139_0327_00003_20260617120000.zip"
+    _deposer_zip(source, zip_sain, b"<data>un</data>", date=(2026, 6, 15, 12, 0, 0))
+    _deposer_zip(source, zip_tronque, b"<data>deux</data>", date=(2026, 6, 16, 12, 0, 0))
+    _deposer_zip_multi(
+        source,
+        zip_incomplet,
+        [("17X100A100A0001A_C15_17X000001117366M_GRD-F139_00017_00001_00002.xml", b"un_sur_deux")],
+        date=(2026, 6, 17, 12, 0, 0),
+    )
+    _configurer_env(monkeypatch, source, cible, db)
+
+    verif_originale = executer.__globals__["_verifier_ecriture"]
+
+    def _verif_selective(fs, chemin, taille_locale):
+        if zip_tronque.replace(".zip", "") in chemin:
+            raise OSError("tronqué")
+        return verif_originale(fs, chemin, taille_locale)
+
+    monkeypatch.setitem(executer.__globals__, "_verifier_ecriture", _verif_selective)
+
+    info, stats = executer(_pipeline(tmp_path, db))
+
+    assert (stats.candidats, stats.pousses, stats.echecs_push) == (3, 1, 2)
+    statuts = dict(_toutes_lignes_journal(db))
+    assert statuts[zip_sain] == "pousse"
+    assert statuts[zip_tronque] == "echec"
+    assert statuts[zip_incomplet] == "echec"
+
+    con = duckdb.connect(str(db))
+    try:
+        lignes = con.execute(
+            "select flux, cle_sequence, type_anomalie, seq_ou_plage from journal.relais_audit_sequences"
+        ).fetchall()
+    finally:
+        con.close()
+    # Les 3 zips comptent dans l'audit de réception (même les 2 en échec de push) : la
+    # clé C15|GRD-F139|0327 va jusqu'à 00003 sans trou (aucun numéro manquant entre 1 et 3).
+    cles_c15 = [ligne for ligne in lignes if ligne[0] == "C15"]
+    assert cles_c15, "la vue doit contenir des lignes pour la clé de séquence C15"
+    assert not any(ligne[2] == "trou" for ligne in cles_c15)
+    queue = [ligne for ligne in cles_c15 if ligne[2] == "queue_inverifiable"]
+    assert len(queue) == 1
+    assert queue[0][3] == "00003"
 
 
 # =============================================================================
