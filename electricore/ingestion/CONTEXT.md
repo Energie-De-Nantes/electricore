@@ -60,6 +60,10 @@ Exécution asynchrone du pipeline d'ingestion déclenchée via l'API (`POST /ing
 **Scheduler** :
 Conteneur Docker qui déclenche périodiquement l'ingestion via cron et un appel HTTP à `/ingestion/run` — pas de logique métier embarquée. Voir [ADR-0011](../../docs/adr/0011-deploiement-vps-docker.md).
 
+**Mouvement** :
+Chaîne de rapatriement des archives depuis l'**URL source** jusqu'au document brut déposé : listing | déchiffrement | extraction | dépôt. Indifférente au protocole — le backend est choisi par le schéma de l'URL (`sftp://` en production, `file://` en test ou dépôt local) : la capacité « récupérer les archives » se prouve sur un bucket local, seul le transport change.
+_Éviter_ : « SFTP » comme nom de la capacité (le SFTP n'est qu'un transport possible de l'URL source).
+
 **Transformer** :
 Étape unitaire et composable de transformation d'un fichier, sous forme d'*adapter* DLT mince autour d'un noyau pur (`crypto.py` déchiffrement AES, `archive.py` extraction ZIP, `parsers.py` linéarisation). Les transformers se chaînent via le `|` de DLT : `encrypted | decrypt | unzip | parse`.
 
