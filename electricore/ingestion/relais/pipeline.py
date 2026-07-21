@@ -158,35 +158,40 @@ def _controle_intra_zip(flux: str | None, fichiers: list[tuple[str, bytes]], zip
     doit être complet — chaque rang de 1 à Y présent une fois. **R151 excepté** : son
     compteur est INTER-zips (un XML par zip), pas de sens à l'appliquer DANS un zip.
 
-    F15 : contrôle additionnel — au moins un fichier SANS le suffixe `_XXXXX_YYYYY` doit
-    être présent (le « fichier de données générales », distinct des fichiers de détail
-    numérotés). ponytail : heuristique faute de spec de nommage exacte disponible dans ce
-    dépôt (aucun zip F15 réel échantillonné) — à corriger contre un vrai zip F15 si le
-    marqueur diffère ; le principe (échec + alerte, rien poussé) reste correct quel que
-    soit le marqueur exact.
+    F15 : contrôle additionnel — le fichier de données générales, au suffixe `_FA`
+    (guide SGE 0298 ; marqueur vérifié sur le corpus EDN du 21/07/2026 : 2 199/2 199 zips
+    F15 en portent un, zéro fichier ni `_FA` ni numéroté), doit être présent. F12 porte
+    aussi `_FA` (plus `_FR` récapitulatif) mais sans exigence posée ici — son absence n'a
+    jamais été observée et F12 n'a pas de présence obligatoire équivalente dans nos usages.
+
+    Des totaux Y **distincts** entre fichiers d'une même archive = archive malformée
+    (le guide garantit un Y unique) — même politique que l'incomplet : échec + alerte.
 
     Lève sur toute incohérence — **rien n'est poussé** pour ce zip (appelé avant
     `pousser_vers_partenaire` dans `_pousser`, discipline `etape_chaine` : compté en échec,
     jamais un dépôt partiel silencieux)."""
-    fichier_hors_numerotation = False
+    a_donnees_generales = False
     rangs_vus: set[int] = set()
-    total_attendu: int | None = None
+    totaux: set[int] = set()
     for nom, _ in fichiers:
+        if nom.upper().endswith("_FA.XML"):
+            a_donnees_generales = True
         m = _RE_RANG_TOTAL.search(nom)
         if not m:
-            fichier_hors_numerotation = True
             continue
-        rang, total = int(m.group(1)), int(m.group(2))
-        total_attendu = total_attendu if total_attendu is not None else total
-        rangs_vus.add(rang)
+        rangs_vus.add(int(m.group(1)))
+        totaux.add(int(m.group(2)))
 
-    if flux != "R151" and total_attendu is not None:
+    if flux != "R151" and totaux:
+        if len(totaux) > 1:
+            raise ValueError(f"{zip_name} : compteurs intra-zip incohérents (totaux {sorted(totaux)})")
+        (total_attendu,) = totaux
         manquants = set(range(1, total_attendu + 1)) - rangs_vus
         if manquants:
             raise ValueError(f"{zip_name} : intra-zip incomplet ({len(rangs_vus)}/{total_attendu})")
 
-    if flux == "F15" and not fichier_hors_numerotation:
-        raise ValueError(f"{zip_name} : F15 sans fichier de données générales")
+    if flux == "F15" and not a_donnees_generales:
+        raise ValueError(f"{zip_name} : F15 sans fichier de données générales (_FA)")
 
 
 def pousser_vers_partenaire(fichiers: list[tuple[str, bytes]], partner_url: str) -> None:
@@ -468,15 +473,22 @@ def _zips_dans_journal(db_path: Path, *, statuts: tuple[str, ...] | None = None)
     statut (vu/pousse/amorce/echec) ; `statuts=(...)` : restreint à ces statuts. Base absente
     ou table pas encore créée (aucune ligne écrite) → ensemble vide, jamais une exception.
 
-    Connexion LECTURE-ÉCRITURE, pas `read_only=True` (#646) : `dbt build` (`_construire_vue_audit`)
-    peut avoir écrit dans le MÊME process juste avant — une connexion `read_only` aurait une
-    config DuckDB incompatible avec la connexion dbt encore en vie (même piège documenté dans
-    `runner.py::bilan`)."""
+    Connexion `read_only` d'abord, repli lecture-écriture (#646, revue) : les chemins
+    opérateur (`zips_non_relayes`, garde-fou du seed) sont des lectures pures — plusieurs
+    lecteurs coexistent et un opérateur ne prend jamais le verrou d'écriture sous le pied
+    du timer. Mais dans un process qui a déjà bâti la vue dbt (`_construire_vue_audit` —
+    double run, tests), DuckDB refuse une config `read_only` sur un fichier tenu par la
+    connexion dbt encore vive (même piège que `runner.py::bilan`) : on rejoint alors la
+    config existante. Conflit résiduel inhérent au mono-écrivain DuckDB : une lecture
+    opérateur pendant la passe du timer échoue proprement sur le verrou — relancer après."""
     import duckdb
 
     if not db_path.exists():
         return set()
-    con = duckdb.connect(str(db_path))
+    try:
+        con = duckdb.connect(str(db_path), read_only=True)
+    except duckdb.ConnectionException:
+        con = duckdb.connect(str(db_path))  # même process qu'une connexion rw vive (dbt)
     try:
         if statuts is None:
             requete = f'select "zip" from "{NOM_DATASET}"."{NOM_RESOURCE}"'
