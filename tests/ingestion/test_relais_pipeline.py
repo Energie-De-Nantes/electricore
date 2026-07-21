@@ -354,6 +354,37 @@ def test_seed_force_outrepasse_le_refus(tmp_path, monkeypatch):
 
 
 # =============================================================================
+# Vérification d'écriture (#646) : taille distante vs locale AVANT de marquer livré
+# =============================================================================
+
+
+@pytest.mark.integration
+def test_ecriture_tronquee_ne_marque_pas_livre_et_retente(tmp_path, monkeypatch):
+    """Critère : un mismatch taille distante/locale (dépôt tronqué) ne marque PAS le zip
+    livré — retenté au passage suivant, poussé avec succès une fois la vérification saine."""
+    from electricore.ingestion.relais import pipeline as pipeline_module
+
+    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
+    _deposer_zip(source, "ENEDIS_C15_20260615_001.zip", b"<data>c15</data>")
+    _configurer_env(monkeypatch, source, cible, db)
+
+    verif_originale = pipeline_module._verifier_ecriture
+    monkeypatch.setattr(
+        pipeline_module,
+        "_verifier_ecriture",
+        lambda fs, chemin, taille_locale: (_ for _ in ()).throw(OSError("tronqué")),
+    )
+    info, stats = executer(_pipeline(tmp_path, db))
+    assert _zips_journalises(db) == []  # PAS marqué livré
+    assert (stats.candidats, stats.pousses, stats.echecs_push) == (1, 0, 1)
+
+    monkeypatch.setattr(pipeline_module, "_verifier_ecriture", verif_originale)  # vérification désormais saine
+    executer(_pipeline(tmp_path, db))  # retente
+    assert (cible / "ENEDIS_C15_20260615_001.xml").read_bytes() == b"<data>c15</data>"
+    assert _zips_journalises(db) == ["ENEDIS_C15_20260615_001.zip"]
+
+
+# =============================================================================
 # CLI (__main__.py, #643) : escalade en sortie de process, sous-commande seed
 # =============================================================================
 
