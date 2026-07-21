@@ -164,9 +164,12 @@ select * from non_reconnus
 {% endmacro %}
 
 
--- Data test générique (severity: warn côté schema.yml) : 0 anomalie attendue. Le mart
--- audit_sequences PRODUIT une ligne par anomalie — appliquer ce test au modèle entier
--- revient donc à vérifier qu'il est vide, sans dupliquer une requête `select * from`.
+-- Data test générique (severity: warn côté schema.yml) : 0 anomalie ACTIONNABLE attendue.
+-- `queue_inverifiable` est exclue : la queue est l'état permanent de toute séquence ouverte
+-- (il y a toujours un dernier numéro reçu), pas une anomalie — la compter ferait tirer le
+-- warn à chaque build et noierait les vrais trous. Un fichier perdu en queue se déclarera
+-- de lui-même comme trou encadré à l'arrivée du numéro suivant ; la queue reste visible
+-- dans la vue pour la consultation (« jusqu'où ai-je vérifié ? »).
 {% test aucune_anomalie(model) %}
-select * from {{ model }}
+select * from {{ model }} where type_anomalie != 'queue_inverifiable'
 {% endtest %}

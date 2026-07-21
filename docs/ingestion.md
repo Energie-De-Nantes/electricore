@@ -192,17 +192,21 @@ absente (landing partiel, smoke `max_files`).
   jamais atterri — mais une re-livraison sous un nom de zip *différent* pour le même
   contenu (dédoublonnée par le merge dlt sur `file_name`) peut ponctuellement produire un
   faux positif. Vérifier sur le SFTP / auprès d'Enedis avant d'escalader.
-- **`queue_inverifiable` n'est jamais un feu vert.** Le dernier numéro observé d'une clé
-  n'est jamais requalifié en « sain » — un trou n'est constatable qu'*entre* deux numéros ;
-  le suivant n'est simplement pas encore arrivé.
+- **`queue_inverifiable` n'est jamais un feu vert — mais n'est pas une anomalie.** Le
+  dernier numéro observé d'une clé n'est jamais requalifié en « sain » — un trou n'est
+  constatable qu'*entre* deux numéros. La queue est l'état permanent de toute séquence
+  ouverte : elle reste dans la vue (consultation « jusqu'où ai-je vérifié ? ») mais est
+  exclue du data test `warn` — un fichier perdu en queue se déclarera de lui-même comme
+  trou encadré à l'arrivée du numéro suivant.
 - **R17 pas encore couvert.** Aucune table `raw_r17` n'existe côté ingestion — pas de zip
   réel à caler contre la macro pour l'instant. Le jour où `sources.yml` la déclarera,
   ajouter sa règle (clé = contrat seul, guide SGE, même forme que C12) au dict `regles`
   de la macro et l'unioner dans `source_union` du mart.
-- **Data test `warn`, jamais bloquant.** `aucune_anomalie` (0 ligne attendue) tourne en
-  `severity: warn` à chaque `dbt build` — il trace les trous dans la sortie du job sans
-  jamais le faire échouer (l'ingestion reste verte sur une base réelle qui a ses trous
-  historiques connus).
+- **Data test `warn`, jamais bloquant, discriminant.** `aucune_anomalie` (0 anomalie
+  *actionnable* attendue : `trou`, `nom_non_reconnu`, `intra_zip_incomplet` — queues
+  exclues) tourne en `severity: warn` à chaque `dbt build` — silencieux sur base saine,
+  il trace les vraies anomalies dans la sortie du job sans jamais le faire échouer
+  (l'ingestion reste verte sur une base réelle qui a ses trous historiques connus).
 
 ### Les trois pièges DuckDB (appris sur données réelles, encodés dans les modèles)
 
