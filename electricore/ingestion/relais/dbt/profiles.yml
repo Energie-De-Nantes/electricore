@@ -1,0 +1,15 @@
+electricore_relais:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      # Base DuckDB du relais (journal des livraisons, dlt) — même variable d'env que le
+      # projet dbt principal (`DBT_DUCKDB_PATH`) : jamais les deux projets en même temps
+      # dans le même process, pas de collision possible.
+      path: "{{ env_var('DBT_DUCKDB_PATH', 'electricore/ingestion/relais/relais.duckdb') }}"
+      # Schéma cible = celui du journal (`NOM_DATASET` dans pipeline.py) — la vue vit à
+      # côté de la table qu'elle audite.
+      schema: journal
+      settings:
+        preserve_insertion_order: false
+        threads: 1

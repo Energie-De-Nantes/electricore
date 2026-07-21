@@ -1,0 +1,4 @@
+packages:
+  - local: ../../dbt
+    name: electricore_flux
+sha1_hash: 3c6aed3857d7f45593036df3aee083471e4a2919

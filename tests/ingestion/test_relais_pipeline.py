@@ -35,6 +35,7 @@ from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
 
 from electricore.config import runtime
+from electricore.ingestion.relais import pipeline as pipeline_module
 from electricore.ingestion.relais.pipeline import (
     NOM_DATASET,
     NOM_RESOURCE,
@@ -42,6 +43,14 @@ from electricore.ingestion.relais.pipeline import (
     seed_avant,
     zips_non_relayes,
 )
+
+# `pipeline_module` importé UNE FOIS ICI, à la collecte (comme `executer` etc. ci-dessus) —
+# PAS ré-importé dans le corps d'un test : `test_relais_independance.py` fait `del
+# sys.modules["electricore.ingestion.relais.pipeline"]` puis ré-importe (garde dynamique).
+# Un `import ... as pipeline_module` fait DANS le corps d'un test, exécuté APRÈS que ce
+# reload ait eu lieu (ordre alphabétique de fichiers), résoudrait un AUTRE objet module que
+# celui que `executer` référence en interne — un monkeypatch dessus n'aurait alors aucun
+# effet sur le code réellement exécuté (bug constaté, #646).
 
 AES_KEY = bytes.fromhex("0102030405060708090a0b0c0d0e0f10")
 AES_IV = bytes.fromhex("1112131415161718191a1b1c1d1e1f20")
@@ -102,10 +111,16 @@ def _pipeline(tmp_path: Path, db: Path, nom: str = "relais_test") -> dlt.Pipelin
     )
 
 
+# NB : ces trois helpers ouvrent une connexion LECTURE-ÉCRITURE (pas `read_only=True`) —
+# `executer()` enchaîne un `dbt build` en fin de passe (#646) ; une connexion `read_only`
+# juste après aurait une config DuckDB incompatible avec la connexion dbt encore en vie
+# dans ce même process (même piège documenté dans `runner.py::bilan`).
+
+
 def _zips_journalises(db: Path) -> list[str]:
     """Zips effectivement LIVRÉS (`statut` 'pousse'/'amorce') — exclut 'vu'/'echec' (journal
     enrichi, #646) : table absente (aucun push réussi pour l'instant) → liste vide."""
-    con = duckdb.connect(str(db), read_only=True)
+    con = duckdb.connect(str(db))
     try:
         lignes = con.execute(
             f'select "zip" from "{NOM_DATASET}"."{NOM_RESOURCE}" where "statut" in (\'pousse\', \'amorce\')'
@@ -123,7 +138,7 @@ def _statuts_journalises(db: Path) -> dict[str, str]:
     N'utiliser que sur un journal où chaque zip n'a qu'UNE ligne (`dict()` collapse sinon
     silencieusement sur la dernière) — `_toutes_lignes_journal` pour les scénarios à
     plusieurs lignes par zip (retry après 'echec', #646)."""
-    con = duckdb.connect(str(db), read_only=True)
+    con = duckdb.connect(str(db))
     try:
         rows = con.execute(f'select "zip", "statut" from "{NOM_DATASET}"."{NOM_RESOURCE}"').fetchall()
         return dict(rows)
@@ -136,7 +151,7 @@ def _statuts_journalises(db: Path) -> dict[str, str]:
 def _toutes_lignes_journal(db: Path) -> list[tuple[str, str]]:
     """`[(zip, statut), …]` — TOUTES les lignes, y compris les zips à plusieurs lignes
     (retry après 'echec') — journal enrichi (#646) : 'vu' / 'pousse' / 'amorce' / 'echec'."""
-    con = duckdb.connect(str(db), read_only=True)
+    con = duckdb.connect(str(db))
     try:
         return con.execute(f'select "zip", "statut" from "{NOM_DATASET}"."{NOM_RESOURCE}"').fetchall()
     except duckdb.CatalogException:
@@ -462,8 +477,6 @@ def test_zip_vu_n_est_pas_rejournalise_au_run_suivant(tmp_path, monkeypatch):
 def test_ecriture_tronquee_ne_marque_pas_livre_et_retente(tmp_path, monkeypatch):
     """Critère : un mismatch taille distante/locale (dépôt tronqué) ne marque PAS le zip
     livré — retenté au passage suivant, poussé avec succès une fois la vérification saine."""
-    from electricore.ingestion.relais import pipeline as pipeline_module
-
     source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
     _deposer_zip(source, "ENEDIS_C15_20260615_001.zip", b"<data>c15</data>")
     _configurer_env(monkeypatch, source, cible, db)
