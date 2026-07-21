@@ -609,6 +609,70 @@ def test_f15_avec_fichier_donnees_generales_pousse_normalement(tmp_path, monkeyp
 
 
 # =============================================================================
+# Vue d'audit embarquée (#646) : bout-en-bout file:// → journal → SELECT sur la vue
+# =============================================================================
+
+
+@pytest.mark.integration
+def test_bout_en_bout_journal_puis_vue_audit_couvre_troncature_et_intra_zip(tmp_path, monkeypatch):
+    """Critère d'acceptation bout-en-bout : source locale (file://) → dépôt local → journal
+    → `SELECT` sur `journal.relais_audit_sequences` — `executer()` enchaîne dlt (push +
+    journal enrichi) puis le dbt build embarqué dans le MÊME appel, la vue est donc
+    directement requêtable en sortie. Couvre les DEUX cas de durcissement dans le même
+    passage : un dépôt tronqué (vérification d'écriture) et un zip intra-zip incomplet —
+    tous deux journalisés `statut='echec'` et VISIBLES dans l'audit de réception (ils
+    prouvent que Enedis a bien émis ces numéros de séquence, cf. `zip_en_echec_compte_dans_l_audit_de_reception`)."""
+    from electricore.ingestion.relais import pipeline as pipeline_module
+
+    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
+    zip_sain = "17X100A100A0001A_C15_17X000001117366M_GRD-F139_0327_00001_20260615120000.zip"
+    zip_tronque = "17X100A100A0001A_C15_17X000001117366M_GRD-F139_0327_00002_20260616120000.zip"
+    zip_incomplet = "17X100A100A0001A_C15_17X000001117366M_GRD-F139_0327_00003_20260617120000.zip"
+    _deposer_zip(source, zip_sain, b"<data>un</data>", date=(2026, 6, 15, 12, 0, 0))
+    _deposer_zip(source, zip_tronque, b"<data>deux</data>", date=(2026, 6, 16, 12, 0, 0))
+    _deposer_zip_multi(
+        source,
+        zip_incomplet,
+        [("17X100A100A0001A_C15_17X000001117366M_GRD-F139_00017_00001_00002.xml", b"un_sur_deux")],
+        date=(2026, 6, 17, 12, 0, 0),
+    )
+    _configurer_env(monkeypatch, source, cible, db)
+
+    verif_originale = pipeline_module._verifier_ecriture
+
+    def _verif_selective(fs, chemin, taille_locale):
+        if zip_tronque.replace(".zip", "") in chemin:
+            raise OSError("tronqué")
+        return verif_originale(fs, chemin, taille_locale)
+
+    monkeypatch.setattr(pipeline_module, "_verifier_ecriture", _verif_selective)
+
+    info, stats = executer(_pipeline(tmp_path, db))
+
+    assert (stats.candidats, stats.pousses, stats.echecs_push) == (3, 1, 2)
+    statuts = dict(_toutes_lignes_journal(db))
+    assert statuts[zip_sain] == "pousse"
+    assert statuts[zip_tronque] == "echec"
+    assert statuts[zip_incomplet] == "echec"
+
+    con = duckdb.connect(str(db))
+    try:
+        lignes = con.execute(
+            "select flux, cle_sequence, type_anomalie, seq_ou_plage from journal.relais_audit_sequences"
+        ).fetchall()
+    finally:
+        con.close()
+    # Les 3 zips comptent dans l'audit de réception (même les 2 en échec de push) : la
+    # clé C15|GRD-F139|0327 va jusqu'à 00003 sans trou (aucun numéro manquant entre 1 et 3).
+    cles_c15 = [ligne for ligne in lignes if ligne[0] == "C15"]
+    assert cles_c15, "la vue doit contenir des lignes pour la clé de séquence C15"
+    assert not any(ligne[2] == "trou" for ligne in cles_c15)
+    queue = [ligne for ligne in cles_c15 if ligne[2] == "queue_inverifiable"]
+    assert len(queue) == 1
+    assert queue[0][3] == "00003"
+
+
+# =============================================================================
 # CLI (__main__.py, #643) : escalade en sortie de process, sous-commande seed
 # =============================================================================
 
