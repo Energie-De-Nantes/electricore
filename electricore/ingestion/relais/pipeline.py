@@ -126,19 +126,37 @@ def _create_filtre_transformer(flux_filtres: set[str] | None):
     return filtre_zip
 
 
+def _verifier_ecriture(fs, chemin: str, taille_locale: int) -> None:
+    """Vérification d'écriture (#646) : la taille distante doit égaler la taille locale
+    juste déposée — sinon transfert tronqué. Lève (direction d'échec sûre, comme le reste
+    de `_pousser`) : le zip N'EST PAS marqué livré, retenté au passage suivant, jamais
+    oublié. Seam dédié (plutôt qu'inline) : monkeypatchable isolément en test sans avoir à
+    simuler une vraie troncature réseau."""
+    taille_distante = fs.size(chemin)
+    if taille_distante != taille_locale:
+        raise OSError(
+            f"Vérification d'écriture échouée pour {chemin} : "
+            f"taille distante={taille_distante} ≠ locale={taille_locale}"
+        )
+
+
 def pousser_vers_partenaire(fichiers: list[tuple[str, bytes]], partner_url: str) -> None:
     """Pousse les fichiers extraits vers la cible partenaire (fsspec-agnostic : file://, sftp://).
 
     Effet de bord : une cible injoignable (permission, réseau…) **lève** — direction
     d'échec sûre, le zip n'est alors PAS enregistré comme livré (discipline `etape_chaine`
-    autour de `_pousser`, ci-dessous).
+    autour de `_pousser`, ci-dessous). Vérification d'écriture (#646) APRÈS chaque dépôt,
+    AVANT de considérer le fichier posé — un mismatch lève au même titre qu'une cible
+    injoignable, retenté au passage suivant.
     """
     fs, base_path = fsspec.core.url_to_fs(partner_url)
     fs.makedirs(base_path, exist_ok=True)
     base = base_path.rstrip("/")
     for nom, contenu in fichiers:
-        with fs.open(f"{base}/{nom}", "wb") as f:
+        chemin = f"{base}/{nom}"
+        with fs.open(chemin, "wb") as f:
             f.write(contenu)
+        _verifier_ecriture(fs, chemin, len(contenu))
 
 
 @etape_chaine(
