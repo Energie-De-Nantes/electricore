@@ -1,0 +1,16 @@
+name: electricore_relais
+version: "1.0.0"
+config-version: 2
+
+# Profil défini dans profiles.yml du même dossier (passer --profiles-dir).
+profile: electricore_relais
+
+model-paths: ["models"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  electricore_relais:
+    # Vue unique, coût ~nul (audit passif, consultation à la demande) — pas besoin
+    # de matérialiser en table.
+    +materialized: view

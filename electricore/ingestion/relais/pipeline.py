@@ -305,6 +305,64 @@ def _pipeline_par_defaut(cfg: "runtime.Relais") -> "dlt.Pipeline":
     )
 
 
+_RELAIS_DBT_PROJET = Path(__file__).parent / "dbt"
+
+
+def _construire_vue_audit(cfg: "runtime.Relais") -> None:
+    """Étage Transform du relais (#646) : matérialise `journal.relais_audit_sequences` en
+    fin de passe de balayage, MÊME PROCESS — `dbtRunner` ouvre puis referme sa propre
+    connexion DuckDB (comme le `pipeline.run()` dlt qui précède) : aucune connexion
+    persistante, la base journal reste requêtable entre deux passages du timer.
+
+    Mini-projet dbt EMBARQUÉ (`electricore/ingestion/relais/dbt/`) qui importe la macro
+    `audit_sequences` (#645) en PACKAGE LOCAL (`packages.yml` → `local: ../../dbt`) — zéro
+    regexp de nomenclature recopiée ici. `--select package:electricore_relais` restreint le
+    build au SEUL modèle du relais (le package importé porte aussi ses propres modèles et
+    tests, hors de propos ici — et une éventuelle collision de nom).
+
+    Dégradé (loggé, PAS levé) sur échec : la vue est une consultation passive (#646, « vue
+    passive : aucune alerte de trous côté relais ») — un souci dbt (macro incompatible,
+    dbt absent) ne doit jamais faire échouer la mission E-L du relais (pousser les flux),
+    la supervision du relais reste `StatsRelais`/exit code (#643), pas cette vue.
+    """
+    import os
+
+    try:
+        from dbt.cli.main import dbtRunner
+    except ImportError:
+        logger.warning("Vue d'audit du relais : dbt absent (uv sync --extra dbt) — vue non (re)matérialisée.")
+        return
+
+    ancien = os.environ.get("DBT_DUCKDB_PATH")
+    os.environ["DBT_DUCKDB_PATH"] = str(cfg.destination_db)
+    try:
+        runner = dbtRunner()
+        deps = runner.invoke(
+            ["deps", "--project-dir", str(_RELAIS_DBT_PROJET), "--profiles-dir", str(_RELAIS_DBT_PROJET)]
+        )
+        if not deps.success:
+            logger.warning("Vue d'audit du relais : échec `dbt deps` : %s", deps.exception)
+            return
+        build = runner.invoke(
+            [
+                "build",
+                "--select",
+                "package:electricore_relais",
+                "--project-dir",
+                str(_RELAIS_DBT_PROJET),
+                "--profiles-dir",
+                str(_RELAIS_DBT_PROJET),
+            ]
+        )
+        if not build.success:
+            logger.warning("Vue d'audit du relais : échec `dbt build` : %s", build.exception)
+    finally:
+        if ancien is None:
+            os.environ.pop("DBT_DUCKDB_PATH", None)
+        else:
+            os.environ["DBT_DUCKDB_PATH"] = ancien
+
+
 def executer(pipeline: "dlt.Pipeline | None" = None) -> tuple["dlt.common.pipeline.LoadInfo", StatsRelais]:
     """Point d'entrée programmatique : construit (ou reçoit, pour les tests) un pipeline
     dlt dédié et l'exécute contre la config du domaine runtime `relais` (#637).
@@ -319,6 +377,7 @@ def executer(pipeline: "dlt.Pipeline | None" = None) -> tuple["dlt.common.pipeli
         pipeline = _pipeline_par_defaut(cfg)
     info = pipeline.run(relais_source(cfg.source_url, cfg.partner_url, cfg.flux_filtres(), key_chain, stats))
     _journaliser_vus(pipeline, cfg)
+    _construire_vue_audit(cfg)
     return info, stats
 
 
@@ -407,12 +466,17 @@ _STATUTS_LIVRES = ("pousse", "amorce")  # les deux seuls statuts qui valent « r
 def _zips_dans_journal(db_path: Path, *, statuts: tuple[str, ...] | None = None) -> set[str]:
     """Noms de zip présents dans le journal — `statuts=None` : toute ligne, quel que soit son
     statut (vu/pousse/amorce/echec) ; `statuts=(...)` : restreint à ces statuts. Base absente
-    ou table pas encore créée (aucune ligne écrite) → ensemble vide, jamais une exception."""
+    ou table pas encore créée (aucune ligne écrite) → ensemble vide, jamais une exception.
+
+    Connexion LECTURE-ÉCRITURE, pas `read_only=True` (#646) : `dbt build` (`_construire_vue_audit`)
+    peut avoir écrit dans le MÊME process juste avant — une connexion `read_only` aurait une
+    config DuckDB incompatible avec la connexion dbt encore en vie (même piège documenté dans
+    `runner.py::bilan`)."""
     import duckdb
 
     if not db_path.exists():
         return set()
-    con = duckdb.connect(str(db_path), read_only=True)
+    con = duckdb.connect(str(db_path))
     try:
         if statuts is None:
             requete = f'select "zip" from "{NOM_DATASET}"."{NOM_RESOURCE}"'

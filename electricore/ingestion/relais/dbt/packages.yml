@@ -1,0 +1,7 @@
+# Package LOCAL (#646) : réutilise les macros du projet dbt principal (`audit_sequences`,
+# #645) SANS copier aucune règle de nomenclature — `dbt deps` (chemin local, pas de réseau)
+# recopie ce dossier dans dbt_packages/electricore_flux au build. Toute évolution de la
+# macro (à jour dans le CHECKOUT du relais) n'atteint la vue matérialisée qu'au prochain
+# `dbt build` — c.-à-d. au prochain passage de balayage, propriété « pose-et-oublie ».
+packages:
+  - local: ../../dbt
