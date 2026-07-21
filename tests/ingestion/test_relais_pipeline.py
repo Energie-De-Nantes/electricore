@@ -35,7 +35,6 @@ from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
 
 from electricore.config import runtime
-from electricore.ingestion.relais import pipeline as pipeline_module
 from electricore.ingestion.relais.pipeline import (
     NOM_DATASET,
     NOM_RESOURCE,
@@ -44,13 +43,13 @@ from electricore.ingestion.relais.pipeline import (
     zips_non_relayes,
 )
 
-# `pipeline_module` importé UNE FOIS ICI, à la collecte (comme `executer` etc. ci-dessus) —
-# PAS ré-importé dans le corps d'un test : `test_relais_independance.py` fait `del
-# sys.modules["electricore.ingestion.relais.pipeline"]` puis ré-importe (garde dynamique).
-# Un `import ... as pipeline_module` fait DANS le corps d'un test, exécuté APRÈS que ce
-# reload ait eu lieu (ordre alphabétique de fichiers), résoudrait un AUTRE objet module que
-# celui que `executer` référence en interne — un monkeypatch dessus n'aurait alors aucun
-# effet sur le code réellement exécuté (bug constaté, #646).
+# Monkeypatcher des fonctions internes du module (`_verifier_ecriture`) se fait via
+# `executer.__globals__` (le namespace où `executer` résout ses appels), PAS via un `import
+# electricore.ingestion.relais.pipeline as pipeline_module` local à un test : `test_relais_
+# independance.py` fait `del sys.modules[...]` puis ré-importe (garde dynamique) — un import
+# local exécuté APRÈS ce reload (ordre alphabétique de fichiers) résoudrait un AUTRE objet
+# module que celui qu'`executer` référence en interne, et un monkeypatch dessus n'aurait
+# alors aucun effet sur le code réellement exécuté (bug constaté, #646).
 
 AES_KEY = bytes.fromhex("0102030405060708090a0b0c0d0e0f10")
 AES_IV = bytes.fromhex("1112131415161718191a1b1c1d1e1f20")
@@ -481,9 +480,9 @@ def test_ecriture_tronquee_ne_marque_pas_livre_et_retente(tmp_path, monkeypatch)
     _deposer_zip(source, "ENEDIS_C15_20260615_001.zip", b"<data>c15</data>")
     _configurer_env(monkeypatch, source, cible, db)
 
-    verif_originale = pipeline_module._verifier_ecriture
-    monkeypatch.setattr(
-        pipeline_module,
+    verif_originale = executer.__globals__["_verifier_ecriture"]
+    monkeypatch.setitem(
+        executer.__globals__,
         "_verifier_ecriture",
         lambda fs, chemin, taille_locale: (_ for _ in ()).throw(OSError("tronqué")),
     )
@@ -491,7 +490,7 @@ def test_ecriture_tronquee_ne_marque_pas_livre_et_retente(tmp_path, monkeypatch)
     assert _zips_journalises(db) == []  # PAS marqué livré
     assert (stats.candidats, stats.pousses, stats.echecs_push) == (1, 0, 1)
 
-    monkeypatch.setattr(pipeline_module, "_verifier_ecriture", verif_originale)  # vérification désormais saine
+    monkeypatch.setitem(executer.__globals__, "_verifier_ecriture", verif_originale)  # vérification désormais saine
     executer(_pipeline(tmp_path, db))  # retente
     assert (cible / "ENEDIS_C15_20260615_001.xml").read_bytes() == b"<data>c15</data>"
     assert _zips_journalises(db) == ["ENEDIS_C15_20260615_001.zip"]
@@ -622,8 +621,6 @@ def test_bout_en_bout_journal_puis_vue_audit_couvre_troncature_et_intra_zip(tmp_
     passage : un dépôt tronqué (vérification d'écriture) et un zip intra-zip incomplet —
     tous deux journalisés `statut='echec'` et VISIBLES dans l'audit de réception (ils
     prouvent que Enedis a bien émis ces numéros de séquence, cf. `zip_en_echec_compte_dans_l_audit_de_reception`)."""
-    from electricore.ingestion.relais import pipeline as pipeline_module
-
     source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
     zip_sain = "17X100A100A0001A_C15_17X000001117366M_GRD-F139_0327_00001_20260615120000.zip"
     zip_tronque = "17X100A100A0001A_C15_17X000001117366M_GRD-F139_0327_00002_20260616120000.zip"
@@ -638,14 +635,14 @@ def test_bout_en_bout_journal_puis_vue_audit_couvre_troncature_et_intra_zip(tmp_
     )
     _configurer_env(monkeypatch, source, cible, db)
 
-    verif_originale = pipeline_module._verifier_ecriture
+    verif_originale = executer.__globals__["_verifier_ecriture"]
 
     def _verif_selective(fs, chemin, taille_locale):
         if zip_tronque.replace(".zip", "") in chemin:
             raise OSError("tronqué")
         return verif_originale(fs, chemin, taille_locale)
 
-    monkeypatch.setattr(pipeline_module, "_verifier_ecriture", _verif_selective)
+    monkeypatch.setitem(executer.__globals__, "_verifier_ecriture", _verif_selective)
 
     info, stats = executer(_pipeline(tmp_path, db))
 
