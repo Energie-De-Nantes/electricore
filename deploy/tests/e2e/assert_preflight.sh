@@ -21,12 +21,12 @@ ok() { printf '  \033[32m✓\033[0m %s\n' "$1"; PASS=$((PASS+1)); }
 ko() { printf '  \033[31m✗\033[0m %s\n' "$1"; FAIL=$((FAIL+1)); }
 check() { if eval "$2" >/dev/null 2>&1; then ok "$1"; else ko "$1"; fi; }
 
-[[ $EUID -eq 0 ]] || { echo "à lancer en root (sudo bash $0 <refuse|pass> <user>)" >&2; exit 2; }
+[[ $EUID -eq 0 ]] || { echo "à lancer en root (sudo bash $0 <refuse|pass|already-hardened> <user>)" >&2; exit 2; }
 
 MODE="${1:-}"
 USER_AT_RISK="${2:-}"
 [[ -n "$MODE" && -n "$USER_AT_RISK" ]] || {
-    echo "Usage: $0 <refuse|pass> <user>" >&2
+    echo "Usage: $0 <refuse|pass|already-hardened> <user>" >&2
     exit 2
 }
 
