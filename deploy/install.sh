@@ -371,7 +371,7 @@ EOF
         check_relais_ssh_key "$OPT_SLUG"
 
         # ─── Étape 12 (relais) : mini-compose + unités systemd ───────────────
-        log_step "Compose relais (RELAIS_VERSION) + timer systemd"
+        log_step "Compose relais (RELAIS_VERSION) + timer systemd + alerte OnFailure="
         # Dépôt local des flux (file://) : FLUX_DEPOSIT_DIR de config.env (Enargia :
         # /flux/enedis), défaut convention /srv/<slug>/flux-deposit. Créé s'il manque,
         # JAMAIS modifié s'il existe (répertoire de prod du SFTP en place). Après le
@@ -380,6 +380,11 @@ EOF
         [[ -n "$flux_deposit" ]] || flux_deposit="/srv/${OPT_SLUG}/flux-deposit"
         ensure_relais_flux_deposit "$flux_deposit"
         install_relais_units "$OPT_SLUG"
+        # Hook d'alerte mail (#659, câblé sur ce layout conteneurisé par #668) : posé et
+        # référencé par OnFailure= (render_relais_service ci-dessus), mais PAS activé
+        # (pas d'enable --now — se déclenche uniquement via OnFailure=). msmtp + son
+        # msmtprc (600, jamais dans git) restent à poser à la main, cf. récap ci-dessous.
+        install_relais_alerte_units "$OPT_SLUG"
 
         # ─── Étape 13 (relais) : récap ────────────────────────────────────────
         log_step "Récapitulatif"
@@ -394,6 +399,14 @@ EOF
   Timer            systemctl status electricore-relais.timer
   Logs             journalctl -u electricore-relais.service -f
   Run manuel       sudo -u ${OPT_SLUG} docker compose --env-file ${HOME_DIR}/config.env -f ${relais_dir}/compose-relais.yml run --rm relais
+
+  Alerte mail (#659/#668) — electricore-relais-alerte.service posée + branchée en
+  OnFailure=, PAS activée (se déclenche uniquement sur échec). Reste à poser à la main :
+    sudo apt install -y msmtp
+    sudo install -d -m 700 /etc/electricore-relais
+    sudo \$EDITOR /etc/electricore-relais/msmtprc   # token SMTP — JAMAIS dans git
+    sudo chmod 600 /etc/electricore-relais/msmtprc
+  RELAIS_ALERTE_MAILS vit déjà dans ${HOME_DIR}/config.env (voir deploy/relais/README.md).
 
   Amorçage (#643) — marque l'historique existant comme livré SANS le pousser au
   partenaire. Acte UNIQUE, geste conscient d'opérateur — JAMAIS exécuté par cet
