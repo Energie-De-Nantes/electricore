@@ -5,6 +5,8 @@ Description=Relais de flux Enedis déchiffrés vers SFTP partenaire (#637)
 # par electricore-relais.timer. Ni inotify, ni le service d'ingestion existant.
 After=network-online.target
 Wants=network-online.target
+# Alerte mail si le run échoue (#659, PRD #658) — voir electricore-relais-alerte.service.
+OnFailure=electricore-relais-alerte.service
 
 [Service]
 Type=oneshot
