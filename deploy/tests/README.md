@@ -45,6 +45,26 @@ Bash uniquement, pas de framework. Pour ajouter un test : éditer `unit.sh` (voi
 
 Le harnais monte le repo sur `/repo` dans la VM, injecte une clé SSH root bidon, et lance `install.sh` en `sudo`. Snapshot/restore permettent d'itérer sans relancer un `up` complet.
 
+### Scénario e2e : box non-vierge (#656, cas Enargia)
+
+Le préflight sshd (ADR-0031) doit refuser le durcissement tant qu'un compte existant
+serait coupé du SSH par mot de passe (compte de dépôt Enedis, shape SFTP-only) — puis
+passer une fois remédié :
+
+```bash
+./deploy/tests/e2e/multipass.sh up
+./deploy/tests/e2e/multipass.sh seed-password-account enedis_deposit
+./deploy/tests/e2e/multipass.sh harden                        # doit ÉCHOUER (exit non-zero)
+./deploy/tests/e2e/multipass.sh verify-preflight refuse enedis_deposit
+./deploy/tests/e2e/multipass.sh remediate-key enedis_deposit
+./deploy/tests/e2e/multipass.sh harden                        # doit RÉUSSIR
+./deploy/tests/e2e/multipass.sh verify-preflight pass enedis_deposit
+./deploy/tests/e2e/multipass.sh down
+```
+
+`harden` invoque le wrapper autonome `deploy/harden.sh` — ce qui exerce aussi le
+critère « le wrapper bénéficie du même préflight que l'installeur ».
+
 ## Aller-retour crypto onboarding (vrais binaires, anti-régression #453)
 
 ```bash

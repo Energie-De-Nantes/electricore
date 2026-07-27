@@ -28,6 +28,24 @@ Commands:
   restore <name>    Restaure un snapshot (rapide pour itérer).
   status            État de la VM.
 
+  Scénario « box non-vierge » (#656 — cas Enargia, compte SFTP au mot de passe) :
+  seed-password-account <user>  Crée <user> (shell nologin, mot de passe usable,
+                                 AUCUNE clé) — simule le compte de dépôt Enedis.
+  remediate-key <user>          Pose une clé SSH pour <user> (migration en clé).
+  verify-preflight refuse <user>  Assertions : durcissement REFUSÉ (drop-in absent).
+  verify-preflight pass <user>    Assertions : durcissement PASSE (drop-in présent,
+                                   <user> toujours protégé par sa clé).
+
+  Séquence complète :
+    ./multipass.sh up
+    ./multipass.sh seed-password-account enedis_deposit
+    ./multipass.sh harden                        # doit ÉCHOUER (exit non-zero)
+    ./multipass.sh verify-preflight refuse enedis_deposit
+    ./multipass.sh remediate-key enedis_deposit
+    ./multipass.sh harden                        # doit RÉUSSIR
+    ./multipass.sh verify-preflight pass enedis_deposit
+    ./multipass.sh down
+
 Variables :
   VM_NAME           (défaut: electricore-sandbox)
   UBUNTU_VERSION    (défaut: 24.04)
@@ -77,10 +95,45 @@ cmd_snap()    { multipass snapshot "$VM_NAME" --name "${1:?nom de snapshot requi
 cmd_restore() { multipass restore "${VM_NAME}.${1:?nom de snapshot requis}"; }
 cmd_status()  { multipass info "$VM_NAME" 2>/dev/null || echo "VM ${VM_NAME} n'existe pas."; }
 
+# ── Scénario « box non-vierge » (#656, cas Enargia) ─────────────────────────
+
+# cmd_seed_password_account <user>
+# Crée <user> avec un mot de passe UTILISABLE et AUCUNE clé authorized_keys —
+# shell nologin délibéré (le compte de dépôt Enedis réel est SFTP-only via
+# ForceCommand internal-sftp ; le préflight ne doit PAS se fier au shell, #656 AC4).
+cmd_seed_password_account() {
+    local user="${1:?user requis}"
+    multipass exec "$VM_NAME" -- sudo bash -c \
+        "id -u '${user}' >/dev/null 2>&1 || useradd --create-home --shell /usr/sbin/nologin '${user}'"
+    multipass exec "$VM_NAME" -- sudo bash -c "echo '${user}:electricore-test-656' | chpasswd"
+    echo "✓ Compte ${user} semencé : mot de passe usable, shell nologin, AUCUNE clé (cas Enargia #656)."
+}
+
+# cmd_remediate_key <user>
+# Remédiation #1 (migration en clé) : génère une paire de clés jetable et l'installe
+# comme authorized_keys de <user>. Alternative à une exception Match User.
+cmd_remediate_key() {
+    local user="${1:?user requis}"
+    multipass exec "$VM_NAME" -- sudo bash -c "
+        install -d -m 700 -o '${user}' -g '${user}' /home/${user}/.ssh
+        ssh-keygen -t ed25519 -N '' -f /tmp/${user}_key -q
+        cat /tmp/${user}_key.pub > /home/${user}/.ssh/authorized_keys
+        chown '${user}:${user}' /home/${user}/.ssh/authorized_keys
+        chmod 600 /home/${user}/.ssh/authorized_keys
+        rm -f /tmp/${user}_key /tmp/${user}_key.pub
+    "
+    echo "✓ Clé SSH posée pour ${user} (remédiation #656 : migration en clé)."
+}
+
+cmd_verify_preflight() { multipass exec "$VM_NAME" -- sudo bash /repo/deploy/tests/e2e/assert_preflight.sh "$@"; }
+
 require_multipass
 CMD="${1:-}"; shift || true
 case "$CMD" in
     up|down|run|harden|unharden|verify|shell|snap|restore|status) "cmd_$CMD" "$@" ;;
-    verify-reverse) cmd_verify_reverse "$@" ;;
+    verify-reverse)          cmd_verify_reverse "$@" ;;
+    seed-password-account)   cmd_seed_password_account "$@" ;;
+    remediate-key)           cmd_remediate_key "$@" ;;
+    verify-preflight)        cmd_verify_preflight "$@" ;;
     *) usage; exit 1 ;;
 esac
