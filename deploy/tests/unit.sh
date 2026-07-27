@@ -152,36 +152,40 @@ fi
 echo
 echo "→ harden.sh / sshd_preflight_at_risk_accounts (préflight non-vierge, #656)"
 assert_eq "$(sshd_preflight_at_risk_accounts < "${SSHD_PREFLIGHT_FIX}/password-account.records")" \
-    "enedis_deposit" "compte au mot de passe, sans clé, sans Match protecteur → à risque"
+    "enedis_deposit" "compte au mot de passe, sans clé, bascule yes→no → à risque"
 assert_eq "$(sshd_preflight_at_risk_accounts < "${SSHD_PREFLIGHT_FIX}/keyed-account.records")" \
     "" "compte migré en clé → pas à risque"
 assert_eq "$(sshd_preflight_at_risk_accounts < "${SSHD_PREFLIGHT_FIX}/matched-account.records")" \
-    "" "bloc Match protecteur (effective=yes) → pas à risque"
+    "" "bloc Match protecteur (yes avant ET après, pas de bascule) → pas à risque"
 assert_eq "$(sshd_preflight_at_risk_accounts < "${SSHD_PREFLIGHT_FIX}/virgin.records")" \
     "" "machine vierge (comptes verrouillés + admin en clé) → aucun compte à risque"
 # root : hors audit, juridiction du garde-fou anti-verrouillage (finding 1, #656 revue)
 assert_eq "$(sshd_preflight_at_risk_accounts < "${SSHD_PREFLIGHT_FIX}/root-account.records")" \
-    "" "root au mot de passe, sans clé, non protégé → PAS signalé (juridiction du garde-fou)"
+    "" "root au mot de passe qui basculerait yes→no → PAS signalé (juridiction du garde-fou)"
+# Box déjà durcie (reconfigure) : avant=no déjà (le compte est déjà coupé sans le
+# nouveau drop-in) → no→no, pas de bascule → silencieux (finding 3, #656 revue)
+assert_eq "$(sshd_preflight_at_risk_accounts < "${SSHD_PREFLIGHT_FIX}/already-hardened.records")" \
+    "" "box déjà durcie (avant=no → après=no) → pas signalé, reconfigure silencieux"
 # Comptes système sans login (shell nologin/false) : la fonction ne regarde QUE
 # passwd -S/clé/effective, jamais le shell — mais un compte verrouillé (L) ou sans
 # mot de passe (NP) ne doit jamais remonter, quel que soit le reste (#656 AC4).
-assert_eq "$(printf 'www-data:L:0:no\n' | sshd_preflight_at_risk_accounts)" \
+assert_eq "$(printf 'www-data:L:0:yes:no\n' | sshd_preflight_at_risk_accounts)" \
     "" "compte système verrouillé (L) → pas de faux positif"
-assert_eq "$(printf 'guest:NP:0:no\n' | sshd_preflight_at_risk_accounts)" \
+assert_eq "$(printf 'guest:NP:0:yes:no\n' | sshd_preflight_at_risk_accounts)" \
     "" "compte sans mot de passe (NP) → pas de faux positif"
 # Plusieurs comptes à risque à la fois → tous nommés (un par ligne)
-assert_eq "$(printf 'a:P:0:no\nb:L:0:no\nc:P:0:no\n' | sshd_preflight_at_risk_accounts)" \
+assert_eq "$(printf 'a:P:0:yes:no\nb:L:0:yes:no\nc:P:0:yes:no\n' | sshd_preflight_at_risk_accounts)" \
     "$(printf 'a\nc')" "plusieurs comptes à risque → tous remontés"
 
 echo
 echo "→ harden.sh / sshd_preflight_oracle_failed_accounts (fail-closed, #656 revue)"
-assert_eq "$(printf 'sonde_muette:P:0:\n' | sshd_preflight_oracle_failed_accounts)" \
-    "sonde_muette" "effective vide sur un candidat → oracle en échec, remonté"
+assert_eq "$(sshd_preflight_oracle_failed_accounts < "${SSHD_PREFLIGHT_FIX}/oracle-failure.records")" \
+    "$(printf 'broken_avant\nbroken_apres')" "effective vide (avant OU après) sur un candidat → oracle en échec, les deux remontés"
 assert_eq "$(sshd_preflight_oracle_failed_accounts < "${SSHD_PREFLIGHT_FIX}/password-account.records")" \
     "" "oracle qui répond (yes/no bien formés) → pas d'échec"
-assert_eq "$(printf 'root:P:0:\n' | sshd_preflight_oracle_failed_accounts)" \
+assert_eq "$(printf 'root:P:0::no\n' | sshd_preflight_oracle_failed_accounts)" \
     "" "root exclu même en échec d'oracle (hors audit)"
-assert_eq "$(printf 'svc:L:0:\n' | sshd_preflight_oracle_failed_accounts)" \
+assert_eq "$(printf 'svc:L:0::no\n' | sshd_preflight_oracle_failed_accounts)" \
     "" "compte non-candidat (verrouillé) → pas concerné par le fail-closed"
 
 echo
@@ -189,22 +193,26 @@ echo "→ harden.sh / sshd_preflight_refuse_if_at_risk (bloque AVANT tout change
 # sshd_preflight_collect est surchargée (même précédent que poll_ingestion_job /
 # _ingestion_call_get_job) : on teste la composition collecte→décision→die, pas le
 # vrai collecteur (impur, nécessite root+sshd — couvert par l'e2e multipass).
-out=$(sshd_preflight_collect() { printf 'enedis_deposit:P:0:no\n'; }; sshd_preflight_refuse_if_at_risk 2>&1)
+out=$(sshd_preflight_collect() { printf 'enedis_deposit:P:0:yes:no\n'; }; sshd_preflight_refuse_if_at_risk 2>&1)
 rc=$?
 [[ "$rc" -ne 0 ]] && ok "compte à risque → refuse (die, exit non-zero)" || ko "compte à risque aurait dû refuser"
 grep -q "enedis_deposit" <<<"$out" && ok "message de refus nomme le compte à risque" || ko "message de refus ne nomme pas le compte"
 
-out=$(sshd_preflight_collect() { printf 'ops:P:1:no\nroot:L:0:no\n'; }; sshd_preflight_refuse_if_at_risk 2>&1)
+out=$(sshd_preflight_collect() { printf 'ops:P:1:yes:no\nroot:L:0:no:no\n'; }; sshd_preflight_refuse_if_at_risk 2>&1)
 rc=$?
 [[ "$rc" -eq 0 ]] && ok "machine vierge (aucun compte à risque) → passe (exit 0)" || ko "machine vierge n'aurait pas dû refuser"
 
-out=$(sshd_preflight_collect() { printf 'root:P:0:no\n'; }; sshd_preflight_refuse_if_at_risk 2>&1)
+out=$(sshd_preflight_collect() { printf 'root:P:0:yes:no\n'; }; sshd_preflight_refuse_if_at_risk 2>&1)
 rc=$?
-[[ "$rc" -eq 0 ]] && ok "root au mot de passe, sans clé, non protégé → n'est PAS ce qui refuse (finding 1)" || ko "root n'aurait pas dû faire refuser le préflight"
+[[ "$rc" -eq 0 ]] && ok "root au mot de passe qui basculerait → n'est PAS ce qui refuse (finding 1)" || ko "root n'aurait pas dû faire refuser le préflight"
+
+out=$(sshd_preflight_collect() { printf 'legacy_svc:P:0:no:no\n'; }; sshd_preflight_refuse_if_at_risk 2>&1)
+rc=$?
+[[ "$rc" -eq 0 ]] && ok "box déjà durcie (no→no) → reconfigure passe silencieusement (finding 3)" || ko "box déjà durcie aurait dû passer"
 
 # Fail-closed : l'oracle ne répond pas pour un compte candidat → refuse, message DÉDIÉ
 # (pas celui des comptes à risque — ses remédiations Match/clé ne s'appliquent pas ici).
-out=$(sshd_preflight_collect() { printf 'sonde_muette:P:0:\n'; }; sshd_preflight_refuse_if_at_risk 2>&1)
+out=$(sshd_preflight_collect() { printf 'sonde_muette:P:0::no\n'; }; sshd_preflight_refuse_if_at_risk 2>&1)
 rc=$?
 [[ "$rc" -ne 0 ]] && ok "oracle en échec sur un candidat → refuse (fail-closed)" || ko "oracle en échec aurait dû refuser"
 grep -q "impossible de conclure" <<<"$out" && ok "message de refus dédié (pas le message comptes à risque)" || ko "message de refus fail-closed absent/incorrect"
@@ -215,14 +223,14 @@ grep -q "sonde_muette" <<<"$out" && ok "message fail-closed nomme le compte" || 
 # même précédent que sshd_preflight_collect — la logique refuse/passe n'en dépend pas
 # (aide à la décision uniquement), mais le message de refus doit les afficher.
 out=$(
-    sshd_preflight_collect() { printf 'enedis_deposit:P:0:no\n'; }
+    sshd_preflight_collect() { printf 'enedis_deposit:P:0:yes:no\n'; }
     sshd_preflight_last_password_login() { printf '2026-03-14'; }
     sshd_preflight_refuse_if_at_risk 2>&1
 )
 grep -q "2026-03-14" <<<"$out" && ok "message comptes-à-risque affiche la date de dernier login mdp" || ko "date de dernier login absente du message comptes-à-risque"
 
 out=$(
-    sshd_preflight_collect() { printf 'sonde_muette:P:0:\n'; }
+    sshd_preflight_collect() { printf 'sonde_muette:P:0::no\n'; }
     sshd_preflight_last_password_login() { printf 'aucun login mdp sur la fenêtre du journal (depuis 2025-01-01)'; }
     sshd_preflight_refuse_if_at_risk 2>&1
 )

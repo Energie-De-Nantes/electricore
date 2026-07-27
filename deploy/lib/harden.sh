@@ -114,31 +114,37 @@ admin_has_authorized_key() {
 # aux autres comptes ne s'applique PAS à root : `PermitRootLogin no` (posé par
 # le même drop-in, cf. render_sshd_hardening) coupe root indépendamment de
 # PasswordAuthentication, un Match ne le rendrait pas.
+#
+# Diff avant/après (revue #656) : chaque compte candidat est sondé DEUX fois —
+# sur la config réelle SEULE (avant) et sur la config fusionnée avec le drop-in
+# (après) — et seule la bascule yes→no est signalée. Sur une box déjà durcie
+# (reconfigure), avant=no déjà (le drop-in existant coupe déjà le compte) →
+# silencieux quel que soit après ; une box vierge est inchangée (avant=yes,
+# après=yes|no selon Match).
 
 # sshd_preflight_at_risk_accounts
-# Lit sur stdin des enregistrements "user:passwd_state:has_key:effective_passwordauth"
-# (un par ligne) :
-#   passwd_state            2e champ de `passwd -S` (P=utilisable, L=verrouillé, NP=sans mdp)
-#   has_key                 1 si authorized_keys_present pour ce compte, 0 sinon
-#   effective_passwordauth  valeur post-fusion de PasswordAuthentication (yes/no),
-#                           résolution des blocs Match incluse (cf. sshd_preflight_collect)
-# Émet (stdout) les comptes à risque : mot de passe utilisable + pas de clé + coupés
-# par le durcissement (aucun Match ne les protège, sinon effective=yes). Pur, sans
-# side-effect — testable sur des fixtures, sans VM ni root. Seul critère d'exclusion :
-# passwd_state≠P (compte verrouillé L, ou sans mot de passe NP) — le shell n'en est
-# délibérément PAS un, un compte SFTP-only via ForceCommand internal-sftp a un shell
-# nologin mais authentifie normalement (cf. #656) ; les comptes système sont exclus
-# parce qu'ils sont verrouillés (`*`/`!` dans shadow → passwd -S = L), pas par leur shell.
-# `root` est explicitement exclu — cf. commentaire de section (juridiction du
-# garde-fou anti-verrouillage, pas de ce préflight).
+# Lit sur stdin des enregistrements
+# "user:passwd_state:has_key:effective_avant:effective_apres" (un par ligne) :
+#   passwd_state      2e champ de `passwd -S` (P=utilisable, L=verrouillé, NP=sans mdp)
+#   has_key           1 si authorized_keys_present pour ce compte, 0 sinon
+#   effective_avant   PasswordAuthentication effectif SANS le drop-in (config réelle seule)
+#   effective_apres   PasswordAuthentication effectif AVEC le drop-in fusionné
+# Émet (stdout) les comptes à risque : mot de passe utilisable + pas de clé + qui
+# BASCULENT yes→no (revue #656 — ni no→no « déjà coupé » ni yes→yes « toujours
+# protégé » ne sont signalés). `root` est explicitement exclu — cf. commentaire
+# de section (juridiction du garde-fou anti-verrouillage). Pur, sans side-effect
+# — testable sur des fixtures, sans VM ni root. Seul critère d'exclusion sur le
+# shell : aucun — passwd_state≠P (verrouillé L, ou sans mot de passe NP) est le
+# seul filtre ; un compte SFTP-only via ForceCommand internal-sftp a un shell
+# nologin mais authentifie normalement (cf. #656).
 sshd_preflight_at_risk_accounts() {
-    local user passwd_state has_key effective
-    while IFS=: read -r user passwd_state has_key effective; do
+    local user passwd_state has_key avant apres
+    while IFS=: read -r user passwd_state has_key avant apres; do
         [[ -n "$user" ]] || continue
-        [[ "$user" != "root" ]] || continue         # juridiction du garde-fou anti-verrouillage
+        [[ "$user" != "root" ]] || continue        # juridiction du garde-fou anti-verrouillage
         [[ "$passwd_state" == "P" ]] || continue   # verrouillé/sans mdp : rien à couper
         [[ "$has_key" == "0" ]] || continue         # une clé → déjà migré, pas à risque
-        [[ "$effective" == "no" ]] || continue      # un Match protège ce compte (yes)
+        [[ "$avant" == "yes" && "$apres" == "no" ]] || continue   # seule la bascule yes→no est signalée
         printf '%s\n' "$user"
     done
 }
@@ -146,22 +152,19 @@ sshd_preflight_at_risk_accounts() {
 # sshd_preflight_oracle_failed_accounts
 # Même flux d'enregistrements que sshd_preflight_at_risk_accounts. Émet les
 # comptes CANDIDATS (mot de passe utilisable, pas de clé, hors root) pour
-# lesquels effective_passwordauth est vide/imparsable (ni "yes" ni "no") —
-# l'oracle sshd -T n'a pas su conclure (config invalide, permissions, bloc
-# Match mal résolu…). Fail-closed (revue #656) : un tel compte doit REFUSER le
-# durcissement, jamais passer silencieusement — l'absence de valeur ne doit
-# JAMAIS être lue comme "yes" implicite (c'est exactement le bug aujourd'hui :
-# effective vide → aucun des deux `continue` ne matche "no" → le compte
-# n'apparaît PAS dans sshd_preflight_at_risk_accounts, donc le durcissement est
-# autorisé). Pur, testable.
+# lesquels effective_avant ou effective_apres est vide/imparsable (ni "yes" ni
+# "no") — l'oracle sshd -T n'a pas su conclure (config invalide, permissions,
+# bloc Match mal résolu…). Fail-closed (revue #656) : un tel compte doit
+# REFUSER le durcissement, jamais passer silencieusement — l'absence de valeur
+# ne doit JAMAIS être lue comme "yes" implicite. Pur, testable.
 sshd_preflight_oracle_failed_accounts() {
-    local user passwd_state has_key effective
-    while IFS=: read -r user passwd_state has_key effective; do
+    local user passwd_state has_key avant apres
+    while IFS=: read -r user passwd_state has_key avant apres; do
         [[ -n "$user" ]] || continue
         [[ "$user" != "root" ]] || continue
         [[ "$passwd_state" == "P" ]] || continue
         [[ "$has_key" == "0" ]] || continue
-        if [[ ! "$effective" =~ ^(yes|no)$ ]]; then
+        if [[ ! "$avant" =~ ^(yes|no)$ ]] || [[ ! "$apres" =~ ^(yes|no)$ ]]; then
             printf '%s\n' "$user"
         fi
     done
@@ -261,33 +264,44 @@ sshd_preflight_effective_passwordauth() {
 
 # sshd_preflight_collect
 # Énumère les comptes du système (getent passwd, root exclu — cf. commentaire de
-# section), sonde passwd -S + authorized_keys + la valeur effective post-fusion
-# pour chacun, et émet les enregistrements consommés par
-# sshd_preflight_at_risk_accounts. Impur : nécessite root (passwd -S lit
-# /etc/shadow) et le binaire sshd — non testé en unitaire par construction
-# (couvert par l'e2e multipass, cf. deploy/tests/e2e/).
+# section), sonde passwd -S + authorized_keys, et pour les seuls comptes
+# CANDIDATS (mot de passe utilisable, pas de clé) sonde les deux valeurs
+# effectives (avant/après drop-in). Émet les enregistrements consommés par
+# sshd_preflight_at_risk_accounts / sshd_preflight_oracle_failed_accounts.
+# Perf (revue #656) : les sondes sshd -T (un fork sshd par appel, deux par
+# candidat) ne sont lancées QUE pour les candidats — un compte verrouillé, sans
+# mot de passe, déjà en clé, ou root n'a besoin d'aucun oracle, la décision les
+# exclut de toute façon. Impur : nécessite root (passwd -S lit /etc/shadow) et
+# le binaire sshd — non testé en unitaire par construction (couvert par l'e2e
+# multipass, cf. deploy/tests/e2e/).
 sshd_preflight_collect() {
-    local merged_conf u home passwd_state has_key effective
-    merged_conf="$(sshd_preflight_merged_config /etc/ssh/sshd_config)"
+    local real_conf="/etc/ssh/sshd_config"
+    local merged_conf u home passwd_state has_key avant apres
+    merged_conf="$(sshd_preflight_merged_config "$real_conf")"
     while IFS=: read -r u _ _ _ _ home _; do
         [[ "$u" != "root" ]] || continue   # hors audit (juridiction du garde-fou anti-verrouillage)
         passwd_state="$(passwd -S "$u" 2>/dev/null | awk '{print $2}')" || true
         [[ -n "$passwd_state" ]] || continue   # pas d'entrée shadow (rare) → ignoré
         has_key=0
         authorized_keys_present "${home}/.ssh/authorized_keys" && has_key=1
-        effective="$(sshd_preflight_effective_passwordauth "$merged_conf" "$u")" || true
-        printf '%s:%s:%s:%s\n' "$u" "$passwd_state" "$has_key" "$effective"
+        if [[ "$passwd_state" == "P" && "$has_key" == "0" ]]; then
+            avant="$(sshd_preflight_effective_passwordauth "$real_conf" "$u")" || true
+            apres="$(sshd_preflight_effective_passwordauth "$merged_conf" "$u")" || true
+        else
+            avant=""; apres=""   # pas candidat : ni la décision ni le fail-closed ne les regardent
+        fi
+        printf '%s:%s:%s:%s:%s\n' "$u" "$passwd_state" "$has_key" "$avant" "$apres"
     done < <(getent passwd)
     rm -f "$merged_conf"
 }
 
 # sshd_preflight_refuse_if_at_risk
-# Refuse (die) AVANT tout changement si un compte existant serait coupé par le
-# durcissement — rien n'est posé, sshd n'est pas rechargé. Fail-closed (revue
-# #656) : si l'oracle sshd -T n'a pas conclu pour un compte candidat, refuse
-# aussi, avec un message DÉDIÉ (les remédiations "comptes à risque" ne
+# Refuse (die) AVANT tout changement si un compte existant BASCULERAIT yes→no
+# sous le durcissement — rien n'est posé, sshd n'est pas rechargé. Fail-closed
+# (revue #656) : si l'oracle sshd -T n'a pas conclu pour un compte candidat,
+# refuse aussi, avec un message DÉDIÉ (les remédiations "comptes à risque" ne
 # s'appliquent pas à un oracle en panne). Silencieux (log_ok) sur une box
-# vierge ou déjà couverte (Match/clé). Surchargeable en test en redéfinissant
+# vierge, déjà durcie (no→no) ou couverte (Match/clé). Surchargeable en test en redéfinissant
 # sshd_preflight_collect (même précédent que poll_ingestion_job /
 # _ingestion_call_get_job) et, pour les dates de dernier login, en redéfinissant
 # sshd_preflight_last_password_login.
