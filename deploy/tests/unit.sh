@@ -294,6 +294,23 @@ grep -q 'run --rm relais' <<<"$compose_out" && ok "render_relais_compose: docume
 grep -q 'age.key:/run/secrets/age.key:ro' <<<"$compose_out" \
     && ok "render_relais_compose: trousseau AES mutualisé — même age.key que la stack" \
     || ko "render_relais_compose: montage age.key absent"
+grep -qx 'name: electricore-relais' <<<"$compose_out" \
+    && ok "render_relais_compose: name: explicite (namespace stable, indépendant du dossier)" \
+    || ko "render_relais_compose: name: top-level absent"
+grep -qF -- '- ../../flux-deposit:/srv/${INSTANCE_SLUG:-electricore}/flux-deposit:ro' <<<"$compose_out" \
+    && ok "render_relais_compose: dépôt local des flux monté ro (chemin hôte == conteneur)" \
+    || ko "render_relais_compose: montage flux-deposit absent"
+
+echo
+echo "→ relais.sh / ensure_relais_flux_deposit (dépôt file://, jamais modifié si existant, #657)"
+fd_root=$(mktemp -d); mkdir -p "$fd_root/edn"
+( CONTAINER_UID="$(id -u)" CONTAINER_GID="$(id -g)" SRV_BASE="$fd_root" ensure_relais_flux_deposit edn >/dev/null 2>&1 )
+[[ -d "$fd_root/edn/flux-deposit" ]] && ok "ensure_relais_flux_deposit: crée le dépôt absent" || ko "ensure_relais_flux_deposit: dépôt non créé"
+[[ "$(stat -c '%a' "$fd_root/edn/flux-deposit")" == "750" ]] && ok "ensure_relais_flux_deposit: créé en 750 (lecture conteneur)" || ko "ensure_relais_flux_deposit: mode inattendu ($(stat -c '%a' "$fd_root/edn/flux-deposit"))"
+chmod 700 "$fd_root/edn/flux-deposit"
+( SRV_BASE="$fd_root" ensure_relais_flux_deposit edn >/dev/null 2>&1 )
+[[ "$(stat -c '%a' "$fd_root/edn/flux-deposit")" == "700" ]] && ok "ensure_relais_flux_deposit: dépôt existant laissé tel quel (prod SFTP Enargia)" || ko "ensure_relais_flux_deposit: a modifié un dépôt existant"
+rm -rf "$fd_root"
 
 echo
 echo "→ relais.sh / render_relais_service (unité systemd ADAPTÉE — compose run, #657)"

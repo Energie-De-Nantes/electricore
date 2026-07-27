@@ -4,6 +4,7 @@
 usage() {
     cat <<EOF
 Usage: sudo bash install.sh --slug <slug> --domain <fqdn> --deploy-repo <url> [options]
+       sudo bash install.sh --slug <slug> --relais --deploy-repo <url> [options]
 
 Arguments obligatoires :
   --slug <slug>          Identifiant court de l'instance ([a-z0-9-]+, 2-32 chars)

@@ -57,11 +57,15 @@ dans les deux conteneurs) — rien à dupliquer.
 
 ### Répertoire de dépôt des flux (mode `file://`)
 
-Si `RELAIS__SOURCE_URL` pointe un dossier local plutôt qu'un SFTP distant, ce
-dossier doit être **lisible par le conteneur** (uid 1000, cf. Dockerfile) — la
-ligne de montage correspondante est présente, commentée, dans
-`compose-relais.yml` (à décommenter et adapter). Vérifier les droits du
-dossier hôte avant le premier run.
+Si `RELAIS__SOURCE_URL` pointe un dossier local plutôt qu'un SFTP distant, la
+convention est **chemin hôte == chemin conteneur** : `/srv/<slug>/flux-deposit`,
+monté ro d'office dans `compose-relais.yml` — l'URL de `config.env` vaut telle
+quelle des deux côtés, aucun montage à décommenter. L'installeur **crée** le
+dossier s'il manque (lisible par le conteneur, uid 1000) ; un dossier
+**existant** (cas Enargia : le dépôt de production où Enedis dépose) n'est
+**jamais modifié** — c'est à l'opérateur d'ouvrir la lecture à l'uid 1000
+(groupe/ACL), l'installeur avertit si elle manque. Sur une box à source SFTP
+distante, le montage est inerte (dossier vide).
 
 ## Clé SSH partenaire
 
@@ -84,6 +88,11 @@ de remédiation sinon — il **ne copie ni ne génère jamais** de clé privée 
 seule la clé **publique**, installée chez le partenaire (Haulogy), fait foi.
 
 ```bash
+# Box durcie (défaut) — root SSH coupé (ADR-0031), on passe par ops :
+scp ma_cle_relais_ed25519 ops@<box>:/tmp/relais_ssh_key
+ssh ops@<box> 'sudo install -m 600 /tmp/relais_ssh_key /srv/<slug>/relais_ssh_key && sudo rm /tmp/relais_ssh_key'
+
+# Box non durcie (--no-harden) :
 scp ma_cle_relais_ed25519 root@<box>:/srv/<slug>/relais_ssh_key
 ssh root@<box> chmod 600 /srv/<slug>/relais_ssh_key
 ```

@@ -372,6 +372,10 @@ EOF
 
         # ─── Étape 12 (relais) : mini-compose + unités systemd ───────────────
         log_step "Compose relais (RELAIS_VERSION) + timer systemd"
+        # Dépôt local des flux (file://) : créé s'il manque, JAMAIS modifié s'il existe
+        # (Enargia : répertoire de prod du SFTP en place). Après le chown -R de l'étape 10,
+        # même raison d'ordre que relais_ssh_key.
+        ensure_relais_flux_deposit "$OPT_SLUG"
         install_relais_units "$OPT_SLUG"
 
         # ─── Étape 13 (relais) : récap ────────────────────────────────────────

@@ -299,9 +299,10 @@ def relais_source(
 def _pipeline_par_defaut(cfg: "runtime.Relais") -> "dlt.Pipeline":
     """Pipeline dlt par défaut, `pipelines_dir` épinglé à `destination_db.parent` (#643) :
     sans épingle, dlt tombe sur `~/.dlt/pipelines` — dépendant du HOME de l'utilisateur qui
-    lance. Un seed lancé en root pendant que le timer tourne en `User=electricore-relais`
-    écrirait alors dans un état et lirait dans un autre (amorçage silencieusement sans effet
-    pour le timer, qui repousserait tout l'historique au run suivant)."""
+    lance. Un seed lancé dans un autre environnement que le timer (root bare-metal hier,
+    conteneur uid 1000 depuis #657) écrirait alors dans un état et lirait dans un autre
+    (amorçage silencieusement sans effet pour le timer, qui repousserait tout l'historique
+    au run suivant)."""
     return dlt.pipeline(
         pipeline_name=NOM_PIPELINE,
         destination=dlt.destinations.duckdb(str(cfg.destination_db)),
