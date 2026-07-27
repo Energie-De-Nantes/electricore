@@ -1,21 +1,35 @@
 #!/usr/bin/env bash
-# Test unitaire autonome du hook d'alerte OnFailure= du relais (#659).
+# Test unitaire autonome du hook d'alerte OnFailure= du relais (#659, #668).
 # Bash only, stubs msmtp/journalctl sur le PATH — même style que unit.sh (PASS/FAIL,
-# ok/ko), mais fichier séparé : ce script exerce un exécutable standalone en
-# subprocess, pas des fonctions de deploy/lib/ à sourcer.
+# ok/ko), mais fichier séparé : ce script exerce un exécutable en subprocess, pas des
+# fonctions de deploy/lib/ à sourcer directement.
+#
+# Depuis #668, le hook n'est plus un fichier statique dans deploy/relais/ : il est
+# RENDU par render_relais_alerte_script (deploy/lib/relais.sh) — install.sh ne fetch
+# que deploy/lib/*.sh (fetch_lib_files), ce script doit donc voyager en heredoc, comme
+# render_relais_compose. Ce runner matérialise le rendu dans un fichier temporaire
+# avant de l'exercer, exactement comme install_relais_alerte_units le ferait en prod
+# (à ceci près qu'il écrit dans /usr/local/bin/, pas dans un tmpdir de test).
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ALERTE_SH="${SCRIPT_DIR}/../relais/electricore-relais-alerte.sh"
+LIB_DIR="${SCRIPT_DIR}/../lib"
+# shellcheck source=../lib/relais.sh
+source "${LIB_DIR}/relais.sh"
 
 PASS=0; FAIL=0
 ok() { printf '  \033[32m✓\033[0m %s\n' "$1"; PASS=$((PASS+1)); }
 ko() { printf '  \033[31m✗\033[0m %s\n' "$1"; FAIL=$((FAIL+1)); }
 
-echo "→ electricore-relais-alerte.sh"
+echo "→ render_relais_alerte_script (hook OnFailure=, #659/#668)"
+
+work_dir=$(mktemp -d)
+ALERTE_SH="${work_dir}/electricore-relais-alerte.sh"
+render_relais_alerte_script > "$ALERTE_SH"
+chmod +x "$ALERTE_SH"
 
 bash -n "$ALERTE_SH" && ok "bash -n : syntaxe valide" || ko "bash -n a échoué"
-[[ -x "$ALERTE_SH" ]] && ok "exécutable (chmod +x commité)" || ko "pas exécutable"
+[[ -x "$ALERTE_SH" ]] && ok "rendu exécutable (chmod +x, comme install_relais_alerte_units)" || ko "pas exécutable"
 
 stub_dir=$(mktemp -d)
 args_file=$(mktemp)
@@ -71,7 +85,16 @@ rm -f "$args_file"
 rc=$?
 [[ "$rc" -eq 0 && -f "$args_file" ]] && ok "hostname en échec → mail envoyé quand même" || ko "hostname en échec → pas de mail (rc=$rc)"
 
-rm -rf "$stub_dir" "$args_file" "$stdin_file" 2>/dev/null
+# Cas 5 : le hook reste sur le chemin msmtprc host-level (jamais dans git, jamais
+# per-slug — un seul token SMTP par box), pas de résidu /etc/electricore-relais/relais.env.
+grep -q -- '--file=/etc/electricore-relais/msmtprc' "$ALERTE_SH" \
+    && ok "msmtp --file= pointe /etc/electricore-relais/msmtprc (documenté, jamais dans git)" \
+    || ko "chemin msmtprc absent/incorrect"
+grep -q '/etc/electricore-relais/relais.env' "$ALERTE_SH" \
+    && ko "résidu bare-metal /etc/electricore-relais/relais.env dans le script" \
+    || ok "aucun résidu /etc/electricore-relais/relais.env dans le script"
+
+rm -rf "$stub_dir" "$work_dir" "$args_file" "$stdin_file" 2>/dev/null
 
 echo
 if [[ "$FAIL" -eq 0 ]]; then
