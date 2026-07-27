@@ -143,6 +143,79 @@ sshd_preflight_at_risk_accounts() {
     done
 }
 
+# sshd_preflight_oracle_failed_accounts
+# Même flux d'enregistrements que sshd_preflight_at_risk_accounts. Émet les
+# comptes CANDIDATS (mot de passe utilisable, pas de clé, hors root) pour
+# lesquels effective_passwordauth est vide/imparsable (ni "yes" ni "no") —
+# l'oracle sshd -T n'a pas su conclure (config invalide, permissions, bloc
+# Match mal résolu…). Fail-closed (revue #656) : un tel compte doit REFUSER le
+# durcissement, jamais passer silencieusement — l'absence de valeur ne doit
+# JAMAIS être lue comme "yes" implicite (c'est exactement le bug aujourd'hui :
+# effective vide → aucun des deux `continue` ne matche "no" → le compte
+# n'apparaît PAS dans sshd_preflight_at_risk_accounts, donc le durcissement est
+# autorisé). Pur, testable.
+sshd_preflight_oracle_failed_accounts() {
+    local user passwd_state has_key effective
+    while IFS=: read -r user passwd_state has_key effective; do
+        [[ -n "$user" ]] || continue
+        [[ "$user" != "root" ]] || continue
+        [[ "$passwd_state" == "P" ]] || continue
+        [[ "$has_key" == "0" ]] || continue
+        if [[ ! "$effective" =~ ^(yes|no)$ ]]; then
+            printf '%s\n' "$user"
+        fi
+    done
+}
+
+# sshd_preflight_last_password_login <user>
+# Dernier login par mot de passe de <user> observé dans le journal systemd sshd
+# (`Accepted password for <user> ` — c'est la MÉTHODE D'AUTH qui compte, pas le
+# dernier login toutes méthodes : lastlog/wtmp ne distinguent pas mot de passe vs
+# clé, demande de Virgile #656). AIDE À LA DÉCISION affichée dans le message de
+# refus — jamais un critère : la logique refuse/passe n'en dépend pas (pas
+# d'auto-pass pour un compte "mort"). Bornée à la fenêtre observable : si rien
+# trouvé, annonce depuis quand le journal sshd est observable — JAMAIS "jamais
+# utilisé" (le journal peut avoir tourné/été purgé avant). Impur (journalctl),
+# dégradé propre si absent/inaccessible. Appelée UNIQUEMENT sur le chemin de
+# refus (comptes déjà signalés) par sshd_preflight_login_hints, jamais sur le
+# balayage nominal (perf — cf. sshd_preflight_collect). Surchargeable en test
+# (même seam que sshd_preflight_collect).
+sshd_preflight_last_password_login() {
+    local user="$1"
+    command -v journalctl >/dev/null 2>&1 || { printf 'indisponible (journalctl absent)'; return; }
+    # Un seul appel journalctl ; filtré aux lignes horodatées réelles (écarte les
+    # en-têtes/pseudo-lignes type "-- No entries --" ou "-- Journal begins at … --",
+    # qui n'ont pas de timestamp ISO en tête et fausseraient "depuis <date>").
+    local log
+    log="$(journalctl -u ssh -u sshd -o short-iso 2>/dev/null | grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}T')"
+    local last
+    last="$(grep -F "Accepted password for ${user} " <<<"$log" | tail -1 | awk '{print $1}')"
+    if [[ -n "$last" ]]; then
+        printf '%s' "$last"
+        return
+    fi
+    local oldest
+    oldest="$(head -1 <<<"$log" | awk '{print $1}')"
+    if [[ -n "$oldest" ]]; then
+        printf 'aucun login mdp sur la fenêtre du journal (depuis %s)' "$oldest"
+    else
+        printf 'indisponible (journal sshd vide ou inaccessible)'
+    fi
+}
+
+# sshd_preflight_login_hints <users>
+# Formatte, pour chaque utilisateur de <users> (un par ligne), le dernier login
+# par mot de passe observé — annexé aux messages de refus (fail-closed ET
+# comptes à risque). Aide à la décision uniquement (cf.
+# sshd_preflight_last_password_login).
+sshd_preflight_login_hints() {
+    local users="$1" user
+    while IFS= read -r user; do
+        [[ -n "$user" ]] || continue
+        printf '\n  - %s : dernier login mdp — %s' "$user" "$(sshd_preflight_last_password_login "$user")"
+    done <<<"$users"
+}
+
 # sshd_preflight_merged_config [<sshd_config>]
 # Construit un sshd_config FUSIONNÉ temporaire : le drop-in de durcissement (PAS
 # ENCORE posé sur disque) en tête, suivi du contenu RÉEL de <sshd_config> (jamais
@@ -161,14 +234,29 @@ sshd_preflight_merged_config() {
     printf '%s\n' "$tmp"
 }
 
-# sshd_preflight_effective_passwordauth <merged_conf> <user>
-# Valeur effective de PasswordAuthentication pour <user> une fois le drop-in fusionné
-# — résolution des blocs Match déléguée à sshd lui-même (`sshd -T -C user=…`), pas
-# de parsing regex maison.
+# sshd_preflight_parse_passwordauth
+# Extrait la valeur de PasswordAuthentication d'un dump `sshd -T` lu sur stdin.
+# Pur — isole la couture awk du binaire sshd, testable avec un vrai dump en
+# fixture (#656 AC5).
+sshd_preflight_parse_passwordauth() {
+    awk '$1 == "passwordauthentication" { print $2; exit }'
+}
+
+# sshd_preflight_effective_passwordauth <conf> <user>
+# Valeur effective de PasswordAuthentication pour <user> sur <conf> — résolution
+# des blocs Match déléguée à sshd lui-même (`sshd -T -C …`), pas de parsing
+# regex maison (la couture awk est isolée dans sshd_preflight_parse_passwordauth).
+# La spec passée à -C est TOUJOURS complète (user, host, addr, laddr, lport) :
+# sur les OpenSSH 9.x (Debian 12 / Ubuntu 24.04), un -C incomplet en présence
+# d'un bloc Match Address/Host/LocalAddress/LocalPort peut faire fatal() sshd -T
+# au lieu de conclure (revue #656) — host/addr/laddr/lport sont figés (connexion
+# locale simulée), seul user varie, ce qui suffit à résoudre les Match User/Group
+# visés par ce préflight.
 sshd_preflight_effective_passwordauth() {
     local conf="$1" user="$2"
-    sshd -T -f "$conf" -C "user=${user}" 2>/dev/null \
-        | awk '$1 == "passwordauthentication" { print $2; exit }'
+    sshd -T -f "$conf" \
+        -C "user=${user},host=localhost,addr=127.0.0.1,laddr=127.0.0.1,lport=22" 2>/dev/null \
+        | sshd_preflight_parse_passwordauth
 }
 
 # sshd_preflight_collect
@@ -195,16 +283,32 @@ sshd_preflight_collect() {
 
 # sshd_preflight_refuse_if_at_risk
 # Refuse (die) AVANT tout changement si un compte existant serait coupé par le
-# durcissement — rien n'est posé, sshd n'est pas rechargé. Silencieux (log_ok) sur
-# une box vierge ou déjà couverte (Match/clé). Surchargeable en test en redéfinissant
-# sshd_preflight_collect (même précédent que poll_ingestion_job / _ingestion_call_get_job).
+# durcissement — rien n'est posé, sshd n'est pas rechargé. Fail-closed (revue
+# #656) : si l'oracle sshd -T n'a pas conclu pour un compte candidat, refuse
+# aussi, avec un message DÉDIÉ (les remédiations "comptes à risque" ne
+# s'appliquent pas à un oracle en panne). Silencieux (log_ok) sur une box
+# vierge ou déjà couverte (Match/clé). Surchargeable en test en redéfinissant
+# sshd_preflight_collect (même précédent que poll_ingestion_job /
+# _ingestion_call_get_job) et, pour les dates de dernier login, en redéfinissant
+# sshd_preflight_last_password_login.
 sshd_preflight_refuse_if_at_risk() {
+    local records
+    records="$(sshd_preflight_collect)"
+
+    local failed
+    failed="$(sshd_preflight_oracle_failed_accounts <<<"$records")"
+    if [[ -n "$failed" ]]; then
+        die "préflight sshd : impossible de conclure pour $(paste -sd' ' - <<<"$failed") — l'oracle sshd -T n'a pas répondu (config sshd invalide, bloc Match mal résolu, ou permissions insuffisantes)." \
+            "Refus de durcir par prudence (fail-closed) : le préflight ne peut pas garantir qu'aucun compte ne serait coupé. Diagnostiquer à la main : sshd -T -f /etc/ssh/sshd_config -C user=<compte>,host=localhost,addr=127.0.0.1,laddr=127.0.0.1,lport=22 ; puis relancer.$(sshd_preflight_login_hints "$failed")"
+    fi
+
     local at_risk
-    at_risk="$(sshd_preflight_collect | sshd_preflight_at_risk_accounts)"
+    at_risk="$(sshd_preflight_at_risk_accounts <<<"$records")"
     if [[ -n "$at_risk" ]]; then
         die "préflight sshd : compte(s) au mot de passe qui serai(en)t coupé(s) — $(paste -sd' ' - <<<"$at_risk")." \
-            "Remédier : migrer le(s) compte(s) en clé SSH (authorized_keys), ou poser une exception 'Match User <compte>' + 'PasswordAuthentication yes' dans un drop-in sshd_config.d/ (numéroté APRÈS ${SSHD_HARDEN_DROPIN##*/}) ; puis relancer."
+            "Remédier : migrer le(s) compte(s) en clé SSH (authorized_keys), ou poser une exception 'Match User <compte>' + 'PasswordAuthentication yes' dans un drop-in sshd_config.d/ (numéroté APRÈS ${SSHD_HARDEN_DROPIN##*/}) ; puis relancer.$(sshd_preflight_login_hints "$at_risk")"
     fi
+
     log_ok "préflight sshd : aucun compte existant ne serait coupé par le durcissement."
 }
 

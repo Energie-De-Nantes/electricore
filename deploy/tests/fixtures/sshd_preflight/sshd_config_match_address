@@ -1,0 +1,11 @@
+# Fixture pour le test de portabilité Match Address (#656 revue). Sur les
+# OpenSSH 9.x (Debian 12 / Ubuntu 24.04), un `-C` incomplet peut faire fatal()
+# sshd -T en présence d'un bloc Match Address/Host/LocalAddress/LocalPort — le
+# test vérifie que sshd_preflight_effective_passwordauth (spec -C complète)
+# conclut malgré ce bloc. HostKey ajoutée dynamiquement par le test (chemin
+# généré à l'exécution, non versionné).
+Port 22
+PasswordAuthentication no
+
+Match Address 10.0.0.0/8
+    PasswordAuthentication yes
