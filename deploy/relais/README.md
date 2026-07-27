@@ -35,6 +35,12 @@ Ce que pose l'installeur, dans l'ordre :
 4. Mini-compose `compose-relais.yml` + unités systemd
    (`electricore-relais.service` + `.timer`), timer activé
    (`systemctl enable --now electricore-relais.timer`).
+5. Hook d'alerte mail OnFailure= (`electricore-relais-alerte.service` +
+   `/usr/local/bin/electricore-relais-alerte.sh`) — voir section dédiée
+   ci-dessous. Posé et **référencé** par `OnFailure=` sur
+   `electricore-relais.service`, mais **pas activé** lui-même (il ne se
+   déclenche que sur échec, jamais via un timer) : `msmtp` (paquet) et son
+   `msmtprc` (secret) restent à poser à la main.
 
 Le premier run réel se produit au premier déclenchement du timer
 (`OnBootSec=5min`), **jamais pendant l'installation** — contrairement à la
@@ -50,6 +56,7 @@ RELAIS__SOURCE_URL=file:///flux/enedis                   # ou sftp://... (auth p
 FLUX_DEPOSIT_DIR=/flux/enedis                            # dossier réel du dépôt en mode file:// (monté ro tel quel)
 RELAIS__PARTNER_URL=sftp://relais@partenaire.example/in
 RELAIS__FLUX=C15,R151,R15,F12,F15                        # phase 1 : liste explicite, vide = tous
+RELAIS_ALERTE_MAILS=alertes-ops@example.fr               # CSV, alerte OnFailure= (#659/#668, voir plus bas)
 ```
 
 **Secrets** (`providers/<slug>/secrets.env`, chiffré SOPS) : le trousseau
@@ -179,18 +186,85 @@ print(con.execute('select * from journal.relais_audit_sequences').fetchall())
 "
 ```
 
-## Alerte mail (`OnFailure=`, #659)
+## Alerte mail (`OnFailure=`, #659, câblée sur ce layout par #668)
 
-L'alerte mail sur échec du relais (`electricore-relais-alerte.service` +
-`.sh`, msmtp, voir l'historique #659) a été conçue pour le chemin **bare-metal**
-(elle lit `/etc/electricore-relais/relais.env`, qui n'existe pas dans le
-chemin conteneurisé — la config vit désormais dans
-`providers/<slug>/config.env`). Le composant relais conteneurisé (#657)
-**n'active pas** cette alerte automatiquement : c'est un suivi naturel, non
-couvert par cette réécriture. L'escalade de base reste garantie sans elle —
-un run « aveugle » (0 push réussi, ≥ 1 échec) fait passer
-`electricore-relais.service` en `failed` (visible par tout monitoring
-`systemctl --failed` / `journalctl`), que l'alerte mail soit câblée ou non.
+Quand `electricore-relais.service` échoue (run aveugle — 0 push réussi, ≥ 1
+échec, cf. `electricore/ingestion/relais/pipeline.py`), `OnFailure=` déclenche
+`electricore-relais-alerte.service` : un mail part vers `RELAIS_ALERTE_MAILS`
+sans que personne n'ait à regarder `systemctl --failed`. Le hook est un simple
+script shell + [msmtp](https://marlam.de/msmtp/), délibérément sans Python —
+le scénario où l'alerte est la plus nécessaire est précisément celui où le
+conteneur, Docker ou SOPS est en panne : ce hook tourne **host-level**, hors
+du conteneur du relais.
+
+`install.sh --relais` **pose et branche tout ça automatiquement**, comme le
+reste du composant (`install_relais_alerte_units`, `deploy/lib/relais.sh`) :
+
+- `electricore-relais-alerte.service` est rendue par slug — son
+  `EnvironmentFile=` pointe sur `/srv/<slug>/config.env` (le layout #657, où
+  `RELAIS_ALERTE_MAILS` est déjà prévu), **pas** sur l'ancien
+  `/etc/electricore-relais/relais.env` du chemin bare-metal, qui n'existe pas
+  ici.
+- `/usr/local/bin/electricore-relais-alerte.sh` est posé (le script est rendu
+  par `render_relais_alerte_script`, pas fetché à part : l'installeur ne
+  télécharge que `deploy/lib/*.sh`).
+- `OnFailure=electricore-relais-alerte.service` est ajouté à l'unité
+  `electricore-relais.service` **rendue** (`render_relais_service`).
+- L'unité d'alerte elle-même n'est **jamais activée** (pas de
+  `enable --now` : elle n'a pas de section `[Install]`, elle ne se déclenche
+  que via `OnFailure=`).
+- Idempotent, comme le reste du composant : un `install.sh --relais` relancé
+  régénère les deux fichiers sans effet de bord.
+
+Ce que l'installeur **ne pose jamais** — un geste manuel, volontairement hors
+de son périmètre (secret, jamais dans un dépôt ni dans l'image) :
+
+```bash
+sudo apt install -y msmtp                       # paquet système, aucune dépendance Python
+sudo install -d -m 700 /etc/electricore-relais
+sudo $EDITOR /etc/electricore-relais/msmtprc     # token SMTP — voir config ci-dessous
+sudo chmod 600 /etc/electricore-relais/msmtprc
+```
+
+Contenu type de `/etc/electricore-relais/msmtprc` (adapter au fournisseur
+SMTP réel — un **token SMTP**, jamais le mot de passe du compte) :
+
+```
+defaults
+tls on
+tls_starttls on
+
+account electricore-relais
+host smtp.example.fr
+port 587
+auth on
+from alertes@example.fr
+user alertes@example.fr
+password <token SMTP>
+
+account default : electricore-relais
+```
+
+Ce chemin (`/etc/electricore-relais/msmtprc`, mode 600) est **host-level, pas
+par slug** — un seul token SMTP par box, partagé si plusieurs instances y
+tournent. Une fois posé, tester la chaîne :
+
+```bash
+sudo systemctl start electricore-relais-alerte.service   # → le mail doit arriver
+```
+
+Vérifier la syntaxe des deux unités (`systemd-analyze verify` — l'e2e
+multipass et le runner bash unitaire, `deploy/tests/unit.sh`, le font déjà) :
+
+```bash
+sudo systemd-analyze verify /etc/systemd/system/electricore-relais.service
+sudo systemd-analyze verify /etc/systemd/system/electricore-relais-alerte.service
+```
+
+Le vrai critère d'acceptation — un échec forcé du relais déclenche
+effectivement un mail réel — se vérifie à la générale (PRD #658, #661), pas
+ici : cette section garantit seulement que le câblage est posé et syntaxiquement
+valide, pas qu'un mail a réellement transité par un vrai serveur SMTP.
 
 ## Générale : l'état ne survit pas (PRD #658)
 
