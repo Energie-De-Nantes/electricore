@@ -127,6 +127,15 @@ cmd_seed_password_account() {
 set -euo pipefail
 id -u '${user}' >/dev/null 2>&1 || useradd --create-home --shell /usr/sbin/nologin '${user}'
 echo '${user}:electricore-test-656' | chpasswd
+# Le compte doit être JOIGNABLE par mot de passe (tout le cas Enargia) : les images
+# cloud posent PasswordAuthentication no en drop-in (60-cloudimg-settings.conf sur
+# 24.04, 50-cloud-init.conf ailleurs) — une box legacy n'a pas ces fichiers.
+# Ciblage par NOM d'image cloud uniquement, jamais par contenu : le drop-in posé
+# par harden.sh doit survivre (finding 3 : re-seed sur box déjà durcie, où ce
+# seed ne doit RIEN rouvrir — d'où, aussi, aucune assertion « yes » ici).
+rm -f /etc/ssh/sshd_config.d/*cloudimg*.conf /etc/ssh/sshd_config.d/*cloud-init*.conf
+systemctl daemon-reload
+systemctl reload ssh
 EOF
     echo "✓ Compte ${user} semencé : mot de passe usable, shell nologin, AUCUNE clé (cas Enargia #656)."
 }
