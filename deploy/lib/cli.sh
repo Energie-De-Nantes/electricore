@@ -7,13 +7,21 @@ Usage: sudo bash install.sh --slug <slug> --domain <fqdn> --deploy-repo <url> [o
 
 Arguments obligatoires :
   --slug <slug>          Identifiant court de l'instance ([a-z0-9-]+, 2-32 chars)
-  --domain <fqdn>        Domaine public (ex: edn.electricore.fr)
+  --domain <fqdn>        Domaine public (ex: edn.electricore.fr). OBLIGATOIRE sauf
+                         avec --relais (le composant relais n'expose rien, pas de
+                         domaine ni de Caddy, #657).
   --deploy-repo <url>    Dépôt de déploiement PRIVÉ (secrets-as-code, ADR-0044) d'où
                          pull providers/<slug>/{config.env,secrets.env}. La box y accède
                          via sa deploy key SSH RO (générée à l'install). Seul chemin
                          d'installation depuis le cutover secrets-as-code (ADR-0044 §8).
 
 Options :
+  --relais               Installe le COMPOSANT RELAIS (#637, #657) seul, à la place de
+                         la stack : socle commun partagé (OS/Docker/UFW/user/durcissement/
+                         identité+secrets) + mini-compose dédié tag-pinné RELAIS_VERSION,
+                         timer systemd. Sans ce drapeau : stack seule (comportement par
+                         défaut, compat intégrale). Les deux composants sur une même box
+                         = deux invocations (dans n'importe quel ordre), chacune idempotente.
   --ssh-pubkey <key>     Clé SSH publique pour le user de service <slug>
                          (défaut: copie depuis ~root/.ssh/authorized_keys)
   --admin-pubkey <key>   Clé SSH publique pour l'admin ops (durcissement, ADR-0031)
@@ -39,7 +47,7 @@ EOF
 
 # parse_args "$@" — remplit les vars globales OPT_SLUG, OPT_DOMAIN, OPT_DEPLOY_REPO,
 # OPT_SSH_PUBKEY, OPT_ADMIN_PUBKEY, OPT_EMAIL, OPT_VERSION, OPT_VERSION_EXPLICIT,
-# OPT_SKIP_DNS, OPT_NO_HARDEN, OPT_NO_SSHD, OPT_NO_FAIL2BAN, OPT_NO_UNATTENDED.
+# OPT_SKIP_DNS, OPT_NO_HARDEN, OPT_NO_SSHD, OPT_NO_FAIL2BAN, OPT_NO_UNATTENDED, OPT_RELAIS.
 # Renvoie 0 si OK, 1 si erreur.
 parse_args() {
     OPT_SLUG=""
@@ -58,6 +66,10 @@ parse_args() {
     OPT_NO_SSHD=0
     OPT_NO_FAIL2BAN=0
     OPT_NO_UNATTENDED=0
+    # Sélection de composant (#657, PRD #655) : sans --relais = stack seule (comportement
+    # historique intégralement préservé) ; avec --relais = composant relais seul (socle
+    # commun partagé + mini-compose dédié). Jamais les deux en un seul run.
+    OPT_RELAIS=0
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --slug)         OPT_SLUG="${2:-}"; shift 2 ;;
@@ -72,6 +84,7 @@ parse_args() {
             --no-sshd)      OPT_NO_SSHD=1; shift ;;
             --no-fail2ban)  OPT_NO_FAIL2BAN=1; shift ;;
             --no-unattended-upgrades) OPT_NO_UNATTENDED=1; shift ;;
+            --relais)       OPT_RELAIS=1; shift ;;
             --no-color)     export NO_COLOR=1; shift ;;
             -h|--help)      usage; exit 0 ;;
             *)
@@ -80,9 +93,13 @@ parse_args() {
         esac
     done
     [[ -n "$OPT_SLUG" ]]   || { echo "--slug manquant" >&2; return 1; }
-    [[ -n "$OPT_DOMAIN" ]] || { echo "--domain manquant" >&2; return 1; }
+    # --domain obligatoire SAUF en composant relais (--relais) : pas de domaine, pas de
+    # Caddy (#657) — la stack (chemin par défaut) l'exige toujours, inchangé.
+    [[ -n "$OPT_DOMAIN" || "$OPT_RELAIS" -eq 1 ]] || { echo "--domain manquant" >&2; return 1; }
     # --deploy-repo obligatoire depuis le cutover secrets-as-code (ADR-0044 §8) :
     # plus de chemin d'installation legacy .env, la config/secrets viennent du dépôt.
+    # Toujours requis, y compris --relais : le composant relais a lui aussi besoin de
+    # l'identité de la box + du pull des secrets (trousseau AES mutualisé).
     [[ -n "$OPT_DEPLOY_REPO" ]] || { echo "--deploy-repo manquant (secrets-as-code, ADR-0044)" >&2; return 1; }
     return 0
 }
