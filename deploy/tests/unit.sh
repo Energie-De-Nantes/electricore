@@ -297,18 +297,18 @@ grep -q 'age.key:/run/secrets/age.key:ro' <<<"$compose_out" \
 grep -qx 'name: electricore-relais' <<<"$compose_out" \
     && ok "render_relais_compose: name: explicite (namespace stable, indépendant du dossier)" \
     || ko "render_relais_compose: name: top-level absent"
-grep -qF -- '- ../../flux-deposit:/srv/${INSTANCE_SLUG:-electricore}/flux-deposit:ro' <<<"$compose_out" \
-    && ok "render_relais_compose: dépôt local des flux monté ro (chemin hôte == conteneur)" \
-    || ko "render_relais_compose: montage flux-deposit absent"
+grep -qF -- '- ${FLUX_DEPOSIT_DIR:-/srv/electricore/flux-deposit}:${FLUX_DEPOSIT_DIR:-/srv/electricore/flux-deposit}:ro' <<<"$compose_out" \
+    && ok "render_relais_compose: dépôt local des flux monté ro (même chemin dedans/dehors, FLUX_DEPOSIT_DIR)" \
+    || ko "render_relais_compose: montage flux-deposit absent/incorrect"
 
 echo
 echo "→ relais.sh / ensure_relais_flux_deposit (dépôt file://, jamais modifié si existant, #657)"
 fd_root=$(mktemp -d); mkdir -p "$fd_root/edn"
-( CONTAINER_UID="$(id -u)" CONTAINER_GID="$(id -g)" SRV_BASE="$fd_root" ensure_relais_flux_deposit edn >/dev/null 2>&1 )
+( CONTAINER_UID="$(id -u)" CONTAINER_GID="$(id -g)" ensure_relais_flux_deposit "$fd_root/edn/flux-deposit" >/dev/null 2>&1 )
 [[ -d "$fd_root/edn/flux-deposit" ]] && ok "ensure_relais_flux_deposit: crée le dépôt absent" || ko "ensure_relais_flux_deposit: dépôt non créé"
 [[ "$(stat -c '%a' "$fd_root/edn/flux-deposit")" == "750" ]] && ok "ensure_relais_flux_deposit: créé en 750 (lecture conteneur)" || ko "ensure_relais_flux_deposit: mode inattendu ($(stat -c '%a' "$fd_root/edn/flux-deposit"))"
 chmod 700 "$fd_root/edn/flux-deposit"
-( SRV_BASE="$fd_root" ensure_relais_flux_deposit edn >/dev/null 2>&1 )
+( ensure_relais_flux_deposit "$fd_root/edn/flux-deposit" >/dev/null 2>&1 )
 [[ "$(stat -c '%a' "$fd_root/edn/flux-deposit")" == "700" ]] && ok "ensure_relais_flux_deposit: dépôt existant laissé tel quel (prod SFTP Enargia)" || ko "ensure_relais_flux_deposit: a modifié un dépôt existant"
 rm -rf "$fd_root"
 
@@ -561,8 +561,24 @@ rm -f "$tmp_cfg"
 # (une box relais-seul n'a pas de stack) — le config.env est PARTAGÉ par les deux
 # composants, chacun ne réclame que ses propres clés.
 tmp_cfg=$(mktemp)
-printf 'INSTANCE_SLUG=edn\nRELAIS_VERSION=1.2.0\nRELAIS__SOURCE_URL=file:///srv/edn/flux\nRELAIS__PARTNER_URL=sftp://relais@partenaire.example/in\n' > "$tmp_cfg"
+printf 'INSTANCE_SLUG=edn\nRELAIS_VERSION=1.2.0\nRELAIS__SOURCE_URL=file:///srv/edn/flux\nFLUX_DEPOSIT_DIR=/srv/edn/flux\nRELAIS__PARTNER_URL=sftp://relais@partenaire.example/in\n' > "$tmp_cfg"
 assert_ok "validate_config_env (component=relais) : RELAIS_VERSION présent, pas de stack requis" \
+    validate_config_env "$tmp_cfg" "edn" "relais"
+rm -f "$tmp_cfg"
+
+# Cohérence dépôt file:// (#657, terrain Enargia /flux/enedis) : le conteneur ne voit
+# que ce qu'on lui monte — file:// sans FLUX_DEPOSIT_DIR identique = relais aveugle.
+tmp_cfg=$(mktemp)
+printf 'INSTANCE_SLUG=edn\nRELAIS_VERSION=1.2.0\nRELAIS__SOURCE_URL=file:///flux/enedis\n' > "$tmp_cfg"
+assert_fail "validate_config_env (relais) : file:// sans FLUX_DEPOSIT_DIR → refuse" \
+    validate_config_env "$tmp_cfg" "edn" "relais"
+printf 'FLUX_DEPOSIT_DIR=/autre/chemin\n' >> "$tmp_cfg"
+assert_fail "validate_config_env (relais) : FLUX_DEPOSIT_DIR incohérent avec l'URL → refuse" \
+    validate_config_env "$tmp_cfg" "edn" "relais"
+rm -f "$tmp_cfg"
+tmp_cfg=$(mktemp)
+printf 'INSTANCE_SLUG=edn\nRELAIS_VERSION=1.2.0\nRELAIS__SOURCE_URL=sftp://relais@source.example/flux\n' > "$tmp_cfg"
+assert_ok "validate_config_env (relais) : source sftp:// sans FLUX_DEPOSIT_DIR → OK" \
     validate_config_env "$tmp_cfg" "edn" "relais"
 rm -f "$tmp_cfg"
 
