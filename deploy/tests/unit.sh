@@ -24,6 +24,8 @@ source "${LIB_DIR}/ingestion.sh"
 source "${LIB_DIR}/secrets.sh"
 # shellcheck source=../lib/harden.sh
 source "${LIB_DIR}/harden.sh"
+# shellcheck source=../lib/relais.sh
+source "${LIB_DIR}/relais.sh"
 
 # `install.sh` est protégé par un guard `main` ; le sourcer expose
 # `fetch_lib_files` sans déclencher l'exécution du script.
@@ -242,6 +244,77 @@ assert_eq "$(sshd_preflight_last_password_login inconnu_$$ 2>/dev/null | grep -c
     "0" "ne dit JAMAIS 'jamais utilisé' — borné à la fenêtre observable du journal"
 
 echo
+echo "→ relais.sh / relais_ssh_key_path + relais_ssh_key_mode_ok (#657)"
+assert_eq "$(SRV_BASE=/srv relais_ssh_key_path edn)" "/srv/edn/relais_ssh_key" \
+    "relais_ssh_key_path: chemin de convention (racine du home d'instance)"
+
+rk_root=$(mktemp -d)
+rk_path="${rk_root}/relais_ssh_key"
+: > "$rk_path"; chmod 600 "$rk_path"
+assert_ok "relais_ssh_key_mode_ok: 600 → ok" relais_ssh_key_mode_ok "$rk_path"
+chmod 400 "$rk_path"
+assert_ok "relais_ssh_key_mode_ok: 400 (lecture seule) → ok aussi" relais_ssh_key_mode_ok "$rk_path"
+chmod 640 "$rk_path"
+assert_fail "relais_ssh_key_mode_ok: 640 (lisible par le groupe) → refuse" relais_ssh_key_mode_ok "$rk_path"
+chmod 644 "$rk_path"
+assert_fail "relais_ssh_key_mode_ok: 644 (lisible par tous) → refuse" relais_ssh_key_mode_ok "$rk_path"
+assert_fail "relais_ssh_key_mode_ok: fichier absent → refuse" relais_ssh_key_mode_ok "${rk_root}/nonexistent"
+rm -rf "$rk_root"
+
+echo
+echo "→ relais.sh / check_relais_ssh_key (refus AVANT tout, jamais de génération/copie, #657 AC3)"
+ck_root=$(mktemp -d)
+install -d "${ck_root}/edn"
+out=$(SRV_BASE="$ck_root" check_relais_ssh_key edn 2>&1); rc=$?
+[[ "$rc" -ne 0 ]] && ok "check_relais_ssh_key: clé absente → refuse (die, exit non-zero)" || ko "check_relais_ssh_key aurait dû refuser (clé absente)"
+grep -q "relais_ssh_key" <<<"$out" && ok "check_relais_ssh_key: message nomme le chemin de remédiation" || ko "check_relais_ssh_key: chemin absent du message de refus"
+
+: > "${ck_root}/edn/relais_ssh_key"; chmod 644 "${ck_root}/edn/relais_ssh_key"
+out=$(SRV_BASE="$ck_root" check_relais_ssh_key edn 2>&1); rc=$?
+[[ "$rc" -ne 0 ]] && ok "check_relais_ssh_key: droits trop ouverts (644) → refuse" || ko "check_relais_ssh_key aurait dû refuser (644)"
+
+chmod 600 "${ck_root}/edn/relais_ssh_key"
+( CONTAINER_UID="$(id -u)" CONTAINER_GID="$(id -g)" SRV_BASE="$ck_root" check_relais_ssh_key edn >/dev/null 2>&1 ) \
+    && ok "check_relais_ssh_key: présente + 600 → passe" || ko "check_relais_ssh_key aurait dû passer (600)"
+assert_eq "$(stat -c '%u' "${ck_root}/edn/relais_ssh_key")" "$(id -u)" \
+    "check_relais_ssh_key: aligne l'ownership sur CONTAINER_UID (lecture conteneur, uid 1000/home /app)"
+rm -rf "$ck_root"
+
+echo
+echo "→ relais.sh / render_relais_compose (mini-compose, pur, #657)"
+compose_out="$(render_relais_compose)"
+grep -q 'RELAIS_VERSION' <<<"$compose_out" && ok "render_relais_compose: tag pinné par RELAIS_VERSION" || ko "render_relais_compose RELAIS_VERSION absent"
+grep -q 'relais_ssh_key:/app/.ssh/id_ed25519:ro' <<<"$compose_out" \
+    && ok "render_relais_compose: clé SSH montée au nom par défaut paramiko (id_ed25519, home /app)" \
+    || ko "render_relais_compose: montage clé SSH absent/incorrect"
+grep -q 'relais_data:/data-relais' <<<"$compose_out" \
+    && ok "render_relais_compose: journal DuckDB sur volume nommé (survit à un docker compose run --rm)" \
+    || ko "render_relais_compose: volume relais_data absent"
+grep -q 'run --rm relais' <<<"$compose_out" && ok "render_relais_compose: documente l'invocation run --rm (pas up -d)" || ko "render_relais_compose: invocation run --rm non documentée"
+grep -q 'age.key:/run/secrets/age.key:ro' <<<"$compose_out" \
+    && ok "render_relais_compose: trousseau AES mutualisé — même age.key que la stack" \
+    || ko "render_relais_compose: montage age.key absent"
+
+echo
+echo "→ relais.sh / render_relais_service (unité systemd ADAPTÉE — compose run, #657)"
+svc_out="$(render_relais_service edn)"
+grep -qx "User=edn" <<<"$svc_out" && ok "render_relais_service: User=<slug>" || ko "render_relais_service User manquant/incorrect"
+grep -q "WorkingDirectory=/srv/edn/deploy/relais" <<<"$svc_out" && ok "render_relais_service: WorkingDirectory=/srv/<slug>/deploy/relais" || ko "render_relais_service WorkingDirectory incorrect"
+grep -q 'docker compose --env-file ../../config.env -f compose-relais.yml run --rm relais' <<<"$svc_out" \
+    && ok "render_relais_service: ExecStart appelle docker compose run --rm (escalade #657 AC6 : exit non-zero traverse jusqu'à failed)" \
+    || ko "render_relais_service ExecStart incorrect"
+grep -qx "Type=oneshot" <<<"$svc_out" && ok "render_relais_service: Type=oneshot" || ko "render_relais_service Type incorrect"
+svc_out2="$(render_relais_service enargia)"
+grep -qx "User=enargia" <<<"$svc_out2" && ok "render_relais_service: paramétré par slug (2e instance)" || ko "render_relais_service pas paramétré par slug"
+
+echo
+echo "→ relais.sh / render_relais_timer (unité systemd, pure, #657)"
+timer_out="$(render_relais_timer)"
+grep -qx "Unit=electricore-relais.service" <<<"$timer_out" && ok "render_relais_timer: cible electricore-relais.service" || ko "render_relais_timer Unit= incorrect"
+grep -qx "Persistent=true" <<<"$timer_out" && ok "render_relais_timer: Persistent=true (rattrape un boot manqué)" || ko "render_relais_timer Persistent manquant"
+grep -qx "WantedBy=timers.target" <<<"$timer_out" && ok "render_relais_timer: WantedBy=timers.target" || ko "render_relais_timer WantedBy manquant"
+
+echo
 echo "→ cli.sh / parse_args"
 ( parse_args --slug edn --domain edn.fr --deploy-repo "git@example.test:org/deploy.git" >/dev/null 2>&1
   [[ "$OPT_SLUG" == "edn" && "$OPT_DOMAIN" == "edn.fr" && "$OPT_VERSION" == "latest" ]]
@@ -286,6 +359,27 @@ assert_fail "parse_args flag inconnu"     parse_args --slug edn --domain edn.fr 
 ( parse_args --slug edn --domain edn.fr --no-fail2ban --no-unattended-upgrades --no-sshd >/dev/null 2>&1
   [[ "$OPT_NO_SSHD" == "1" && "$OPT_NO_FAIL2BAN" == "1" && "$OPT_NO_UNATTENDED" == "1" ]]
 ) && ok "parse_args: toggles granulaires --no-sshd/--no-fail2ban/--no-unattended-upgrades" || ko "parse_args toggles granulaires"
+
+# Composant relais (#657) : --domain devient optionnel avec --relais (socle commun +
+# composant relais seul, pas de domaine ni de Caddy) ; sans --relais, comportement
+# stack intégralement préservé (--domain reste obligatoire).
+( parse_args --slug edn --domain edn.fr --deploy-repo "git@example.test:org/deploy.git" >/dev/null 2>&1
+  [[ "$OPT_RELAIS" == "0" ]]
+) && ok "parse_args: OPT_RELAIS=0 par défaut (stack, compat intégrale)" || ko "parse_args OPT_RELAIS défaut"
+
+( parse_args --slug edn --relais --deploy-repo "git@example.test:org/deploy.git" >/dev/null 2>&1
+  [[ "$OPT_RELAIS" == "1" && -z "$OPT_DOMAIN" ]]
+) && ok "parse_args: --relais sans --domain → accepté (OPT_RELAIS=1)" || ko "parse_args --relais sans --domain aurait dû être accepté"
+
+( parse_args --slug edn --relais --domain edn.fr --deploy-repo "git@example.test:org/deploy.git" >/dev/null 2>&1
+  [[ "$OPT_RELAIS" == "1" && "$OPT_DOMAIN" == "edn.fr" ]]
+) && ok "parse_args: --relais avec --domain fourni quand même → accepté, capturé" || ko "parse_args --relais avec --domain"
+
+assert_fail "parse_args sans --domain NI --relais → refuse toujours (stack inchangée)" \
+    parse_args --slug edn --deploy-repo "git@example.test:org/deploy.git"
+
+assert_fail "parse_args --relais sans --deploy-repo → refuse (identité/secrets mutualisés requis)" \
+    parse_args --slug edn --relais --domain edn.fr
 
 echo
 echo "→ harden.sh (wrapper autonome) / parse_harden_args"
@@ -334,8 +428,8 @@ echo
 echo "→ install.sh / fetch_lib_files"
 tmp_target=$(mktemp -d)
 fetch_lib_files "file://${FIXTURES_DIR}/fake_lib" "$tmp_target"
-[[ -f "${tmp_target}/log.sh" && -f "${tmp_target}/cli.sh" && -f "${tmp_target}/config.sh" && -f "${tmp_target}/secrets.sh" && -f "${tmp_target}/harden.sh" ]] \
-    && ok "fetch_lib_files: les 13 helpers sont téléchargés au 1er appel" \
+[[ -f "${tmp_target}/log.sh" && -f "${tmp_target}/cli.sh" && -f "${tmp_target}/config.sh" && -f "${tmp_target}/secrets.sh" && -f "${tmp_target}/harden.sh" && -f "${tmp_target}/relais.sh" ]] \
+    && ok "fetch_lib_files: les 14 helpers sont téléchargés au 1er appel" \
     || ko "fetch_lib_files: helpers manquants après 1er appel"
 # 2e appel idempotent (les fichiers existent déjà, doit re-télécharger sans erreur)
 fetch_lib_files "file://${FIXTURES_DIR}/fake_lib" "$tmp_target"
@@ -445,6 +539,33 @@ rm -f "$tmp_cfg"
 tmp_cfg=$(mktemp); printf 'INSTANCE_SLUG=edn\nBACKUPS_PATH=/srv/edn/backups\n' > "$tmp_cfg"
 assert_fail "validate_config_env exige ELECTRICORE_VERSION" validate_config_env "$tmp_cfg" "edn"
 rm -f "$tmp_cfg"
+
+# component="relais" (#657) : exige RELAIS_VERSION, PAS ELECTRICORE_VERSION/BACKUPS_PATH
+# (une box relais-seul n'a pas de stack) — le config.env est PARTAGÉ par les deux
+# composants, chacun ne réclame que ses propres clés.
+tmp_cfg=$(mktemp)
+printf 'INSTANCE_SLUG=edn\nRELAIS_VERSION=1.2.0\nRELAIS__SOURCE_URL=file:///srv/edn/flux\nRELAIS__PARTNER_URL=sftp://relais@partenaire.example/in\n' > "$tmp_cfg"
+assert_ok "validate_config_env (component=relais) : RELAIS_VERSION présent, pas de stack requis" \
+    validate_config_env "$tmp_cfg" "edn" "relais"
+rm -f "$tmp_cfg"
+
+tmp_cfg=$(mktemp); printf 'INSTANCE_SLUG=edn\n' > "$tmp_cfg"
+assert_fail "validate_config_env (component=relais) exige RELAIS_VERSION" \
+    validate_config_env "$tmp_cfg" "edn" "relais"
+rm -f "$tmp_cfg"
+
+# component="relais" : un config.env qui n'a QUE ELECTRICORE_VERSION/BACKUPS_PATH (pas de
+# RELAIS_VERSION) échoue toujours côté relais — bump d'ELECTRICORE_VERSION seul ne
+# suffit pas à satisfaire le composant relais (indépendance des deux tags, #657).
+tmp_cfg=$(mktemp)
+printf 'INSTANCE_SLUG=edn\nELECTRICORE_VERSION=1.7.0\nBACKUPS_PATH=/srv/edn/backups\n' > "$tmp_cfg"
+assert_fail "validate_config_env (component=relais) : ELECTRICORE_VERSION seul ne suffit pas" \
+    validate_config_env "$tmp_cfg" "edn" "relais"
+# Le même fichier reste valide côté stack (défaut, compat intégrale)
+assert_ok "validate_config_env (défaut stack) : le même config.env reste valide côté stack" \
+    validate_config_env "$tmp_cfg" "edn"
+rm -f "$tmp_cfg"
+
 # Le CONTENU de secrets.env (format clés AES/API, URL SFTP) n'est plus validé en bash :
 # SSOT pydantic (tests/unit/test_runtime.py), vérifié par le conteneur étapes 11-12 (ADR-0049).
 

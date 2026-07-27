@@ -34,26 +34,42 @@ read_env_var() {
 # Les deux fonctions ci-dessous valident chaque moitié.
 # ─────────────────────────────────────────────────────────────────────────────
 
-# validate_config_env <config_file> <expected_slug>
-# Valide la moitié CLAIRE : INSTANCE_SLUG (matche), ELECTRICORE_VERSION et
-# BACKUPS_PATH présents. AUCUN secret ici (sinon erreur — un secret en clair dans
-# config.env est une fuite). Imprime les erreurs sur stdout ; 0 si OK, 1 sinon.
+# validate_config_env <config_file> <expected_slug> [<component>]
+# Valide la moitié CLAIRE : INSTANCE_SLUG (matche) + les substitutions requises par
+# <component> ("stack", défaut, ou "relais", #657). AUCUN secret ici (sinon erreur —
+# un secret en clair dans config.env est une fuite). Imprime les erreurs sur stdout ;
+# 0 si OK, 1 sinon.
+#
+# Le config.env d'un provider est PARTAGÉ par les deux composants installables sur une
+# box (ADR-0044, PRD #655) : une box relais-seul n'a pas besoin de BACKUPS_PATH (pas de
+# stack), une box stack-seule n'a pas besoin de RELAIS_VERSION — chaque composant ne
+# réclame que ses propres clés, jamais celles de l'autre (bump d'ELECTRICORE_VERSION ne
+# doit rien exiger côté relais, et réciproquement).
 validate_config_env() {
     local file="$1"
     local expected_slug="$2"
+    local component="${3:-stack}"
     local errors=()
 
     [[ -r "$file" ]] || { echo "config.env introuvable : $file"; return 1; }
 
-    local slug version backups
+    local slug
     slug=$(read_env_var "$file" INSTANCE_SLUG)
-    version=$(read_env_var "$file" ELECTRICORE_VERSION)
-    backups=$(read_env_var "$file" BACKUPS_PATH)
-
     [[ "$slug" == "$expected_slug" ]] || \
         errors+=("INSTANCE_SLUG='${slug}' ne matche pas le slug attendu '${expected_slug}'")
-    [[ -n "$version" ]] || errors+=("ELECTRICORE_VERSION manquant (substitution compose)")
-    [[ -n "$backups" ]] || errors+=("BACKUPS_PATH manquant (substitution compose)")
+
+    if [[ "$component" == "relais" ]]; then
+        local relais_version
+        relais_version=$(read_env_var "$file" RELAIS_VERSION)
+        [[ -n "$relais_version" ]] || \
+            errors+=("RELAIS_VERSION manquant (tag GHCR du composant relais, #657)")
+    else
+        local version backups
+        version=$(read_env_var "$file" ELECTRICORE_VERSION)
+        backups=$(read_env_var "$file" BACKUPS_PATH)
+        [[ -n "$version" ]] || errors+=("ELECTRICORE_VERSION manquant (substitution compose)")
+        [[ -n "$backups" ]] || errors+=("BACKUPS_PATH manquant (substitution compose)")
+    fi
 
     # Garde-fou anti-fuite : un credential n'a RIEN à faire dans config.env (clair).
     local leaked
