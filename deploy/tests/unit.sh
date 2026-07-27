@@ -130,8 +130,27 @@ override_05="$(UNATTENDED_REBOOT_TIME=05:15 render_unattended_override)"
 grep -q '"05:15"' <<<"$override_05" && ok "override: heure de reboot paramétrable" || ko "override heure non paramétrable"
 
 echo
-echo "→ harden.sh / sshd_preflight_at_risk_accounts (préflight non-vierge, #656)"
+echo "→ harden.sh / sshd_preflight_parse_passwordauth (AC5 — couture awk, vrai dump sshd -T)"
 SSHD_PREFLIGHT_FIX="${FIXTURES_DIR}/sshd_preflight"
+assert_eq "$(sshd_preflight_parse_passwordauth < "${SSHD_PREFLIGHT_FIX}/sshd-T-dump.txt")" \
+    "no" "extrait passwordauthentication depuis un vrai dump sshd -T"
+
+echo
+echo "→ harden.sh / sshd_preflight_effective_passwordauth (portabilité Match Address, #656 revue)"
+if command -v sshd >/dev/null 2>&1; then
+    _match_dir="$(mktemp -d)"
+    ssh-keygen -t ed25519 -N '' -f "${_match_dir}/hostkey" -q </dev/null >/dev/null 2>&1
+    _match_conf="${_match_dir}/sshd_config"
+    { printf 'HostKey %s\n' "${_match_dir}/hostkey"; cat "${SSHD_PREFLIGHT_FIX}/sshd_config_match_address"; } > "$_match_conf"
+    assert_eq "$(sshd_preflight_effective_passwordauth "$_match_conf" testuser)" \
+        "no" "config avec bloc Match Address + -C complet → sshd -T conclut (pas de fatal(), #656 revue)"
+    rm -rf "$_match_dir"
+else
+    echo "  (binaire sshd absent — test Match Address sauté)"
+fi
+
+echo
+echo "→ harden.sh / sshd_preflight_at_risk_accounts (préflight non-vierge, #656)"
 assert_eq "$(sshd_preflight_at_risk_accounts < "${SSHD_PREFLIGHT_FIX}/password-account.records")" \
     "enedis_deposit" "compte au mot de passe, sans clé, sans Match protecteur → à risque"
 assert_eq "$(sshd_preflight_at_risk_accounts < "${SSHD_PREFLIGHT_FIX}/keyed-account.records")" \
@@ -155,6 +174,17 @@ assert_eq "$(printf 'a:P:0:no\nb:L:0:no\nc:P:0:no\n' | sshd_preflight_at_risk_ac
     "$(printf 'a\nc')" "plusieurs comptes à risque → tous remontés"
 
 echo
+echo "→ harden.sh / sshd_preflight_oracle_failed_accounts (fail-closed, #656 revue)"
+assert_eq "$(printf 'sonde_muette:P:0:\n' | sshd_preflight_oracle_failed_accounts)" \
+    "sonde_muette" "effective vide sur un candidat → oracle en échec, remonté"
+assert_eq "$(sshd_preflight_oracle_failed_accounts < "${SSHD_PREFLIGHT_FIX}/password-account.records")" \
+    "" "oracle qui répond (yes/no bien formés) → pas d'échec"
+assert_eq "$(printf 'root:P:0:\n' | sshd_preflight_oracle_failed_accounts)" \
+    "" "root exclu même en échec d'oracle (hors audit)"
+assert_eq "$(printf 'svc:L:0:\n' | sshd_preflight_oracle_failed_accounts)" \
+    "" "compte non-candidat (verrouillé) → pas concerné par le fail-closed"
+
+echo
 echo "→ harden.sh / sshd_preflight_refuse_if_at_risk (bloque AVANT tout changement, #656)"
 # sshd_preflight_collect est surchargée (même précédent que poll_ingestion_job /
 # _ingestion_call_get_job) : on teste la composition collecte→décision→die, pas le
@@ -171,6 +201,37 @@ rc=$?
 out=$(sshd_preflight_collect() { printf 'root:P:0:no\n'; }; sshd_preflight_refuse_if_at_risk 2>&1)
 rc=$?
 [[ "$rc" -eq 0 ]] && ok "root au mot de passe, sans clé, non protégé → n'est PAS ce qui refuse (finding 1)" || ko "root n'aurait pas dû faire refuser le préflight"
+
+# Fail-closed : l'oracle ne répond pas pour un compte candidat → refuse, message DÉDIÉ
+# (pas celui des comptes à risque — ses remédiations Match/clé ne s'appliquent pas ici).
+out=$(sshd_preflight_collect() { printf 'sonde_muette:P:0:\n'; }; sshd_preflight_refuse_if_at_risk 2>&1)
+rc=$?
+[[ "$rc" -ne 0 ]] && ok "oracle en échec sur un candidat → refuse (fail-closed)" || ko "oracle en échec aurait dû refuser"
+grep -q "impossible de conclure" <<<"$out" && ok "message de refus dédié (pas le message comptes à risque)" || ko "message de refus fail-closed absent/incorrect"
+grep -q "sonde_muette" <<<"$out" && ok "message fail-closed nomme le compte" || ko "message fail-closed ne nomme pas le compte"
+! grep -q "Remédier : migrer" <<<"$out" && ok "message fail-closed n'affiche PAS les remédiations comptes-à-risque" || ko "message fail-closed a affiché les remédiations comptes-à-risque à tort"
+
+# Dates de dernier login mdp (demande de Virgile, #656 revue) : seam surchargeable,
+# même précédent que sshd_preflight_collect — la logique refuse/passe n'en dépend pas
+# (aide à la décision uniquement), mais le message de refus doit les afficher.
+out=$(
+    sshd_preflight_collect() { printf 'enedis_deposit:P:0:no\n'; }
+    sshd_preflight_last_password_login() { printf '2026-03-14'; }
+    sshd_preflight_refuse_if_at_risk 2>&1
+)
+grep -q "2026-03-14" <<<"$out" && ok "message comptes-à-risque affiche la date de dernier login mdp" || ko "date de dernier login absente du message comptes-à-risque"
+
+out=$(
+    sshd_preflight_collect() { printf 'sonde_muette:P:0:\n'; }
+    sshd_preflight_last_password_login() { printf 'aucun login mdp sur la fenêtre du journal (depuis 2025-01-01)'; }
+    sshd_preflight_refuse_if_at_risk 2>&1
+)
+grep -q "2025-01-01" <<<"$out" && ok "message fail-closed affiche aussi la date de dernier login mdp" || ko "date de dernier login absente du message fail-closed"
+
+echo
+echo "→ harden.sh / sshd_preflight_last_password_login (borne à la fenêtre observable, #656 revue)"
+assert_eq "$(sshd_preflight_last_password_login inconnu_$$ 2>/dev/null | grep -c "jamais utilisé")" \
+    "0" "ne dit JAMAIS 'jamais utilisé' — borné à la fenêtre observable du journal"
 
 echo
 echo "→ cli.sh / parse_args"
