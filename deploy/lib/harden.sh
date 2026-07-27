@@ -107,6 +107,13 @@ admin_has_authorized_key() {
 # global. Complémentaire au garde-fou anti-verrouillage ci-dessus (qui protège
 # seulement `ops`) — même précédent structurel : refus AVANT tout changement,
 # rien n'est posé, sshd n'est pas rechargé.
+#
+# `root` est explicitement HORS AUDIT (revue #656) : couper root SSH est la
+# juridiction du garde-fou anti-verrouillage ci-dessus, pas de ce préflight — et
+# la remédiation « Match User <compte> + PasswordAuthentication yes » proposée
+# aux autres comptes ne s'applique PAS à root : `PermitRootLogin no` (posé par
+# le même drop-in, cf. render_sshd_hardening) coupe root indépendamment de
+# PasswordAuthentication, un Match ne le rendrait pas.
 
 # sshd_preflight_at_risk_accounts
 # Lit sur stdin des enregistrements "user:passwd_state:has_key:effective_passwordauth"
@@ -122,10 +129,13 @@ admin_has_authorized_key() {
 # délibérément PAS un, un compte SFTP-only via ForceCommand internal-sftp a un shell
 # nologin mais authentifie normalement (cf. #656) ; les comptes système sont exclus
 # parce qu'ils sont verrouillés (`*`/`!` dans shadow → passwd -S = L), pas par leur shell.
+# `root` est explicitement exclu — cf. commentaire de section (juridiction du
+# garde-fou anti-verrouillage, pas de ce préflight).
 sshd_preflight_at_risk_accounts() {
     local user passwd_state has_key effective
     while IFS=: read -r user passwd_state has_key effective; do
         [[ -n "$user" ]] || continue
+        [[ "$user" != "root" ]] || continue         # juridiction du garde-fou anti-verrouillage
         [[ "$passwd_state" == "P" ]] || continue   # verrouillé/sans mdp : rien à couper
         [[ "$has_key" == "0" ]] || continue         # une clé → déjà migré, pas à risque
         [[ "$effective" == "no" ]] || continue      # un Match protège ce compte (yes)
@@ -162,15 +172,17 @@ sshd_preflight_effective_passwordauth() {
 }
 
 # sshd_preflight_collect
-# Énumère les comptes du système (getent passwd), sonde passwd -S + authorized_keys
-# + la valeur effective post-fusion pour chacun, et émet les enregistrements
-# consommés par sshd_preflight_at_risk_accounts. Impur : nécessite root (passwd -S
-# lit /etc/shadow) et le binaire sshd — non testé en unitaire par construction
+# Énumère les comptes du système (getent passwd, root exclu — cf. commentaire de
+# section), sonde passwd -S + authorized_keys + la valeur effective post-fusion
+# pour chacun, et émet les enregistrements consommés par
+# sshd_preflight_at_risk_accounts. Impur : nécessite root (passwd -S lit
+# /etc/shadow) et le binaire sshd — non testé en unitaire par construction
 # (couvert par l'e2e multipass, cf. deploy/tests/e2e/).
 sshd_preflight_collect() {
     local merged_conf u home passwd_state has_key effective
     merged_conf="$(sshd_preflight_merged_config /etc/ssh/sshd_config)"
     while IFS=: read -r u _ _ _ _ home _; do
+        [[ "$u" != "root" ]] || continue   # hors audit (juridiction du garde-fou anti-verrouillage)
         passwd_state="$(passwd -S "$u" 2>/dev/null | awk '{print $2}')" || true
         [[ -n "$passwd_state" ]] || continue   # pas d'entrée shadow (rare) → ignoré
         has_key=0

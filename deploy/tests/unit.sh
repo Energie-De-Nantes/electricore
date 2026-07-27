@@ -140,6 +140,9 @@ assert_eq "$(sshd_preflight_at_risk_accounts < "${SSHD_PREFLIGHT_FIX}/matched-ac
     "" "bloc Match protecteur (effective=yes) → pas à risque"
 assert_eq "$(sshd_preflight_at_risk_accounts < "${SSHD_PREFLIGHT_FIX}/virgin.records")" \
     "" "machine vierge (comptes verrouillés + admin en clé) → aucun compte à risque"
+# root : hors audit, juridiction du garde-fou anti-verrouillage (finding 1, #656 revue)
+assert_eq "$(sshd_preflight_at_risk_accounts < "${SSHD_PREFLIGHT_FIX}/root-account.records")" \
+    "" "root au mot de passe, sans clé, non protégé → PAS signalé (juridiction du garde-fou)"
 # Comptes système sans login (shell nologin/false) : la fonction ne regarde QUE
 # passwd -S/clé/effective, jamais le shell — mais un compte verrouillé (L) ou sans
 # mot de passe (NP) ne doit jamais remonter, quel que soit le reste (#656 AC4).
@@ -164,6 +167,10 @@ grep -q "enedis_deposit" <<<"$out" && ok "message de refus nomme le compte à ri
 out=$(sshd_preflight_collect() { printf 'ops:P:1:no\nroot:L:0:no\n'; }; sshd_preflight_refuse_if_at_risk 2>&1)
 rc=$?
 [[ "$rc" -eq 0 ]] && ok "machine vierge (aucun compte à risque) → passe (exit 0)" || ko "machine vierge n'aurait pas dû refuser"
+
+out=$(sshd_preflight_collect() { printf 'root:P:0:no\n'; }; sshd_preflight_refuse_if_at_risk 2>&1)
+rc=$?
+[[ "$rc" -eq 0 ]] && ok "root au mot de passe, sans clé, non protégé → n'est PAS ce qui refuse (finding 1)" || ko "root n'aurait pas dû faire refuser le préflight"
 
 echo
 echo "→ cli.sh / parse_args"
