@@ -38,6 +38,13 @@ Commands:
   verify-preflight already-hardened <user>   Assertions : reconfigure PASSE sans remédiation
                                               sur une box déjà durcie (finding 3, diff avant/après).
 
+  Scénario « composant relais » (#657) :
+  seed-relais-key <slug> [perms]   Pose une clé SSH partenaire de test (600 par défaut,
+                                    ou <perms> ex. 644 pour tester le refus).
+  remove-relais-key <slug>         Retire la clé SSH partenaire de test.
+  verify-relais refuse <slug>      Assertions : install.sh --relais REFUSÉ (clé SSH absente).
+  verify-relais posed  <slug>      Assertions : état posé (timer actif, compose présent, clé 600).
+
   Séquence complète :
     ./multipass.sh up
     ./multipass.sh seed-password-account enedis_deposit
@@ -52,6 +59,18 @@ Commands:
     ./multipass.sh seed-password-account legacy_svc
     ./multipass.sh harden                        # doit RÉUSSIR À NOUVEAU (silencieux)
     ./multipass.sh verify-preflight already-hardened legacy_svc
+    ./multipass.sh down
+
+  Scénario « composant relais » (#657) — install.sh --relais sur une machine vierge,
+  socle commun + mini-compose + timer, sans push réel vers un partenaire :
+    ./multipass.sh up
+    ./multipass.sh run --slug relais --relais --deploy-repo <url-dépôt-déploiement>
+                                                  # doit ÉCHOUER (clé SSH partenaire absente)
+    ./multipass.sh verify-relais refuse relais
+    ./multipass.sh seed-relais-key relais
+    ./multipass.sh run --slug relais --relais --deploy-repo <url-dépôt-déploiement>
+                                                  # doit RÉUSSIR
+    ./multipass.sh verify-relais posed relais
     ./multipass.sh down
 
 Variables :
@@ -135,6 +154,35 @@ cmd_remediate_key() {
 
 cmd_verify_preflight() { multipass exec "$VM_NAME" -- sudo bash /repo/deploy/tests/e2e/assert_preflight.sh "$@"; }
 
+# ── Scénario « composant relais » (#657) ────────────────────────────────────
+
+# cmd_seed_relais_key <slug> [perms]
+# Pose une clé SSH partenaire de TEST (jetable, jamais la vraie clé Haulogy) au chemin
+# de convention /srv/<slug>/relais_ssh_key. <perms> défaut 600 (cas nominal) ; passer
+# une valeur plus ouverte (644) pour exercer le refus « droits trop permissifs ».
+cmd_seed_relais_key() {
+    local slug="${1:?slug requis}"
+    local perms="${2:-600}"
+    multipass exec "$VM_NAME" -- sudo bash -c "
+        install -d /srv/${slug}
+        ssh-keygen -t ed25519 -N '' -f /tmp/relais_test_key -q
+        cp /tmp/relais_test_key /srv/${slug}/relais_ssh_key
+        chmod ${perms} /srv/${slug}/relais_ssh_key
+        rm -f /tmp/relais_test_key /tmp/relais_test_key.pub
+    "
+    echo "✓ Clé SSH partenaire de test posée pour ${slug} (droits ${perms})."
+}
+
+# cmd_remove_relais_key <slug>
+# Retire la clé de test — pour rejouer le scénario « refuse » sur une box déjà passée.
+cmd_remove_relais_key() {
+    local slug="${1:?slug requis}"
+    multipass exec "$VM_NAME" -- sudo rm -f "/srv/${slug}/relais_ssh_key"
+    echo "✓ Clé SSH partenaire de test retirée pour ${slug}."
+}
+
+cmd_verify_relais() { multipass exec "$VM_NAME" -- sudo bash /repo/deploy/tests/e2e/assert_relais.sh "$@"; }
+
 require_multipass
 CMD="${1:-}"; shift || true
 case "$CMD" in
@@ -143,5 +191,8 @@ case "$CMD" in
     seed-password-account)   cmd_seed_password_account "$@" ;;
     remediate-key)           cmd_remediate_key "$@" ;;
     verify-preflight)        cmd_verify_preflight "$@" ;;
+    seed-relais-key)         cmd_seed_relais_key "$@" ;;
+    remove-relais-key)       cmd_remove_relais_key "$@" ;;
+    verify-relais)           cmd_verify_relais "$@" ;;
     *) usage; exit 1 ;;
 esac

@@ -70,6 +70,28 @@ passer une fois remédié :
 `harden` invoque le wrapper autonome `deploy/harden.sh` — ce qui exerce aussi le
 critère « le wrapper bénéficie du même préflight que l'installeur ».
 
+### Scénario e2e : composant relais (#657)
+
+`install.sh --relais` pose le socle commun + le composant relais seul (mini-compose
+tag-pinné `RELAIS_VERSION`, timer systemd) — sans domaine, sans Caddy, sans push réel
+vers un partenaire. Il doit refuser tant que la clé SSH partenaire n'est pas au chemin
+de convention, en 600 :
+
+```bash
+./deploy/tests/e2e/multipass.sh up
+./deploy/tests/e2e/multipass.sh run --slug relais --relais --deploy-repo <url>
+                                              # doit ÉCHOUER (clé SSH partenaire absente)
+./deploy/tests/e2e/multipass.sh verify-relais refuse relais
+./deploy/tests/e2e/multipass.sh seed-relais-key relais
+./deploy/tests/e2e/multipass.sh run --slug relais --relais --deploy-repo <url>
+                                              # doit RÉUSSIR
+./deploy/tests/e2e/multipass.sh verify-relais posed relais
+./deploy/tests/e2e/multipass.sh down
+```
+
+`<url>` : un vrai dépôt de déploiement privé (secrets-as-code, ADR-0044) — l'identité
+de la box + le trousseau AES mutualisé sont requis même côté relais seul.
+
 ## Aller-retour crypto onboarding (vrais binaires, anti-régression #453)
 
 ```bash
