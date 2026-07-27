@@ -190,9 +190,11 @@ sshd_preflight_last_password_login() {
     # en-têtes/pseudo-lignes type "-- No entries --" ou "-- Journal begins at … --",
     # qui n'ont pas de timestamp ISO en tête et fausseraient "depuis <date>").
     local log
-    log="$(journalctl -u ssh -u sshd -o short-iso 2>/dev/null | grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}T')"
+    # `|| true` : journal vide/inaccessible → grep sort 1 (pipefail) ; la dégradation
+    # propre est gérée plus bas, elle ne doit pas avorter l'appelant sous `set -e`.
+    log="$(journalctl -u ssh -u sshd -o short-iso 2>/dev/null | grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}T')" || true
     local last
-    last="$(grep -F "Accepted password for ${user} " <<<"$log" | tail -1 | awk '{print $1}')"
+    last="$(grep -F "Accepted password for ${user} " <<<"$log" | tail -1 | awk '{print $1}')" || true
     if [[ -n "$last" ]]; then
         printf '%s' "$last"
         return
