@@ -382,8 +382,8 @@ EOF
         install_relais_units "$OPT_SLUG"
         # Hook d'alerte mail (#659, câblé sur ce layout conteneurisé par #668) : posé et
         # référencé par OnFailure= (render_relais_service ci-dessus), mais PAS activé
-        # (pas d'enable --now — se déclenche uniquement via OnFailure=). msmtp + son
-        # msmtprc (600, jamais dans git) restent à poser à la main, cf. récap ci-dessous.
+        # (pas d'enable --now — se déclenche uniquement via OnFailure=). Installe msmtp
+        # (dépendance du composant) ; seul le msmtprc (600) reste manuel, cf. récap.
         install_relais_alerte_units "$OPT_SLUG"
 
         # ─── Étape 13 (relais) : récap ────────────────────────────────────────
@@ -402,8 +402,6 @@ EOF
 
   Alerte mail (#659/#668) — electricore-relais-alerte.service posée + branchée en
   OnFailure=, PAS activée (se déclenche uniquement sur échec). Reste à poser à la main :
-    sudo apt install -y msmtp
-    sudo install -d -m 700 /etc/electricore-relais
     sudo \$EDITOR /etc/electricore-relais/msmtprc   # token SMTP — JAMAIS dans git
     sudo chmod 600 /etc/electricore-relais/msmtprc
   RELAIS_ALERTE_MAILS vit déjà dans ${HOME_DIR}/config.env (voir deploy/relais/README.md).

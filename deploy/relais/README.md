@@ -39,8 +39,9 @@ Ce que pose l'installeur, dans l'ordre :
    `/usr/local/bin/electricore-relais-alerte.sh`) — voir section dédiée
    ci-dessous. Posé et **référencé** par `OnFailure=` sur
    `electricore-relais.service`, mais **pas activé** lui-même (il ne se
-   déclenche que sur échec, jamais via un timer) : `msmtp` (paquet) et son
-   `msmtprc` (secret) restent à poser à la main.
+   déclenche que sur échec, jamais via un timer). Le paquet `msmtp` est
+   installé par le composant ; seul son `msmtprc` (secret) reste à poser à la
+   main.
 
 Le premier run réel se produit au premier déclenchement du timer
 (`OnBootSec=5min`), **jamais pendant l'installation** — contrairement à la
@@ -56,7 +57,10 @@ RELAIS__SOURCE_URL=file:///flux/enedis                   # ou sftp://... (auth p
 FLUX_DEPOSIT_DIR=/flux/enedis                            # dossier réel du dépôt en mode file:// (monté ro tel quel)
 RELAIS__PARTNER_URL=sftp://relais@partenaire.example/in
 RELAIS__FLUX=C15,R151,R15,F12,F15                        # phase 1 : liste explicite, vide = tous
-RELAIS_ALERTE_MAILS=alertes-ops@example.fr               # CSV, alerte OnFailure= (#659/#668, voir plus bas)
+# CSV, alerte OnFailure= (#659/#668, voir plus bas). Commentaire sur sa PROPRE ligne,
+# contrairement aux clés ci-dessus : cette valeur est lue par systemd (EnvironmentFile=),
+# qui ne coupe PAS les commentaires de fin de ligne — il les avalerait dans les adresses.
+RELAIS_ALERTE_MAILS=alertes-ops@example.fr
 ```
 
 **Secrets** (`providers/<slug>/secrets.env`, chiffré SOPS) : le trousseau
@@ -213,6 +217,8 @@ reste du composant (`install_relais_alerte_units`, `deploy/lib/relais.sh`) :
 - L'unité d'alerte elle-même n'est **jamais activée** (pas de
   `enable --now` : elle n'a pas de section `[Install]`, elle ne se déclenche
   que via `OnFailure=`).
+- Le paquet `msmtp` et le répertoire `/etc/electricore-relais` (700) sont posés
+  par l'installeur — seul le `msmtprc` qu'il abrite reste manuel.
 - Idempotent, comme le reste du composant : un `install.sh --relais` relancé
   régénère les deux fichiers sans effet de bord.
 
@@ -220,8 +226,6 @@ Ce que l'installeur **ne pose jamais** — un geste manuel, volontairement hors
 de son périmètre (secret, jamais dans un dépôt ni dans l'image) :
 
 ```bash
-sudo apt install -y msmtp                       # paquet système, aucune dépendance Python
-sudo install -d -m 700 /etc/electricore-relais
 sudo $EDITOR /etc/electricore-relais/msmtprc     # token SMTP — voir config ci-dessous
 sudo chmod 600 /etc/electricore-relais/msmtprc
 ```
