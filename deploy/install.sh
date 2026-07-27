@@ -372,10 +372,13 @@ EOF
 
         # ─── Étape 12 (relais) : mini-compose + unités systemd ───────────────
         log_step "Compose relais (RELAIS_VERSION) + timer systemd"
-        # Dépôt local des flux (file://) : créé s'il manque, JAMAIS modifié s'il existe
-        # (Enargia : répertoire de prod du SFTP en place). Après le chown -R de l'étape 10,
-        # même raison d'ordre que relais_ssh_key.
-        ensure_relais_flux_deposit "$OPT_SLUG"
+        # Dépôt local des flux (file://) : FLUX_DEPOSIT_DIR de config.env (Enargia :
+        # /flux/enedis), défaut convention /srv/<slug>/flux-deposit. Créé s'il manque,
+        # JAMAIS modifié s'il existe (répertoire de prod du SFTP en place). Après le
+        # chown -R de l'étape 10, même raison d'ordre que relais_ssh_key.
+        flux_deposit=$(read_env_var "${HOME_DIR}/config.env" FLUX_DEPOSIT_DIR 2>/dev/null || true)
+        [[ -n "$flux_deposit" ]] || flux_deposit="/srv/${OPT_SLUG}/flux-deposit"
+        ensure_relais_flux_deposit "$flux_deposit"
         install_relais_units "$OPT_SLUG"
 
         # ─── Étape 13 (relais) : récap ────────────────────────────────────────

@@ -63,6 +63,17 @@ validate_config_env() {
         relais_version=$(read_env_var "$file" RELAIS_VERSION)
         [[ -n "$relais_version" ]] || \
             errors+=("RELAIS_VERSION manquant (tag GHCR du composant relais, #657)")
+        # Cohérence dépôt local (#657) : en mode file://, le conteneur ne voit que ce
+        # qu'on lui monte — FLUX_DEPOSIT_DIR doit désigner EXACTEMENT le dossier de
+        # l'URL (montage chemin-identique dans compose-relais.yml), sinon le relais
+        # est aveugle à sa source.
+        local source_url deposit_dir
+        source_url=$(read_env_var "$file" RELAIS__SOURCE_URL)
+        if [[ "$source_url" == file://* ]]; then
+            deposit_dir=$(read_env_var "$file" FLUX_DEPOSIT_DIR)
+            [[ -n "$deposit_dir" && "file://${deposit_dir}" == "$source_url" ]] || \
+                errors+=("RELAIS__SOURCE_URL en file:// exige FLUX_DEPOSIT_DIR=${source_url#file://} (montage du dépôt dans le conteneur, #657)")
+        fi
     else
         local version backups
         version=$(read_env_var "$file" ELECTRICORE_VERSION)

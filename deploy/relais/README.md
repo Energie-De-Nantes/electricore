@@ -46,7 +46,8 @@ clair) :
 
 ```bash
 RELAIS_VERSION=1.2.0                                    # tag GHCR, DÉCOUPLÉ d'ELECTRICORE_VERSION
-RELAIS__SOURCE_URL=file:///srv/<slug>/flux-deposit       # ou sftp://... (auth par clé, jamais mot de passe en dur)
+RELAIS__SOURCE_URL=file:///flux/enedis                   # ou sftp://... (auth par clé, jamais mot de passe en dur)
+FLUX_DEPOSIT_DIR=/flux/enedis                            # dossier réel du dépôt en mode file:// (monté ro tel quel)
 RELAIS__PARTNER_URL=sftp://relais@partenaire.example/in
 RELAIS__FLUX=C15,R151,R15,F12,F15                        # phase 1 : liste explicite, vide = tous
 ```
@@ -57,15 +58,19 @@ dans les deux conteneurs) — rien à dupliquer.
 
 ### Répertoire de dépôt des flux (mode `file://`)
 
-Si `RELAIS__SOURCE_URL` pointe un dossier local plutôt qu'un SFTP distant, la
-convention est **chemin hôte == chemin conteneur** : `/srv/<slug>/flux-deposit`,
-monté ro d'office dans `compose-relais.yml` — l'URL de `config.env` vaut telle
-quelle des deux côtés, aucun montage à décommenter. L'installeur **crée** le
-dossier s'il manque (lisible par le conteneur, uid 1000) ; un dossier
-**existant** (cas Enargia : le dépôt de production où Enedis dépose) n'est
-**jamais modifié** — c'est à l'opérateur d'ouvrir la lecture à l'uid 1000
-(groupe/ACL), l'installeur avertit si elle manque. Sur une box à source SFTP
-distante, le montage est inerte (dossier vide).
+Si `RELAIS__SOURCE_URL` pointe un dossier local plutôt qu'un SFTP distant, ce
+dossier est monté ro **au même chemin** dans le conteneur — l'URL vaut telle
+quelle des deux côtés, aucun montage à décommenter. `FLUX_DEPOSIT_DIR`
+(config.env) désigne le dossier réel — Enargia : `/flux/enedis`, dont
+l'arborescence par flux (`C15/`, `R151/`, …) convient telle quelle : le relais
+liste en **récursif** (`**/*.zip`) et filtre sur le **nom** des zips, pas sur
+les dossiers. Une garde à l'install refuse un `file://` sans `FLUX_DEPOSIT_DIR`
+cohérent (sinon le conteneur serait aveugle à sa source). L'installeur **crée**
+le dossier s'il manque (lisible par le conteneur, uid 1000) ; un dossier
+**existant** (le dépôt de production où Enedis dépose) n'est **jamais
+modifié** — c'est à l'opérateur d'ouvrir la lecture à l'uid 1000 (groupe/ACL
+sur toute l'arborescence), l'installeur avertit si elle manque. Sur une box à
+source SFTP distante, le montage est inerte (dossier vide).
 
 ## Clé SSH partenaire
 

@@ -59,14 +59,14 @@ check_relais_ssh_key() {
     log_ok "clé SSH partenaire présente, verrouillée (${path})"
 }
 
-# ensure_relais_flux_deposit <slug>
+# ensure_relais_flux_deposit <dir>
 # Dépôt local des flux (cas RELAIS__SOURCE_URL=file://…, nominal Enargia) : créé s'il
 # manque (lisible par le conteneur, CONTAINER_UID) ; un dépôt EXISTANT n'est JAMAIS
-# modifié — sur la box Enargia c'est le répertoire de production où Enedis dépose, ses
-# droits appartiennent au SFTP en place, pas à l'installeur (on avertit seulement si le
-# conteneur ne pourra pas le lire).
+# modifié — sur la box Enargia c'est /flux/enedis, le répertoire de production où
+# Enedis dépose : ses droits appartiennent au SFTP en place, pas à l'installeur (on
+# avertit seulement si le conteneur ne pourra pas le lire).
 ensure_relais_flux_deposit() {
-    local dir="${SRV_BASE:-/srv}/$1/flux-deposit"
+    local dir="$1"
     if [[ -d "$dir" ]]; then
         if [[ ${EUID:-0} -eq 0 ]] && ! sudo -u "#${CONTAINER_UID:-1000}" test -r "$dir" -a -x "$dir" 2>/dev/null; then
             log_warn "dépôt ${dir} illisible par le conteneur (uid ${CONTAINER_UID:-1000}) — le relais échouera bruyamment au listing ; ouvrir la lecture (groupe/ACL) sans toucher au SFTP en place."
@@ -149,12 +149,14 @@ services:
       # cf. deploy/docker/Dockerfile `useradd --home-dir /app`). Présence + droits (600)
       # vérifiés par l'installeur avant le premier run (jamais générée ici, #657).
       - ../../relais_ssh_key:/app/.ssh/id_ed25519:ro
-      # Dépôt local des flux (RELAIS__SOURCE_URL=file://…, cas nominal Enargia) : chemin
-      # hôte == chemin conteneur — l'URL de config.env vaut telle quelle des deux côtés.
-      # Créé par l'installeur s'il manque (lecture uid 1000) ; un dépôt EXISTANT garde
-      # ses droits (l'opérateur ouvre la lecture au conteneur, l'installeur avertit).
-      # Inerte si la source est un SFTP distant (dossier vide).
-      - ../../flux-deposit:/srv/${INSTANCE_SLUG:-electricore}/flux-deposit:ro
+      # Dépôt local des flux (RELAIS__SOURCE_URL=file://…, cas nominal Enargia) : monté
+      # ro au MÊME chemin dedans/dehors — l'URL de config.env vaut telle quelle des deux
+      # côtés. FLUX_DEPOSIT_DIR (config.env, garde de cohérence env_validate) désigne le
+      # dossier réel — Enargia : /flux/enedis, arborescence par flux OK (listing récursif
+      # **/*.zip, filtre sur le NOM des zips). Créé par l'installeur s'il manque ; un
+      # dépôt EXISTANT garde ses droits (avertissement si illisible uid 1000). Inerte si
+      # la source est un SFTP distant (dossier vide).
+      - ${FLUX_DEPOSIT_DIR:-/srv/electricore/flux-deposit}:${FLUX_DEPOSIT_DIR:-/srv/electricore/flux-deposit}:ro
 
 volumes:
   relais_data:
