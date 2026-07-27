@@ -1,0 +1,4 @@
+root:L:0:no
+daemon:L:0:no
+sshd:L:0:no
+ops:P:1:no
