@@ -40,6 +40,10 @@ case "$MODE" in
               "! test -f /etc/systemd/system/electricore-relais.service"
         check "timer electricore-relais.timer NI actif NI enabled" \
               "! systemctl is-active electricore-relais.timer && ! systemctl is-enabled electricore-relais.timer"
+        check "unité d'alerte OnFailure= ABSENTE (#668 : refus AVANT install_relais_alerte_units)" \
+              "! test -f /etc/systemd/system/electricore-relais-alerte.service"
+        check "script d'alerte ABSENT (#668)" \
+              "! test -f /usr/local/bin/electricore-relais-alerte.sh"
         ;;
     posed)
         echo "→ Composant relais #657 : install.sh --relais POSÉ (socle + compose + timer)"
@@ -55,6 +59,30 @@ case "$MODE" in
               "systemctl is-enabled electricore-relais.timer"
         check "clé SSH partenaire présente en 600"                 "test -f ${HOME_DIR}/relais_ssh_key"
         check "clé SSH partenaire : droits 600 exactement"         "[ \"\$(stat -c '%a' ${HOME_DIR}/relais_ssh_key)\" = 600 ]"
+
+        # ─── Alerte mail OnFailure= (#659, câblée sur ce layout par #668) ────────────
+        echo "→ Composant relais #668 : alerte mail OnFailure= câblée (script + unité posés, PAS activée)"
+        check "unité service relais : OnFailure=electricore-relais-alerte.service" \
+              "grep -qx 'OnFailure=electricore-relais-alerte.service' /etc/systemd/system/electricore-relais.service"
+        check "script d'alerte posé et exécutable (/usr/local/bin)" \
+              "test -x /usr/local/bin/electricore-relais-alerte.sh"
+        check "script d'alerte : aucun résidu /etc/electricore-relais/relais.env" \
+              "! grep -q '/etc/electricore-relais/relais.env' /usr/local/bin/electricore-relais-alerte.sh"
+        check "unité d'alerte systemd présente"                    "test -f /etc/systemd/system/electricore-relais-alerte.service"
+        check "unité d'alerte : EnvironmentFile=${HOME_DIR}/config.env (layout #657, pas relais.env)" \
+              "grep -qx 'EnvironmentFile=${HOME_DIR}/config.env' /etc/systemd/system/electricore-relais-alerte.service"
+        check "unité d'alerte NON activée (jamais démarrée par l'installeur, déclenchée par OnFailure= seul)" \
+              "! systemctl is-active electricore-relais-alerte.service"
+        check "unité d'alerte SANS [Install] (pas de enable --now — is-enabled répondrait 'static', pas un signal utile)" \
+              "! grep -qx '\[Install\]' /etc/systemd/system/electricore-relais-alerte.service"
+        if command -v systemd-analyze >/dev/null 2>&1; then
+            check "systemd-analyze verify : electricore-relais.service (OnFailure= compris)" \
+                  "systemd-analyze verify /etc/systemd/system/electricore-relais.service"
+            check "systemd-analyze verify : electricore-relais-alerte.service" \
+                  "systemd-analyze verify /etc/systemd/system/electricore-relais-alerte.service"
+        else
+            echo "  (systemd-analyze indisponible sur cette VM — rendu déjà couvert par le runner bash unitaire, #668)"
+        fi
         # Pas de domaine ni de Caddy pour le composant relais seul (#657 AC2) : sur une
         # box où seul --relais a tourné (jamais la stack), le chemin relais n'a jamais
         # téléchargé/substitué de Caddyfile.
