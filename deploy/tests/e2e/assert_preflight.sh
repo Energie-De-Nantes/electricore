@@ -5,11 +5,12 @@
 # Match posée), le même durcissement doit passer.
 #
 # Le harnais multipass l'invoque via `multipass exec` (pas SSH) :
-#   ./deploy/tests/e2e/multipass.sh verify-preflight refuse <user>   # après un `harden` en échec
-#   ./deploy/tests/e2e/multipass.sh verify-preflight pass   <user>   # après remédiation + `harden` réussi
+#   ./deploy/tests/e2e/multipass.sh verify-preflight refuse            <user>   # après un `harden` en échec
+#   ./deploy/tests/e2e/multipass.sh verify-preflight pass              <user>   # après remédiation + `harden` réussi
+#   ./deploy/tests/e2e/multipass.sh verify-preflight already-hardened  <user>   # reconfigure sans remédiation (finding 3, #656)
 #
 # Sur un vrai VPS :
-#   sudo bash /srv/<slug>/deploy/tests/e2e/assert_preflight.sh <refuse|pass> <user>
+#   sudo bash /srv/<slug>/deploy/tests/e2e/assert_preflight.sh <refuse|pass|already-hardened> <user>
 #
 # Exit 0 si toutes les assertions passent, 1 sinon ; exit 2 si usage invalide.
 set -u
@@ -47,8 +48,17 @@ case "$MODE" in
         check "${USER_AT_RISK} a maintenant une clé SSH exploitable" \
               "test -s \"\$(getent passwd ${USER_AT_RISK} | cut -d: -f6)/.ssh/authorized_keys\""
         ;;
+    already-hardened)
+        echo "→ Préflight #656 (finding 3) : reconfigure sur box DÉJÀ durcie passe SANS remédiation (${USER_AT_RISK})"
+        check "drop-in de durcissement présent (déjà posé avant ce reconfigure)" \
+              "test -f ${DROPIN}"
+        check "sshd -t valide la config"                           "sshd -t"
+        check "PasswordAuthentication no globalement (effectif)"   "sshd -T | grep -qix 'passwordauthentication no'"
+        check "${USER_AT_RISK} n'a TOUJOURS PAS de clé (jamais remédié — la box était déjà durcie, avant=no)" \
+              "! test -s \"\$(getent passwd ${USER_AT_RISK} | cut -d: -f6)/.ssh/authorized_keys\""
+        ;;
     *)
-        echo "mode inconnu : '${MODE}' (attendu refuse|pass)" >&2
+        echo "mode inconnu : '${MODE}' (attendu refuse|pass|already-hardened)" >&2
         exit 2
         ;;
 esac

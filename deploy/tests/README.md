@@ -47,7 +47,7 @@ Le harnais monte le repo sur `/repo` dans la VM, injecte une clé SSH root bidon
 
 ### Scénario e2e : box non-vierge (#656, cas Enargia)
 
-Le préflight sshd (ADR-0031) doit refuser le durcissement tant qu'un compte existant
+Le préflight sshd (#656) doit refuser le durcissement tant qu'un compte existant
 serait coupé du SSH par mot de passe (compte de dépôt Enedis, shape SFTP-only) — puis
 passer une fois remédié :
 
@@ -59,6 +59,11 @@ passer une fois remédié :
 ./deploy/tests/e2e/multipass.sh remediate-key enedis_deposit
 ./deploy/tests/e2e/multipass.sh harden                        # doit RÉUSSIR
 ./deploy/tests/e2e/multipass.sh verify-preflight pass enedis_deposit
+# finding 3 (diff avant/après) : un nouveau compte au mot de passe, jamais migré,
+# sur une box DÉJÀ durcie — le reconfigure ne doit pas re-bloquer (silencieux).
+./deploy/tests/e2e/multipass.sh seed-password-account legacy_svc
+./deploy/tests/e2e/multipass.sh harden                        # doit RÉUSSIR À NOUVEAU
+./deploy/tests/e2e/multipass.sh verify-preflight already-hardened legacy_svc
 ./deploy/tests/e2e/multipass.sh down
 ```
 

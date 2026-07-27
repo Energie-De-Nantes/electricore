@@ -32,9 +32,11 @@ Commands:
   seed-password-account <user>  Crée <user> (shell nologin, mot de passe usable,
                                  AUCUNE clé) — simule le compte de dépôt Enedis.
   remediate-key <user>          Pose une clé SSH pour <user> (migration en clé).
-  verify-preflight refuse <user>  Assertions : durcissement REFUSÉ (drop-in absent).
-  verify-preflight pass <user>    Assertions : durcissement PASSE (drop-in présent,
-                                   <user> toujours protégé par sa clé).
+  verify-preflight refuse <user>            Assertions : durcissement REFUSÉ (drop-in absent).
+  verify-preflight pass <user>               Assertions : durcissement PASSE (drop-in présent,
+                                              <user> toujours protégé par sa clé).
+  verify-preflight already-hardened <user>   Assertions : reconfigure PASSE sans remédiation
+                                              sur une box déjà durcie (finding 3, diff avant/après).
 
   Séquence complète :
     ./multipass.sh up
@@ -44,6 +46,12 @@ Commands:
     ./multipass.sh remediate-key enedis_deposit
     ./multipass.sh harden                        # doit RÉUSSIR
     ./multipass.sh verify-preflight pass enedis_deposit
+    # finding 3 (diff avant/après) : un NOUVEAU compte au mot de passe, jamais
+    # migré, sur une box DÉJÀ durcie — le reconfigure ne doit PAS re-bloquer
+    # (avant=no déjà : le compte n'a jamais pu se connecter par mot de passe).
+    ./multipass.sh seed-password-account legacy_svc
+    ./multipass.sh harden                        # doit RÉUSSIR À NOUVEAU (silencieux)
+    ./multipass.sh verify-preflight already-hardened legacy_svc
     ./multipass.sh down
 
 Variables :
