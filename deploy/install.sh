@@ -275,6 +275,10 @@ main() {
         repo_version=$(read_env_var "$config_env" ELECTRICORE_VERSION)
         override_config_version "$config_env" "$OPT_VERSION"
         log_warn "ELECTRICORE_VERSION overridé localement : ${OPT_VERSION} (dépôt : ${repo_version}) — non versionné, propre à cette box."
+    elif [[ "${OPT_VERSION_EXPLICIT:-0}" -eq 1 ]]; then
+        # Découplage des deux tags (#657) : ne pas laisser croire qu'on vient d'épingler
+        # le relais alors que --version ne pilote QUE la stack.
+        log_warn "--version IGNORÉ en mode --relais : le tag du relais est RELAIS_VERSION (providers/${OPT_SLUG}/config.env du dépôt), découplé d'ELECTRICORE_VERSION."
     fi
 
     if ! box_can_decrypt "$OPT_SLUG"; then

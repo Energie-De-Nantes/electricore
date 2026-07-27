@@ -91,6 +91,9 @@ de convention, en 600 :
 
 `<url>` : un vrai dépôt de déploiement privé (secrets-as-code, ADR-0044) — l'identité
 de la box + le trousseau AES mutualisé sont requis même côté relais seul.
+Prérequis : l'onboarding en deux temps (ADR-0044 §4) doit être déjà bouclé pour cette
+box — tant que ses clés publiques ne sont pas enregistrées, le run s'arrête AVANT la
+vérification de clé SSH partenaire, sur le message d'onboarding (sortie 0).
 
 ## Aller-retour crypto onboarding (vrais binaires, anti-régression #453)
 
