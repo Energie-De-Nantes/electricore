@@ -111,8 +111,20 @@ cmd_unharden()       { multipass exec "$VM_NAME" -- sudo bash /repo/deploy/unhar
 cmd_verify()         { multipass exec "$VM_NAME" -- sudo bash /repo/deploy/tests/e2e/assert_harden.sh "$@"; }
 cmd_verify_reverse() { multipass exec "$VM_NAME" -- sudo bash /repo/deploy/tests/e2e/assert_unharden.sh "$@"; }
 cmd_shell()   { multipass shell "$VM_NAME"; }
-cmd_snap()    { multipass snapshot "$VM_NAME" --name "${1:?nom de snapshot requis}"; }
-cmd_restore() { multipass restore "${VM_NAME}.${1:?nom de snapshot requis}"; }
+# multipass ne snapshote/restaure qu'une VM ARRÊTÉE, et restore sans --destructive
+# attend une confirmation interactive (pendaison en usage script) — stop/start encadrent.
+cmd_snap() {
+    local name="${1:?nom de snapshot requis}"
+    multipass stop "$VM_NAME"
+    multipass snapshot "$VM_NAME" --name "$name"
+    multipass start "$VM_NAME"
+}
+cmd_restore() {
+    local name="${1:?nom de snapshot requis}"
+    multipass stop "$VM_NAME"
+    multipass restore --destructive "${VM_NAME}.${name}"
+    multipass start "$VM_NAME"
+}
 cmd_status()  { multipass info "$VM_NAME" 2>/dev/null || echo "VM ${VM_NAME} n'existe pas."; }
 
 # ── Scénario « box non-vierge » (#656, cas Enargia) ─────────────────────────
