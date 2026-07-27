@@ -100,6 +100,101 @@ admin_has_authorized_key() {
     authorized_keys_present "${home}/.ssh/authorized_keys"
 }
 
+# ─── Préflight sshd non-vierge (#656) ───────────────────────────────────────
+# Avant de poser le drop-in global (PasswordAuthentication no), audite les
+# comptes EXISTANTS du système : un compte au mot de passe usable, sans clé SSH,
+# et sans bloc Match qui le protège serait coupé silencieusement par le drop-in
+# global. Complémentaire au garde-fou anti-verrouillage ci-dessus (qui protège
+# seulement `ops`) — même précédent structurel : refus AVANT tout changement,
+# rien n'est posé, sshd n'est pas rechargé.
+
+# sshd_preflight_at_risk_accounts
+# Lit sur stdin des enregistrements "user:passwd_state:has_key:effective_passwordauth"
+# (un par ligne) :
+#   passwd_state            2e champ de `passwd -S` (P=utilisable, L=verrouillé, NP=sans mdp)
+#   has_key                 1 si authorized_keys_present pour ce compte, 0 sinon
+#   effective_passwordauth  valeur post-fusion de PasswordAuthentication (yes/no),
+#                           résolution des blocs Match incluse (cf. sshd_preflight_collect)
+# Émet (stdout) les comptes à risque : mot de passe utilisable + pas de clé + coupés
+# par le durcissement (aucun Match ne les protège, sinon effective=yes). Pur, sans
+# side-effect — testable sur des fixtures, sans VM ni root. Un compte verrouillé/sans
+# mot de passe (L/NP) ou avec shell nologin n'est JAMAIS à risque via passwd_state≠P
+# (le shell n'est délibérément pas un critère : un compte SFTP-only via
+# ForceCommand internal-sftp authentifie normalement, cf. #656).
+sshd_preflight_at_risk_accounts() {
+    local user passwd_state has_key effective
+    while IFS=: read -r user passwd_state has_key effective; do
+        [[ -n "$user" ]] || continue
+        [[ "$passwd_state" == "P" ]] || continue   # verrouillé/sans mdp : rien à couper
+        [[ "$has_key" == "0" ]] || continue         # une clé → déjà migré, pas à risque
+        [[ "$effective" == "no" ]] || continue      # un Match protège ce compte (yes)
+        printf '%s\n' "$user"
+    done
+}
+
+# sshd_preflight_merged_config [<sshd_config>]
+# Construit un sshd_config FUSIONNÉ temporaire : le drop-in de durcissement (PAS
+# ENCORE posé sur disque) en tête, suivi du contenu RÉEL de <sshd_config> (jamais
+# modifié — lecture seule vis-à-vis de /etc/ssh). Émet le chemin du fichier
+# temporaire sur stdout ; à charge de l'appelant de le supprimer. Sur Debian/Ubuntu,
+# le drop-in réel serait inclus tout en haut du fichier (`Include sshd_config.d/*.conf`,
+# cf. is_supported_os) — le préfixer ici reproduit cette précédence à l'identique ;
+# les blocs Match existants (généralement en fin de fichier, ou dans un drop-in déjà
+# posé — relu via l'Include du fichier réel) continuent de primer sur nos globales
+# pour les connexions qu'ils couvrent.
+sshd_preflight_merged_config() {
+    local real_conf="${1:-/etc/ssh/sshd_config}"
+    local tmp
+    tmp="$(mktemp)"
+    { render_sshd_hardening; echo; cat "$real_conf"; } > "$tmp"
+    printf '%s\n' "$tmp"
+}
+
+# sshd_preflight_effective_passwordauth <merged_conf> <user>
+# Valeur effective de PasswordAuthentication pour <user> une fois le drop-in fusionné
+# — résolution des blocs Match déléguée à sshd lui-même (`sshd -T -C user=…`), pas
+# de parsing regex maison.
+sshd_preflight_effective_passwordauth() {
+    local conf="$1" user="$2"
+    sshd -T -f "$conf" -C "user=${user}" 2>/dev/null \
+        | awk '$1 == "passwordauthentication" { print $2; exit }'
+}
+
+# sshd_preflight_collect
+# Énumère les comptes du système (getent passwd), sonde passwd -S + authorized_keys
+# + la valeur effective post-fusion pour chacun, et émet les enregistrements
+# consommés par sshd_preflight_at_risk_accounts. Impur : nécessite root (passwd -S
+# lit /etc/shadow) et le binaire sshd — non testé en unitaire par construction
+# (couvert par l'e2e multipass, cf. deploy/tests/e2e/).
+sshd_preflight_collect() {
+    local merged_conf u home passwd_state has_key effective
+    merged_conf="$(sshd_preflight_merged_config /etc/ssh/sshd_config)"
+    while IFS=: read -r u _ _ _ _ home _; do
+        passwd_state="$(passwd -S "$u" 2>/dev/null | awk '{print $2}')" || true
+        [[ -n "$passwd_state" ]] || continue   # pas d'entrée shadow (rare) → ignoré
+        has_key=0
+        authorized_keys_present "${home}/.ssh/authorized_keys" && has_key=1
+        effective="$(sshd_preflight_effective_passwordauth "$merged_conf" "$u")" || true
+        printf '%s:%s:%s:%s\n' "$u" "$passwd_state" "$has_key" "$effective"
+    done < <(getent passwd)
+    rm -f "$merged_conf"
+}
+
+# sshd_preflight_refuse_if_at_risk
+# Refuse (die) AVANT tout changement si un compte existant serait coupé par le
+# durcissement — rien n'est posé, sshd n'est pas rechargé. Silencieux (log_ok) sur
+# une box vierge ou déjà couverte (Match/clé). Surchargeable en test en redéfinissant
+# sshd_preflight_collect (même précédent que poll_ingestion_job / _ingestion_call_get_job).
+sshd_preflight_refuse_if_at_risk() {
+    local at_risk
+    at_risk="$(sshd_preflight_collect | sshd_preflight_at_risk_accounts)"
+    if [[ -n "$at_risk" ]]; then
+        die "préflight sshd : compte(s) au mot de passe qui serai(en)t coupé(s) — $(tr '\n' ' ' <<<"$at_risk")." \
+            "Remédier : migrer le(s) compte(s) en clé SSH (authorized_keys), ou poser une exception 'Match User <compte>' + 'PasswordAuthentication yes' dans un drop-in sshd_config.d/ (numéroté APRÈS ${SSHD_HARDEN_DROPIN##*/}) ; puis relancer."
+    fi
+    log_ok "préflight sshd : aucun compte existant ne serait coupé par le durcissement."
+}
+
 # ─── Verrouillage sshd ──────────────────────────────────────────────────────
 
 # Drop-in de durcissement. Le répertoire sshd_config.d/ est inclus par défaut
@@ -124,8 +219,11 @@ EOF
 
 # harden_sshd
 # Pose le drop-in (root-off, clé uniquement), valide par `sshd -t`, puis
-# `reload` (jamais `restart` — les sessions ouvertes survivent). Précédé du
-# garde-fou anti-verrouillage : refuse de basculer si l'admin n'a pas de clé.
+# `reload` (jamais `restart` — les sessions ouvertes survivent). Précédé de deux
+# refus possibles (rien n'est posé, sshd n'est pas rechargé si l'un des deux tombe) :
+#   1. garde-fou anti-verrouillage : l'admin (ops) n'a pas de clé exploitable.
+#   2. préflight non-vierge (#656) : un compte EXISTANT serait coupé (mot de passe
+#      usable, pas de clé, aucun Match ne le protège).
 harden_sshd() {
     local user="${HARDEN_ADMIN_USER}"
     # ── Garde-fou anti-verrouillage (ordre impératif, ADR-0031) ──
@@ -133,6 +231,8 @@ harden_sshd() {
         die "garde-fou anti-verrouillage : $user n'a pas de clé SSH exploitable." \
             "Refus de couper le SSH root. Fournir --admin-pubkey puis relancer."
     fi
+    # ── Préflight non-vierge (#656) : refuse si un compte existant serait coupé ──
+    sshd_preflight_refuse_if_at_risk
     install -d -m 755 "$(dirname "$SSHD_HARDEN_DROPIN")"
     render_sshd_hardening > "$SSHD_HARDEN_DROPIN"
     chmod 0644 "$SSHD_HARDEN_DROPIN"

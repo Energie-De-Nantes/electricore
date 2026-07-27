@@ -130,6 +130,42 @@ override_05="$(UNATTENDED_REBOOT_TIME=05:15 render_unattended_override)"
 grep -q '"05:15"' <<<"$override_05" && ok "override: heure de reboot paramétrable" || ko "override heure non paramétrable"
 
 echo
+echo "→ harden.sh / sshd_preflight_at_risk_accounts (préflight non-vierge, #656)"
+SSHD_PREFLIGHT_FIX="${FIXTURES_DIR}/sshd_preflight"
+assert_eq "$(sshd_preflight_at_risk_accounts < "${SSHD_PREFLIGHT_FIX}/password-account.records")" \
+    "enedis_deposit" "compte au mot de passe, sans clé, sans Match protecteur → à risque"
+assert_eq "$(sshd_preflight_at_risk_accounts < "${SSHD_PREFLIGHT_FIX}/keyed-account.records")" \
+    "" "compte migré en clé → pas à risque"
+assert_eq "$(sshd_preflight_at_risk_accounts < "${SSHD_PREFLIGHT_FIX}/matched-account.records")" \
+    "" "bloc Match protecteur (effective=yes) → pas à risque"
+assert_eq "$(sshd_preflight_at_risk_accounts < "${SSHD_PREFLIGHT_FIX}/virgin.records")" \
+    "" "machine vierge (comptes verrouillés + admin en clé) → aucun compte à risque"
+# Comptes système sans login (shell nologin/false) : la fonction ne regarde QUE
+# passwd -S/clé/effective, jamais le shell — mais un compte verrouillé (L) ou sans
+# mot de passe (NP) ne doit jamais remonter, quel que soit le reste (#656 AC4).
+assert_eq "$(printf 'www-data:L:0:no\n' | sshd_preflight_at_risk_accounts)" \
+    "" "compte système verrouillé (L) → pas de faux positif"
+assert_eq "$(printf 'guest:NP:0:no\n' | sshd_preflight_at_risk_accounts)" \
+    "" "compte sans mot de passe (NP) → pas de faux positif"
+# Plusieurs comptes à risque à la fois → tous nommés (un par ligne)
+assert_eq "$(printf 'a:P:0:no\nb:L:0:no\nc:P:0:no\n' | sshd_preflight_at_risk_accounts)" \
+    "$(printf 'a\nc')" "plusieurs comptes à risque → tous remontés"
+
+echo
+echo "→ harden.sh / sshd_preflight_refuse_if_at_risk (bloque AVANT tout changement, #656)"
+# sshd_preflight_collect est surchargée (même précédent que poll_ingestion_job /
+# _ingestion_call_get_job) : on teste la composition collecte→décision→die, pas le
+# vrai collecteur (impur, nécessite root+sshd — couvert par l'e2e multipass).
+out=$(sshd_preflight_collect() { printf 'enedis_deposit:P:0:no\n'; }; sshd_preflight_refuse_if_at_risk 2>&1)
+rc=$?
+[[ "$rc" -ne 0 ]] && ok "compte à risque → refuse (die, exit non-zero)" || ko "compte à risque aurait dû refuser"
+grep -q "enedis_deposit" <<<"$out" && ok "message de refus nomme le compte à risque" || ko "message de refus ne nomme pas le compte"
+
+out=$(sshd_preflight_collect() { printf 'ops:P:1:no\nroot:L:0:no\n'; }; sshd_preflight_refuse_if_at_risk 2>&1)
+rc=$?
+[[ "$rc" -eq 0 ]] && ok "machine vierge (aucun compte à risque) → passe (exit 0)" || ko "machine vierge n'aurait pas dû refuser"
+
+echo
 echo "→ cli.sh / parse_args"
 ( parse_args --slug edn --domain edn.fr --deploy-repo "git@example.test:org/deploy.git" >/dev/null 2>&1
   [[ "$OPT_SLUG" == "edn" && "$OPT_DOMAIN" == "edn.fr" && "$OPT_VERSION" == "latest" ]]
