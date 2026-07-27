@@ -160,8 +160,16 @@ pull_deploy_repo() {
 # print_onboarding_pending <slug> <domain> <age_pub> <ssh_pub>
 # Affiche le message d'onboarding EN DEUX TEMPS (ADR-0044 §4) : les deux clés
 # publiques à enregistrer + la marche à suivre, puis comment finir avec reconfigure.
+# <domain> vide (#657) : la commande de reconfigure affiche --relais à la place de
+# --domain <vide> — seul le composant relais installe sans domaine (cf. cli.sh).
 print_onboarding_pending() {
     local slug="$1" domain="$2" age_pub="$3" ssh_pub="$4"
+    local domain_or_relais
+    if [[ -n "$domain" ]]; then
+        domain_or_relais="--domain ${domain}"
+    else
+        domain_or_relais="--relais"
+    fi
     cat <<EOF
 
   ${_C_BOLD}Onboarding en deux temps — la box ${slug} attend l'enregistrement de ses clés.${_C_RESET}
@@ -180,7 +188,7 @@ print_onboarding_pending() {
 
   Une fois les deux enregistrées et poussées, termine l'onboarding :
 
-       sudo bash install.sh --slug ${slug} --domain ${domain} --deploy-repo <url>
+       sudo bash install.sh --slug ${slug} ${domain_or_relais} --deploy-repo <url>
 
   (reconfigure : la box pull le ciphertext, déchiffre, et démarre la stack.)
 

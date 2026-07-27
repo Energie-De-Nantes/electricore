@@ -28,7 +28,7 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_BASE_URL_DEFAULT="${INSTALL_BASE_URL:-https://raw.githubusercontent.com/Energie-De-Nantes/electricore/main/deploy}"
-LIB_FILES=(log cli validate os system user harden config env_validate secrets dns stack ingestion)
+LIB_FILES=(log cli validate os system user harden config env_validate secrets dns stack ingestion relais)
 
 # fetch_lib_files <base_url> <target_dir>
 # Télécharge les helpers `${LIB_FILES[@]}` depuis <base_url> vers <target_dir>.
@@ -112,6 +112,9 @@ main() {
             if [[ -n "${OPT_SLUG:-}" && -n "${OPT_DOMAIN:-}" ]]; then
                 printf '%s\n' "Pour relancer (mode reconfigure si déjà partiellement installé) :" >&2
                 printf '   sudo bash %s --slug %s --domain %s\n' "$0" "$OPT_SLUG" "$OPT_DOMAIN" >&2
+            elif [[ -n "${OPT_SLUG:-}" && "${OPT_RELAIS:-0}" -eq 1 ]]; then
+                printf '%s\n' "Pour relancer (mode reconfigure si déjà partiellement installé) :" >&2
+                printf '   sudo bash %s --slug %s --relais\n' "$0" "$OPT_SLUG" >&2
             fi
         fi
     }
@@ -122,9 +125,15 @@ main() {
     # Secrets-as-code (ADR-0044) ajoute 2 étapes (identité box + pull) à la place de
     # l'édition .env → le compteur d'étapes s'ajuste pour rester juste.
     [[ -n "${OPT_DEPLOY_REPO:-}" ]] && LOG_TOTAL_STEPS=15
+    # Composant relais (#657) : socle commun (6) + identité/pull/validation (3) +
+    # ownership + clé SSH partenaire + compose/units + récap (4) = 13, quel que soit
+    # --deploy-repo (toujours requis, cf. cli.sh) — remplace le compte ci-dessus.
+    [[ "${OPT_RELAIS:-0}" -eq 1 ]] && LOG_TOTAL_STEPS=13
 
     validate_slug "$OPT_SLUG" || die "slug invalide : '$OPT_SLUG' (attendu [a-z0-9-]+, 2-32 chars)"
-    validate_domain "$OPT_DOMAIN" || die "domaine invalide : '$OPT_DOMAIN'"
+    # --domain n'est requis que hors --relais (cli.sh l'impose déjà pour la stack) ;
+    # s'il est fourni quand même en mode relais (facultatif), on le valide tout autant.
+    [[ -z "$OPT_DOMAIN" ]] || validate_domain "$OPT_DOMAIN" || die "domaine invalide : '$OPT_DOMAIN'"
     [[ -z "$OPT_EMAIL" || "$OPT_EMAIL" =~ ^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$ ]] \
         || die "email invalide : '$OPT_EMAIL'"
 
@@ -199,20 +208,27 @@ main() {
         harden_vps
     fi
 
-    # ─── Étape 7 : config files ─────────────────────────────────────────────
-    log_step "Téléchargement config (tag ${OPT_VERSION})"
-    # En secrets-as-code (--deploy-repo) : pas de .env téléchargé, la config claire
-    # arrive par le dépôt (providers/<slug>/config.env, ADR-0044).
-    skip_env=0; [[ -n "$OPT_DEPLOY_REPO" ]] && skip_env=1
-    download_config_files "$OPT_VERSION" "$HOME_DIR" "$skip_env"
-    chown_instance_home "$OPT_SLUG"
+    # Composant installé sur CETTE invocation (#657) : gouverne le split config.env
+    # (validate_config_env) et les étapes 7-8/10-13 ci-dessous. Jamais les deux à la
+    # fois — deux invocations séparées pour les deux composants sur une même box.
+    component="stack"; [[ "${OPT_RELAIS:-0}" -eq 1 ]] && component="relais"
 
-    # ─── Étape 8 : substitutions ────────────────────────────────────────────
-    log_step "Patch des templates (slug + domaine + email)"
-    substitute_caddyfile "$CADDYFILE" "$OPT_DOMAIN" "$OPT_EMAIL"
-    if [[ -z "$OPT_EMAIL" ]]; then
-        log_warn "email Let's Encrypt non fourni — placeholder conservé dans ${CADDYFILE}." \
-                 "Éditer à la main avant de mettre en prod."
+    if [[ "$component" == "stack" ]]; then
+        # ─── Étape 7 : config files ─────────────────────────────────────────
+        log_step "Téléchargement config (tag ${OPT_VERSION})"
+        # En secrets-as-code (--deploy-repo) : pas de .env téléchargé, la config claire
+        # arrive par le dépôt (providers/<slug>/config.env, ADR-0044).
+        skip_env=0; [[ -n "$OPT_DEPLOY_REPO" ]] && skip_env=1
+        download_config_files "$OPT_VERSION" "$HOME_DIR" "$skip_env"
+        chown_instance_home "$OPT_SLUG"
+
+        # ─── Étape 8 : substitutions ─────────────────────────────────────────
+        log_step "Patch des templates (slug + domaine + email)"
+        substitute_caddyfile "$CADDYFILE" "$OPT_DOMAIN" "$OPT_EMAIL"
+        if [[ -z "$OPT_EMAIL" ]]; then
+            log_warn "email Let's Encrypt non fourni — placeholder conservé dans ${CADDYFILE}." \
+                     "Éditer à la main avant de mettre en prod."
+        fi
     fi
 
     # ─── Étape 9 : secrets-as-code (ADR-0044) ──────────────────────────────
@@ -240,20 +256,22 @@ main() {
 
     log_step "Validation du split config + test de déchiffrement"
     config_env="${HOME_DIR}/config.env"
-    if errs=$(validate_config_env "$config_env" "$OPT_SLUG"); then
+    if errs=$(validate_config_env "$config_env" "$OPT_SLUG" "$component"); then
         log_ok "config.env valide"
     else
         log_err "config.env invalide :"; printf '%s\n' "$errs" | sed 's/^/     - /'
         die "Corrige providers/${OPT_SLUG}/config.env dans le dépôt, pousse, puis relance reconfigure."
     fi
 
-    # Override LOCAL de la version (#460) : `--version` pilote le tag d'image déployé même
-    # en secrets-as-code, SANS toucher au dépôt secrets (la version n'est pas un secret,
-    # c'est un paramètre de déploiement — ADR-0044). Appliqué APRÈS le pull : le config.env
-    # du dépôt reste la baseline GitOps (reconfigure sans --version = version pinée). Le pull
-    # ré-écrit config.env à chaque reconfigure → l'override est ré-appliqué à chaque fois.
-    # (Régression #299 corrigée : l'appel avait été supprimé → --version devenait inerte.)
-    if [[ "${OPT_VERSION_EXPLICIT:-0}" -eq 1 ]]; then
+    # Override LOCAL de la version (#460) : `--version` pilote le tag ELECTRICORE_VERSION
+    # déployé même en secrets-as-code, SANS toucher au dépôt secrets (la version n'est pas
+    # un secret, c'est un paramètre de déploiement — ADR-0044). Appliqué APRÈS le pull : le
+    # config.env du dépôt reste la baseline GitOps (reconfigure sans --version = version
+    # pinée). Le pull ré-écrit config.env à chaque reconfigure → l'override est ré-appliqué
+    # à chaque fois. (Régression #299 corrigée : l'appel avait été supprimé → --version
+    # devenait inerte.) Ne s'applique QU'à la stack : --version ne pilote pas RELAIS_VERSION
+    # (#657) — bump découplé, RELAIS_VERSION ne se change que dans le dépôt de déploiement.
+    if [[ "$component" == "stack" && "${OPT_VERSION_EXPLICIT:-0}" -eq 1 ]]; then
         repo_version=$(read_env_var "$config_env" ELECTRICORE_VERSION)
         override_config_version "$config_env" "$OPT_VERSION"
         log_warn "ELECTRICORE_VERSION overridé localement : ${OPT_VERSION} (dépôt : ${repo_version}) — non versionné, propre à cette box."
@@ -267,53 +285,54 @@ main() {
     fi
     log_ok "secrets.env déchiffrable (contenu validé par le conteneur, étapes 11-12)"
 
-    # ─── Étape 10 : DNS ─────────────────────────────────────────────────────
-    log_step "Vérification DNS"
-    if [[ "$OPT_SKIP_DNS" -eq 1 ]]; then
-        log_skip "DNS check ignoré (--skip-dns)"
-    else
-        public_ip=$(get_public_ip) || die "Impossible de déterminer l'IP publique du VPS."
-        log_info "IP publique du VPS : ${public_ip}"
-        log_info "Attente que ${OPT_DOMAIN} pointe vers ${public_ip} (jusqu'à 5 min)…"
-        wait_for_dns "$OPT_DOMAIN" "$public_ip" || die \
-            "DNS non propagé après 5 minutes." \
-            "Vérifier le A-record de ${OPT_DOMAIN}. Relancer le script quand c'est propre."
-    fi
+    if [[ "$component" == "stack" ]]; then
+        # ─── Étape 10 : DNS ──────────────────────────────────────────────────
+        log_step "Vérification DNS"
+        if [[ "$OPT_SKIP_DNS" -eq 1 ]]; then
+            log_skip "DNS check ignoré (--skip-dns)"
+        else
+            public_ip=$(get_public_ip) || die "Impossible de déterminer l'IP publique du VPS."
+            log_info "IP publique du VPS : ${public_ip}"
+            log_info "Attente que ${OPT_DOMAIN} pointe vers ${public_ip} (jusqu'à 5 min)…"
+            wait_for_dns "$OPT_DOMAIN" "$public_ip" || die \
+                "DNS non propagé après 5 minutes." \
+                "Vérifier le A-record de ${OPT_DOMAIN}. Relancer le script quand c'est propre."
+        fi
 
-    # ─── Étape 11 : stack ───────────────────────────────────────────────────
-    log_step "Démarrage de la stack docker compose"
-    compose_up "$OPT_SLUG"
-    log_info "Attente du healthcheck API (jusqu'à 60s)…"
-    wait_for_health "$OPT_SLUG" || die \
-        "API non healthy après 60s." \
-        "Voir les logs : sudo -u $OPT_SLUG docker compose -f $DOCKER_DIR/docker-compose.yml logs"
+        # ─── Étape 11 : stack ────────────────────────────────────────────────
+        log_step "Démarrage de la stack docker compose"
+        compose_up "$OPT_SLUG"
+        log_info "Attente du healthcheck API (jusqu'à 60s)…"
+        wait_for_health "$OPT_SLUG" || die \
+            "API non healthy après 60s." \
+            "Voir les logs : sudo -u $OPT_SLUG docker compose -f $DOCKER_DIR/docker-compose.yml logs"
 
-    # ─── Étape 12 : test ingestion ──────────────────────────────────────────
-    log_step "Test ingestion (mode test, ~3s)"
-    if run_ingestion_test "$OPT_SLUG"; then
-        log_warn "Échantillon non daté → ne garantit PAS la couverture du trousseau AES ; lancer un resync pour valider la clé courante."
-    else
-        log_err "Test ingestion échoué — la stack tourne mais la chaîne ingestion ne valide pas."
-        show_ingestion_failure_hints "$OPT_SLUG"
-        log_warn "Stack laissée en place. Corrige secrets.env et réessaye (commande ci-dessus)."
-    fi
+        # ─── Étape 12 : test ingestion ───────────────────────────────────────
+        log_step "Test ingestion (mode test, ~3s)"
+        if run_ingestion_test "$OPT_SLUG"; then
+            log_warn "Échantillon non daté → ne garantit PAS la couverture du trousseau AES ; lancer un resync pour valider la clé courante."
+        else
+            log_err "Test ingestion échoué — la stack tourne mais la chaîne ingestion ne valide pas."
+            show_ingestion_failure_hints "$OPT_SLUG"
+            log_warn "Stack laissée en place. Corrige secrets.env et réessaye (commande ci-dessus)."
+        fi
 
-    # ─── Étape 13 : récap ───────────────────────────────────────────────────
-    log_step "Récapitulatif"
-    # Récap SSH : une fois durci (ADR-0031), l'admin passe par ops (root SSH coupé) ;
-    # le user de service <slug> reste joignable. Sans durcissement, seul <slug>.
-    if [[ "${OPT_NO_HARDEN:-0}" -eq 1 ]]; then
-        ssh_recap="  SSH (service)    ssh ${OPT_SLUG}@${OPT_DOMAIN}"
-    else
-        ssh_recap="  SSH (admin)      ssh ops@${OPT_DOMAIN}   ← root SSH désactivé
+        # ─── Étape 13 : récap ────────────────────────────────────────────────
+        log_step "Récapitulatif"
+        # Récap SSH : une fois durci (ADR-0031), l'admin passe par ops (root SSH coupé) ;
+        # le user de service <slug> reste joignable. Sans durcissement, seul <slug>.
+        if [[ "${OPT_NO_HARDEN:-0}" -eq 1 ]]; then
+            ssh_recap="  SSH (service)    ssh ${OPT_SLUG}@${OPT_DOMAIN}"
+        else
+            ssh_recap="  SSH (admin)      ssh ops@${OPT_DOMAIN}   ← root SSH désactivé
   SSH (service)    ssh ${OPT_SLUG}@${OPT_DOMAIN}"
-    fi
-    # Image RÉELLEMENT déployée : valeur effective de ELECTRICORE_VERSION dans config.env (qui
-    # a pu être overridée localement par --version, #460), pas l'option brute. Fallback sur
-    # OPT_VERSION pour le chemin legacy .env (pas de config.env).
-    effective_version=$(read_env_var "${HOME_DIR}/config.env" ELECTRICORE_VERSION 2>/dev/null || true)
-    [[ -n "$effective_version" ]] || effective_version="$OPT_VERSION"
-    cat <<EOF
+        fi
+        # Image RÉELLEMENT déployée : valeur effective de ELECTRICORE_VERSION dans config.env (qui
+        # a pu être overridée localement par --version, #460), pas l'option brute. Fallback sur
+        # OPT_VERSION pour le chemin legacy .env (pas de config.env).
+        effective_version=$(read_env_var "${HOME_DIR}/config.env" ELECTRICORE_VERSION 2>/dev/null || true)
+        [[ -n "$effective_version" ]] || effective_version="$OPT_VERSION"
+        cat <<EOF
 
   ${_C_GREEN}${_C_BOLD}✓ Instance ${OPT_SLUG} opérationnelle.${_C_RESET}
 
@@ -334,6 +353,50 @@ ${ssh_recap}
     sudo bash $0 --slug ${OPT_SLUG} --domain ${OPT_DOMAIN}
 
 EOF
+    else
+        # ─── Étape 10 (relais) : ownership /srv/<slug> ───────────────────────
+        # chown_instance_home est sauté côté "config files" (étape 7, stack-only) : le
+        # composant relais l'appelle ici, AVANT check_relais_ssh_key (le chown -R
+        # écraserait l'ownership CONTAINER_UID posé sur relais_ssh_key — même précédent
+        # que ensure_backups_dir/chown_instance_home, #459).
+        log_step "Ownership /srv/${OPT_SLUG}"
+        chown_instance_home "$OPT_SLUG"
+
+        # ─── Étape 11 (relais) : clé SSH partenaire ──────────────────────────
+        log_step "Clé SSH partenaire (Haulogy)"
+        check_relais_ssh_key "$OPT_SLUG"
+
+        # ─── Étape 12 (relais) : mini-compose + unités systemd ───────────────
+        log_step "Compose relais (RELAIS_VERSION) + timer systemd"
+        install_relais_units "$OPT_SLUG"
+
+        # ─── Étape 13 (relais) : récap ────────────────────────────────────────
+        log_step "Récapitulatif"
+        relais_version=$(read_env_var "${HOME_DIR}/config.env" RELAIS_VERSION 2>/dev/null || true)
+        [[ -n "$relais_version" ]] || relais_version="(non pinné dans config.env)"
+        relais_dir="${HOME_DIR}/deploy/relais"
+        cat <<EOF
+
+  ${_C_GREEN}${_C_BOLD}✓ Composant relais ${OPT_SLUG} opérationnel.${_C_RESET}
+
+  Image            ghcr.io/energie-de-nantes/electricore:${relais_version}
+  Timer            systemctl status electricore-relais.timer
+  Logs             journalctl -u electricore-relais.service -f
+  Run manuel       sudo -u ${OPT_SLUG} docker compose --env-file ${HOME_DIR}/config.env -f ${relais_dir}/compose-relais.yml run --rm relais
+
+  Amorçage (#643) — marque l'historique existant comme livré SANS le pousser au
+  partenaire. Acte UNIQUE, geste conscient d'opérateur — JAMAIS exécuté par cet
+  installeur. Refuse si le journal contient déjà des livraisons (--force sinon) :
+
+    sudo -u ${OPT_SLUG} docker compose --env-file ${HOME_DIR}/config.env \\
+        -f ${relais_dir}/compose-relais.yml run --rm relais \\
+        python -m electricore.ingestion.relais seed --avant <AAAA-MM-JJ>
+
+  Pour reconfigurer plus tard (bump RELAIS_VERSION, rotation clé AES, etc.) :
+    sudo bash $0 --slug ${OPT_SLUG} --relais --deploy-repo <url>
+
+EOF
+    fi
 
     _CLEAN_EXIT=1
 }
