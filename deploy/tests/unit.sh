@@ -287,8 +287,8 @@ grep -q 'RELAIS_VERSION' <<<"$compose_out" && ok "render_relais_compose: tag pin
 grep -q 'relais_ssh_key:/app/.ssh/id_ed25519:ro' <<<"$compose_out" \
     && ok "render_relais_compose: clé SSH montée au nom par défaut paramiko (id_ed25519, home /app)" \
     || ko "render_relais_compose: montage clé SSH absent/incorrect"
-grep -q 'relais_data:/data-relais' <<<"$compose_out" \
-    && ok "render_relais_compose: journal DuckDB sur volume nommé (survit à un docker compose run --rm)" \
+grep -q 'relais_data:/data' <<<"$compose_out" \
+    && ok "render_relais_compose: journal DuckDB sur volume nommé, monté sur /data (chowné electricore par le Dockerfile)" \
     || ko "render_relais_compose: volume relais_data absent"
 grep -q 'run --rm relais' <<<"$compose_out" && ok "render_relais_compose: documente l'invocation run --rm (pas up -d)" || ko "render_relais_compose: invocation run --rm non documentée"
 grep -q 'age.key:/run/secrets/age.key:ro' <<<"$compose_out" \

@@ -88,7 +88,10 @@ render_relais_compose() {
 # Le journal DuckDB du relais vit dans le volume nommé `relais_data`, PAS un bind-mount
 # host : `docker compose run --rm` détruit le conteneur à chaque passage — un volume
 # nommé est le seul état qui survit entre deux runs ET à un bump de RELAIS_VERSION (le
-# volume n'est jamais recréé par un changement de tag d'image).
+# volume n'est jamais recréé par un changement de tag d'image). Monté sur /data (chemin
+# que le Dockerfile chown pour electricore uid 1000) : un volume nommé frais hérite de
+# cette propriété — tout autre point de montage naîtrait root:root, journal inécrivable.
+# Pas de collision avec duckdb_data de la stack : projet compose distinct.
 
 services:
 
@@ -102,13 +105,13 @@ services:
     env_file:
       - ../../config.env
     environment:
-      RELAIS__DESTINATION_DB: /data-relais/relais.duckdb
+      RELAIS__DESTINATION_DB: /data/relais.duckdb
       # Secrets SOPS+age (ADR-0044) : l'entrypoint déchiffre secrets.env — trousseau AES
       # mutualisé avec la stack (une rotation Enedis atteint les deux composants).
       SOPS_AGE_KEY_FILE: /run/secrets/age.key
       SECRETS_ENV_FILE: /run/secrets/secrets.env
     volumes:
-      - relais_data:/data-relais
+      - relais_data:/data
       - ../../age.key:/run/secrets/age.key:ro
       - ../../providers/${INSTANCE_SLUG:-electricore}/secrets.env:/run/secrets/secrets.env:ro
       # Clé SSH partenaire — montée au nom par défaut attendu par paramiko (le code du
