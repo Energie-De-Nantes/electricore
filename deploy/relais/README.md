@@ -30,7 +30,7 @@ ENV
 sudo chmod 600 /etc/electricore-relais/relais.env
 
 # 3. Alerte mail (#659) : installer msmtp, écrire /etc/electricore-relais/msmtprc
-#    (mot de passe de la boîte OVH — contenu complet dans la section « Alerte mail
+#    (token SMTP Proton — contenu complet dans la section « Alerte mail
 #    (OnFailure=, #659) » plus bas de ce README), puis chmod 600 + poser le script.
 sudo apt install -y msmtp
 sudo $EDITOR /etc/electricore-relais/msmtprc   # coller le contenu de la section plus bas
@@ -103,13 +103,19 @@ sudo apt install -y msmtp   # paquet système, aucune dépendance Python
 
 ### Configurer `/etc/electricore-relais/msmtprc`
 
-L'envoi sort par une **boîte OVH du domaine** (`ssl0.ovh.net:587`, STARTTLS) :
-`electricore.fr` a déjà ses MX chez OVH et son SPF (`include:mx.ovh.com`) couvre
-cet envoi — **aucun changement DNS**, la délivrabilité est celle d'OVH.
+Le SMTP submission de Proton (`smtp.protonmail.ch:587`, STARTTLS) authentifie par
+**token SMTP**, pas par le mot de passe du compte — **exclusif aux adresses du
+domaine custom `electricore.fr`** (les adresses @proton.me / @pm.me n'ont pas
+cette fonctionnalité).
 
-1. Manager OVH → Web Cloud → E-mails (`electricore.fr`) : créer la boîte d'envoi
-   (ex. `alertes@electricore.fr`) avec un mot de passe dédié à cet usage
-2. Coller ce mot de passe comme `password` ci-dessous
+Prérequis one-shot déjà fait (27/07/2026, à refaire seulement si le domaine change
+de main) : `electricore.fr` rattaché à Proton Mail — TXT de vérification, MX Proton
+(les MX OVH retirés, l'offre « redirect » n'avait aucun compte), SPF
+`v=spf1 include:_spf.protonmail.ch -all`, 3 CNAME DKIM. Ensuite :
+
+1. Proton → Settings → SMTP submission (sous le domaine custom `electricore.fr`)
+2. Générer un token pour l'adresse d'envoi (ex. `alertes@electricore.fr`)
+3. Coller ce token comme `password` ci-dessous — **jamais** le mot de passe du compte
 
 ```
 defaults
@@ -117,12 +123,12 @@ tls on
 tls_starttls on
 
 account electricore-relais
-host ssl0.ovh.net
+host smtp.protonmail.ch
 port 587
 auth on
 from alertes@electricore.fr
 user alertes@electricore.fr
-password <mot de passe de la boîte OVH>
+password <token SMTP Proton>
 
 account default : electricore-relais
 ```
@@ -131,7 +137,7 @@ account default : electricore-relais
 sudo chmod 600 /etc/electricore-relais/msmtprc
 ```
 
-Aucun secret dans le repo : le mot de passe ne vit que dans ce fichier local en 600.
+Aucun secret dans le repo : le token ne vit que dans ce fichier local en 600.
 
 ### Destinataires
 
