@@ -501,15 +501,37 @@ La clé de `ops` est amorcée depuis `~root/.ssh/authorized_keys` (override
 
 **Préflight non-vierge** ([#656](https://github.com/Energie-De-Nantes/electricore/issues/656)) :
 avant de poser le drop-in, le durcissement audite aussi les comptes **existants**
-du système (mot de passe usable, pas de clé, aucun bloc `Match` protecteur — résolu
-via `sshd -T -C user=<u>`, pas de parsing maison) et **refuse** si l'un d'eux serait
-coupé, en le nommant. Cas réel : le compte de dépôt Enedis (SFTP-only, shell
-`nologin`) sur une box déjà en production — le shell n'est **pas** un critère. Deux
-remédiations : migrer le compte en clé SSH, ou poser une exception `Match User
-<compte>` + `PasswordAuthentication yes` dans un drop-in `sshd_config.d/` numéroté
-**après** `50-electricore-harden.conf` (sinon un bloc `Match` non refermé « avale »
-les directives globales qui le suivent dans le fichier concaténé — hygiène standard
-sshd, indépendante d'ElectriCore). Sur un VPS vierge, ce préflight passe sans bruit.
+du système (mot de passe usable, pas de clé) et **refuse** si l'un d'eux basculerait
+de connectable à coupé, en le nommant. Cas réel : le compte de dépôt Enedis
+(SFTP-only, shell `nologin`) sur une box déjà en production — le shell n'est **pas**
+un critère. `root` est **hors audit** : sa coupure SSH est la juridiction du
+garde-fou anti-verrouillage ci-dessus, pas de ce préflight (une exception `Match
+User root` ne le sauverait pas — `PermitRootLogin no` coupe root indépendamment de
+`PasswordAuthentication`).
+
+**Diff avant/après** : chaque compte candidat est sondé deux fois via
+`sshd -T -C user=<u>,host=localhost,addr=127.0.0.1,laddr=127.0.0.1,lport=22` (spec de
+connexion toujours complète — un `-C` partiel peut faire `fatal()` `sshd -T` en
+présence d'un bloc `Match Address`/`Host` sur certaines versions d'OpenSSH) : sur la
+config réelle seule (avant), puis fusionnée avec le drop-in (après). Seule la
+**bascule yes→no** est signalée — un compte déjà coupé (no→no, ex. reconfigure d'une
+box déjà durcie) ou toujours protégé par un `Match` (yes→yes) ne fait pas échouer le
+préflight.
+
+**Fail-closed** : si l'oracle `sshd -T` ne conclut pas pour un compte candidat
+(config invalide, permissions), le préflight **refuse** aussi — un oracle en panne
+n'autorise jamais silencieusement le durcissement. Le message de refus (comptes à
+risque **et** oracle en panne) affiche, par compte, le dernier login par mot de passe
+observé dans le journal systemd (`Accepted password for <compte>` — la méthode
+d'auth compte, pas lastlog/wtmp) : c'est une aide à la décision, jamais un critère —
+borné à la fenêtre observable du journal (jamais « jamais utilisé »).
+
+Deux remédiations pour un compte réellement à risque : migrer le compte en clé SSH,
+ou poser une exception `Match User <compte>` + `PasswordAuthentication yes` dans un
+drop-in `sshd_config.d/` numéroté **après** `50-electricore-harden.conf` (sinon un
+bloc `Match` non refermé « avale » les directives globales qui le suivent dans le
+fichier concaténé — hygiène standard sshd, indépendante d'ElectriCore). Sur un VPS
+vierge, ce préflight passe sans bruit.
 
 > ⚠️ Après le premier durcissement, mets à jour ton `~/.ssh/config` :
 > `User root` → `User ops`. Ne le fais pas avant — `ops` n'existe pas tant que
