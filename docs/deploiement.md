@@ -499,6 +499,18 @@ n'a pas de `authorized_keys` exploitable — impossible de se verrouiller dehors
 La clé de `ops` est amorcée depuis `~root/.ssh/authorized_keys` (override
 `--admin-pubkey "ssh-ed25519 …"`).
 
+**Préflight non-vierge** ([#656](https://github.com/Energie-De-Nantes/electricore/issues/656)) :
+avant de poser le drop-in, le durcissement audite aussi les comptes **existants**
+du système (mot de passe usable, pas de clé, aucun bloc `Match` protecteur — résolu
+via `sshd -T -C user=<u>`, pas de parsing maison) et **refuse** si l'un d'eux serait
+coupé, en le nommant. Cas réel : le compte de dépôt Enedis (SFTP-only, shell
+`nologin`) sur une box déjà en production — le shell n'est **pas** un critère. Deux
+remédiations : migrer le compte en clé SSH, ou poser une exception `Match User
+<compte>` + `PasswordAuthentication yes` dans un drop-in `sshd_config.d/` numéroté
+**après** `50-electricore-harden.conf` (sinon un bloc `Match` non refermé « avale »
+les directives globales qui le suivent dans le fichier concaténé — hygiène standard
+sshd, indépendante d'ElectriCore). Sur un VPS vierge, ce préflight passe sans bruit.
+
 > ⚠️ Après le premier durcissement, mets à jour ton `~/.ssh/config` :
 > `User root` → `User ops`. Ne le fais pas avant — `ops` n'existe pas tant que
 > l'install n'a pas tourné.
