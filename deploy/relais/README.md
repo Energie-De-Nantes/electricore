@@ -30,7 +30,7 @@ ENV
 sudo chmod 600 /etc/electricore-relais/relais.env
 
 # 3. Alerte mail (#659) : installer msmtp, écrire /etc/electricore-relais/msmtprc
-#    (token SMTP Proton — contenu complet dans la section « Alerte mail
+#    (mot de passe de la boîte OVH — contenu complet dans la section « Alerte mail
 #    (OnFailure=, #659) » plus bas de ce README), puis chmod 600 + poser le script.
 sudo apt install -y msmtp
 sudo $EDITOR /etc/electricore-relais/msmtprc   # coller le contenu de la section plus bas
@@ -103,14 +103,13 @@ sudo apt install -y msmtp   # paquet système, aucune dépendance Python
 
 ### Configurer `/etc/electricore-relais/msmtprc`
 
-Le SMTP submission de Proton (`smtp.protonmail.ch:587`, STARTTLS) authentifie par
-**token SMTP**, pas par le mot de passe du compte — **exclusif aux adresses du
-domaine custom `electricore.fr`** (les adresses @proton.me / @pm.me n'ont pas
-cette fonctionnalité) :
+L'envoi sort par une **boîte OVH du domaine** (`ssl0.ovh.net:587`, STARTTLS) :
+`electricore.fr` a déjà ses MX chez OVH et son SPF (`include:mx.ovh.com`) couvre
+cet envoi — **aucun changement DNS**, la délivrabilité est celle d'OVH.
 
-1. Proton → Settings → SMTP submission (sous le domaine custom `electricore.fr`)
-2. Générer un token pour l'adresse d'envoi (ex. `alertes@electricore.fr`)
-3. Coller ce token comme `password` ci-dessous — **jamais** le mot de passe du compte
+1. Manager OVH → Web Cloud → E-mails (`electricore.fr`) : créer la boîte d'envoi
+   (ex. `alertes@electricore.fr`) avec un mot de passe dédié à cet usage
+2. Coller ce mot de passe comme `password` ci-dessous
 
 ```
 defaults
@@ -118,12 +117,12 @@ tls on
 tls_starttls on
 
 account electricore-relais
-host smtp.protonmail.ch
+host ssl0.ovh.net
 port 587
 auth on
 from alertes@electricore.fr
 user alertes@electricore.fr
-password <token SMTP Proton>
+password <mot de passe de la boîte OVH>
 
 account default : electricore-relais
 ```
@@ -132,7 +131,7 @@ account default : electricore-relais
 sudo chmod 600 /etc/electricore-relais/msmtprc
 ```
 
-Aucun secret dans le repo : le token ne vit que dans ce fichier local en 600.
+Aucun secret dans le repo : le mot de passe ne vit que dans ce fichier local en 600.
 
 ### Destinataires
 
