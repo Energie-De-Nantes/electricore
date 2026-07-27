@@ -189,7 +189,7 @@ sshd_preflight_refuse_if_at_risk() {
     local at_risk
     at_risk="$(sshd_preflight_collect | sshd_preflight_at_risk_accounts)"
     if [[ -n "$at_risk" ]]; then
-        die "préflight sshd : compte(s) au mot de passe qui serai(en)t coupé(s) — $(tr '\n' ' ' <<<"$at_risk")." \
+        die "préflight sshd : compte(s) au mot de passe qui serai(en)t coupé(s) — $(paste -sd' ' - <<<"$at_risk")." \
             "Remédier : migrer le(s) compte(s) en clé SSH (authorized_keys), ou poser une exception 'Match User <compte>' + 'PasswordAuthentication yes' dans un drop-in sshd_config.d/ (numéroté APRÈS ${SSHD_HARDEN_DROPIN##*/}) ; puis relancer."
     fi
     log_ok "préflight sshd : aucun compte existant ne serait coupé par le durcissement."
