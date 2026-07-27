@@ -179,6 +179,9 @@ Description=Relais de flux Enedis déchiffrés vers SFTP partenaire — conteneu
 After=docker.service network-online.target
 Wants=network-online.target
 Requires=docker.service
+# Alerte mail si le run échoue (#659, câblée sur ce rendu conteneurisé par #668) —
+# voir render_relais_alerte_service / electricore-relais-alerte.service.
+OnFailure=electricore-relais-alerte.service
 
 [Service]
 Type=oneshot
@@ -233,4 +236,97 @@ install_relais_units() {
     systemctl daemon-reload
     systemctl enable --now electricore-relais.timer
     log_ok "compose relais + timer systemd posés (${relais_dir}/compose-relais.yml, electricore-relais.timer actif)"
+}
+
+# ─── Alerte mail OnFailure= (#659, câblée sur ce layout conteneurisé par #668) ──────
+# L'alerte a été conçue pour le chemin bare-metal (deploy/relais/electricore-relais-
+# alerte.service lisait /etc/electricore-relais/relais.env, qui n'existe pas ici) — le
+# composant conteneurisé (#657) ne l'activait pas. render_relais_alerte_service reprend
+# EXACTEMENT le même hook shell+msmtp (render_relais_alerte_script, sans Python : il
+# doit survivre à un docker/SOPS cassé) mais pointe son EnvironmentFile= sur le
+# config.env réel du layout (#657), où RELAIS_ALERTE_MAILS est déjà prévu.
+
+# render_relais_alerte_script
+# Émet le hook d'alerte OnFailure= sur stdout — statique (identique quel que soit le
+# slug), mais RENDU (pas un fichier fetché à part) : install.sh ne télécharge que
+# deploy/lib/*.sh (fetch_lib_files) ; ce script doit donc voyager comme heredoc, au
+# même titre que render_relais_compose.
+render_relais_alerte_script() {
+    cat <<'EOF'
+#!/usr/bin/env bash
+# Hook d'alerte OnFailure= du relais (#659, câblé sur le layout conteneurisé par #668) :
+# mail vers les destinataires de RELAIS_ALERTE_MAILS (config.env du provider, #657)
+# quand electricore-relais.service échoue (run aveugle, #643 — voir
+# electricore/ingestion/relais/pipeline.py). Volontairement SANS Python : le scénario
+# où l'alerte est la plus nécessaire est précisément celui où le conteneur/docker/SOPS
+# est en panne — ce script tourne host-level, hors du conteneur du relais.
+set -euo pipefail
+
+UNIT="electricore-relais.service"
+
+if [[ -z "${RELAIS_ALERTE_MAILS:-}" ]]; then
+    echo "electricore-relais-alerte: RELAIS_ALERTE_MAILS absent/vide — aucun mail envoyé" >&2
+    exit 0
+fi
+
+# ${HOSTNAME} (posé par bash lui-même) et pas $(hostname) : sous set -e, un binaire
+# hostname absent ou en échec tuerait le script AVANT le moindre envoi.
+sujet="[electricore] échec de ${UNIT} sur ${HOSTNAME:-inconnu}"
+corps="$(journalctl -u "$UNIT" --no-pager -n 50 2>/dev/null)" || corps="(journalctl indisponible pour ${UNIT})"
+
+# CSV → tableau bash : msmtp attend les destinataires en arguments séparés. L'espace
+# dans IFS absorbe le « a@x.fr, b@y.fr » écrit à la main (sinon msmtp reçoit " b@y.fr").
+IFS=', ' read -ra destinataires <<< "$RELAIS_ALERTE_MAILS"
+
+{
+    printf 'To: %s\n' "$RELAIS_ALERTE_MAILS"
+    printf 'Subject: %s\n' "$sujet"
+    printf '\n%s\n' "$corps"
+} | msmtp --file=/etc/electricore-relais/msmtprc -- "${destinataires[@]}"
+EOF
+}
+
+# render_relais_alerte_service <slug>
+# Émet l'unité systemd du service d'alerte sur stdout — ADAPTÉE de l'ancienne unité
+# bare-metal (#659) : EnvironmentFile= pointe désormais sur le config.env du layout
+# conteneurisé (#657, ${SRV_BASE:-/srv}/<slug>/config.env — où vit déjà
+# RELAIS_ALERTE_MAILS) au lieu de /etc/electricore-relais/relais.env, qui n'existe pas
+# dans ce layout. Paramétrée par slug comme render_relais_service ; msmtprc (secret,
+# jamais dans git) reste au chemin de convention host-level /etc/electricore-relais/
+# (un seul token SMTP par box, pas par instance).
+render_relais_alerte_service() {
+    local slug="$1"
+    local home="${SRV_BASE:-/srv}/${slug}"
+    cat <<EOF
+[Unit]
+Description=Alerte mail sur échec du relais (OnFailure=, #659, câblée conteneur #668)
+# Déclenchée exclusivement par OnFailure=electricore-relais-alerte.service posé
+# sur electricore-relais.service — jamais lancée directement par le timer.
+
+[Service]
+Type=oneshot
+# Pas de User= : root par défaut, nécessaire pour lire le journal de l'unité du
+# relais (journalctl -u electricore-relais.service) et msmtprc en 600.
+# RELAIS_ALERTE_MAILS vit dans le MÊME config.env que le relais (#657/#668) :
+# modifier les destinataires se fait en éditant ce seul fichier, sans toucher aux
+# unités ni au script.
+EnvironmentFile=${home}/config.env
+ExecStart=/usr/local/bin/electricore-relais-alerte.sh
+EOF
+}
+
+# install_relais_alerte_units <slug>
+# Pose le hook d'alerte (script + unité) — pendant #668 de install_relais_units.
+# N'active PAS l'unité elle-même (pas d'enable --now : electricore-relais-alerte.service
+# ne se déclenche que via OnFailure=, jamais par un timer). Idempotent : régénère les
+# deux fichiers à chaque appel. msmtp (paquet) + /etc/electricore-relais/msmtprc (600,
+# jamais dans git) restent à poser à la main — voir deploy/relais/README.md.
+install_relais_alerte_units() {
+    local slug="$1"
+    install -d -m 700 /etc/electricore-relais
+    render_relais_alerte_script > /usr/local/bin/electricore-relais-alerte.sh
+    chmod +x /usr/local/bin/electricore-relais-alerte.sh
+    render_relais_alerte_service "$slug" > /etc/systemd/system/electricore-relais-alerte.service
+    systemctl daemon-reload
+    log_ok "hook d'alerte mail posé (/usr/local/bin/electricore-relais-alerte.sh, electricore-relais-alerte.service) — msmtp + /etc/electricore-relais/msmtprc (600) restent à poser à la main (deploy/relais/README.md)"
 }

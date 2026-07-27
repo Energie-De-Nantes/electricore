@@ -321,8 +321,70 @@ grep -q 'docker compose --env-file ../../config.env -f compose-relais.yml run --
     && ok "render_relais_service: ExecStart appelle docker compose run --rm (escalade #657 AC6 : exit non-zero traverse jusqu'à failed)" \
     || ko "render_relais_service ExecStart incorrect"
 grep -qx "Type=oneshot" <<<"$svc_out" && ok "render_relais_service: Type=oneshot" || ko "render_relais_service Type incorrect"
+grep -qx "OnFailure=electricore-relais-alerte.service" <<<"$svc_out" \
+    && ok "render_relais_service: OnFailure=electricore-relais-alerte.service (#668)" \
+    || ko "render_relais_service: OnFailure= absent/incorrect"
 svc_out2="$(render_relais_service enargia)"
 grep -qx "User=enargia" <<<"$svc_out2" && ok "render_relais_service: paramétré par slug (2e instance)" || ko "render_relais_service pas paramétré par slug"
+
+echo
+echo "→ relais.sh / render_relais_alerte_service (EnvironmentFile sur le layout conteneurisé #657, #668)"
+alerte_svc_out="$(render_relais_alerte_service edn)"
+grep -qx "EnvironmentFile=/srv/edn/config.env" <<<"$alerte_svc_out" \
+    && ok "render_relais_alerte_service: EnvironmentFile=/srv/<slug>/config.env" \
+    || ko "render_relais_alerte_service: EnvironmentFile incorrect (résidu /etc/electricore-relais/relais.env ?)"
+grep -q '/etc/electricore-relais/relais.env' <<<"$alerte_svc_out" \
+    && ko "render_relais_alerte_service: chemin bare-metal /etc/electricore-relais/relais.env résiduel" \
+    || ok "render_relais_alerte_service: aucun résidu /etc/electricore-relais/relais.env"
+grep -qx "ExecStart=/usr/local/bin/electricore-relais-alerte.sh" <<<"$alerte_svc_out" \
+    && ok "render_relais_alerte_service: ExecStart=/usr/local/bin/electricore-relais-alerte.sh" \
+    || ko "render_relais_alerte_service: ExecStart incorrect"
+grep -qx "Type=oneshot" <<<"$alerte_svc_out" && ok "render_relais_alerte_service: Type=oneshot" || ko "render_relais_alerte_service: Type incorrect"
+alerte_svc_out2="$(render_relais_alerte_service enargia)"
+grep -qx "EnvironmentFile=/srv/enargia/config.env" <<<"$alerte_svc_out2" \
+    && ok "render_relais_alerte_service: paramétré par slug (2e instance)" \
+    || ko "render_relais_alerte_service: pas paramétré par slug"
+
+echo
+echo "→ relais.sh / render_relais_alerte_script (hook shell+msmtp, statique, #659/#668)"
+alerte_sh_out="$(render_relais_alerte_script)"
+grep -qx '#!/usr/bin/env bash' <<<"$alerte_sh_out" && ok "render_relais_alerte_script: shebang bash" || ko "render_relais_alerte_script: shebang absent/incorrect"
+grep -q 'RELAIS_ALERTE_MAILS' <<<"$alerte_sh_out" && ok "render_relais_alerte_script: lit RELAIS_ALERTE_MAILS" || ko "render_relais_alerte_script: RELAIS_ALERTE_MAILS absent"
+grep -q 'msmtp' <<<"$alerte_sh_out" && ok "render_relais_alerte_script: invoque msmtp" || ko "render_relais_alerte_script: msmtp absent"
+# Le commentaire du script EXPLIQUE justement l'absence de Python (mots "Python"/"pipeline.py"
+# légitimes en commentaire) — seules les lignes de CODE (non-commentaires) comptent ici.
+grep -v '^#' <<<"$alerte_sh_out" | grep -qi 'python' \
+    && ko "render_relais_alerte_script: invoque python (doit rester shell pur)" \
+    || ok "render_relais_alerte_script: aucune invocation Python"
+bash -n <(printf '%s\n' "$alerte_sh_out") && ok "render_relais_alerte_script: syntaxe bash valide" || ko "render_relais_alerte_script: bash -n a échoué"
+
+echo
+echo "→ relais.sh / systemd-analyze verify (rendu réel, #668 AC1)"
+if command -v systemd-analyze >/dev/null 2>&1; then
+    sdv_dir=$(mktemp -d)
+    # ExecStart de l'unité d'alerte est un chemin fixe hors-repo (/usr/local/bin/...),
+    # posé en prod par install_relais_alerte_units (jamais par ces tests) — substitué
+    # ici par un stub exécutable local, pour ne vérifier que la SYNTAXE de l'unité.
+    printf '#!/usr/bin/env bash\nexit 0\n' > "${sdv_dir}/electricore-relais-alerte.sh"
+    chmod +x "${sdv_dir}/electricore-relais-alerte.sh"
+    render_relais_alerte_service edn \
+        | sed "s#/usr/local/bin/electricore-relais-alerte.sh#${sdv_dir}/electricore-relais-alerte.sh#" \
+        > "${sdv_dir}/electricore-relais-alerte.service"
+    systemd-analyze verify "${sdv_dir}/electricore-relais-alerte.service" 2>"${sdv_dir}/err" \
+        && ok "systemd-analyze verify: electricore-relais-alerte.service" \
+        || ko "systemd-analyze verify: electricore-relais-alerte.service ($(cat "${sdv_dir}/err"))"
+    if [[ -x /usr/bin/docker ]]; then
+        render_relais_service edn > "${sdv_dir}/electricore-relais.service"
+        systemd-analyze verify "${sdv_dir}/electricore-relais.service" 2>"${sdv_dir}/err2" \
+            && ok "systemd-analyze verify: electricore-relais.service (OnFailure= compris)" \
+            || ko "systemd-analyze verify: electricore-relais.service ($(cat "${sdv_dir}/err2"))"
+    else
+        log_skip "systemd-analyze verify (electricore-relais.service) sauté : /usr/bin/docker absent de cet environnement"
+    fi
+    rm -rf "$sdv_dir"
+else
+    log_skip "systemd-analyze indisponible dans cet environnement — rendu couvert par les tests grep ci-dessus (#668)"
+fi
 
 echo
 echo "→ relais.sh / render_relais_timer (unité systemd, pure, #657)"
