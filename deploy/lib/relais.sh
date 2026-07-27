@@ -319,14 +319,17 @@ EOF
 # Pose le hook d'alerte (script + unité) — pendant #668 de install_relais_units.
 # N'active PAS l'unité elle-même (pas d'enable --now : electricore-relais-alerte.service
 # ne se déclenche que via OnFailure=, jamais par un timer). Idempotent : régénère les
-# deux fichiers à chaque appel. msmtp (paquet) + /etc/electricore-relais/msmtprc (600,
-# jamais dans git) restent à poser à la main — voir deploy/relais/README.md.
+# deux fichiers à chaque appel. Le paquet msmtp est une dépendance DU COMPOSANT (#668) :
+# ensure_packages l'installe ici (no-op s'il est déjà là) ; seul
+# /etc/electricore-relais/msmtprc (600, token SMTP) reste posé à la main — jamais dans
+# git ni dans l'image, voir deploy/relais/README.md.
 install_relais_alerte_units() {
     local slug="$1"
+    ensure_packages msmtp
     install -d -m 700 /etc/electricore-relais
     render_relais_alerte_script > /usr/local/bin/electricore-relais-alerte.sh
     chmod +x /usr/local/bin/electricore-relais-alerte.sh
     render_relais_alerte_service "$slug" > /etc/systemd/system/electricore-relais-alerte.service
     systemctl daemon-reload
-    log_ok "hook d'alerte mail posé (/usr/local/bin/electricore-relais-alerte.sh, electricore-relais-alerte.service) — msmtp + /etc/electricore-relais/msmtprc (600) restent à poser à la main (deploy/relais/README.md)"
+    log_ok "hook d'alerte mail posé (/usr/local/bin/electricore-relais-alerte.sh, electricore-relais-alerte.service) — /etc/electricore-relais/msmtprc (600, token SMTP) reste à poser à la main (deploy/relais/README.md)"
 }
