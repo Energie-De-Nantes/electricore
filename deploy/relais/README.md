@@ -23,20 +23,31 @@ RELAIS__PARTNER_URL=sftp://relais@partenaire.example/in
 RELAIS__DESTINATION_DB=/opt/electricore-relais/relais.duckdb
 RELAIS__FLUX=C15,R151,R15,F12,F15   # phase 1 : liste explicite, vide = tous
 AES__TROUSSEAU__aes256_2026__KEY=...
+RELAIS_ALERTE_MAILS=alertes-ops@example.fr   # CSV, alerte OnFailure= (#659, voir plus bas)
 ENV
 sudo chmod 600 /etc/electricore-relais/relais.env
 
-# 3. Auth SFTP partenaire : clé SSH ed25519 DÉDIÉE (jamais de mot de passe en dur),
+# 3. Alerte mail (#659) : installer msmtp, écrire /etc/electricore-relais/msmtprc
+#    (token SMTP Proton — contenu complet dans la section « Alerte mail
+#    (OnFailure=, #659) » plus bas de ce README), puis chmod 600 + poser le script.
+sudo apt install -y msmtp
+sudo $EDITOR /etc/electricore-relais/msmtprc   # coller le contenu de la section plus bas
+sudo chmod 600 /etc/electricore-relais/msmtprc
+sudo cp electricore-relais-alerte.sh /usr/local/bin/
+sudo chmod +x /usr/local/bin/electricore-relais-alerte.sh
+
+# 4. Auth SFTP partenaire : clé SSH ed25519 DÉDIÉE (jamais de mot de passe en dur),
 #    générée pour ce seul usage — pas de réutilisation d'une clé d'ingestion existante.
 
-# 4. Amorçage (#643) : marque l'historique existant comme livré SANS le pousser au
+# 5. Amorçage (#643) : marque l'historique existant comme livré SANS le pousser au
 #    partenaire — acte UNIQUE, à faire une fois avant d'activer le timer (sinon le
 #    premier run pousserait tout l'historique). Refuse s'il y a déjà des livraisons.
 sudo -u electricore-relais env $(cat /etc/electricore-relais/relais.env | xargs) \
   python -m electricore.ingestion.relais seed --avant 2026-06-01
 
-# 5. Units
-sudo cp electricore-relais.service electricore-relais.timer /etc/systemd/system/
+# 6. Units (le service d'alerte n'est PAS activé : déclenché uniquement par
+#    OnFailure=, jamais par le timer ni par enable --now)
+sudo cp electricore-relais.service electricore-relais-alerte.service electricore-relais.timer /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now electricore-relais.timer
 ```
@@ -71,6 +82,91 @@ con = duckdb.connect('/opt/electricore-relais/relais.duckdb')
 print(con.execute('select * from journal.relais_audit_sequences').fetchall())
 "
 ```
+
+## Alerte mail (`OnFailure=`, #659)
+
+Quand `electricore-relais.service` échoue (run aveugle, #643 — voir
+`electricore/ingestion/relais/pipeline.py`), `OnFailure=` déclenche
+`electricore-relais-alerte.service` : un mail part vers `RELAIS_ALERTE_MAILS`
+sans que personne n'ait à regarder `systemctl status`. Le hook est un simple
+script shell + [msmtp](https://marlam.de/msmtp/), délibérément sans Python — le
+scénario où l'alerte est la plus nécessaire est celui où le venv du relais est
+cassé.
+
+### Installer msmtp
+
+```bash
+sudo apt install -y msmtp   # paquet système, aucune dépendance Python
+```
+
+### Configurer `/etc/electricore-relais/msmtprc`
+
+Le SMTP submission de Proton (`smtp.protonmail.ch:587`, STARTTLS) authentifie par
+**token SMTP**, pas par le mot de passe du compte — **exclusif aux adresses du
+domaine custom `electricore.fr`** (les adresses @proton.me / @pm.me n'ont pas
+cette fonctionnalité) :
+
+1. Proton → Settings → SMTP submission (sous le domaine custom `electricore.fr`)
+2. Générer un token pour l'adresse d'envoi (ex. `alertes@electricore.fr`)
+3. Coller ce token comme `password` ci-dessous — **jamais** le mot de passe du compte
+
+```
+defaults
+tls on
+tls_starttls on
+
+account electricore-relais
+host smtp.protonmail.ch
+port 587
+auth on
+from alertes@electricore.fr
+user alertes@electricore.fr
+password <token SMTP Proton>
+
+account default : electricore-relais
+```
+
+```bash
+sudo chmod 600 /etc/electricore-relais/msmtprc
+```
+
+Aucun secret dans le repo : le token ne vit que dans ce fichier local en 600.
+
+### Destinataires
+
+Une seule variable, dans le **même** fichier d'env que le relais
+(`/etc/electricore-relais/relais.env`) — le domaine runtime pydantic du relais
+est en `extra="ignore"` (voir `electricore/config/runtime.py`), donc
+`RELAIS_ALERTE_MAILS` cohabite avec `RELAIS__*` sans aucune modification de
+code Python :
+
+```bash
+RELAIS_ALERTE_MAILS=alice@example.fr,bob@example.fr
+```
+
+Modifier la liste = éditer cette seule ligne, sans toucher aux unités ni au script.
+
+### Tester la chaîne
+
+```bash
+sudo cp electricore-relais-alerte.sh /usr/local/bin/
+sudo chmod +x /usr/local/bin/electricore-relais-alerte.sh
+sudo cp electricore-relais-alerte.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl start electricore-relais-alerte.service   # → le mail doit arriver
+```
+
+## Générale : l'état ne survit pas (PRD #658)
+
+> **L'état d'une générale ne survit jamais à la générale.**
+
+Pendant une répétition (générale, PRD #658) sur le VPS partenaire, on pointe
+`RELAIS__DESTINATION_DB` dans un répertoire dédié **jetable** — ça isole aussi
+l'état dlt, `pipelines_dir` étant épinglé sur son parent (voir
+`electricore/ingestion/relais/pipeline.py`). En fin de générale, ce répertoire
+est **détruit**. Sans cette destruction, tout zip marqué « livré » au faux
+partenaire de la répétition le resterait **à vie** dans un état qui n'aurait
+jamais dû exister — et le vrai partenaire ne le recevrait alors jamais.
 
 ## Pourquoi systemd et pas docker compose / crontab.example
 
