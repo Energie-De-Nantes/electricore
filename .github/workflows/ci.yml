@@ -21,11 +21,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      # Version épinglée sur .pre-commit-config.yaml : non épinglée, l'action tire
+      # le dernier ruff (0.16.0 s'est mis à formater les .md → main rouge le 27/07).
       - uses: astral-sh/ruff-action@v3
         with:
+          version: "0.15.15"
           args: "check"
       - uses: astral-sh/ruff-action@v3
         with:
+          version: "0.15.15"
           args: "format --check"
 
   typecheck:
