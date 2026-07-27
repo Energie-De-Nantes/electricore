@@ -69,6 +69,16 @@ require_multipass() {
     }
 }
 
+# multipass exec re-joint ses arguments en une chaîne que le shell de la VM
+# RE-PARSE : quotes et pipes d'un `bash -c "…"` s'y évaporent (constaté à la
+# première exécution réelle : `bash -c echo` nu, pipe exécuté hors du -c,
+# prompts ssh-keygen au up). Tout script multi-commandes passe donc par STDIN —
+# transmis verbatim, jamais re-parsé. Les exec à arguments simples (chemins,
+# flags, sans métacaractère shell) restent en ligne : le re-parse y est sans effet.
+vm_root() {
+    multipass exec "$VM_NAME" -- sudo bash -s
+}
+
 cmd_up() {
     if multipass info "$VM_NAME" >/dev/null 2>&1; then
         echo "VM ${VM_NAME} existe déjà. Utiliser '$0 down' avant de recréer." >&2
@@ -77,9 +87,11 @@ cmd_up() {
     multipass launch "$UBUNTU_VERSION" --name "$VM_NAME" --memory 4G --cpus 2 --disk 20G
     multipass mount "$REPO_ROOT" "${VM_NAME}:/repo"
     multipass exec "$VM_NAME" -- sudo mkdir -p /root/.ssh
-    multipass exec "$VM_NAME" -- sudo bash -c \
-        "ssh-keygen -t ed25519 -N '' -f /root/.ssh/id_ed25519 && \
-         cat /root/.ssh/id_ed25519.pub > /root/.ssh/authorized_keys"
+    vm_root <<'EOF'
+set -euo pipefail
+ssh-keygen -t ed25519 -N '' -f /root/.ssh/id_ed25519 -q
+cat /root/.ssh/id_ed25519.pub > /root/.ssh/authorized_keys
+EOF
     echo "✓ VM ${VM_NAME} prête. Repo monté sur /repo."
 }
 
@@ -111,9 +123,11 @@ cmd_status()  { multipass info "$VM_NAME" 2>/dev/null || echo "VM ${VM_NAME} n'e
 # ForceCommand internal-sftp ; le préflight ne doit PAS se fier au shell, #656 AC4).
 cmd_seed_password_account() {
     local user="${1:?user requis}"
-    multipass exec "$VM_NAME" -- sudo bash -c \
-        "id -u '${user}' >/dev/null 2>&1 || useradd --create-home --shell /usr/sbin/nologin '${user}'"
-    multipass exec "$VM_NAME" -- sudo bash -c "echo '${user}:electricore-test-656' | chpasswd"
+    vm_root <<EOF
+set -euo pipefail
+id -u '${user}' >/dev/null 2>&1 || useradd --create-home --shell /usr/sbin/nologin '${user}'
+echo '${user}:electricore-test-656' | chpasswd
+EOF
     echo "✓ Compte ${user} semencé : mot de passe usable, shell nologin, AUCUNE clé (cas Enargia #656)."
 }
 
@@ -122,14 +136,15 @@ cmd_seed_password_account() {
 # comme authorized_keys de <user>. Alternative à une exception Match User.
 cmd_remediate_key() {
     local user="${1:?user requis}"
-    multipass exec "$VM_NAME" -- sudo bash -c "
-        install -d -m 700 -o '${user}' -g '${user}' /home/${user}/.ssh
-        ssh-keygen -t ed25519 -N '' -f /tmp/${user}_key -q
-        cat /tmp/${user}_key.pub > /home/${user}/.ssh/authorized_keys
-        chown '${user}:${user}' /home/${user}/.ssh/authorized_keys
-        chmod 600 /home/${user}/.ssh/authorized_keys
-        rm -f /tmp/${user}_key /tmp/${user}_key.pub
-    "
+    vm_root <<EOF
+set -euo pipefail
+install -d -m 700 -o '${user}' -g '${user}' /home/${user}/.ssh
+ssh-keygen -t ed25519 -N '' -f /tmp/${user}_key -q
+cat /tmp/${user}_key.pub > /home/${user}/.ssh/authorized_keys
+chown '${user}:${user}' /home/${user}/.ssh/authorized_keys
+chmod 600 /home/${user}/.ssh/authorized_keys
+rm -f /tmp/${user}_key /tmp/${user}_key.pub
+EOF
     echo "✓ Clé SSH posée pour ${user} (remédiation #656 : migration en clé)."
 }
 
