@@ -56,6 +56,21 @@ rc=$?
 [[ "$rc" -eq 0 ]] && ok "RELAIS_ALERTE_MAILS vide → exit 0" || ko "RELAIS_ALERTE_MAILS vide → exit non-zéro (got $rc)"
 [[ ! -f "$args_file" ]] && ok "RELAIS_ALERTE_MAILS vide → msmtp jamais appelé" || ko "msmtp a été appelé malgré RELAIS_ALERTE_MAILS vide"
 
+# Cas 3 : CSV édité à la main, avec espaces autour des virgules → adresses propres
+# (un " b@y.fr" avec espace de tête est un destinataire invalide côté msmtp).
+( PATH="${stub_dir}:$PATH" RELAIS_ALERTE_MAILS="a@x.fr , b@y.fr" bash "$ALERTE_SH" )
+grep -qx 'a@x.fr' "$args_file" && grep -qx 'b@y.fr' "$args_file" \
+    && ok "CSV avec espaces → destinataires sans espace parasite" \
+    || ko "CSV avec espaces → adresses polluées dans les args msmtp"
+
+# Cas 4 : hostname en échec → le mail part quand même (sous set -e, fabriquer le
+# sujet ne doit jamais pouvoir tuer le script avant l'envoi).
+printf '#!/usr/bin/env bash\nexit 1\n' > "${stub_dir}/hostname"; chmod +x "${stub_dir}/hostname"
+rm -f "$args_file"
+( PATH="${stub_dir}:$PATH" RELAIS_ALERTE_MAILS="a@x.fr" bash "$ALERTE_SH" )
+rc=$?
+[[ "$rc" -eq 0 && -f "$args_file" ]] && ok "hostname en échec → mail envoyé quand même" || ko "hostname en échec → pas de mail (rc=$rc)"
+
 rm -rf "$stub_dir" "$args_file" "$stdin_file" 2>/dev/null
 
 echo

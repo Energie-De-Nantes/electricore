@@ -23,7 +23,9 @@ RELAIS__PARTNER_URL=sftp://relais@partenaire.example/in
 RELAIS__DESTINATION_DB=/opt/electricore-relais/relais.duckdb
 RELAIS__FLUX=C15,R151,R15,F12,F15   # phase 1 : liste explicite, vide = tous
 AES__TROUSSEAU__aes256_2026__KEY=...
-RELAIS_ALERTE_MAILS=alertes-ops@example.fr   # CSV, alerte OnFailure= (#659, voir plus bas)
+# CSV, destinataires de l'alerte OnFailure= (#659, voir plus bas). Commentaire sur sa
+# PROPRE ligne : systemd n'ignore un « # » qu'en début de ligne — en fin de ligne il entre dans la valeur.
+RELAIS_ALERTE_MAILS=alertes-ops@example.fr
 ENV
 sudo chmod 600 /etc/electricore-relais/relais.env
 

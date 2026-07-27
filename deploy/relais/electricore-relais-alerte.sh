@@ -13,11 +13,14 @@ if [[ -z "${RELAIS_ALERTE_MAILS:-}" ]]; then
     exit 0
 fi
 
-sujet="[electricore] échec de ${UNIT} sur $(hostname)"
+# ${HOSTNAME} (posé par bash lui-même) et pas $(hostname) : sous set -e, un binaire
+# hostname absent ou en échec tuerait le script AVANT le moindre envoi.
+sujet="[electricore] échec de ${UNIT} sur ${HOSTNAME:-inconnu}"
 corps="$(journalctl -u "$UNIT" --no-pager -n 50 2>/dev/null)" || corps="(journalctl indisponible pour ${UNIT})"
 
-# CSV → tableau bash : msmtp attend les destinataires en arguments séparés.
-IFS=',' read -ra destinataires <<< "$RELAIS_ALERTE_MAILS"
+# CSV → tableau bash : msmtp attend les destinataires en arguments séparés. L'espace
+# dans IFS absorbe le « a@x.fr, b@y.fr » écrit à la main (sinon msmtp reçoit " b@y.fr").
+IFS=', ' read -ra destinataires <<< "$RELAIS_ALERTE_MAILS"
 
 {
     printf 'To: %s\n' "$RELAIS_ALERTE_MAILS"
