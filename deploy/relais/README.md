@@ -143,7 +143,7 @@ sudo -u <slug> docker compose --env-file /srv/<slug>/config.env \
     -f /srv/<slug>/deploy/relais/compose-relais.yml run --rm relais \
     python -c "
 from electricore.ingestion.relais.pipeline import zips_non_relayes
-print(zips_non_relayes('sftp://user:pass@source.example/flux', '/data-relais/relais.duckdb'))
+print(zips_non_relayes('sftp://user:pass@source.example/flux', '/data/relais.duckdb'))
 "
 ```
 
@@ -160,7 +160,7 @@ sudo -u <slug> docker compose --env-file /srv/<slug>/config.env \
     -f /srv/<slug>/deploy/relais/compose-relais.yml run --rm relais \
     python -c "
 import duckdb
-con = duckdb.connect('/data-relais/relais.duckdb')
+con = duckdb.connect('/data/relais.duckdb')
 print(con.execute('select * from journal.relais_audit_sequences').fetchall())
 "
 ```
