@@ -46,13 +46,39 @@ check_relais_ssh_key() {
     path=$(relais_ssh_key_path "$slug")
     if [[ ! -f "$path" ]]; then
         die "clé SSH partenaire absente (${path})." \
-            "Copier la clé PRIVÉE dédiée sur cette box (seule sa PUBLIQUE, installée chez le partenaire, est valide — jamais l'inverse) : scp <clé> root@<box>:${path} && chmod 600 ${path} — puis relancer. L'installeur ne génère ni ne copie jamais de clé privée."
+            "Copier la clé PRIVÉE dédiée sur cette box (seule sa PUBLIQUE, installée chez le partenaire, est valide — jamais l'inverse) :
+     box durcie (défaut) : scp <clé> ops@<box>:/tmp/relais_ssh_key
+                           puis : ssh ops@<box> 'sudo install -m 600 /tmp/relais_ssh_key ${path} && sudo rm /tmp/relais_ssh_key'
+     non durcie          : scp <clé> root@<box>:${path} && chmod 600 ${path}
+   puis relancer. L'installeur ne génère ni ne copie jamais de clé privée."
     fi
     relais_ssh_key_mode_ok "$path" || \
         die "clé SSH partenaire trop permissive (${path})." \
             "chmod 600 ${path} puis relancer."
     chown "${CONTAINER_UID:-1000}:${CONTAINER_GID:-1000}" "$path" 2>/dev/null || true
     log_ok "clé SSH partenaire présente, verrouillée (${path})"
+}
+
+# ensure_relais_flux_deposit <slug>
+# Dépôt local des flux (cas RELAIS__SOURCE_URL=file://…, nominal Enargia) : créé s'il
+# manque (lisible par le conteneur, CONTAINER_UID) ; un dépôt EXISTANT n'est JAMAIS
+# modifié — sur la box Enargia c'est le répertoire de production où Enedis dépose, ses
+# droits appartiennent au SFTP en place, pas à l'installeur (on avertit seulement si le
+# conteneur ne pourra pas le lire).
+ensure_relais_flux_deposit() {
+    local dir="${SRV_BASE:-/srv}/$1/flux-deposit"
+    if [[ -d "$dir" ]]; then
+        if [[ ${EUID:-0} -eq 0 ]] && ! sudo -u "#${CONTAINER_UID:-1000}" test -r "$dir" -a -x "$dir" 2>/dev/null; then
+            log_warn "dépôt ${dir} illisible par le conteneur (uid ${CONTAINER_UID:-1000}) — le relais échouera bruyamment au listing ; ouvrir la lecture (groupe/ACL) sans toucher au SFTP en place."
+        else
+            log_ok "dépôt local des flux présent (${dir}) — droits laissés tels quels"
+        fi
+        return 0
+    fi
+    mkdir -p "$dir"
+    chmod 750 "$dir"
+    chown "${CONTAINER_UID:-1000}:${CONTAINER_GID:-1000}" "$dir" 2>/dev/null || true
+    log_ok "dépôt local des flux créé (${dir}, lecture conteneur)"
 }
 
 # ─── Fichiers posés (mini-compose + unités systemd) ─────────────────────────
@@ -91,7 +117,10 @@ render_relais_compose() {
 # volume n'est jamais recréé par un changement de tag d'image). Monté sur /data (chemin
 # que le Dockerfile chown pour electricore uid 1000) : un volume nommé frais hérite de
 # cette propriété — tout autre point de montage naîtrait root:root, journal inécrivable.
-# Pas de collision avec duckdb_data de la stack : projet compose distinct.
+# Pas de collision avec duckdb_data de la stack : projet compose distinct (name: explicite
+# ci-dessous — sans lui le namespace dériverait du nom de dossier).
+
+name: electricore-relais
 
 services:
 
@@ -120,10 +149,12 @@ services:
       # cf. deploy/docker/Dockerfile `useradd --home-dir /app`). Présence + droits (600)
       # vérifiés par l'installeur avant le premier run (jamais générée ici, #657).
       - ../../relais_ssh_key:/app/.ssh/id_ed25519:ro
-      # Mode "fichiers collocés" (RELAIS__SOURCE_URL=file://...) : décommenter et adapter
-      # si la source est un répertoire de dépôt LOCAL plutôt qu'un SFTP distant — le
-      # conteneur (uid 1000) doit pouvoir LIRE ce répertoire (droits hôte à vérifier, #657).
-      # - /var/enedis:/var/enedis:ro
+      # Dépôt local des flux (RELAIS__SOURCE_URL=file://…, cas nominal Enargia) : chemin
+      # hôte == chemin conteneur — l'URL de config.env vaut telle quelle des deux côtés.
+      # Créé par l'installeur s'il manque (lecture uid 1000) ; un dépôt EXISTANT garde
+      # ses droits (l'opérateur ouvre la lecture au conteneur, l'installeur avertit).
+      # Inerte si la source est un SFTP distant (dossier vide).
+      - ../../flux-deposit:/srv/${INSTANCE_SLUG:-electricore}/flux-deposit:ro
 
 volumes:
   relais_data:
