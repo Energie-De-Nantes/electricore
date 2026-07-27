@@ -37,7 +37,7 @@ case "$MODE" in
         check "${USER_AT_RISK} toujours authentifiable par mot de passe (passwd -S = P)" \
               "passwd -S ${USER_AT_RISK} | awk '{print \$2}' | grep -qx P"
         check "${USER_AT_RISK} n'a toujours pas de clé SSH exploitable" \
-              "! test -s /home/${USER_AT_RISK}/.ssh/authorized_keys"
+              "! test -s \"\$(getent passwd ${USER_AT_RISK} | cut -d: -f6)/.ssh/authorized_keys\""
         ;;
     pass)
         echo "→ Préflight #656 : durcissement PASSE après remédiation (${USER_AT_RISK})"
@@ -45,7 +45,7 @@ case "$MODE" in
         check "sshd -t valide la config"                           "sshd -t"
         check "PasswordAuthentication no globalement (effectif)"   "sshd -T | grep -qix 'passwordauthentication no'"
         check "${USER_AT_RISK} a maintenant une clé SSH exploitable" \
-              "test -s /home/${USER_AT_RISK}/.ssh/authorized_keys"
+              "test -s \"\$(getent passwd ${USER_AT_RISK} | cut -d: -f6)/.ssh/authorized_keys\""
         ;;
     *)
         echo "mode inconnu : '${MODE}' (attendu refuse|pass)" >&2

@@ -117,10 +117,11 @@ admin_has_authorized_key() {
 #                           résolution des blocs Match incluse (cf. sshd_preflight_collect)
 # Émet (stdout) les comptes à risque : mot de passe utilisable + pas de clé + coupés
 # par le durcissement (aucun Match ne les protège, sinon effective=yes). Pur, sans
-# side-effect — testable sur des fixtures, sans VM ni root. Un compte verrouillé/sans
-# mot de passe (L/NP) ou avec shell nologin n'est JAMAIS à risque via passwd_state≠P
-# (le shell n'est délibérément pas un critère : un compte SFTP-only via
-# ForceCommand internal-sftp authentifie normalement, cf. #656).
+# side-effect — testable sur des fixtures, sans VM ni root. Seul critère d'exclusion :
+# passwd_state≠P (compte verrouillé L, ou sans mot de passe NP) — le shell n'en est
+# délibérément PAS un, un compte SFTP-only via ForceCommand internal-sftp a un shell
+# nologin mais authentifie normalement (cf. #656) ; les comptes système sont exclus
+# parce qu'ils sont verrouillés (`*`/`!` dans shadow → passwd -S = L), pas par leur shell.
 sshd_preflight_at_risk_accounts() {
     local user passwd_state has_key effective
     while IFS=: read -r user passwd_state has_key effective; do
