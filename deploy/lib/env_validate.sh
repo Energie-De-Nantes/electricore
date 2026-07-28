@@ -96,6 +96,19 @@ validate_config_env() {
         [[ -n "$backups" ]] || errors+=("BACKUPS_PATH manquant (substitution compose)")
     fi
 
+    # Garde-fou anti-fuite (#693) : RELAIS__SOURCE_URL / RELAIS__PARTNER_URL APPARTIENNENT à
+    # config.env (le mini-compose du relais les lit par --env-file, on ne bannit donc pas la
+    # variable) — c'est un credential EMBARQUÉ DANS L'URL (motif ...://user:pass@host) qui
+    # fuite. Une URL sans mot de passe (file://…, sftp://user@host/…) reste légitime :
+    # l'authentification par clé SSH est le chemin nominal du relais.
+    local url_var url_val
+    for url_var in RELAIS__SOURCE_URL RELAIS__PARTNER_URL; do
+        url_val=$(read_env_var "$file" "$url_var")
+        if [[ "$url_val" =~ ://[^/@[:space:]]*:[^/@[:space:]]*@ ]]; then
+            errors+=("${url_var} contient un mot de passe embarqué dans l'URL (motif ://…:…@) — le déplacer vers secrets.env chiffré (SOPS), ou basculer sur l'authentification par clé SSH (#693)")
+        fi
+    done
+
     # Garde-fou anti-fuite : un credential n'a RIEN à faire dans config.env (clair).
     local leaked
     leaked=$(grep -oE '^[[:space:]]*(API__TROUSSEAU__|API_KEY|API_KEYS|SFTP__URL|BOT__(TOKEN|ALLOWED_USERS)|AES__TROUSSEAU__|ODOO__PASSWORD|ALERTE__SMTP__PASSWORD)' "$file" 2>/dev/null | head -1)
