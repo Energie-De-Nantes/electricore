@@ -663,6 +663,17 @@ tmp_cfg=$(mktemp)
 printf 'INSTANCE_SLUG=edn\nELECTRICORE_VERSION=1.7.0\nBACKUPS_PATH=/srv/edn/backups\nBOT__NOTIFY_CHAT_ID=-100\n' > "$tmp_cfg"
 assert_ok "validate_config_env autorise BOT__NOTIFY_CHAT_ID (routage)" validate_config_env "$tmp_cfg" "edn"
 rm -f "$tmp_cfg"
+# Token SMTP de l'alerte relais : ALERTE__SMTP__PASSWORD confère une capacité ⇒ secret (#674, ADR-0046 §7)
+tmp_cfg=$(mktemp)
+printf 'INSTANCE_SLUG=edn\nELECTRICORE_VERSION=1.7.0\nBACKUPS_PATH=/srv/edn/backups\nALERTE__SMTP__PASSWORD=token_factice\n' > "$tmp_cfg"
+assert_fail "validate_config_env refuse un secret en clair (ALERTE__SMTP__PASSWORD, #674)" validate_config_env "$tmp_cfg" "edn"
+rm -f "$tmp_cfg"
+# Mais ALERTE__SMTP__{HOST,PORT,FROM,USER} (routage SMTP, pas une capacité) sont AUTORISÉS
+# en config.env (#674, ADR-0046 §7 — même split que BOT__NOTIFY_CHAT_ID ci-dessus)
+tmp_cfg=$(mktemp)
+printf 'INSTANCE_SLUG=edn\nELECTRICORE_VERSION=1.7.0\nBACKUPS_PATH=/srv/edn/backups\nALERTE__SMTP__HOST=smtp.example.fr\nALERTE__SMTP__PORT=587\nALERTE__SMTP__FROM=alertes@example.fr\nALERTE__SMTP__USER=alertes@example.fr\n' > "$tmp_cfg"
+assert_ok "validate_config_env autorise ALERTE__SMTP__{HOST,PORT,FROM,USER} (routage, #674)" validate_config_env "$tmp_cfg" "edn"
+rm -f "$tmp_cfg"
 # Trousseau API : une clé API__TROUSSEAU__ en clair dans config.env est une fuite (ADR-0046 §4)
 tmp_cfg=$(mktemp)
 printf 'INSTANCE_SLUG=edn\nELECTRICORE_VERSION=1.7.0\nBACKUPS_PATH=/srv/edn/backups\nAPI__TROUSSEAU__librewatt__KEY=secret_factice\n' > "$tmp_cfg"

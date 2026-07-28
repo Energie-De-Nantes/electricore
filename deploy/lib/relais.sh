@@ -370,13 +370,13 @@ EOF
 }
 
 # install_relais_alerte_units <slug>
-# Pose le hook d'alerte (script + unité) — pendant #668 de install_relais_units.
-# N'active PAS l'unité elle-même (pas d'enable --now : electricore-relais-alerte.service
-# ne se déclenche que via OnFailure=, jamais par un timer). Idempotent : régénère les
-# deux fichiers à chaque appel. Le paquet msmtp est une dépendance DU COMPOSANT (#668) :
-# ensure_packages l'installe ici (no-op s'il est déjà là) ; seul
-# /etc/electricore-relais/msmtprc (600, token SMTP) reste posé à la main — jamais dans
-# git ni dans l'image, voir deploy/relais/README.md.
+# Pose le hook d'alerte (script + unité + msmtprc, #674) — pendant #668 de
+# install_relais_units. N'active PAS l'unité elle-même (pas d'enable --now :
+# electricore-relais-alerte.service ne se déclenche que via OnFailure=, jamais par un
+# timer). Idempotent : régénère les trois fichiers à chaque appel — plus AUCUNE étape
+# manuelle (#674 : c'était le dernier secret hors secrets-as-code de tout le composant
+# relais). Le paquet msmtp est une dépendance DU COMPOSANT (#668) : ensure_packages
+# l'installe ici (no-op s'il est déjà là).
 install_relais_alerte_units() {
     local slug="$1"
     ensure_packages msmtp
@@ -390,6 +390,26 @@ install_relais_alerte_units() {
     install -m 0755 "$tmp" /usr/local/bin/electricore-relais-alerte.sh
     rm -f "$tmp"
     render_relais_alerte_service "$slug" > /etc/systemd/system/electricore-relais-alerte.service
+
+    # msmtprc (#674) : RENDU, params non-secrets lus dans config.env (déjà pullé à la
+    # racine du home par pull_deploy_repo) ; le token (ALERTE__SMTP__PASSWORD) reste
+    # dans secrets.env chiffré, jamais copié ici — voir render_relais_alerte_msmtprc.
+    local home="${SRV_BASE:-/srv}/${slug}"
+    local config_env="${home}/config.env"
+    local smtp_host smtp_port smtp_from smtp_user
+    smtp_host=$(read_env_var "$config_env" ALERTE__SMTP__HOST 2>/dev/null || true)
+    smtp_port=$(read_env_var "$config_env" ALERTE__SMTP__PORT 2>/dev/null || true)
+    smtp_from=$(read_env_var "$config_env" ALERTE__SMTP__FROM 2>/dev/null || true)
+    smtp_user=$(read_env_var "$config_env" ALERTE__SMTP__USER 2>/dev/null || true)
+    [[ -n "$smtp_port" ]] || smtp_port=587
+    if [[ -z "$smtp_host" ]]; then
+        log_warn "ALERTE__SMTP__HOST absent de config.env — msmtprc rendu incomplet, l'alerte échouera bruyamment tant qu'il n'est pas renseigné (providers/${slug}/config.env, voir deploy/relais/README.md « Alerte mail »)."
+    fi
+    tmp="$(mktemp)"
+    render_relais_alerte_msmtprc "$slug" "$smtp_host" "$smtp_port" "$smtp_from" "$smtp_user" > "$tmp"
+    install -m 0600 "$tmp" /etc/electricore-relais/msmtprc
+    rm -f "$tmp"
+
     systemctl daemon-reload
-    log_ok "hook d'alerte mail posé (/usr/local/bin/electricore-relais-alerte.sh, electricore-relais-alerte.service) — /etc/electricore-relais/msmtprc (600, token SMTP) reste à poser à la main (deploy/relais/README.md)"
+    log_ok "hook d'alerte mail posé (/usr/local/bin/electricore-relais-alerte.sh, electricore-relais-alerte.service, /etc/electricore-relais/msmtprc rendu 600) — token SMTP jamais en clair, extrait de secrets.env par passwordeval (#674)"
 }
