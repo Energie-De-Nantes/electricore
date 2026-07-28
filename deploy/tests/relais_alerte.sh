@@ -116,6 +116,40 @@ grep -q '/etc/electricore-relais/relais.env' "$ALERTE_SH" \
     && ko "résidu bare-metal /etc/electricore-relais/relais.env dans le script" \
     || ok "aucun résidu /etc/electricore-relais/relais.env dans le script"
 
+# Cas 8 : pull d'image docker bruyant (#678) — le journal réel mêle des dizaines de
+# lignes de progression (Extracting/Pull complete/Waiting/Verifying Checksum/Already
+# exists) à l'erreur réelle (constaté sur le premier mail réel, VPS Enargia 28/07 :
+# ~30 lignes de bruit pour 15 lignes utiles). Le corps du mail doit montrer l'erreur,
+# pas la progression — un journalctl dédié (prioritaire dans le PATH) simule ce mélange.
+noisy_stub_dir=$(mktemp -d)
+cat > "${noisy_stub_dir}/journalctl" <<'STUB'
+#!/usr/bin/env bash
+for i in $(seq 1 30); do
+    echo "Extracting [==================================================>]  13B/13B"
+done
+echo "Pull complete"
+echo "Waiting"
+echo "Verifying Checksum"
+echo "Already exists"
+echo "electricore-relais-1  | Traceback (most recent call last):"
+echo "electricore-relais-1  | sops.exceptions.SopsDecryptionError: échec du déchiffrement (clé absente ?)"
+echo "electricore-relais.service: Main process exited, code=exited, status=1/FAILURE"
+STUB
+chmod +x "${noisy_stub_dir}/journalctl"
+
+rm -f "$args_file" "$stdin_file"
+( PATH="${noisy_stub_dir}:${stub_dir}:$PATH" RELAIS_ALERTE_MAILS="a@x.fr" bash "$ALERTE_SH" )
+rc=$?
+[[ "$rc" -eq 0 ]] && ok "pull bruyant → exit 0" || ko "pull bruyant → exit non-zéro (got $rc)"
+grep -q 'SopsDecryptionError' "$stdin_file" \
+    && ok "pull bruyant → l'erreur réelle est dans le corps du mail" \
+    || ko "pull bruyant → l'erreur réelle est ABSENTE du corps du mail"
+grep -q 'Extracting' "$stdin_file" \
+    && ko "pull bruyant → la progression docker a fui dans le corps du mail" \
+    || ok "pull bruyant → aucune ligne de progression docker dans le corps du mail"
+
+rm -rf "$noisy_stub_dir"
+
 rm -rf "$stub_dir" "$work_dir" "$args_file" "$stdin_file" 2>/dev/null
 
 echo
