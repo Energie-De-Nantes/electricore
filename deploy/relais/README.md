@@ -186,6 +186,11 @@ print(zips_non_relayes('sftp://user:pass@source.example/flux', '/data/relais.duc
 "
 ```
 
+Ajouter `flux_filtres=runtime.relais().flux_filtres()` (avec `from
+electricore.config import runtime`) pour ne lister que ce qui est **dû au
+partenaire** — sans lui, l'écart inclut les flux jamais relayés (X13, LTE01,
+R63…), et ce bruit peut masquer un vrai trou (#683).
+
 ## Vue d'audit (#646)
 
 `journal.relais_audit_sequences` (matérialisée en fin de chaque passage du
