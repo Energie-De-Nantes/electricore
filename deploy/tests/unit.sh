@@ -359,6 +359,60 @@ grep -v '^#' <<<"$alerte_sh_out" | grep -qi 'python' \
 bash -n <(printf '%s\n' "$alerte_sh_out") && ok "render_relais_alerte_script: syntaxe bash valide" || ko "render_relais_alerte_script: bash -n a échoué"
 
 echo
+echo "→ relais.sh / render_relais_alerte_msmtprc (msmtprc RENDU, passwordeval sops, #674)"
+SRV_BASE=/srv msmtprc_out="$(render_relais_alerte_msmtprc edn smtp.example.fr 587 alertes@example.fr alertes@example.fr)"
+grep -qx 'host smtp.example.fr' <<<"$msmtprc_out" && ok "render_relais_alerte_msmtprc: host substitué" || ko "render_relais_alerte_msmtprc: host absent/incorrect"
+grep -qx 'port 587' <<<"$msmtprc_out" && ok "render_relais_alerte_msmtprc: port substitué" || ko "render_relais_alerte_msmtprc: port absent/incorrect"
+grep -qx 'from alertes@example.fr' <<<"$msmtprc_out" && ok "render_relais_alerte_msmtprc: from substitué" || ko "render_relais_alerte_msmtprc: from absent/incorrect"
+grep -qx 'user alertes@example.fr' <<<"$msmtprc_out" && ok "render_relais_alerte_msmtprc: user substitué" || ko "render_relais_alerte_msmtprc: user absent/incorrect"
+grep -q '^passwordeval' <<<"$msmtprc_out" && ok "render_relais_alerte_msmtprc: passwordeval présent (token jamais écrit en clair)" || ko "render_relais_alerte_msmtprc: passwordeval absent"
+grep -q 'sops decrypt' <<<"$msmtprc_out" && ok "render_relais_alerte_msmtprc: extraction via un sops decrypt hôte" || ko "render_relais_alerte_msmtprc: sops decrypt absent"
+grep -q 'SOPS_AGE_KEY_FILE=/srv/edn/age.key' <<<"$msmtprc_out" && ok "render_relais_alerte_msmtprc: SOPS_AGE_KEY_FILE pointe la clé age de la box" || ko "render_relais_alerte_msmtprc: chemin age.key absent/incorrect"
+grep -q '/srv/edn/providers/edn/secrets.env' <<<"$msmtprc_out" && ok "render_relais_alerte_msmtprc: cible providers/<slug>/secrets.env" || ko "render_relais_alerte_msmtprc: chemin secrets.env absent/incorrect"
+grep -q 'ALERTE__SMTP__PASSWORD' <<<"$msmtprc_out" && ok "render_relais_alerte_msmtprc: extrait le champ ALERTE__SMTP__PASSWORD" || ko "render_relais_alerte_msmtprc: nom de champ absent"
+grep -q 'pipefail' <<<"$msmtprc_out" && ok "render_relais_alerte_msmtprc: pipefail — un échec sops se propage (pas de mot de passe vide avalé en silence)" || ko "render_relais_alerte_msmtprc: pipefail absent"
+grep -qE '^[[:space:]]*password[[:space:]]' <<<"$msmtprc_out" && ko "render_relais_alerte_msmtprc: directive password= en clair (fuite du token)" || ok "render_relais_alerte_msmtprc: aucune directive password= en clair"
+msmtprc_out2="$(render_relais_alerte_msmtprc enargia smtp2.example.fr 25 a@b.fr a@b.fr)"
+grep -q '/srv/enargia/age.key' <<<"$msmtprc_out2" && ok "render_relais_alerte_msmtprc: paramétré par slug (2e instance)" || ko "render_relais_alerte_msmtprc: pas paramétré par slug"
+msmtprc_out3="$(render_relais_alerte_msmtprc edn smtp.example.fr 587 alertes@example.fr alertes@example.fr)"
+[[ "$msmtprc_out" == "$msmtprc_out3" ]] && ok "render_relais_alerte_msmtprc: rendu idempotent (mêmes entrées → même sortie, re-run sûr)" || ko "render_relais_alerte_msmtprc: rendu non déterministe"
+
+echo
+echo "→ relais.sh / msmtprc passwordeval — comportement stubé (#674 : token jamais en clair, extraction sops)"
+pwdeval_cmd=$(sed -n 's/^passwordeval //p' <<<"$msmtprc_out")
+[[ -n "$pwdeval_cmd" ]] && ok "passwordeval : commande extraite du msmtprc rendu" || ko "passwordeval : commande introuvable dans le msmtprc rendu"
+
+pw_stub_dir=$(mktemp -d)
+cat > "${pw_stub_dir}/sops" <<'STUB'
+#!/usr/bin/env bash
+# Stub sops : ignore ses arguments, émet le secrets.env déchiffré factice (mêmes noms
+# de champs que providers/example/secrets.env.example, #674).
+printf 'ALERTE__SMTP__PASSWORD=stubbed_token_xyz\n'
+STUB
+chmod +x "${pw_stub_dir}/sops"
+pw_out=$(PATH="${pw_stub_dir}:$PATH" bash -c "$pwdeval_cmd" 2>/dev/null)
+[[ "$pw_out" == "stubbed_token_xyz" ]] \
+    && ok "passwordeval (sops stubbé) : extrait exactement la valeur ALERTE__SMTP__PASSWORD" \
+    || ko "passwordeval (sops stubbé) : sortie inattendue (got '${pw_out}')"
+
+# Échec du sops hôte (#674 : log explicite, pas de crash silencieux) : la commande doit
+# échouer (exit non-zéro) plutôt que produire un mot de passe vide accepté en silence —
+# c'est ce code de sortie que msmtp lit pour détecter l'échec de passwordeval.
+cat > "${pw_stub_dir}/sops" <<'STUB'
+#!/usr/bin/env bash
+echo "sops: erreur de déchiffrement (clé age invalide, stub)" >&2
+exit 1
+STUB
+chmod +x "${pw_stub_dir}/sops"
+PATH="${pw_stub_dir}:$PATH" bash -c "$pwdeval_cmd" >/dev/null 2>"${pw_stub_dir}/err"
+pw_rc=$?
+[[ "$pw_rc" -ne 0 ]] && ok "passwordeval : sops hôte en échec → code de sortie non-zéro (pas de crash silencieux)" \
+                      || ko "passwordeval : échec sops non propagé (exit ${pw_rc})"
+[[ -s "${pw_stub_dir}/err" ]] && ok "passwordeval : le sops stubbé en échec loggue sur stderr (capté par journalctl)" \
+                               || ko "passwordeval : aucun message d'erreur sur stderr"
+rm -rf "$pw_stub_dir"
+
+echo
 echo "→ relais.sh / systemd-analyze verify (rendu réel, #668 AC1)"
 if command -v systemd-analyze >/dev/null 2>&1; then
     sdv_dir=$(mktemp -d)
