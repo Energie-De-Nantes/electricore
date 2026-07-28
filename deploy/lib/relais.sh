@@ -294,14 +294,60 @@ IFS=', ' read -ra destinataires <<< "$RELAIS_ALERTE_MAILS"
 EOF
 }
 
+# render_relais_alerte_msmtprc <slug> <host> <port> <from> <user>
+# Émet le msmtprc du hook d'alerte sur stdout — pure comme les autres render_* de ce
+# fichier (aucun accès disque/réseau), mais PARAMÉTRÉE par les valeurs non-secrètes de
+# config.env (ALERTE__SMTP__{HOST,PORT,FROM,USER}, ADR-0046 §7 : routage = config.env,
+# clair) : c'est install_relais_alerte_units qui les lit (read_env_var) et les passe ici
+# — même découpage caller-fait-l'I/O / rendu-reste-pur que render_relais_service.
+#
+# Le token SMTP (ALERTE__SMTP__PASSWORD, secrets.env chiffré) n'apparaît JAMAIS dans ce
+# fichier (#674 — c'était le dernier secret hors secrets-as-code de tout le composant
+# relais, objection Virgile posée en revue Enargia le 28/07) : `passwordeval` l'extrait
+# à l'ENVOI par un `sops decrypt` HÔTE (même motif que _ingestion_read_scheduler_key,
+# deploy/lib/ingestion.sh) — SOPS_AGE_KEY_FILE pointe la clé age de LA BOX
+# (/srv/<slug>/age.key, déjà là depuis l'onboarding, ADR-0044), sur le secrets.env déjà
+# pullé (providers/<slug>/secrets.env). `bash -o pipefail -c '...'` : si le sops hôte
+# échoue (clé absente/invalide, champ manquant), le PIPE entier remonte son code de
+# sortie non-zéro (sans pipefail, seul le code de `head -1`, toujours 0, survivrait) —
+# msmtp voit passwordeval échouer, logue bruyamment sur stderr (capté par
+# `journalctl -u electricore-relais-alerte.service`), pas de crash silencieux : mode
+# dégradé assumé (cf. deploy/relais/README.md « Alerte mail »).
+render_relais_alerte_msmtprc() {
+    local slug="$1" host="$2" port="$3" from="$4" user="$5"
+    local home="${SRV_BASE:-/srv}/${slug}"
+    local secrets="${home}/providers/${slug}/secrets.env"
+    local agekey="${home}/age.key"
+    cat <<EOF
+# ElectriCore — msmtprc du hook d'alerte relais (#659/#668/#674). RENDU par install.sh
+# --relais (deploy/lib/relais.sh::render_relais_alerte_msmtprc) — ne pas éditer à la
+# main, régénéré à chaque reconfigure. Le token SMTP n'est JAMAIS écrit ici en clair :
+# passwordeval l'extrait de secrets.env (chiffré SOPS+age) à l'envoi (#674).
+defaults
+tls on
+tls_starttls on
+
+account electricore-relais
+host ${host}
+port ${port}
+auth on
+from ${from}
+user ${user}
+passwordeval bash -o pipefail -c "SOPS_AGE_KEY_FILE=${agekey} sops decrypt --input-type dotenv --output-type dotenv ${secrets} | sed -n s/^ALERTE__SMTP__PASSWORD=//p | head -1"
+
+account default : electricore-relais
+EOF
+}
+
 # render_relais_alerte_service <slug>
 # Émet l'unité systemd du service d'alerte sur stdout — ADAPTÉE de l'ancienne unité
 # bare-metal (#659) : EnvironmentFile= pointe désormais sur le config.env du layout
 # conteneurisé (#657, ${SRV_BASE:-/srv}/<slug>/config.env — où vit déjà
 # RELAIS_ALERTE_MAILS) au lieu de /etc/electricore-relais/relais.env, qui n'existe pas
-# dans ce layout. Paramétrée par slug comme render_relais_service ; msmtprc (secret,
-# jamais dans git) reste au chemin de convention host-level /etc/electricore-relais/
-# (un seul token SMTP par box, pas par instance).
+# dans ce layout. Paramétrée par slug comme render_relais_service ; msmtprc (chemin de
+# convention host-level /etc/electricore-relais/, un seul token SMTP par box, pas par
+# instance) est désormais RENDUE elle aussi (#674, render_relais_alerte_msmtprc) — plus
+# aucune édition manuelle.
 render_relais_alerte_service() {
     local slug="$1"
     local home="${SRV_BASE:-/srv}/${slug}"
