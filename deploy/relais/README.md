@@ -221,6 +221,10 @@ reste du composant (`install_relais_alerte_units`, `deploy/lib/relais.sh`) :
   par l'installeur — seul le `msmtprc` qu'il abrite reste manuel.
 - Idempotent, comme le reste du composant : un `install.sh --relais` relancé
   régénère les deux fichiers sans effet de bord.
+- Le **déclenchement** se prouve sans attendre un vrai échec :
+  `./deploy/tests/e2e/multipass.sh verify-relais onfailure <slug>` force un
+  échec du service (compose écarté, stub msmtp) et vérifie que l'alerte tire —
+  la mécanique seulement ; le mail réel se vérifie à la générale (#661).
 
 Ce que l'installeur **ne pose jamais** — un geste manuel, volontairement hors
 de son périmètre (secret, jamais dans un dépôt ni dans l'image) :

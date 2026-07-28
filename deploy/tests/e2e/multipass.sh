@@ -44,6 +44,8 @@ Commands:
   remove-relais-key <slug>         Retire la clé SSH partenaire de test.
   verify-relais refuse <slug>      Assertions : install.sh --relais REFUSÉ (clé SSH absente).
   verify-relais posed  <slug>      Assertions : état posé (timer actif, compose présent, clé 600).
+  verify-relais onfailure <slug>   Assertions : échec forcé du service → l'alerte OnFailure=
+                                    tire jusqu'à msmtp (stub, #668 — mail réel = générale #661).
 
   Séquence complète :
     ./multipass.sh up
@@ -71,6 +73,7 @@ Commands:
     ./multipass.sh run --slug relais --relais --deploy-repo <url-dépôt-déploiement>
                                                   # doit RÉUSSIR
     ./multipass.sh verify-relais posed relais
+    ./multipass.sh verify-relais onfailure relais  # échec forcé → l'alerte tire (stub msmtp)
     ./multipass.sh down
 
 Variables :
