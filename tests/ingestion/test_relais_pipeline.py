@@ -54,6 +54,11 @@ from electricore.ingestion.relais.pipeline import (
 AES_KEY = bytes.fromhex("0102030405060708090a0b0c0d0e0f10")
 AES_IV = bytes.fromhex("1112131415161718191a1b1c1d1e1f20")
 
+# Clé/IV JAMAIS enregistrés dans le trousseau de test (`_configurer_env`) — simule un zip
+# chiffré avec une clé Enedis que le trousseau configuré ne connaît pas (rotation, #692).
+AES_KEY_INCONNUE = bytes.fromhex("ff" * 16)
+AES_IV_INCONNUE = bytes.fromhex("ee" * 16)
+
 
 @pytest.fixture(autouse=True)
 def _isoler_env(monkeypatch):
@@ -91,6 +96,23 @@ def _deposer_zip(bucket: Path, nom: str, contenu_interne: bytes, date=(2026, 6, 
     return _deposer_zip_multi(bucket, nom, [(f"{nom.replace('.zip', '')}.xml", contenu_interne)], date=date)
 
 
+def _deposer_zip_cle_inconnue(bucket: Path, nom: str, contenu_interne: bytes, date=(2026, 6, 15, 12, 0, 0)) -> Path:
+    """Dépose un zip chiffré avec `AES_KEY_INCONNUE` — jamais dans le trousseau configuré par
+    `_configurer_env` (`AES_KEY`) : simule une rotation de clé Enedis (#692), decrypt échoue
+    (`ValueError`, oracle padding/magic bytes), échec compté dans `chaine.echecs_dechiffrement`,
+    jamais poussé, jamais journalisé `'vu'`."""
+    bucket.mkdir(parents=True, exist_ok=True)
+    chemin = bucket / nom
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr(f"{nom.replace('.zip', '')}.xml", contenu_interne)
+    cipher = AES.new(AES_KEY_INCONNUE, AES.MODE_CBC, AES_IV_INCONNUE)
+    chemin.write_bytes(cipher.encrypt(pad(buf.getvalue(), AES.block_size)))
+    ts = time.mktime((*date, 0, 0, -1))
+    os.utime(chemin, (ts, ts))
+    return chemin
+
+
 def _configurer_env(monkeypatch, source: Path, cible: Path, db: Path, *, flux: str = ""):
     monkeypatch.setenv("RELAIS__SOURCE_URL", f"file://{source}/")
     monkeypatch.setenv("RELAIS__PARTNER_URL", f"file://{cible}/")
@@ -98,6 +120,19 @@ def _configurer_env(monkeypatch, source: Path, cible: Path, db: Path, *, flux: s
     monkeypatch.setenv("RELAIS__FLUX", flux)
     monkeypatch.setenv("AES__TROUSSEAU__test__KEY", AES_KEY.hex())
     monkeypatch.setenv("AES__TROUSSEAU__test__IV", AES_IV.hex())
+    runtime.vider_cache()
+
+
+def _configurer_env_trousseau_entierement_faux(monkeypatch, source: Path, cible: Path, db: Path, *, flux: str = ""):
+    """Trousseau entièrement faux (#692) : aucune clé ne matche `AES_KEY` — simule une
+    rotation de clé Enedis où le nouveau `.env` n'a pas encore été mis à jour, TOUS les zips
+    déposés via `_deposer_zip` (chiffrés `AES_KEY`) deviennent indéchiffrables."""
+    monkeypatch.setenv("RELAIS__SOURCE_URL", f"file://{source}/")
+    monkeypatch.setenv("RELAIS__PARTNER_URL", f"file://{cible}/")
+    monkeypatch.setenv("RELAIS__DESTINATION_DB", str(db))
+    monkeypatch.setenv("RELAIS__FLUX", flux)
+    monkeypatch.setenv("AES__TROUSSEAU__mauvaise__KEY", AES_KEY_INCONNUE.hex())
+    monkeypatch.setenv("AES__TROUSSEAU__mauvaise__IV", AES_IV_INCONNUE.hex())
     runtime.vider_cache()
 
 
@@ -542,6 +577,95 @@ def test_zip_vu_n_est_pas_rejournalise_au_run_suivant(tmp_path, monkeypatch):
     executer(_pipeline(tmp_path, db))
 
     assert _toutes_lignes_journal(db) == [("ENEDIS_R151_20260615_002.zip", "vu")]
+
+
+# =============================================================================
+# Escalade étendue au déchiffrement (#692) : l'ancien prédicat ne voyait que le push — une
+# rotation de clé Enedis (tous les zips indéchiffrables) affichait ✅ et sortait 0 pour
+# toujours. `StatsRelais.chaine` (composition, `create_decrypt_transformer(stats=…)`) compte
+# les échecs de déchiffrement ; le wrapper observateur journalise `statut='echec'` post-run.
+# =============================================================================
+
+
+@pytest.mark.integration
+def test_trousseau_entierement_faux_run_aveugle_et_indechiffrables_journalises(tmp_path, monkeypatch):
+    """Critère d'acceptation #692 : trousseau entièrement faux → aucun push n'est même
+    tenté (rien ne franchit decrypt), `relais_aveugle()` doit malgré tout être vrai (prédicat
+    étendu à `chaine.echecs_dechiffrement`) et chaque zip indéchiffrable journalisé `'echec'`."""
+    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
+    _deposer_zip(source, "ENEDIS_C15_20260615_001.zip", b"<data>c15</data>")
+    _configurer_env_trousseau_entierement_faux(monkeypatch, source, cible, db)
+
+    info, stats = executer(_pipeline(tmp_path, db))
+
+    assert (stats.candidats, stats.pousses, stats.echecs_push) == (0, 0, 0)  # rien n'atteint le push
+    assert stats.chaine.echecs_dechiffrement == 1
+    assert stats.relais_aveugle() is True
+    assert dict(_toutes_lignes_journal(db))["ENEDIS_C15_20260615_001.zip"] == "echec"
+    assert not (cible / "C15").exists()
+
+
+@pytest.mark.integration
+def test_trousseau_mixte_echecs_dechiffrement_comptes_journalises_et_retentes(tmp_path, monkeypatch):
+    """Critère d'acceptation #692 : trousseau mixte (une partie des zips déchiffre) → exit 0
+    (un push a réussi, tolérant), l'échec de déchiffrement isolé est compté et journalisé —
+    et retenté (pas de 'vu', pas de dédup) au run suivant tant que la clé manque."""
+    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
+    _deposer_zip(source, "ENEDIS_C15_20260615_001.zip", b"<data>ok</data>")
+    _deposer_zip_cle_inconnue(source, "ENEDIS_C15_20260615_002.zip", b"<data>ko</data>", date=(2026, 6, 15, 13, 0, 0))
+    _configurer_env(monkeypatch, source, cible, db)  # trousseau correct pour 001 seulement
+
+    info, stats = executer(_pipeline(tmp_path, db))
+
+    assert stats.chaine.echecs_dechiffrement == 1
+    assert stats.pousses == 1
+    assert stats.relais_aveugle() is False  # pousses > 0 ⇒ jamais aveugle (tolérant)
+    lignes = dict(_toutes_lignes_journal(db))
+    assert lignes["ENEDIS_C15_20260615_001.zip"] == "pousse"
+    assert lignes["ENEDIS_C15_20260615_002.zip"] == "echec"
+
+    executer(_pipeline(tmp_path, db))  # retente : clé toujours absente, la rotation dure
+
+    statuts_002 = [
+        statut for zip_name, statut in _toutes_lignes_journal(db) if zip_name == "ENEDIS_C15_20260615_002.zip"
+    ]
+    assert statuts_002 == ["echec", "echec"]  # une ligne par run, pas de dédup, jamais 'vu'
+
+
+@pytest.mark.integration
+def test_zip_indechiffrable_reste_dans_l_ecart_de_completude(tmp_path, monkeypatch):
+    """Critère d'acceptation #692 : un zip indéchiffrable n'est jamais journalisé 'vu' — il
+    reste donc dans l'écart de `zips_non_relayes` (sous-jacent à la sous-commande
+    `completude`), comme n'importe quel autre échec."""
+    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
+    _deposer_zip_cle_inconnue(source, "ENEDIS_C15_20260615_001.zip", b"<data>ko</data>")
+    _configurer_env(monkeypatch, source, cible, db)
+
+    executer(_pipeline(tmp_path, db))
+
+    assert zips_non_relayes(f"file://{source}/", db) == ["ENEDIS_C15_20260615_001.zip"]
+
+
+@pytest.mark.integration
+def test_cli_run_trousseau_faux_sort_en_erreur_avec_resume_dechiffrement(tmp_path, monkeypatch, capsys):
+    """Critère d'acceptation #692 : le résumé CLI enrichi affiche les zips entrés au
+    déchiffrement et les indéchiffrables — sinon `❌ Relais aveugle : 0 candidat(s), 0
+    poussé(s), 0 échec(s)` est illisible quand le déchiffrement, pas le push, est en cause."""
+    from electricore.ingestion.relais.__main__ import main
+
+    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
+    _deposer_zip(source, "ENEDIS_C15_20260615_001.zip", b"<data>c15</data>")
+    _configurer_env_trousseau_entierement_faux(monkeypatch, source, cible, db)
+    monkeypatch.setattr(sys, "argv", ["relais"])
+
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code != 0
+
+    sortie = capsys.readouterr().out
+    assert "❌ Relais aveugle" in sortie
+    assert "1 entré(s) au déchiffrement" in sortie
+    assert "1 indéchiffrable(s)" in sortie
 
 
 # =============================================================================

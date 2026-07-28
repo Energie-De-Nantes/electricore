@@ -1,4 +1,5 @@
-"""Relais de flux Enedis déchiffrés vers le SFTP d'un partenaire (#637, escalade #643).
+"""Relais de flux Enedis déchiffrés vers le SFTP d'un partenaire (#637, escalade #643,
+étendue au déchiffrement #692).
 
 Runtime **indépendant** de l'ingestion (pipeline dlt distinct, destination
 DuckDB distincte) mais code **co-localisé** : réutilise les briques stables
@@ -27,13 +28,19 @@ DIFFÉRENTS (même bug de classe que `ESPACE_ETAT_INCREMENTAL` dans
 
 Chaîne : `sftp_resource | filtre | decrypt | push`. Le filtre (déjà-livré /
 flux) tourne AVANT le déchiffrement — il ne coûte qu'un listing, pas un
-decrypt, sur les zips déjà relayés. `decrypt` (brique stable) catch déjà
-ValueError → clé incorrecte = sauté, retry au run suivant. Le push applique la
-MÊME discipline « attraper → compter → continuer » que les trois étages de
-l'ingestion (`etape_chaine`) : le compteur `StatsRelais` alimente le prédicat
-`relais_aveugle()` (même forme que `StatsChaine.flux_aveugle()`, ADR-0037 ext.
-#445) — un run où TOUS les push échouent doit escalader (sortie non-zéro), pas
-retenter en silence pour toujours (le reproche adressé à inotify dans #637).
+decrypt, sur les zips déjà relayés. `decrypt` (brique stable, `crypto.py`)
+catch déjà ValueError → clé incorrecte = sauté, retry au run suivant — et
+depuis #692 compte dans `StatsRelais.chaine` (composition, la brique passée à
+`_dechiffrer_et_observer`) ET journalise `statut='echec'` (même wrapper
+observateur, post-run, la sortie du decrypt alimentant directement le push,
+un échec ne peut pas y transiter). Le push
+applique la MÊME discipline « attraper → compter → continuer » que les trois
+étages de l'ingestion (`etape_chaine`) : le compteur `StatsRelais` alimente le
+prédicat `relais_aveugle()` (même forme que `StatsChaine.flux_aveugle()`,
+ADR-0037 ext. #445, étendue au déchiffrement #692) — un run où AUCUN push ne
+réussit malgré au moins un échec (push ou déchiffrement) doit escalader
+(sortie non-zéro), pas retenter en silence pour toujours (le reproche adressé
+à inotify dans #637 puis à l'escalade non étendue au déchiffrement, #692).
 Dépôt rangé par flux chez le partenaire, `<partner_url>/<CODE_FLUX>/<fichier>`
 (#686, demande Haulogy) — symétrique du rangement déjà en place côté source
 Enargia (`FLUX_DEPOSIT_DIR`, `deploy/relais/README.md`).
@@ -53,7 +60,7 @@ silencieusement tout ce qui restait à relayer.
 import logging
 import re
 from collections.abc import Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -63,9 +70,9 @@ import fsspec
 from electricore.config import runtime
 from electricore.ingestion.sources.sftp_enedis import create_sftp_resource
 from electricore.ingestion.transformers.archive import extract_files_from_zip
-from electricore.ingestion.transformers.chaine import etape_chaine
+from electricore.ingestion.transformers.chaine import StatsChaine, etape_chaine
 from electricore.ingestion.transformers.crypto import (
-    create_decrypt_transformer,
+    _decrypt_aes_transformer_base,
     load_aes_key_chain,
 )
 
@@ -78,26 +85,41 @@ NOM_PIPELINE = "relais_flux_enedis"
 
 @dataclass
 class StatsRelais:
-    """Compteur de la chaîne du relais — escalade process-wide (#643, ADR-0037 ext.).
+    """Compteur de la chaîne du relais — escalade process-wide (#643, étendue au
+    déchiffrement #692, ADR-0037 ext.).
 
-    Un seul objet mutable, partagé par l'étage push d'un run entier (le relais n'a qu'une
-    seule resource, contrairement aux `StatsChaine` par-flux de l'ingestion). `candidats`
-    est le pré-compte d'entrée (zips arrivés au push, hors discipline) ; `pousses`/
-    `echecs_push` sont mutés par `etape_chaine` au fil des yields/exceptions.
+    Un seul objet mutable, partagé par les étages decrypt et push d'un run entier (le relais
+    n'a qu'une seule resource, contrairement aux `StatsChaine` par-flux de l'ingestion).
+    `candidats` est le pré-compte d'entrée du PUSH (zips décryptés arrivés au push, hors
+    discipline) ; `pousses`/`echecs_push` sont mutés par `etape_chaine` au fil des
+    yields/exceptions. `chaine` (composition, #692) est passé à la brique decrypt
+    (`crypto.py::_decrypt_aes_transformer_base`, réutilisée telle quelle via
+    `_dechiffrer_et_observer`) — `chaine.fichiers` (pré-compte des zips entrés au
+    déchiffrement), `chaine.dechiffres` et `chaine.echecs_dechiffrement` en découlent
+    gratuitement, aucune brique modifiée.
+    `zips_indechiffrables` : noms collectés par `_dechiffrer_et_observer` (wrapper composition
+    autour de la brique decrypt) pour journalisation POST-RUN — la sortie du decrypt alimente
+    directement le push dlt, un échec de déchiffrement ne peut donc pas transiter par la
+    chaîne jusqu'à `_pousser` comme le fait un échec de push.
     """
 
     candidats: int = 0
     pousses: int = 0
     echecs_push: int = 0
+    chaine: StatsChaine = field(default_factory=StatsChaine)
+    zips_indechiffrables: list[str] = field(default_factory=list)
 
     def relais_aveugle(self) -> bool:
-        """Même prédicat que `StatsChaine.flux_aveugle()` : 0 push réussi malgré ≥ 1 échec.
+        """Même prédicat que `StatsChaine.flux_aveugle()`, étendu au déchiffrement (#692) :
+        0 push réussi malgré ≥ 1 échec — de push OU de déchiffrement.
 
         Un échec **isolé** noyé dans des push réussis (`pousses > 0`) est toléré — retenté
-        au run suivant par le balayage réconciliant, jamais une raison d'escalader. Un run
-        SANS aucun candidat (source vide) n'est pas non plus aveugle (`echecs_push == 0`).
+        au run suivant par le balayage réconciliant, jamais une raison d'escalader (sémantique
+        tolérante inchangée : un échec de déchiffrement isolé pendant une rotation de clé ne
+        fait pas non plus échouer le run tant qu'au moins un push a réussi). Un run SANS aucun
+        candidat ni échec (source vide) n'est pas non plus aveugle.
         """
-        return self.pousses == 0 and self.echecs_push > 0
+        return self.pousses == 0 and (self.echecs_push + self.chaine.echecs_dechiffrement) > 0
 
 
 def _match_flux(file_name: str, flux_filtres: set[str] | None) -> bool:
@@ -128,6 +150,38 @@ def _create_filtre_transformer(flux_filtres: set[str] | None):
         return _filtre_zip(zip_item, flux_filtres)
 
     return filtre_zip
+
+
+def _dechiffrer_et_observer(
+    encrypted_file: dict,
+    key_chain: list[tuple[str, bytes, bytes | None]],
+    stats: StatsRelais,
+) -> Iterator[dict]:
+    """Wrapper composition (#692, aucune brique modifiée) autour de la brique decrypt —
+    `crypto.py::_decrypt_aes_transformer_base`, réutilisée telle quelle (`stats.chaine` lui
+    est passé : `chaine.fichiers`/`dechiffres`/`echecs_dechiffrement` en découlent
+    gratuitement, même discipline « attraper → compter → continuer » que l'ingestion).
+
+    La sortie du decrypt alimente directement le push dlt — un zip indéchiffrable ne peut
+    donc pas transiter par la chaîne jusqu'à `_pousser` (contrairement à un échec de push,
+    qui lui traverse `_pousser_et_enregistrer`). Ce wrapper observe si le décryptage a
+    produit un document ; sinon il note le zip dans `stats.zips_indechiffrables` — journalisé
+    POST-RUN par `_journaliser_echecs_dechiffrement`, même mécanisme que les lignes `'vu'`."""
+    zip_name = encrypted_file["file_name"]
+    dechiffre = False
+    for doc in _decrypt_aes_transformer_base(encrypted_file, key_chain, stats.chaine):
+        dechiffre = True
+        yield doc
+    if not dechiffre:
+        stats.zips_indechiffrables.append(zip_name)
+
+
+def _create_decrypt_transformer(key_chain: list[tuple[str, bytes, bytes | None]], stats: StatsRelais):
+    @dlt.transformer
+    def dechiffrer_et_observer(encrypted_file: dict) -> Iterator[dict]:
+        return _dechiffrer_et_observer(encrypted_file, key_chain, stats)
+
+    return dechiffrer_et_observer
 
 
 def _verifier_ecriture(fs, chemin: str, taille_locale: int) -> None:
@@ -300,7 +354,7 @@ def relais_source(
     déchiffrement → push+enregistrement. Une seule resource nommée `relais_livraisons`."""
     sftp_resource = create_sftp_resource("RELAIS", "relais", "**/*.zip", source_url, incremental=False)
     filtre = _create_filtre_transformer(flux_filtres)
-    decrypt = create_decrypt_transformer(key_chain=key_chain)
+    decrypt = _create_decrypt_transformer(key_chain, stats)
     push = _create_push_transformer(partner_url, stats)
 
     pipeline_relais = (sftp_resource | filtre | decrypt | push).with_name(NOM_RESOURCE)
@@ -394,6 +448,7 @@ def executer(pipeline: "dlt.Pipeline | None" = None) -> tuple["dlt.common.pipeli
     if pipeline is None:
         pipeline = _pipeline_par_defaut(cfg)
     info = pipeline.run(relais_source(cfg.source_url, cfg.partner_url, cfg.flux_filtres(), key_chain, stats))
+    _journaliser_echecs_dechiffrement(pipeline, stats)  # AVANT _journaliser_vus (#692)
     _journaliser_vus(pipeline, cfg)
     _construire_vue_audit(cfg)
     return info, stats
@@ -538,6 +593,25 @@ def _zips_dans_journal(db_path: "Path | str", *, statuts: tuple[str, ...] | None
         return set()
     finally:
         con.close()
+
+
+def _journaliser_echecs_dechiffrement(pipeline: "dlt.Pipeline", stats: StatsRelais) -> None:
+    """Journal enrichi étendu au déchiffrement (#692) : la sortie du decrypt alimente
+    directement le push dlt — un zip indéchiffrable ne peut donc pas transiter par la chaîne
+    jusqu'à `_pousser` (contrairement à un échec de push, journalisé en cours de run par
+    `_pousser_et_enregistrer`). `_dechiffrer_et_observer` a collecté les noms dans
+    `stats.zips_indechiffrables` PENDANT le run ; ce POST-RUN les journalise `statut='echec'`
+    — une ligne par zip et par run, PAS de dédup (symétrie avec les échecs push : le journal
+    est append-only, la répétition trace la durée du trou de clé).
+
+    Appelé AVANT `_journaliser_vus` (voir `executer()`) : sinon un zip indéchiffrable, encore
+    absent du journal à cet instant, serait à tort marqué `'vu'` au lieu de `'echec'` — un zip
+    indéchiffrable ne doit JAMAIS être `'vu'`."""
+    if not stats.zips_indechiffrables:
+        return
+    maintenant = datetime.now(UTC).isoformat()
+    lignes = [{"zip": nom, "fichiers": [], "statut": "echec", "at": maintenant} for nom in stats.zips_indechiffrables]
+    pipeline.run(lignes, table_name=NOM_RESOURCE, write_disposition="append")
 
 
 def _journaliser_vus(pipeline: "dlt.Pipeline", cfg: "runtime.Relais") -> None:
