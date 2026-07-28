@@ -573,8 +573,9 @@ def zips_non_relayes(source_url: str, db_path: "Path | str", *, flux_filtres: se
     sinon `zips_non_relayes` perdrait sa sémantique « jamais relayé » (un push qui échoue en
     boucle disparaîtrait à tort de cette liste dès sa première tentative).
 
-    `db_path` : accepte un `str` (coercé en `Path` par `_zips_dans_journal`, #683) — outil
-    opérateur invoqué en `python -c`, la commande naturelle passe une string.
+    `db_path` : accepte un `str` (coercé en `Path` par `_zips_dans_journal`, #683) — la
+    sous-commande `relais completude` (#690) passe un `Path`, un appel ad hoc (notebook,
+    `python -c`) passe naturellement une string.
 
     `flux_filtres` (#683) : restreint l'écart aux flux relayés (même sémantique que
     `_match_flux`, défaut = tout). Sans ce filtre, le résultat mélange les vrais manquants
