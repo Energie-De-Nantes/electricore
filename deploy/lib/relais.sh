@@ -313,7 +313,7 @@ sujet="[electricore] échec de ${UNIT} sur ${HOSTNAME:-inconnu}"
 bruit_docker='Extracting|Downloading|Pull complete|Waiting|Verifying Checksum|Already exists'
 corps="$(journalctl -u "$UNIT" --no-pager -n 500 2>/dev/null | grep -Ev "$bruit_docker")" || true
 if [[ -z "$corps" ]]; then
-    corps="(journalctl indisponible pour ${UNIT})"
+    corps="(aucune ligne exploitable pour ${UNIT} : journalctl indisponible, ou journal entièrement filtré — voir 'journalctl -u ${UNIT}')"
 else
     corps="$(printf '%s\n' "$corps" | tail -n 50)"
 fi

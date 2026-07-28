@@ -141,10 +141,10 @@ rm -f "$args_file" "$stdin_file"
 ( PATH="${noisy_stub_dir}:${stub_dir}:$PATH" RELAIS_ALERTE_MAILS="a@x.fr" bash "$ALERTE_SH" )
 rc=$?
 [[ "$rc" -eq 0 ]] && ok "pull bruyant → exit 0" || ko "pull bruyant → exit non-zéro (got $rc)"
-grep -q 'SopsDecryptionError' "$stdin_file" \
+grep -q 'SopsDecryptionError' "$stdin_file" 2>/dev/null \
     && ok "pull bruyant → l'erreur réelle est dans le corps du mail" \
     || ko "pull bruyant → l'erreur réelle est ABSENTE du corps du mail"
-grep -q 'Extracting' "$stdin_file" \
+grep -q 'Extracting' "$stdin_file" 2>/dev/null \
     && ko "pull bruyant → la progression docker a fui dans le corps du mail" \
     || ok "pull bruyant → aucune ligne de progression docker dans le corps du mail"
 
