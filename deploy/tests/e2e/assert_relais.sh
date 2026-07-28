@@ -83,6 +83,8 @@ case "$MODE" in
               "test -f /etc/electricore-relais/msmtprc"
         check "msmtprc : droits 600 exactement" \
               "[ \"\$(stat -c '%a' /etc/electricore-relais/msmtprc)\" = 600 ]"
+        check "msmtprc : owned root (AC1 #674 — 600 ET root, l'unité d'alerte tourne root)" \
+              "[ \"\$(stat -c '%U' /etc/electricore-relais/msmtprc)\" = root ]"
         check "msmtprc : passwordeval extrait le token de secrets.env (sops hôte, jamais en clair)" \
               "grep -q '^passwordeval' /etc/electricore-relais/msmtprc && grep -q 'sops decrypt' /etc/electricore-relais/msmtprc"
         check "msmtprc : aucune directive password= en clair (fuite du token)" \
