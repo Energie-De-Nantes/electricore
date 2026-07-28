@@ -847,3 +847,83 @@ def test_cli_seed_imprime_le_compte_de_zips_amorces(tmp_path, monkeypatch, capsy
 
     sortie = capsys.readouterr().out
     assert "2 zip(s) marqués livrés (antérieurs à 2026-06-01)" in sortie
+
+
+# =============================================================================
+# CLI (__main__.py, #690) : sous-commande completude — remplace le python -c du README
+# =============================================================================
+
+
+@pytest.mark.integration
+def test_cli_completude_par_defaut_restreint_aux_flux_dus(tmp_path, monkeypatch, capsys):
+    """Défaut : l'écart est restreint aux flux dus au partenaire (`RELAIS__FLUX`, arbitrage
+    revue #688) — le R151 (jamais dû ici) n'apparaît pas, même s'il n'a jamais été relayé."""
+    from electricore.ingestion.relais.__main__ import main
+
+    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
+    _deposer_zip(source, "ENEDIS_C15_20260615_001.zip", b"<data>c15</data>")
+    _deposer_zip(source, "ENEDIS_R151_20260615_002.zip", b"<data>r151</data>")
+    _configurer_env(monkeypatch, source, cible, db, flux="C15")  # seul C15 est dû au partenaire
+    monkeypatch.setattr(sys, "argv", ["relais", "completude"])
+
+    main()  # ne lève pas (exit 0)
+
+    sortie = capsys.readouterr().out
+    lignes = sortie.splitlines()
+    assert "ENEDIS_C15_20260615_001.zip" in lignes
+    assert "ENEDIS_R151_20260615_002.zip" not in lignes
+    assert "1 zip(s) manquant(s)" in sortie
+
+
+@pytest.mark.integration
+def test_cli_completude_tous_donne_l_ecart_brut(tmp_path, monkeypatch, capsys):
+    """`--tous` : l'écart brut, tous flux confondus (comportement historique de
+    `zips_non_relayes`) — le R151 hors liste apparaît désormais."""
+    from electricore.ingestion.relais.__main__ import main
+
+    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
+    _deposer_zip(source, "ENEDIS_C15_20260615_001.zip", b"<data>c15</data>")
+    _deposer_zip(source, "ENEDIS_R151_20260615_002.zip", b"<data>r151</data>")
+    _configurer_env(monkeypatch, source, cible, db, flux="C15")
+    monkeypatch.setattr(sys, "argv", ["relais", "completude", "--tous"])
+
+    main()  # ne lève pas (exit 0)
+
+    sortie = capsys.readouterr().out
+    lignes = sortie.splitlines()
+    assert "ENEDIS_C15_20260615_001.zip" in lignes
+    assert "ENEDIS_R151_20260615_002.zip" in lignes
+    assert "2 zip(s) manquant(s)" in sortie
+
+
+@pytest.mark.integration
+def test_cli_completude_exit_0_meme_avec_des_manquants(tmp_path, monkeypatch, capsys):
+    """Consultation passive (#690) : sortie 0 même quand il manque des zips — l'escalade du
+    relais reste `relais_aveugle()` (le run normal), jamais cette sous-commande."""
+    from electricore.ingestion.relais.__main__ import main
+
+    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
+    _deposer_zip(source, "ENEDIS_C15_20260615_001.zip", b"<data>c15</data>")
+    _configurer_env(monkeypatch, source, cible, db)
+    monkeypatch.setattr(sys, "argv", ["relais", "completude"])
+
+    main()  # ne lève PAS SystemExit malgré le manquant — exit 0 implicite
+
+    assert "1 zip(s) manquant(s)" in capsys.readouterr().out
+
+
+@pytest.mark.integration
+def test_cli_completude_sans_manquant_liste_vide_et_compte_zero(tmp_path, monkeypatch, capsys):
+    """Rien à signaler → aucune ligne de zip, seule la ligne de compte (0)."""
+    from electricore.ingestion.relais.__main__ import main
+
+    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
+    _deposer_zip(source, "ENEDIS_C15_20260615_001.zip", b"<data>c15</data>")
+    _configurer_env(monkeypatch, source, cible, db)
+    executer(_pipeline(tmp_path, db))  # relaie le seul zip présent
+    capsys.readouterr()  # vide le verbiage dbt du executer() ci-dessus
+
+    monkeypatch.setattr(sys, "argv", ["relais", "completude"])
+    main()
+
+    assert capsys.readouterr().out.strip() == "0 zip(s) manquant(s)"
