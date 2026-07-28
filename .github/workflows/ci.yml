@@ -140,6 +140,12 @@ jobs:
       - name: Run deploy unit tests
         run: bash deploy/tests/unit.sh
 
+      # Hook d'alerte OnFailure= du relais (#659/#668) — runner séparé de unit.sh :
+      # il exerce le script rendu en subprocess (stubs msmtp/journalctl), hors-CI
+      # depuis #663 (finding 4 revue #669).
+      - name: Run relais alerte hook tests (#659/#668)
+        run: bash deploy/tests/relais_alerte.sh
+
       # sops + age : mêmes versions pinnées que le job `test` (déchiffrement image) et
       # que deploy/lib/secrets.sh (SOPS_VERSION/AGE_VERSION) pour l'aller-retour crypto
       # réel de l'onboarding (secrets_roundtrip.sh, anti-régression #453).
