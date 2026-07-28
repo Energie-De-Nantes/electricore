@@ -335,8 +335,14 @@ install_relais_alerte_units() {
     local slug="$1"
     ensure_packages msmtp
     install -d -m 700 /etc/electricore-relais
-    render_relais_alerte_script > /usr/local/bin/electricore-relais-alerte.sh
-    chmod +x /usr/local/bin/electricore-relais-alerte.sh
+    # Pose atomique (install = unlink + nouvel inode) : le hook peut être EN COURS
+    # d'exécution pendant un reconfigure — un « > » direct le tronquerait sous bash,
+    # qui lit les scripts au fil de l'eau (précédent : grant_nopasswd_sudo, harden.sh).
+    local tmp
+    tmp="$(mktemp)"
+    render_relais_alerte_script > "$tmp"
+    install -m 0755 "$tmp" /usr/local/bin/electricore-relais-alerte.sh
+    rm -f "$tmp"
     render_relais_alerte_service "$slug" > /etc/systemd/system/electricore-relais-alerte.service
     systemctl daemon-reload
     log_ok "hook d'alerte mail posé (/usr/local/bin/electricore-relais-alerte.sh, electricore-relais-alerte.service) — /etc/electricore-relais/msmtprc (600, token SMTP) reste à poser à la main (deploy/relais/README.md)"
