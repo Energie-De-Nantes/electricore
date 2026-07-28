@@ -96,11 +96,19 @@ def _run_relais() -> None:
         print(f"❌ Relais : échec du run : {e}", flush=True)
         sys.exit(1)
 
-    resume = f"{stats.candidats} candidat(s), {stats.pousses} poussé(s), {stats.echecs_push} échec(s)"
+    # Résumé enrichi (#692) : le déchiffrement AVANT le push — sans ces deux chiffres,
+    # « ❌ Relais aveugle : 0 candidat(s), 0 poussé(s), 0 échec(s) » est illisible pendant
+    # une rotation de clé Enedis (rien n'atteint le push, tout se joue en amont).
+    resume = (
+        f"{stats.chaine.fichiers} entré(s) au déchiffrement, "
+        f"{stats.chaine.echecs_dechiffrement} indéchiffrable(s), "
+        f"{stats.candidats} candidat(s), {stats.pousses} poussé(s), {stats.echecs_push} échec(s)"
+    )
     if stats.relais_aveugle():
-        # Escalade s'arrêtant au processus (#643) : sortie non-zéro → systemd marque
-        # l'unité failed. Sans ça, un relais où TOUS les push échouent afficherait ✅
-        # et retenterait en silence pour toujours (le reproche fait à inotify, #637).
+        # Escalade s'arrêtant au processus (#643, étendue au déchiffrement #692) : sortie
+        # non-zéro → systemd marque l'unité failed. Sans ça, un relais où AUCUN push ne
+        # réussit (déchiffrement en cause ou push) afficherait ✅ et retenterait en
+        # silence pour toujours (le reproche fait à inotify, #637).
         print(f"❌ Relais aveugle : {resume}", flush=True)
         sys.exit(1)
     print(f"✅ Relais : {resume} — {info}", flush=True)
