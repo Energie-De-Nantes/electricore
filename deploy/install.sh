@@ -388,7 +388,8 @@ EOF
         # Hook d'alerte mail (#659, câblé sur ce layout conteneurisé par #668) : posé et
         # référencé par OnFailure= (render_relais_service ci-dessus), mais PAS activé
         # (pas d'enable --now — se déclenche uniquement via OnFailure=). Installe msmtp
-        # (dépendance du composant) ; seul le msmtprc (600) reste manuel, cf. récap.
+        # (dépendance du composant) + rend msmtprc (600, passwordeval → sops sur
+        # secrets.env) — plus AUCUNE étape manuelle (#674).
         install_relais_alerte_units "$OPT_SLUG"
 
         # ─── Étape 13 (relais) : récap ────────────────────────────────────────
@@ -405,11 +406,13 @@ EOF
   Logs             journalctl -u electricore-relais.service -f
   Run manuel       sudo -u ${OPT_SLUG} docker compose --env-file ${HOME_DIR}/config.env -f ${relais_dir}/compose-relais.yml run --rm relais
 
-  Alerte mail (#659/#668) — electricore-relais-alerte.service posée + branchée en
-  OnFailure=, PAS activée (se déclenche uniquement sur échec). Reste à poser à la main :
-    sudo \$EDITOR /etc/electricore-relais/msmtprc   # token SMTP — JAMAIS dans git
-    sudo chmod 600 /etc/electricore-relais/msmtprc
-  RELAIS_ALERTE_MAILS vit déjà dans ${HOME_DIR}/config.env (voir deploy/relais/README.md).
+  Alerte mail (#659/#668/#674) — electricore-relais-alerte.service posée + branchée en
+  OnFailure=, PAS activée (se déclenche uniquement sur échec). msmtprc RENDU (600) —
+  plus aucune étape manuelle : le token vit dans providers/${OPT_SLUG}/secrets.env
+  (ALERTE__SMTP__PASSWORD, chiffré), extrait à l'envoi par passwordeval (sops hôte).
+  Params de routage (ALERTE__SMTP__{HOST,PORT,FROM,USER}) et destinataires
+  (RELAIS_ALERTE_MAILS) vivent dans ${HOME_DIR}/config.env (voir deploy/relais/README.md).
+  Rotation du token : sops providers/${OPT_SLUG}/secrets.env, push, reconfigure.
 
   Amorçage (#643) — marque l'historique existant comme livré SANS le pousser au
   partenaire. Acte UNIQUE, geste conscient d'opérateur — JAMAIS exécuté par cet

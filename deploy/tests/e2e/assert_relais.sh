@@ -76,6 +76,17 @@ case "$MODE" in
               "! systemctl is-active electricore-relais-alerte.service"
         check "unité d'alerte SANS [Install] (pas de enable --now — is-enabled répondrait 'static', pas un signal utile)" \
               "! grep -qx '\[Install\]' /etc/systemd/system/electricore-relais-alerte.service"
+
+        # ─── msmtprc RENDU (#674) : plus aucune étape manuelle ───────────────────────
+        echo "→ Composant relais #674 : msmtprc rendu par l'installeur (token jamais en clair)"
+        check "msmtprc posé par l'installeur (RENDU, plus une édition manuelle)" \
+              "test -f /etc/electricore-relais/msmtprc"
+        check "msmtprc : droits 600 exactement" \
+              "[ \"\$(stat -c '%a' /etc/electricore-relais/msmtprc)\" = 600 ]"
+        check "msmtprc : passwordeval extrait le token de secrets.env (sops hôte, jamais en clair)" \
+              "grep -q '^passwordeval' /etc/electricore-relais/msmtprc && grep -q 'sops decrypt' /etc/electricore-relais/msmtprc"
+        check "msmtprc : aucune directive password= en clair (fuite du token)" \
+              "! grep -qE '^[[:space:]]*password[[:space:]]' /etc/electricore-relais/msmtprc"
         if command -v systemd-analyze >/dev/null 2>&1; then
             check "systemd-analyze verify : electricore-relais.service (OnFailure= compris)" \
                   "systemd-analyze verify /etc/systemd/system/electricore-relais.service"
