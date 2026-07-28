@@ -131,7 +131,14 @@ generate_box_identities() {
     local age_pub ssh_pub
     age_pub=$(generate_age_identity "$home") || return 1
     ssh_pub=$(generate_ssh_deploy_identity "$home") || return 1
-    chown "$slug:$slug" "${home}/age.key" "${home}/ssh_deploy_key" "${home}/ssh_deploy_key.pub" 2>/dev/null || true
+    # age.key est monté ro DANS le conteneur (SOPS_AGE_KEY_FILE, stack comme relais) : en
+    # 600 il doit appartenir à l'uid de l'IMAGE (CONTAINER_UID), pas au slug — sinon
+    # « permission denied » à l'entrypoint dès que l'uid du slug ≠ uid image (constaté sur
+    # la première box non-vierge, VPS Enargia ; EDN ne le voyait pas : edn=1000 par
+    # coïncidence — même classe que #459, et même traitement que relais_ssh_key).
+    # La deploy key SSH reste au slug : elle ne sert qu'à l'HÔTE (git pull), jamais montée.
+    chown "${CONTAINER_UID:-1000}:${CONTAINER_GID:-1000}" "${home}/age.key" 2>/dev/null || true
+    chown "$slug:$slug" "${home}/ssh_deploy_key" "${home}/ssh_deploy_key.pub" 2>/dev/null || true
     printf 'AGE_PUBLIC_KEY=%s\n' "$age_pub"
     printf 'SSH_DEPLOY_PUBKEY=%s\n' "$ssh_pub"
 }
