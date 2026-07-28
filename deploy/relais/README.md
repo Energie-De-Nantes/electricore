@@ -260,9 +260,18 @@ Ce n'est plus le cas :
   n'existe **jamais** en clair sur la box, seulement en extraction **éphémère**
   dans le pipe de `passwordeval` (`render_relais_alerte_msmtprc`,
   `deploy/lib/relais.sh`).
-- **Mode dégradé assumé** : si ce sops hôte échoue (clé age absente/invalide,
-  champ manquant dans `secrets.env`…), `passwordeval` échoue — msmtp logue
-  bruyamment sur stderr, capté par
+- **Garde-fou au reconfigure** : si `RELAIS_ALERTE_MAILS` est posé (alerte
+  voulue) mais `ALERTE__SMTP__{HOST,FROM,USER}` incomplets, `validate_config_env`
+  **refuse la config avant toute pose** — un msmtprc existant qui marche n'est
+  jamais écrasé par un rendu invalide (msmtp refuse un fichier à directive
+  vide, l'alerte mourrait en silence ; arbitrage revue #675). Compléter
+  `providers/<slug>/config.env`, pousser, relancer.
+- **Mode dégradé assumé** : si ce sops hôte échoue (clé age absente/invalide),
+  le pipe remonte son code non-zéro ; si sops réussit mais que
+  `ALERTE__SMTP__PASSWORD` manque de `secrets.env`, le `| grep .` final échoue
+  sur l'extraction vide (sinon msmtp tenterait une auth avec mot de passe vide
+  — erreur confuse, loin de la cause). Dans les deux cas `passwordeval`
+  échoue — msmtp logue bruyamment sur stderr, capté par
   `journalctl -u electricore-relais-alerte.service`, et **n'envoie pas** de
   mail. C'est une **perte assumée** par rapport au principe « l'alerte survit
   à tout » de #659 (le hook lui-même reste délibérément sans Python, hors du
@@ -275,6 +284,12 @@ Ce n'est plus le cas :
   (éditer `ALERTE__SMTP__PASSWORD`), commit, push, puis `reconfigure` sur la
   box (`sudo bash install.sh --slug <slug> --relais --deploy-repo <url>`) —
   `msmtprc` est régénéré, le nouveau token est actif au prochain envoi.
+- **Surface actée** (arbitrage revue #675) : comme tout champ de `secrets.env`,
+  le token SMTP entre dans l'env des conteneurs qui font `sops exec-env`
+  (API, bot…) alors que seul msmtp **hôte** en a besoin — cohérent avec
+  l'injection en bloc d'[ADR-0044](../../docs/adr/0044-secrets-as-code-sops-age.md),
+  token peu sensible et facile à roter ; un scoping par consommateur serait un
+  chantier à part, non justifié pour ce seul champ.
 
 Une fois posé, tester la chaîne (le token doit être résolu par `passwordeval`
 et le mail doit arriver — **validation réservée à une box réelle**, ex.
