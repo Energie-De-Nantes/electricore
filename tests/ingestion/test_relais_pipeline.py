@@ -321,7 +321,7 @@ def test_zip_sans_code_flux_echoue_et_ne_depose_rien(tmp_path, monkeypatch, zip_
 
 @pytest.mark.integration
 def test_completude_accepte_un_db_path_str(tmp_path, monkeypatch):
-    """`zips_non_relayes` est un outil opérateur invoqué en `python -c` : la commande
+    """`zips_non_relayes` reste appelable ad hoc (notebook, `python -c`) : la commande
     naturelle passe une string, pas un `Path` — coercion en tête de fonction (#683)."""
     source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
     _deposer_zip(source, "ENEDIS_C15_20260615_001.zip", b"<data>c15</data>")
