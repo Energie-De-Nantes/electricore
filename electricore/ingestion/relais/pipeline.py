@@ -200,9 +200,11 @@ def _controle_intra_zip(flux: str | None, fichiers: list[tuple[str, bytes]], zip
 def pousser_vers_partenaire(fichiers: list[tuple[str, bytes]], partner_url: str, flux: str | None) -> None:
     """Pousse les fichiers extraits vers `<partner_url>/<CODE_FLUX>/` — rangement par flux
     côté partenaire (#686, demande Haulogy), fsspec-agnostic (file://, sftp://). `flux` vient
-    de `_flux_du_zip` (réutilisé, pas re-dérivé) : `None` (nom de zip à moins de deux segments,
-    jamais observé sur un vrai zip Enedis) **lève AVANT tout dépôt** — jamais de dépôt racine
-    silencieux. Câblé en dur : pas de knob d'arborescence, un seul partenaire réel (#686).
+    de `_flux_du_zip` (réutilisé, pas re-dérivé) : absent (`None`, nom de zip à moins de deux
+    segments) ou vide (2e segment vide, `A__B.zip`) — jamais observé sur un vrai zip Enedis —
+    **lève AVANT tout dépôt** : `""` concaténé donnerait un chemin racine, exactement le dépôt
+    racine silencieux qu'on refuse. Câblé en dur : pas de knob d'arborescence, un seul
+    partenaire réel (#686).
 
     Effet de bord : une cible injoignable (permission, réseau…) **lève** — direction
     d'échec sûre, le zip n'est alors PAS enregistré comme livré (discipline `etape_chaine`
@@ -210,7 +212,7 @@ def pousser_vers_partenaire(fichiers: list[tuple[str, bytes]], partner_url: str,
     AVANT de considérer le fichier posé — un mismatch lève au même titre qu'une cible
     injoignable, retenté au passage suivant.
     """
-    if flux is None:
+    if not flux:
         raise ValueError("Code flux introuvable dans le nom du zip — dépôt refusé (#686)")
     fs, base_path = fsspec.core.url_to_fs(partner_url)
     base = f"{base_path.rstrip('/')}/{flux}"

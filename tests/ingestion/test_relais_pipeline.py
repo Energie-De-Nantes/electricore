@@ -296,13 +296,14 @@ def test_completude_reste_correcte_avec_un_zip_en_echec(tmp_path, monkeypatch):
 
 
 @pytest.mark.integration
-def test_zip_sans_code_flux_echoue_et_ne_depose_rien(tmp_path, monkeypatch):
-    """Zip dont le nom ne porte pas de code flux (moins de deux segments `_`-délimités,
-    jamais rencontré sur un vrai zip Enedis, inatteignable quand `RELAIS__FLUX` est
-    renseigné — ici filtre désactivé pour atteindre le push) : le push lève AVANT tout
-    dépôt — rien à la racine ni dans un sous-dossier, échec compté, ligne journal `echec`."""
+@pytest.mark.parametrize("zip_name", ["sansflux.zip", "ENEDIS__20260615_001.zip"])
+def test_zip_sans_code_flux_echoue_et_ne_depose_rien(tmp_path, monkeypatch, zip_name):
+    """Zip dont le nom ne porte pas de code flux — moins de deux segments `_`-délimités, ou
+    2e segment VIDE (`ENEDIS__…`, qui concaténé donnerait un chemin racine). Jamais rencontré
+    sur un vrai zip Enedis, inatteignable quand `RELAIS__FLUX` est renseigné (ici filtre
+    désactivé pour atteindre le push) : le push lève AVANT tout dépôt — rien à la racine ni
+    dans un sous-dossier, échec compté, ligne journal `echec`."""
     source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
-    zip_name = "sansflux.zip"
     _deposer_zip(source, zip_name, b"<data>orpheline</data>")
     _configurer_env(monkeypatch, source, cible, db)  # flux="" : filtre désactivé
 
