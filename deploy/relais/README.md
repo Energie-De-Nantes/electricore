@@ -61,11 +61,19 @@ RELAIS__FLUX=C15,R151,R15,F12,F15                        # phase 1 : liste expli
 # contrairement aux clés ci-dessus : cette valeur est lue par systemd (EnvironmentFile=),
 # qui ne coupe PAS les commentaires de fin de ligne — il les avalerait dans les adresses.
 RELAIS_ALERTE_MAILS=alertes-ops@example.fr
+# Alerte mail : params SMTP NON-secrets (routage, #674) — le token vit dans
+# secrets.env (ALERTE__SMTP__PASSWORD), voir section « msmtprc » plus bas.
+ALERTE__SMTP__HOST=smtp.example.fr
+ALERTE__SMTP__PORT=587
+ALERTE__SMTP__FROM=alertes@example.fr
+ALERTE__SMTP__USER=alertes@example.fr
 ```
 
 **Secrets** (`providers/<slug>/secrets.env`, chiffré SOPS) : le trousseau
 `AES__TROUSSEAU__*` est **mutualisé** avec la stack (même fichier, monté ro
-dans les deux conteneurs) — rien à dupliquer.
+dans les deux conteneurs) — rien à dupliquer. `ALERTE__SMTP__PASSWORD` (token
+SMTP de l'alerte, #674) est **propre au relais**, voir section « msmtprc »
+plus bas.
 
 ### Répertoire de dépôt des flux (mode `file://`)
 
@@ -190,7 +198,7 @@ print(con.execute('select * from journal.relais_audit_sequences').fetchall())
 "
 ```
 
-## Alerte mail (`OnFailure=`, #659, câblée sur ce layout par #668)
+## Alerte mail (`OnFailure=`, #659, câblée sur ce layout par #668, msmtprc rendu #674)
 
 Quand `electricore-relais.service` échoue (run aveugle — 0 push réussi, ≥ 1
 échec, cf. `electricore/ingestion/relais/pipeline.py`), `OnFailure=` déclenche
@@ -217,45 +225,60 @@ reste du composant (`install_relais_alerte_units`, `deploy/lib/relais.sh`) :
 - L'unité d'alerte elle-même n'est **jamais activée** (pas de
   `enable --now` : elle n'a pas de section `[Install]`, elle ne se déclenche
   que via `OnFailure=`).
-- Le paquet `msmtp` et le répertoire `/etc/electricore-relais` (700) sont posés
-  par l'installeur — seul le `msmtprc` qu'il abrite reste manuel.
+- Le paquet `msmtp`, le répertoire `/etc/electricore-relais` (700) **et**
+  `/etc/electricore-relais/msmtprc` (600) sont posés par l'installeur —
+  **zéro étape manuelle** (#674, voir section dédiée ci-dessous).
 - Idempotent, comme le reste du composant : un `install.sh --relais` relancé
-  régénère les deux fichiers sans effet de bord.
+  régénère les trois fichiers sans effet de bord.
 - Le **déclenchement** se prouve sans attendre un vrai échec :
   `./deploy/tests/e2e/multipass.sh verify-relais onfailure <slug>` force un
   échec du service (compose écarté, stub msmtp) et vérifie que l'alerte tire —
   la mécanique seulement ; le mail réel se vérifie à la générale (#661).
 
-Ce que l'installeur **ne pose jamais** — un geste manuel, volontairement hors
-de son périmètre (secret, jamais dans un dépôt ni dans l'image) :
+### `msmtprc` : rendu, token SMTP dans `secrets.env` (#674)
 
-```bash
-sudo $EDITOR /etc/electricore-relais/msmtprc     # token SMTP — voir config ci-dessous
-sudo chmod 600 /etc/electricore-relais/msmtprc
-```
+Jusqu'à #674, `/etc/electricore-relais/msmtprc` (dont le **token SMTP**)
+était le **dernier secret hors secrets-as-code** de tout le composant relais —
+posé à la main sur la box, en contradiction avec [ADR-0044](../../docs/adr/0044-secrets-as-code-sops-age.md).
+Ce n'est plus le cas :
 
-Contenu type de `/etc/electricore-relais/msmtprc` (adapter au fournisseur
-SMTP réel — un **token SMTP**, jamais le mot de passe du compte) :
+- Le token SMTP vit dans `providers/<slug>/secrets.env` (chiffré SOPS+age,
+  champ `ALERTE__SMTP__PASSWORD`) — jamais en clair sur la box, jamais dans
+  un dépôt ni dans l'image.
+- Les paramètres NON secrets (routage) vivent dans `providers/<slug>/config.env`
+  (clair, versionné) : `ALERTE__SMTP__HOST`, `ALERTE__SMTP__PORT`,
+  `ALERTE__SMTP__FROM`, `ALERTE__SMTP__USER` (convention `<DOMAINE>__<CHAMP>`,
+  [ADR-0046](../../docs/adr/0046-convention-noms-env-par-domaine-identite-secrets.md)
+  §7 : secret = capacité, config = routage — même split que `BOT__TOKEN` vs
+  `BOT__NOTIFY_CHAT_ID`).
+- `install.sh --relais` lit ces quatre valeurs dans `config.env` et **rend**
+  `/etc/electricore-relais/msmtprc` (600) avec un `passwordeval` : à chaque
+  envoi, msmtp exécute un `sops decrypt` **hôte** sur
+  `providers/<slug>/secrets.env` (`SOPS_AGE_KEY_FILE=/srv/<slug>/age.key` —
+  sops, age et la clé de la box sont déjà là depuis l'onboarding, l'unité
+  d'alerte tourne root) et en extrait `ALERTE__SMTP__PASSWORD` — le token
+  n'existe **jamais** en clair sur la box, seulement en extraction **éphémère**
+  dans le pipe de `passwordeval` (`render_relais_alerte_msmtprc`,
+  `deploy/lib/relais.sh`).
+- **Mode dégradé assumé** : si ce sops hôte échoue (clé age absente/invalide,
+  champ manquant dans `secrets.env`…), `passwordeval` échoue — msmtp logue
+  bruyamment sur stderr, capté par
+  `journalctl -u electricore-relais-alerte.service`, et **n'envoie pas** de
+  mail. C'est une **perte assumée** par rapport au principe « l'alerte survit
+  à tout » de #659 (le hook lui-même reste délibérément sans Python, hors du
+  conteneur) : un SOPS cassé empêche maintenant l'envoi, alors qu'un
+  `msmtprc` posé à la main survivait à une panne SOPS. L'escalade systemd
+  reste intacte dans tous les cas — `electricore-relais-alerte.service`
+  passe `failed`, visible par `systemctl --failed` / le monitoring, jamais un
+  crash silencieux.
+- **Rotation** du token = comme tout secret : `sops providers/<slug>/secrets.env`
+  (éditer `ALERTE__SMTP__PASSWORD`), commit, push, puis `reconfigure` sur la
+  box (`sudo bash install.sh --slug <slug> --relais --deploy-repo <url>`) —
+  `msmtprc` est régénéré, le nouveau token est actif au prochain envoi.
 
-```
-defaults
-tls on
-tls_starttls on
-
-account electricore-relais
-host smtp.example.fr
-port 587
-auth on
-from alertes@example.fr
-user alertes@example.fr
-password <token SMTP>
-
-account default : electricore-relais
-```
-
-Ce chemin (`/etc/electricore-relais/msmtprc`, mode 600) est **host-level, pas
-par slug** — un seul token SMTP par box, partagé si plusieurs instances y
-tournent. Une fois posé, tester la chaîne :
+Une fois posé, tester la chaîne (le token doit être résolu par `passwordeval`
+et le mail doit arriver — **validation réservée à une box réelle**, ex.
+Enargia, pas exécutable depuis un sandbox sans réseau) :
 
 ```bash
 sudo systemctl start electricore-relais-alerte.service   # → le mail doit arriver
