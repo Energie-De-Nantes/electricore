@@ -5,6 +5,9 @@
 [[ -n "${FAKE_GIT_LOG:-}" ]] && printf '%s\n' "$*" >> "$FAKE_GIT_LOG"
 
 cmd="$1"; shift || true
+# `git -c clé=valeur …` (options ponctuelles, ex. safe.directory) : avaler la paire
+# et re-dispatcher sur la commande réelle.
+while [[ "$cmd" == "-c" ]]; do shift; cmd="$1"; shift || true; done
 case "$cmd" in
     clone)
         # `git clone <url> <dest>` → recopie $FAKE_GIT_SRC dans <dest>.

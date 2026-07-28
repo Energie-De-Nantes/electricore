@@ -835,6 +835,17 @@ PATH="${FAKE_BIN}:$PATH" FAKE_GIT_SRC="$git_src" GIT_BIN=git \
 [[ -L "${secrets_root}/edn/providers" ]] && ok "pull_deploy_repo: providers/ relié (symlink)" || ko "providers/ non relié"
 [[ -f "${secrets_root}/edn/providers/edn/secrets.env" ]] && ok "pull_deploy_repo: secrets.env accessible via providers/<slug>/" || ko "secrets.env inaccessible"
 [[ -f "${secrets_root}/edn/config.env" ]] && ok "pull_deploy_repo: config.env clair tiré à la racine du home" || ko "config.env non tiré"
+
+# Reconfigure (2e appel = pull, .git présent) : l'invocation DOIT porter
+# -c safe.directory=<repo> — le home d'instance appartient au slug, le pull tourne
+# root → « dubious ownership » au premier reconfigure sinon (box Enargia, 28/07).
+git_log=$(mktemp)
+PATH="${FAKE_BIN}:$PATH" FAKE_GIT_SRC="$git_src" FAKE_GIT_LOG="$git_log" GIT_BIN=git \
+    pull_deploy_repo "git@example.test:org/deploy.git" edn >/dev/null 2>&1
+grep -q -- "-c safe.directory=${secrets_root}/edn/deploy-repo -C" "$git_log" \
+    && ok "pull_deploy_repo: reconfigure = pull avec -c safe.directory (root vs home du slug)" \
+    || ko "pull_deploy_repo: -c safe.directory absent de l'invocation pull"
+rm -f "$git_log"
 rm -rf "$git_src"
 
 # box_can_decrypt : vrai si clé + secrets présents ET sops réussit ; faux si sops échoue.
