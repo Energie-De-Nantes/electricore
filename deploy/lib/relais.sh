@@ -303,7 +303,20 @@ fi
 # ${HOSTNAME} (posé par bash lui-même) et pas $(hostname) : sous set -e, un binaire
 # hostname absent ou en échec tuerait le script AVANT le moindre envoi.
 sujet="[electricore] échec de ${UNIT} sur ${HOSTNAME:-inconnu}"
-corps="$(journalctl -u "$UNIT" --no-pager -n 50 2>/dev/null)" || corps="(journalctl indisponible pour ${UNIT})"
+
+# Le run conteneurisé (#668) émet sur stdout la progression du pull d'image
+# (Extracting/Pull complete/…, des dizaines de lignes répétées) : sans filtrage elle
+# noie l'erreur réelle dans la fenêtre lue (#678, constaté sur le premier mail réel —
+# ~30 lignes de bruit pour 15 lignes utiles). On élargit la fenêtre journalctl (500
+# lignes) puis on retire le bruit AVANT le tail final : sur un pull très verbeux, le
+# signal reste dans le corps même si la queue brute ne contenait que du bruit.
+bruit_docker='Extracting|Downloading|Pull complete|Waiting|Verifying Checksum|Already exists'
+corps="$(journalctl -u "$UNIT" --no-pager -n 500 2>/dev/null | grep -Ev "$bruit_docker")" || true
+if [[ -z "$corps" ]]; then
+    corps="(journalctl indisponible pour ${UNIT})"
+else
+    corps="$(printf '%s\n' "$corps" | tail -n 50)"
+fi
 
 # CSV → tableau bash : msmtp attend les destinataires en arguments séparés. L'espace
 # dans IFS absorbe le « a@x.fr, b@y.fr » écrit à la main (sinon msmtp reçoit " b@y.fr").
