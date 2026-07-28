@@ -315,6 +315,43 @@ def test_zip_sans_code_flux_echoue_et_ne_depose_rien(tmp_path, monkeypatch, zip_
 
 
 # =============================================================================
+# #683 : zips_non_relayes — db_path str, bruit des flux hors liste
+# =============================================================================
+
+
+@pytest.mark.integration
+def test_completude_accepte_un_db_path_str(tmp_path, monkeypatch):
+    """`zips_non_relayes` est un outil opérateur invoqué en `python -c` : la commande
+    naturelle passe une string, pas un `Path` — coercion en tête de fonction (#683)."""
+    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
+    _deposer_zip(source, "ENEDIS_C15_20260615_001.zip", b"<data>c15</data>")
+    _configurer_env(monkeypatch, source, cible, db, flux="R151")  # exclut le C15 déposé → jamais relayé
+
+    executer(_pipeline(tmp_path, db))
+
+    manquants = zips_non_relayes(f"file://{source}/", str(db))  # str, pas Path
+    assert manquants == ["ENEDIS_C15_20260615_001.zip"]
+
+
+@pytest.mark.integration
+def test_completude_flux_filtres_exclut_les_zips_hors_liste(tmp_path, monkeypatch):
+    """Avec `flux_filtres`, les zips hors liste (jamais dus au partenaire, ex. X13/LTE01)
+    n'apparaissent plus dans l'écart — même sémantique que `_match_flux` (#683) : le
+    R151 filtré côté relais (`RELAIS__FLUX=C15`) reste « vu » mais jamais relayé, or ce
+    n'est pas ce bruit que l'opérateur cherche quand il demande « qu'est-ce qui manque à
+    Haulogy ? »."""
+    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
+    _deposer_zip(source, "ENEDIS_C15_20260615_001.zip", b"<data>c15</data>")
+    _deposer_zip(source, "ENEDIS_R151_20260615_002.zip", b"<data>r151</data>")
+    _configurer_env(monkeypatch, source, cible, db, flux="C15")  # seul C15 est relayé
+
+    executer(_pipeline(tmp_path, db))  # C15 poussé ; R151 journalisé 'vu', jamais relayé
+
+    assert zips_non_relayes(f"file://{source}/", db) == ["ENEDIS_R151_20260615_002.zip"]
+    assert zips_non_relayes(f"file://{source}/", db, flux_filtres={"C15"}) == []
+
+
+# =============================================================================
 # Critère 7 (#643) : push via etape_chaine — StatsRelais, statut journalisé, escalade
 # =============================================================================
 

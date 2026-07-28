@@ -481,10 +481,13 @@ def seed_avant(avant: str, *, force: bool = False, pipeline: "dlt.Pipeline | Non
 _STATUTS_LIVRES = ("pousse", "amorce")  # les deux seuls statuts qui valent « relayé » (#646)
 
 
-def _zips_dans_journal(db_path: Path, *, statuts: tuple[str, ...] | None = None) -> set[str]:
+def _zips_dans_journal(db_path: "Path | str", *, statuts: tuple[str, ...] | None = None) -> set[str]:
     """Noms de zip présents dans le journal — `statuts=None` : toute ligne, quel que soit son
     statut (vu/pousse/amorce/echec) ; `statuts=(...)` : restreint à ces statuts. Base absente
     ou table pas encore créée (aucune ligne écrite) → ensemble vide, jamais une exception.
+
+    `db_path` : `Path(db_path)` en tête (#683) — outil opérateur invoqué en `python -c`, la
+    commande naturelle passe une string, pas un `Path`.
 
     Connexion `read_only` d'abord, repli lecture-écriture (#646, revue) : les chemins
     opérateur (`zips_non_relayes`, garde-fou du seed) sont des lectures pures — plusieurs
@@ -496,6 +499,7 @@ def _zips_dans_journal(db_path: Path, *, statuts: tuple[str, ...] | None = None)
     opérateur pendant la passe du timer échoue proprement sur le verrou — relancer après."""
     import duckdb
 
+    db_path = Path(db_path)
     if not db_path.exists():
         return set()
     try:
@@ -540,7 +544,7 @@ def _journaliser_vus(pipeline: "dlt.Pipeline", cfg: "runtime.Relais") -> None:
     pipeline.run(lignes, table_name=NOM_RESOURCE, write_disposition="append")
 
 
-def zips_non_relayes(source_url: str, db_path: Path) -> list[str]:
+def zips_non_relayes(source_url: str, db_path: "Path | str", *, flux_filtres: set[str] | None = None) -> list[str]:
     """Vérification de complétude (#637) : zips de la source absents du journal de destination.
 
     Écart entre le listing source (fsspec, tous les `*.zip` récursivement) et les zips
@@ -548,8 +552,18 @@ def zips_non_relayes(source_url: str, db_path: Path) -> list[str]:
     `resource_state` (qui gouverne seulement le skip du run suivant). Journal enrichi (#646) :
     un zip seulement `'vu'` ou en `'echec'` N'EST PAS relayé — il doit rester manquant ici,
     sinon `zips_non_relayes` perdrait sa sémantique « jamais relayé » (un push qui échoue en
-    boucle disparaîtrait à tort de cette liste dès sa première tentative)."""
+    boucle disparaîtrait à tort de cette liste dès sa première tentative).
+
+    `db_path` : `Path(db_path)` en tête (#683) — outil opérateur invoqué en `python -c`, la
+    commande naturelle passe une string.
+
+    `flux_filtres` (#683) : restreint l'écart aux flux relayés (même sémantique que
+    `_match_flux`, défaut = tout). Sans ce filtre, le résultat mélange les vrais manquants
+    avec les zips de flux jamais dus au partenaire (X13, LTE01, R63…) — du bruit qui a failli
+    masquer un vrai trou (#681)."""
     fs, base_path = fsspec.core.url_to_fs(source_url)
-    zips_source = {Path(p).name for p in fs.glob(f"{base_path.rstrip('/')}/**/*.zip")}
+    zips_source = {
+        Path(p).name for p in fs.glob(f"{base_path.rstrip('/')}/**/*.zip") if _match_flux(Path(p).name, flux_filtres)
+    }
     livres = _zips_dans_journal(db_path, statuts=_STATUTS_LIVRES)
     return sorted(zips_source - livres)
