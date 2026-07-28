@@ -489,6 +489,9 @@ echo "→ relais.sh / render_relais_timer (unité systemd, pure, #657)"
 timer_out="$(render_relais_timer)"
 grep -qx "Unit=electricore-relais.service" <<<"$timer_out" && ok "render_relais_timer: cible electricore-relais.service" || ko "render_relais_timer Unit= incorrect"
 grep -qx "Persistent=true" <<<"$timer_out" && ok "render_relais_timer: Persistent=true (rattrape un boot manqué)" || ko "render_relais_timer Persistent manquant"
+grep -qx "OnActiveSec=1min" <<<"$timer_out" \
+    && ok "render_relais_timer: OnActiveSec=1min (un timer démarré à froid planifie, #682)" \
+    || ko "render_relais_timer OnActiveSec manquant — start à froid = interblocage jusqu'au reboot"
 grep -qx "WantedBy=timers.target" <<<"$timer_out" && ok "render_relais_timer: WantedBy=timers.target" || ko "render_relais_timer WantedBy manquant"
 
 echo

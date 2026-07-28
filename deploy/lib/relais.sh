@@ -210,6 +210,13 @@ Description=Déclenche electricore-relais.service périodiquement (balayage réc
 # passage relit toute la source, cf. incremental=False côté pipeline).
 OnBootSec=5min
 OnUnitActiveSec=15min
+# OnActiveSec : point d'élapse relatif à l'activation DU TIMER lui-même, ré-armé à
+# chaque `systemctl start`/`enable --now`. Sans lui, un timer (re)démarré à froid ne
+# planifie RIEN (#682, constaté à la générale #661) : OnBootSec est consommé une fois
+# par boot, et OnUnitActiveSec pointe dans le passé tant que le service n'a pas tourné
+# timer actif — interblocage silencieux jusqu'au reboot suivant. Premier run 1 min
+# après l'armement, puis la chaîne OnUnitActiveSec prend le relais.
+OnActiveSec=1min
 Persistent=true
 Unit=electricore-relais.service
 
