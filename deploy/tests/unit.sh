@@ -360,7 +360,7 @@ bash -n <(printf '%s\n' "$alerte_sh_out") && ok "render_relais_alerte_script: sy
 
 echo
 echo "→ relais.sh / render_relais_alerte_msmtprc (msmtprc RENDU, passwordeval sops, #674)"
-SRV_BASE=/srv msmtprc_out="$(render_relais_alerte_msmtprc edn smtp.example.fr 587 alertes@example.fr alertes@example.fr)"
+msmtprc_out="$(SRV_BASE=/srv render_relais_alerte_msmtprc edn smtp.example.fr 587 alertes@example.fr alertes@example.fr)"
 grep -qx 'host smtp.example.fr' <<<"$msmtprc_out" && ok "render_relais_alerte_msmtprc: host substitué" || ko "render_relais_alerte_msmtprc: host absent/incorrect"
 grep -qx 'port 587' <<<"$msmtprc_out" && ok "render_relais_alerte_msmtprc: port substitué" || ko "render_relais_alerte_msmtprc: port absent/incorrect"
 grep -qx 'from alertes@example.fr' <<<"$msmtprc_out" && ok "render_relais_alerte_msmtprc: from substitué" || ko "render_relais_alerte_msmtprc: from absent/incorrect"
