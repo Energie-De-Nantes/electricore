@@ -66,14 +66,30 @@ ensure_secrets_tools() {
 generate_age_identity() {
     local home="$1"
     local keyfile="${home}/age.key"
+    # Un age.key VIDE n'est pas une identité : c'est le résidu d'un run interrompu
+    # (l'ancienne redirection créait le fichier AVANT l'échec d'age-keygen — constaté
+    # sur le VPS Enargia, où la garde « conservée » ré-empoisonnait ensuite chaque run).
+    # On ne supprime QUE le cas vide, sans ambiguïté ; un fichier non-vide mais invalide
+    # échoue plus loin (age_public_key) : à un opérateur d'arbitrer, jamais au script —
+    # régénérer en silence l'identité d'une box enrôlée masquerait une corruption.
+    if [[ -e "$keyfile" && ! -s "$keyfile" ]]; then
+        rm -f "$keyfile"
+        log_warn "age.key vide (résidu d'un run interrompu) — supprimé, régénération." >&2
+    fi
     if [[ -f "$keyfile" ]]; then
         log_skip "clé age déjà présente (${keyfile}) — conservée" >&2
     else
         # age-keygen écrit la clé privée sur stdout (+ la pub en commentaire) et la pub
         # sur stderr. On capture la privée dans le keyfile, sans jamais l'exposer.
-        age-keygen 2>/dev/null > "$keyfile" \
-            || { log_err "échec age-keygen (outil hôte absent ? cf. ensure_secrets_tools)" >&2; return 1; }
-        chmod 600 "$keyfile"
+        # tmp + mv : jamais de keyfile partiel si age-keygen échoue à mi-course.
+        local tmp="${keyfile}.tmp.$$"
+        if ! age-keygen 2>/dev/null > "$tmp"; then
+            rm -f "$tmp"
+            log_err "échec age-keygen (outil hôte absent ? cf. ensure_secrets_tools)" >&2
+            return 1
+        fi
+        chmod 600 "$tmp"
+        mv "$tmp" "$keyfile"
         log_ok "paire age générée (${keyfile}, 600)" >&2
     fi
     age_public_key "$keyfile"

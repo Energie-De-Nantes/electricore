@@ -685,6 +685,14 @@ key_before=$(cat "${secrets_root}/edn/age.key")
 PATH="${FAKE_BIN}:$PATH" generate_box_identities edn >/dev/null 2>&1
 key_after=$(cat "${secrets_root}/edn/age.key")
 assert_eq "$key_after" "$key_before" "generate_box_identities: idempotent (clé privée conservée au 2e run)"
+# Résidu d'un run interrompu : un age.key VIDE (l'ancienne redirection le créait avant
+# l'échec d'age-keygen — VPS Enargia) doit être remplacé, pas « conservé ».
+install -d "${secrets_root}/residu"
+: > "${secrets_root}/residu/age.key"
+out=$(PATH="${FAKE_BIN}:$PATH" generate_box_identities residu 2>/dev/null)
+[[ -s "${secrets_root}/residu/age.key" ]] && grep -q "^AGE_PUBLIC_KEY=age1" <<<"$out" \
+    && ok "generate_age_identity: age.key vide (résidu) → régénéré, pub imprimée" \
+    || ko "generate_age_identity: age.key vide conservé — runs empoisonnés à vie"
 
 # pull_deploy_repo : clone le dépôt privé simulé, relie providers/, tire config.env.
 git_src=$(mktemp -d)
