@@ -797,6 +797,29 @@ assert_ok "validate_config_env (défaut stack) : le même config.env reste valid
     validate_config_env "$tmp_cfg" "edn"
 rm -f "$tmp_cfg"
 
+# Garde-fou anti-fuite (#693) : un credential EMBARQUÉ DANS L'URL de RELAIS__SOURCE_URL /
+# RELAIS__PARTNER_URL (motif sftp://user:pass@host) est une fuite — la variable elle-même
+# APPARTIENT à config.env (le mini-compose du relais la lit par --env-file), seul le mot de
+# passe embarqué est refusé. Une URL sans credential (file://…, sftp://user@host/…) reste
+# légitime — authentification par clé SSH, chemin nominal du relais.
+tmp_cfg=$(mktemp)
+printf 'INSTANCE_SLUG=edn\nRELAIS_VERSION=1.2.0\nRELAIS__SOURCE_URL=sftp://user:hunter2@source.example/flux\n' > "$tmp_cfg"
+assert_fail "validate_config_env (relais) : mot de passe embarqué dans RELAIS__SOURCE_URL → refuse (#693)" \
+    validate_config_env "$tmp_cfg" "edn" "relais"
+rm -f "$tmp_cfg"
+
+tmp_cfg=$(mktemp)
+printf 'INSTANCE_SLUG=edn\nRELAIS_VERSION=1.2.0\nRELAIS__SOURCE_URL=sftp://relais@source.example/flux\nRELAIS__PARTNER_URL=sftp://user:hunter2@partenaire.example/in\n' > "$tmp_cfg"
+assert_fail "validate_config_env (relais) : mot de passe embarqué dans RELAIS__PARTNER_URL → refuse (#693)" \
+    validate_config_env "$tmp_cfg" "edn" "relais"
+rm -f "$tmp_cfg"
+
+tmp_cfg=$(mktemp)
+printf 'INSTANCE_SLUG=edn\nRELAIS_VERSION=1.2.0\nRELAIS__SOURCE_URL=file:///srv/edn/flux\nFLUX_DEPOSIT_DIR=/srv/edn/flux\nRELAIS__PARTNER_URL=sftp://relais@partenaire.example/in\n' > "$tmp_cfg"
+assert_ok "validate_config_env (relais) : URL sans credential (file://…, sftp://user@host/…) → OK (#693)" \
+    validate_config_env "$tmp_cfg" "edn" "relais"
+rm -f "$tmp_cfg"
+
 # Le CONTENU de secrets.env (format clés AES/API, URL SFTP) n'est plus validé en bash :
 # SSOT pydantic (tests/unit/test_runtime.py), vérifié par le conteneur étapes 11-12 (ADR-0049).
 
