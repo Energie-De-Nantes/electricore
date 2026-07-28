@@ -5,11 +5,12 @@
 # premier run réel appartient au timer, pas à l'installeur ni à ce script).
 #
 # Le harnais multipass l'invoque via `multipass exec` (pas SSH) :
-#   ./deploy/tests/e2e/multipass.sh verify-relais refuse  <slug>   # avant `run --relais` (clé SSH absente)
-#   ./deploy/tests/e2e/multipass.sh verify-relais posed   <slug>   # après un `run --relais` réussi
+#   ./deploy/tests/e2e/multipass.sh verify-relais refuse    <slug>   # avant `run --relais` (clé SSH absente)
+#   ./deploy/tests/e2e/multipass.sh verify-relais posed     <slug>   # après un `run --relais` réussi
+#   ./deploy/tests/e2e/multipass.sh verify-relais onfailure <slug>   # échec forcé → l'alerte tire (stub msmtp, #668)
 #
 # Sur un vrai VPS :
-#   sudo bash /srv/<slug>/deploy/tests/e2e/assert_relais.sh <refuse|posed> <slug>
+#   sudo bash /srv/<slug>/deploy/tests/e2e/assert_relais.sh <refuse|posed|onfailure> <slug>
 #
 # Exit 0 si toutes les assertions passent, 1 sinon ; exit 2 si usage invalide.
 set -u
@@ -24,7 +25,7 @@ check() { if eval "$2" >/dev/null 2>&1; then ok "$1"; else ko "$1"; fi; }
 MODE="${1:-}"
 SLUG="${2:-}"
 [[ -n "$MODE" && -n "$SLUG" ]] || {
-    echo "Usage: $0 <refuse|posed> <slug>" >&2
+    echo "Usage: $0 <refuse|posed|onfailure> <slug>" >&2
     exit 2
 }
 
@@ -92,8 +93,59 @@ case "$MODE" in
         check "durcissement VPS actif (drop-in sshd posé, socle commun)" \
               "test -f /etc/ssh/sshd_config.d/50-electricore-harden.conf"
         ;;
+    onfailure)
+        # Échec forcé → OnFailure= déclenche l'alerte (AC3 de #668, finding 2 revue #669).
+        # Prouve la MÉCANIQUE (unité déclenchée, script exécuté jusqu'à msmtp) avec un
+        # stub — le mail réel reste le drill de la générale #661. Réservé à une VM/box
+        # de test : écarte temporairement le compose pour un échec déterministe
+        # (indépendant de l'état de l'image et du réseau), puis restaure tout.
+        echo "→ Composant relais #668 : échec forcé du service → l'alerte OnFailure= tire (stub msmtp)"
+        CONFIG_ENV="${HOME_DIR}/config.env"
+        COMPOSE="${RELAIS_DIR}/compose-relais.yml"
+        [[ -f "$COMPOSE" && -f "$CONFIG_ENV" ]] || {
+            echo "état posé requis (lancer verify-relais posed d'abord)" >&2
+            exit 2
+        }
+        MARKER="$(mktemp /tmp/relais-alerte-drill.XXXXXX)"
+
+        # Stub msmtp : /usr/local/bin précède /usr/bin dans le PATH systemd → capture
+        # les destinataires au lieu d'envoyer (le vrai msmtp de /usr/bin reste intact).
+        cat > /usr/local/bin/msmtp <<STUB
+#!/usr/bin/env bash
+printf '%s\n' "\$@" >> "${MARKER}"
+cat > /dev/null
+STUB
+        chmod +x /usr/local/bin/msmtp
+        # Destinataire de test si le provider n'en déclare pas (retiré à la fin).
+        mails_injectes=0
+        grep -q '^RELAIS_ALERTE_MAILS=' "$CONFIG_ENV" || {
+            echo 'RELAIS_ALERTE_MAILS=drill@test.local' >> "$CONFIG_ENV"
+            mails_injectes=1
+        }
+
+        mv "$COMPOSE" "${COMPOSE}.drill"
+        if systemctl start electricore-relais.service >/dev/null 2>&1; then
+            ko "le start aurait dû échouer (compose écarté) — échec forcé impossible"
+        else
+            ok "electricore-relais.service en échec forcé (compose écarté)"
+        fi
+        # OnFailure= démarre l'unité d'alerte en asynchrone : on lui laisse jusqu'à 15 s.
+        for _ in $(seq 1 30); do [[ -s "$MARKER" ]] && break; sleep 0.5; done
+        [[ -s "$MARKER" ]] && ok "OnFailure= a déclenché l'alerte jusqu'à msmtp (stub appelé)" \
+                           || ko "l'alerte n'est jamais arrivée à msmtp (marqueur vide après 15 s)"
+        grep -q '@' "$MARKER" 2>/dev/null && ok "msmtp a reçu au moins un destinataire" \
+                                          || ko "aucun destinataire transmis à msmtp"
+        check "l'unité d'alerte a terminé avec succès (ExecMainStatus=0)" \
+              "[ \"\$(systemctl show electricore-relais-alerte.service -p ExecMainStatus --value)\" = 0 ]"
+
+        # Remise en état : rien ne doit rester du drill.
+        mv "${COMPOSE}.drill" "$COMPOSE"
+        rm -f /usr/local/bin/msmtp "$MARKER"
+        [[ "$mails_injectes" -eq 1 ]] && sed -i '/^RELAIS_ALERTE_MAILS=drill@test\.local$/d' "$CONFIG_ENV"
+        systemctl reset-failed electricore-relais.service electricore-relais-alerte.service 2>/dev/null || true
+        ;;
     *)
-        echo "mode inconnu : '${MODE}' (attendu refuse|posed)" >&2
+        echo "mode inconnu : '${MODE}' (attendu refuse|posed|onfailure)" >&2
         exit 2
         ;;
 esac
