@@ -43,14 +43,16 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
 
 def _run_seed(args: argparse.Namespace) -> None:
     try:
-        info = seed_avant(args.avant, force=args.force)
+        info, n_amorces = seed_avant(args.avant, force=args.force)
     except RuntimeError as e:  # garde-fou métier (#643) : message déjà explicite
         print(f"❌ {e}", flush=True)
         sys.exit(1)
     except Exception as e:  # noqa: BLE001 — échec pipeline (pas par-zip) : sortie en erreur
         print(f"❌ Relais seed : échec : {e}", flush=True)
         sys.exit(1)
-    print(f"✅ Amorçage : {info}", flush=True)
+    # Le chiffre qui compte d'abord (#684) — l'info dlt verbeuse (load packages, chemins
+    # duckdb) reste disponible en fin de ligne, cf. `_run_relais` ci-dessous.
+    print(f"✅ Amorçage : {n_amorces} zip(s) marqués livrés (antérieurs à {args.avant}) — {info}", flush=True)
 
 
 def _run_relais() -> None:
