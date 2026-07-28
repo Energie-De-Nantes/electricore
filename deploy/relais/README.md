@@ -91,6 +91,12 @@ modifié** — c'est à l'opérateur d'ouvrir la lecture à l'uid 1000 (groupe/A
 sur toute l'arborescence), l'installeur avertit si elle manque. Sur une box à
 source SFTP distante, le montage est inerte (dossier vide).
 
+Côté **destination** (partenaire), le relais reproduit désormais ce même
+rangement par flux (#686, demande Haulogy) : chaque fichier extrait atterrit
+dans `<RELAIS__PARTNER_URL>/<CODE_FLUX>/` (`C15/`, `R151/`, `R15/`, `F12/`,
+`F15/`, …), dossier créé au besoin. Câblé en dur — pas de knob d'arborescence
+ni de template dans l'URL, `RELAIS__PARTNER_URL` reste une racine simple.
+
 ## Clé SSH partenaire
 
 Le conteneur relais monte en lecture seule une clé SSH **PRIVÉE**, dédiée à ce

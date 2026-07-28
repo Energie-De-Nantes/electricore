@@ -34,6 +34,9 @@ l'ingestion (`etape_chaine`) : le compteur `StatsRelais` alimente le prédicat
 `relais_aveugle()` (même forme que `StatsChaine.flux_aveugle()`, ADR-0037 ext.
 #445) — un run où TOUS les push échouent doit escalader (sortie non-zéro), pas
 retenter en silence pour toujours (le reproche adressé à inotify dans #637).
+Dépôt rangé par flux chez le partenaire, `<partner_url>/<CODE_FLUX>/<fichier>`
+(#686, demande Haulogy) — symétrique du rangement déjà en place côté source
+Enargia (`FLUX_DEPOSIT_DIR`, `deploy/relais/README.md`).
 
 Amorçage (`seed_avant`, #643) : remplace l'ancien filtre `depuis` (knob
 permanent) par un acte UNIQUE — marquer les zips antérieurs à une date comme
@@ -194,8 +197,12 @@ def _controle_intra_zip(flux: str | None, fichiers: list[tuple[str, bytes]], zip
         raise ValueError(f"{zip_name} : F15 sans fichier de données générales (_FA)")
 
 
-def pousser_vers_partenaire(fichiers: list[tuple[str, bytes]], partner_url: str) -> None:
-    """Pousse les fichiers extraits vers la cible partenaire (fsspec-agnostic : file://, sftp://).
+def pousser_vers_partenaire(fichiers: list[tuple[str, bytes]], partner_url: str, flux: str | None) -> None:
+    """Pousse les fichiers extraits vers `<partner_url>/<CODE_FLUX>/` — rangement par flux
+    côté partenaire (#686, demande Haulogy), fsspec-agnostic (file://, sftp://). `flux` vient
+    de `_flux_du_zip` (réutilisé, pas re-dérivé) : `None` (nom de zip à moins de deux segments,
+    jamais observé sur un vrai zip Enedis) **lève AVANT tout dépôt** — jamais de dépôt racine
+    silencieux. Câblé en dur : pas de knob d'arborescence, un seul partenaire réel (#686).
 
     Effet de bord : une cible injoignable (permission, réseau…) **lève** — direction
     d'échec sûre, le zip n'est alors PAS enregistré comme livré (discipline `etape_chaine`
@@ -203,9 +210,11 @@ def pousser_vers_partenaire(fichiers: list[tuple[str, bytes]], partner_url: str)
     AVANT de considérer le fichier posé — un mismatch lève au même titre qu'une cible
     injoignable, retenté au passage suivant.
     """
+    if flux is None:
+        raise ValueError("Code flux introuvable dans le nom du zip — dépôt refusé (#686)")
     fs, base_path = fsspec.core.url_to_fs(partner_url)
-    fs.makedirs(base_path, exist_ok=True)
-    base = base_path.rstrip("/")
+    base = f"{base_path.rstrip('/')}/{flux}"
+    fs.makedirs(base, exist_ok=True)
     for nom, contenu in fichiers:
         chemin = f"{base}/{nom}"
         with fs.open(chemin, "wb") as f:
@@ -230,8 +239,9 @@ def _pousser(decrypted_file: dict, partner_url: str) -> Iterator[dict]:
     # file_extension="" : `str.endswith("")` est toujours vrai → extrait TOUT le
     # contenu du zip (xml et json compris), pas seulement les .xml.
     fichiers = extract_files_from_zip(decrypted_file["decrypted_content"], file_extension="")
-    _controle_intra_zip(_flux_du_zip(zip_name), fichiers, zip_name)
-    pousser_vers_partenaire(fichiers, partner_url)
+    flux = _flux_du_zip(zip_name)
+    _controle_intra_zip(flux, fichiers, zip_name)
+    pousser_vers_partenaire(fichiers, partner_url, flux)
 
     livres = dlt.current.resource_state(NOM_RESOURCE).setdefault("zips_livrés", [])
     livres.append(zip_name)
