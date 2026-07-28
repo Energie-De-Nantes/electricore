@@ -238,11 +238,16 @@ main() {
     # On ne valide PLUS le contenu de secrets.env par un preflight bash : le vrai conteneur le
     # fait verbatim via `sops exec-env` aux étapes 11-12 (cf. ADR-0049, classe de bug rc12).
     log_step "Identité de la box (age + SSH deploy key)"
+    # Les outils hôte (sops + age + age-keygen) d'abord : `generate_box_identities` et
+    # `box_can_decrypt` en dépendent. L'appel manquait — défini dans secrets.sh mais plus
+    # invoqué nulle part (constaté sur la 1re box fraîche : « échec age-keygen », puis le
+    # die crashait lui-même sur ${SECRETS_IMAGE}, résidu de l'approche par image sous set -u).
+    ensure_secrets_tools || die "Installation des outils secrets (sops + age) échouée."
     if pubs=$(generate_box_identities "$OPT_SLUG"); then
         age_pub=$(printf '%s\n' "$pubs" | sed -n 's/^AGE_PUBLIC_KEY=//p')
         ssh_pub=$(printf '%s\n' "$pubs" | sed -n 's/^SSH_DEPLOY_PUBKEY=//p')
     else
-        die "Génération des identités de la box échouée (image ${SECRETS_IMAGE} indisponible ?)."
+        die "Génération des identités de la box échouée (age-keygen indisponible ?)."
     fi
 
     log_step "Pull du dépôt de déploiement privé"
