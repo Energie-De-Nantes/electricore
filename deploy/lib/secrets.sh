@@ -159,7 +159,13 @@ pull_deploy_repo() {
     # GIT_SSH_COMMAND épingle la clé RO et coupe l'interactivité (StrictHostKeyChecking).
     local git_ssh="ssh -i ${deploy_key} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
     if [[ -d "${repo_dir}/.git" ]]; then
-        GIT_SSH_COMMAND="$git_ssh" "$GIT_BIN" -C "$repo_dir" pull --ff-only \
+        # -c safe.directory : le home d'instance (dont deploy-repo) appartient au slug,
+        # mais le pull tourne root → git refuse (« dubious ownership », CVE-2022-24765).
+        # Le clone du 1er temps n'est pas concerné (répertoire neuf) : le piège ne mord
+        # qu'au PREMIER reconfigure — constaté sur la box Enargia (28/07), où l'échec se
+        # déguisait en « onboarding 2 temps » alors que les clés étaient déjà enrôlées.
+        # `-c` ponctuel : aucune écriture dans le gitconfig global de root.
+        GIT_SSH_COMMAND="$git_ssh" "$GIT_BIN" -c safe.directory="$repo_dir" -C "$repo_dir" pull --ff-only \
             || { log_err "git pull du dépôt de déploiement a échoué" >&2; return 1; }
         log_ok "dépôt de déploiement mis à jour (${repo_dir})" >&2
     else
