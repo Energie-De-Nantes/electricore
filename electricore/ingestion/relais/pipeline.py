@@ -399,7 +399,17 @@ def executer(pipeline: "dlt.Pipeline | None" = None) -> tuple["dlt.common.pipeli
     return info, stats
 
 
-def _amorcer(zip_item: dict, flux_filtres: set[str] | None, avant: str) -> Iterator[dict]:
+@dataclass
+class _CompteurAmorce:
+    """Compteur mutable du nombre de zips marqués livrés par un amorçage (#684) — même
+    mécanique que `StatsRelais` : muté depuis l'intérieur du générateur dlt, lu après
+    `pipeline.run()` (le retour de `pipeline.run()` lui-même n'expose que du verbiage dlt,
+    pas ce chiffre)."""
+
+    amorces: int = 0
+
+
+def _amorcer(zip_item: dict, flux_filtres: set[str] | None, avant: str, compteur: _CompteurAmorce) -> Iterator[dict]:
     """Étage amorçage (#643) : marque le zip comme livré SANS le pousser — utilisé
     uniquement par `seed_avant`, jamais par le run normal. Même comparaison de chaînes
     ISO-8601 que l'ancien filtre `depuis` (`modification_date` déjà normalisée en ISO
@@ -412,6 +422,7 @@ def _amorcer(zip_item: dict, flux_filtres: set[str] | None, avant: str) -> Itera
 
     livres = dlt.current.resource_state(NOM_RESOURCE).setdefault("zips_livrés", [])
     livres.append(nom)
+    compteur.amorces += 1
     yield {
         "zip": nom,
         "fichiers": [],
@@ -420,21 +431,21 @@ def _amorcer(zip_item: dict, flux_filtres: set[str] | None, avant: str) -> Itera
     }
 
 
-def _create_amorce_transformer(flux_filtres: set[str] | None, avant: str):
+def _create_amorce_transformer(flux_filtres: set[str] | None, avant: str, compteur: _CompteurAmorce):
     @dlt.transformer
     def amorcer(zip_item: dict) -> Iterator[dict]:
-        return _amorcer(zip_item, flux_filtres, avant)
+        return _amorcer(zip_item, flux_filtres, avant, compteur)
 
     return amorcer
 
 
 @dlt.source(name=NOM_PIPELINE)
-def _seed_source(source_url: str, flux_filtres: set[str] | None, avant: str):
+def _seed_source(source_url: str, flux_filtres: set[str] | None, avant: str, compteur: _CompteurAmorce):
     """Source dlt de l'amorçage : même `NOM_PIPELINE`/`NOM_RESOURCE` que `relais_source` —
     partage le même `resource_state` (`zips_livrés`), sinon le run normal repousserait tout
     ce que le seed vient de marquer livré."""
     sftp_resource = create_sftp_resource("RELAIS", "relais", "**/*.zip", source_url, incremental=False)
-    amorce = _create_amorce_transformer(flux_filtres, avant)
+    amorce = _create_amorce_transformer(flux_filtres, avant, compteur)
 
     pipeline_seed = (sftp_resource | amorce).with_name(NOM_RESOURCE)
     pipeline_seed.apply_hints(write_disposition="append")
@@ -454,7 +465,9 @@ def _journal_deja_peuple(db_path: Path) -> bool:
     return bool(_zips_dans_journal(db_path, statuts=_STATUTS_LIVRES))
 
 
-def seed_avant(avant: str, *, force: bool = False, pipeline: "dlt.Pipeline | None" = None):
+def seed_avant(
+    avant: str, *, force: bool = False, pipeline: "dlt.Pipeline | None" = None
+) -> tuple["dlt.common.pipeline.LoadInfo", int]:
     """Amorçage explicite (#643) : marque tous les zips de la source antérieurs à `avant`
     (date ISO `YYYY-MM-DD`, comparée au mtime SFTP) comme livrés SANS les pousser — évite de
     noyer le partenaire dans l'historique au tout premier run. Remplace l'ancien filtre
@@ -465,6 +478,10 @@ def seed_avant(avant: str, *, force: bool = False, pipeline: "dlt.Pipeline | Non
     l'opérateur qui sait ce qu'il fait) : lancé par erreur après la mise en service d'un
     relais déjà en route, l'amorçage enterrerait silencieusement tout ce qui restait à
     relayer — c'est la seule opération du relais capable de fabriquer un « oubli définitif ».
+
+    Retourne `(info, n_amorces)` (#684) — `n_amorces` : le nombre de zips effectivement
+    marqués livrés, le chiffre que l'opérateur cherche dans la sortie CLI (`__main__.py`),
+    pas seulement l'`info` dlt verbeuse (load packages, chemins duckdb).
     """
     cfg = runtime.relais()
     if not force and _journal_deja_peuple(cfg.destination_db):
@@ -475,7 +492,9 @@ def seed_avant(avant: str, *, force: bool = False, pipeline: "dlt.Pipeline | Non
         )
     if pipeline is None:
         pipeline = _pipeline_par_defaut(cfg)
-    return pipeline.run(_seed_source(cfg.source_url, cfg.flux_filtres(), avant))
+    compteur = _CompteurAmorce()
+    info = pipeline.run(_seed_source(cfg.source_url, cfg.flux_filtres(), avant, compteur))
+    return info, compteur.amorces
 
 
 _STATUTS_LIVRES = ("pousse", "amorce")  # les deux seuls statuts qui valent « relayé » (#646)

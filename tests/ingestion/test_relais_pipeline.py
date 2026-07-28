@@ -449,6 +449,22 @@ def test_seed_n_amorce_pas_les_zips_posterieurs_a_avant(tmp_path, monkeypatch):
 
 
 @pytest.mark.integration
+def test_seed_avant_retourne_le_compte_de_zips_amorces(tmp_path, monkeypatch):
+    """#684 : `seed_avant` retourne `(info, n_amorces)` — le chiffre qui compte (combien de
+    zips ont été marqués livrés), pas seulement l'`info` dlt verbeuse. Un zip postérieur à
+    `--avant` n'est pas amorcé, ne compte donc pas."""
+    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
+    _deposer_zip(source, "ENEDIS_C15_20260101_001.zip", b"<data>vieux</data>", date=(2026, 1, 1, 12, 0, 0))
+    _deposer_zip(source, "ENEDIS_C15_20260102_002.zip", b"<data>vieux aussi</data>", date=(2026, 1, 2, 12, 0, 0))
+    _deposer_zip(source, "ENEDIS_C15_20260615_003.zip", b"<data>neuf</data>")
+    _configurer_env(monkeypatch, source, cible, db)
+
+    info, n_amorces = seed_avant("2026-06-01", pipeline=_pipeline(tmp_path, db))
+
+    assert n_amorces == 2
+
+
+@pytest.mark.integration
 def test_seed_refuse_si_journal_deja_peuple(tmp_path, monkeypatch):
     """Garde-fou (#643) : le seed refuse si le journal contient déjà des livraisons —
     lancé par erreur après la mise en service, il enterrerait silencieusement tout ce
@@ -813,3 +829,21 @@ def test_cli_seed_marque_livre_et_refuse_sans_force_si_deja_peuple(tmp_path, mon
     with pytest.raises(SystemExit) as exc:
         main()  # relancé sans --force : journal déjà peuplé → refuse
     assert exc.value.code != 0
+
+
+@pytest.mark.integration
+def test_cli_seed_imprime_le_compte_de_zips_amorces(tmp_path, monkeypatch, capsys):
+    """#684 : la sortie CLI du seed affiche le chiffre qui compte — combien de zips ont été
+    marqués livrés — pas seulement le verbiage dlt (load packages, chemins duckdb)."""
+    from electricore.ingestion.relais.__main__ import main
+
+    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
+    _deposer_zip(source, "ENEDIS_C15_20260101_001.zip", b"<data>un</data>", date=(2026, 1, 1, 12, 0, 0))
+    _deposer_zip(source, "ENEDIS_C15_20260102_002.zip", b"<data>deux</data>", date=(2026, 1, 2, 12, 0, 0))
+    _configurer_env(monkeypatch, source, cible, db)
+    monkeypatch.setattr(sys, "argv", ["relais", "seed", "--avant", "2026-06-01"])
+
+    main()  # ne lève pas
+
+    sortie = capsys.readouterr().out
+    assert "2 zip(s) marqués livrés (antérieurs à 2026-06-01)" in sortie
