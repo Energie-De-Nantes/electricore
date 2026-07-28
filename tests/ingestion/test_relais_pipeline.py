@@ -582,7 +582,7 @@ def test_zip_vu_n_est_pas_rejournalise_au_run_suivant(tmp_path, monkeypatch):
 # =============================================================================
 # Escalade étendue au déchiffrement (#692) : l'ancien prédicat ne voyait que le push — une
 # rotation de clé Enedis (tous les zips indéchiffrables) affichait ✅ et sortait 0 pour
-# toujours. `StatsRelais.chaine` (composition, `create_decrypt_transformer(stats=…)`) compte
+# toujours. `StatsRelais.chaine` (composition, `StatsChaine` passé à la brique decrypt) compte
 # les échecs de déchiffrement ; le wrapper observateur journalise `statut='echec'` post-run.
 # =============================================================================
 
