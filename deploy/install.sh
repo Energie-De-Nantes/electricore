@@ -416,13 +416,20 @@ EOF
   deploy/relais/README.md.
   Rotation du token : sops providers/${OPT_SLUG}/secrets.env, push, reconfigure.
 
-  Amorçage (#643) — marque l'historique existant comme livré SANS le pousser au
-  partenaire. Acte UNIQUE, geste conscient d'opérateur — JAMAIS exécuté par cet
-  installeur. Refuse si le journal contient déjà des livraisons (--force sinon) :
+  Mise en service = DEUX gestes d'opérateur, dans cet ordre (#643, #673) :
+
+  1. Amorçage — marque l'historique existant comme livré SANS le pousser au
+     partenaire. Acte UNIQUE, geste conscient d'opérateur — JAMAIS exécuté par cet
+     installeur. Refuse si le journal contient déjà des livraisons (--force sinon) :
 
     sudo -u ${OPT_SLUG} docker compose --env-file ${HOME_DIR}/config.env \\
         -f ${relais_dir}/compose-relais.yml run --rm relais \\
         python -m electricore.ingestion.relais seed --avant <AAAA-MM-JJ>
+
+  2. Armement — sur état vierge, l'installeur pose le timer SANS l'armer (#673 :
+     armé avant l'amorçage, il pousserait tout l'historique au partenaire) :
+
+    systemctl enable --now electricore-relais.timer
 
   Pour reconfigurer plus tard (bump RELAIS_VERSION, rotation clé AES, etc.) :
     sudo bash $0 --slug ${OPT_SLUG} --relais --deploy-repo <url>

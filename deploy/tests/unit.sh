@@ -302,6 +302,34 @@ grep -qF -- '- ${FLUX_DEPOSIT_DIR:-/srv/electricore/flux-deposit}:${FLUX_DEPOSIT
     || ko "render_relais_compose: montage flux-deposit absent/incorrect"
 
 echo
+echo "→ relais.sh / relais_etat_vierge (garde #673 : timer jamais armé sans amorce)"
+# Fake docker : `volume inspect` répond le mountpoint contrôlé par le test, ou échoue
+# (volume absent) si le drapeau `absent` existe — la garde ne dépend de docker que
+# pour résoudre ce chemin.
+rv_root=$(mktemp -d)
+rv_bin="${rv_root}/bin"; rv_mp="${rv_root}/volume"
+mkdir -p "$rv_bin" "$rv_mp"
+cat > "${rv_bin}/docker" <<EOF
+#!/usr/bin/env bash
+[[ -f "${rv_root}/absent" ]] && { echo "Error: no such volume" >&2; exit 1; }
+echo "${rv_mp}"
+EOF
+chmod +x "${rv_bin}/docker"
+
+: > "${rv_root}/absent"
+PATH="${rv_bin}:$PATH" relais_etat_vierge \
+    && ok "relais_etat_vierge: volume docker absent → vierge" \
+    || ko "relais_etat_vierge: volume absent aurait dû être vierge"
+rm "${rv_root}/absent"
+PATH="${rv_bin}:$PATH" relais_etat_vierge \
+    && ok "relais_etat_vierge: volume vide (aucun journal) → vierge" \
+    || ko "relais_etat_vierge: volume vide aurait dû être vierge"
+touch "${rv_mp}/relais.duckdb"
+PATH="${rv_bin}:$PATH" relais_etat_vierge \
+    && ko "relais_etat_vierge: journal présent aurait dû casser la virginité" \
+    || ok "relais_etat_vierge: journal présent → pas vierge (timer armable)"
+
+echo
 echo "→ relais.sh / ensure_relais_flux_deposit (dépôt file://, jamais modifié si existant, #657)"
 fd_root=$(mktemp -d); mkdir -p "$fd_root/edn"
 ( CONTAINER_UID="$(id -u)" CONTAINER_GID="$(id -g)" ensure_relais_flux_deposit "$fd_root/edn/flux-deposit" >/dev/null 2>&1 )
