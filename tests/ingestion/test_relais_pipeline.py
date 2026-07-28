@@ -187,7 +187,7 @@ def test_bout_en_bout_un_zip_dechiffre_decompresse_pousse(tmp_path, monkeypatch)
 
     executer(_pipeline(tmp_path, db))
 
-    assert (cible / "ENEDIS_C15_20260615_001.xml").read_bytes() == b"<data>c15</data>"
+    assert (cible / "C15" / "ENEDIS_C15_20260615_001.xml").read_bytes() == b"<data>c15</data>"
     assert _zips_journalises(db) == ["ENEDIS_C15_20260615_001.zip"]
 
 
@@ -199,11 +199,11 @@ def test_idempotence_second_run_ne_repousse_pas(tmp_path, monkeypatch):
     _configurer_env(monkeypatch, source, cible, db)
 
     executer(_pipeline(tmp_path, db))
-    (cible / "ENEDIS_C15_20260615_001.xml").unlink()  # preuve qu'un 2e run ne le re-dépose pas
+    (cible / "C15" / "ENEDIS_C15_20260615_001.xml").unlink()  # preuve qu'un 2e run ne le re-dépose pas
 
     executer(_pipeline(tmp_path, db))
 
-    assert not (cible / "ENEDIS_C15_20260615_001.xml").exists()
+    assert not (cible / "C15" / "ENEDIS_C15_20260615_001.xml").exists()
     assert _zips_journalises(db) == ["ENEDIS_C15_20260615_001.zip"]  # une seule ligne, pas deux
 
 
@@ -223,7 +223,7 @@ def test_echec_push_ne_marque_pas_livre_et_retente_au_run_suivant(tmp_path, monk
 
     _configurer_env(monkeypatch, source, cible_valide, db)
     executer(_pipeline(tmp_path, db))  # retente : cible désormais valide
-    assert (cible_valide / "ENEDIS_C15_20260615_001.xml").read_bytes() == b"<data>c15</data>"
+    assert (cible_valide / "C15" / "ENEDIS_C15_20260615_001.xml").read_bytes() == b"<data>c15</data>"
     assert _zips_journalises(db) == ["ENEDIS_C15_20260615_001.zip"]
 
 
@@ -239,8 +239,8 @@ def test_incremental_false_reliste_toute_la_source_a_chaque_run(tmp_path, monkey
     _deposer_zip(source, "ENEDIS_C15_20260616_002.zip", b"<data>deux</data>", date=(2026, 6, 16, 12, 0, 0))
     executer(_pipeline(tmp_path, db))
 
-    assert (cible / "ENEDIS_C15_20260615_001.xml").exists()
-    assert (cible / "ENEDIS_C15_20260616_002.xml").exists()
+    assert (cible / "C15" / "ENEDIS_C15_20260615_001.xml").exists()
+    assert (cible / "C15" / "ENEDIS_C15_20260616_002.xml").exists()
     assert set(_zips_journalises(db)) == {"ENEDIS_C15_20260615_001.zip", "ENEDIS_C15_20260616_002.zip"}
 
 
@@ -254,8 +254,8 @@ def test_filtre_flux_configure_exclut_les_flux_non_retenus(tmp_path, monkeypatch
 
     executer(_pipeline(tmp_path, db))
 
-    assert (cible / "ENEDIS_C15_20260615_001.xml").exists()
-    assert not (cible / "ENEDIS_R151_20260615_002.xml").exists()
+    assert (cible / "C15" / "ENEDIS_C15_20260615_001.xml").exists()
+    assert not (cible / "R151" / "ENEDIS_R151_20260615_002.xml").exists()
     assert _zips_journalises(db) == ["ENEDIS_C15_20260615_001.zip"]
 
 
@@ -288,6 +288,29 @@ def test_completude_reste_correcte_avec_un_zip_en_echec(tmp_path, monkeypatch):
 
     manquants = zips_non_relayes(f"file://{source}/", db)
     assert manquants == ["ENEDIS_C15_20260615_001.zip"]
+
+
+# =============================================================================
+# Dépôt par flux chez le partenaire (#686) : <partner_url>/<CODE_FLUX>/<fichier>
+# =============================================================================
+
+
+@pytest.mark.integration
+def test_zip_sans_code_flux_echoue_et_ne_depose_rien(tmp_path, monkeypatch):
+    """Zip dont le nom ne porte pas de code flux (moins de deux segments `_`-délimités,
+    jamais rencontré sur un vrai zip Enedis, inatteignable quand `RELAIS__FLUX` est
+    renseigné — ici filtre désactivé pour atteindre le push) : le push lève AVANT tout
+    dépôt — rien à la racine ni dans un sous-dossier, échec compté, ligne journal `echec`."""
+    source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
+    zip_name = "sansflux.zip"
+    _deposer_zip(source, zip_name, b"<data>orpheline</data>")
+    _configurer_env(monkeypatch, source, cible, db)  # flux="" : filtre désactivé
+
+    info, stats = executer(_pipeline(tmp_path, db))
+
+    assert not cible.exists() or list(cible.iterdir()) == []  # rien déposé, nulle part
+    assert (stats.candidats, stats.pousses, stats.echecs_push) == (1, 0, 1)
+    assert dict(_toutes_lignes_journal(db))[zip_name] == "echec"
 
 
 # =============================================================================
@@ -379,8 +402,8 @@ def test_seed_n_amorce_pas_les_zips_posterieurs_a_avant(tmp_path, monkeypatch):
     seed_avant("2026-06-01", pipeline=_pipeline(tmp_path, db))
     executer(_pipeline(tmp_path, db))
 
-    assert not (cible / "ENEDIS_C15_20260101_001.xml").exists()
-    assert (cible / "ENEDIS_C15_20260615_002.xml").exists()
+    assert not (cible / "C15" / "ENEDIS_C15_20260101_001.xml").exists()
+    assert (cible / "C15" / "ENEDIS_C15_20260615_002.xml").exists()
     assert _statuts_journalises(db) == {
         "ENEDIS_C15_20260101_001.zip": "amorce",
         "ENEDIS_C15_20260615_002.zip": "pousse",
@@ -492,7 +515,7 @@ def test_ecriture_tronquee_ne_marque_pas_livre_et_retente(tmp_path, monkeypatch)
 
     monkeypatch.setitem(executer.__globals__, "_verifier_ecriture", verif_originale)  # vérification désormais saine
     executer(_pipeline(tmp_path, db))  # retente
-    assert (cible / "ENEDIS_C15_20260615_001.xml").read_bytes() == b"<data>c15</data>"
+    assert (cible / "C15" / "ENEDIS_C15_20260615_001.xml").read_bytes() == b"<data>c15</data>"
     assert _zips_journalises(db) == ["ENEDIS_C15_20260615_001.zip"]
 
 
@@ -730,7 +753,7 @@ def test_cli_run_normal_reussi_ne_sort_pas_en_erreur(tmp_path, monkeypatch):
 
     main()  # ne lève pas
 
-    assert (cible / "ENEDIS_C15_20260615_001.xml").exists()
+    assert (cible / "C15" / "ENEDIS_C15_20260615_001.xml").exists()
 
 
 @pytest.mark.integration
