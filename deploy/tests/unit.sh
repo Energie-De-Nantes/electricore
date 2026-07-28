@@ -24,6 +24,8 @@ source "${LIB_DIR}/ingestion.sh"
 source "${LIB_DIR}/secrets.sh"
 # shellcheck source=../lib/harden.sh
 source "${LIB_DIR}/harden.sh"
+# shellcheck source=../lib/user.sh
+source "${LIB_DIR}/user.sh"
 # shellcheck source=../lib/relais.sh
 source "${LIB_DIR}/relais.sh"
 
@@ -794,6 +796,31 @@ rm -f "$tmp_cfg"
 
 # Le CONTENU de secrets.env (format clés AES/API, URL SFTP) n'est plus validé en bash :
 # SSOT pydantic (tests/unit/test_runtime.py), vérifié par le conteneur étapes 11-12 (ADR-0049).
+
+echo
+echo "→ user.sh / chown_instance_home (l'exception age.key survit au chown -R, #672 bis)"
+# Fake chown : journalise les appels — l'assertion porte sur l'ORDRE (le ré-assert
+# age.key doit venir APRÈS le balayage -R, sinon il est écrasé — reconfigure Enargia
+# 28/07). Testable sans root : aucun vrai chown n'est exécuté.
+ch_root=$(mktemp -d)
+ch_bin="${ch_root}/bin"; mkdir -p "$ch_bin" "${ch_root}/edn"
+: > "${ch_root}/edn/age.key"
+cat > "${ch_bin}/chown" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "${ch_root}/chown.log"
+EOF
+chmod +x "${ch_bin}/chown"
+PATH="${ch_bin}:$PATH" SRV_BASE="$ch_root" CONTAINER_UID=1000 CONTAINER_GID=1000 chown_instance_home edn
+grep -q -- "-R edn:edn ${ch_root}/edn" "${ch_root}/chown.log" \
+    && ok "chown_instance_home: balayage -R slug:slug du home" || ko "chown_instance_home: balayage -R absent"
+tail -1 "${ch_root}/chown.log" | grep -q "1000:1000 ${ch_root}/edn/age.key" \
+    && ok "chown_instance_home: age.key ré-asserté CONTAINER_UID APRÈS le balayage" \
+    || ko "chown_instance_home: age.key pas ré-asserté après le -R (l'entrypoint SOPS re-cassera au reconfigure)"
+rm -f "${ch_root}/chown.log" "${ch_root}/edn/age.key"
+PATH="${ch_bin}:$PATH" SRV_BASE="$ch_root" chown_instance_home edn
+[[ "$(wc -l < "${ch_root}/chown.log")" == "1" ]] \
+    && ok "chown_instance_home: sans age.key → seul le balayage (pas de chown fantôme)" \
+    || ko "chown_instance_home: appel chown inattendu en l'absence d'age.key"
 
 echo
 echo "→ secrets.sh (fake-binaries age-keygen/ssh-keygen/sops/git)"
