@@ -74,6 +74,20 @@ validate_config_env() {
             [[ -n "$deposit_dir" && "file://${deposit_dir}" == "$source_url" ]] || \
                 errors+=("RELAIS__SOURCE_URL en file:// exige FLUX_DEPOSIT_DIR=${source_url#file://} (montage du dépôt dans le conteneur, #657)")
         fi
+        # Alerte mail (#674) : RELAIS_ALERTE_MAILS posé = alerte voulue ⇒ le msmtprc
+        # rendu doit être complet. msmtp refuse un fichier à directive vide (host/from/
+        # user sans valeur) : sans ce fail-fast, le premier reconfigure écraserait un
+        # msmtprc qui marche par un fichier invalide — alerte morte EN SILENCE. On
+        # avorte ici, AVANT toute pose (le msmtprc existant reste intact tant que
+        # providers/<slug>/config.env n'est pas complété). PORT a un défaut (587).
+        local alerte_mails champ
+        alerte_mails=$(read_env_var "$file" RELAIS_ALERTE_MAILS)
+        if [[ -n "$alerte_mails" ]]; then
+            for champ in HOST FROM USER; do
+                [[ -n "$(read_env_var "$file" "ALERTE__SMTP__${champ}")" ]] || \
+                    errors+=("RELAIS_ALERTE_MAILS posé mais ALERTE__SMTP__${champ} manquant — le msmtprc rendu serait invalide, l'alerte morte en silence (#674)")
+            done
+        fi
     else
         local version backups
         version=$(read_env_var "$file" ELECTRICORE_VERSION)

@@ -410,6 +410,20 @@ pw_rc=$?
                       || ko "passwordeval : échec sops non propagé (exit ${pw_rc})"
 [[ -s "${pw_stub_dir}/err" ]] && ok "passwordeval : le sops stubbé en échec loggue sur stderr (capté par journalctl)" \
                                || ko "passwordeval : aucun message d'erreur sur stderr"
+
+# Champ absent de secrets.env (sops OK, ALERTE__SMTP__PASSWORD manquant) : sans garde,
+# sed n'émet rien et rc=0 → msmtp partirait authentifier avec un mot de passe VIDE
+# (erreur d'auth confuse, loin de secrets.env). Le `| grep .` final transforme
+# l'extraction vide en échec explicite de passwordeval (arbitrage revue #675).
+cat > "${pw_stub_dir}/sops" <<'STUB'
+#!/usr/bin/env bash
+printf 'AUTRE_CHAMP=valeur\n'
+STUB
+chmod +x "${pw_stub_dir}/sops"
+PATH="${pw_stub_dir}:$PATH" bash -c "$pwdeval_cmd" >/dev/null 2>&1
+pw_rc=$?
+[[ "$pw_rc" -ne 0 ]] && ok "passwordeval : champ absent de secrets.env → échec explicite (extraction vide ≠ mot de passe vide)" \
+                      || ko "passwordeval : extraction vide acceptée en silence (exit ${pw_rc})"
 rm -rf "$pw_stub_dir"
 
 echo
@@ -711,6 +725,30 @@ rm -f "$tmp_cfg"
 
 tmp_cfg=$(mktemp); printf 'INSTANCE_SLUG=edn\n' > "$tmp_cfg"
 assert_fail "validate_config_env (component=relais) exige RELAIS_VERSION" \
+    validate_config_env "$tmp_cfg" "edn" "relais"
+rm -f "$tmp_cfg"
+
+# Alerte mail (#674, arbitrage revue #675) : RELAIS_ALERTE_MAILS posé = alerte voulue
+# ⇒ ALERTE__SMTP__{HOST,FROM,USER} requis (PORT a un défaut, 587). msmtp refuse un
+# fichier à directive vide : sans ce fail-fast AVANT la pose, le premier reconfigure
+# écraserait un msmtprc qui marche par un fichier invalide — alerte morte en silence.
+tmp_cfg=$(mktemp)
+printf 'INSTANCE_SLUG=edn\nRELAIS_VERSION=1.2.0\nRELAIS__SOURCE_URL=sftp://relais@source.example/flux\nRELAIS_ALERTE_MAILS=ops@example.fr\n' > "$tmp_cfg"
+assert_fail "validate_config_env (relais) : RELAIS_ALERTE_MAILS posé sans ALERTE__SMTP__* → refuse (msmtprc serait invalide)" \
+    validate_config_env "$tmp_cfg" "edn" "relais"
+printf 'ALERTE__SMTP__HOST=smtp.example.fr\n' >> "$tmp_cfg"
+assert_fail "validate_config_env (relais) : HOST seul ne suffit pas (FROM/USER requis aussi)" \
+    validate_config_env "$tmp_cfg" "edn" "relais"
+printf 'ALERTE__SMTP__FROM=alertes@example.fr\nALERTE__SMTP__USER=alertes@example.fr\n' >> "$tmp_cfg"
+assert_ok "validate_config_env (relais) : alerte complète (HOST/FROM/USER, PORT en défaut) → OK" \
+    validate_config_env "$tmp_cfg" "edn" "relais"
+rm -f "$tmp_cfg"
+
+# Sans RELAIS_ALERTE_MAILS l'alerte est désarmée (le hook sort en 0 avant msmtp) :
+# aucune exigence SMTP — une box relais sans alerte mail reste une config valide.
+tmp_cfg=$(mktemp)
+printf 'INSTANCE_SLUG=edn\nRELAIS_VERSION=1.2.0\nRELAIS__SOURCE_URL=sftp://relais@source.example/flux\n' > "$tmp_cfg"
+assert_ok "validate_config_env (relais) : sans RELAIS_ALERTE_MAILS, aucune exigence ALERTE__SMTP__*" \
     validate_config_env "$tmp_cfg" "edn" "relais"
 rm -f "$tmp_cfg"
 

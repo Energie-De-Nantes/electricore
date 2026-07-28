@@ -308,9 +308,12 @@ EOF
 # deploy/lib/ingestion.sh) — SOPS_AGE_KEY_FILE pointe la clé age de LA BOX
 # (/srv/<slug>/age.key, déjà là depuis l'onboarding, ADR-0044), sur le secrets.env déjà
 # pullé (providers/<slug>/secrets.env). `bash -o pipefail -c '...'` : si le sops hôte
-# échoue (clé absente/invalide, champ manquant), le PIPE entier remonte son code de
-# sortie non-zéro (sans pipefail, seul le code de `head -1`, toujours 0, survivrait) —
-# msmtp voit passwordeval échouer, logue bruyamment sur stderr (capté par
+# échoue (clé absente/invalide), le PIPE entier remonte son code de sortie non-zéro
+# (sans pipefail, seul le code du dernier maillon survivrait) ; si sops réussit mais
+# que le CHAMP manque, c'est le `| grep .` final qui échoue (rc=1 sur extraction vide
+# — sinon msmtp partirait authentifier avec un mot de passe vide, erreur d'auth
+# confuse loin de secrets.env ; arbitrage revue #675). Dans les deux cas msmtp voit
+# passwordeval échouer, logue bruyamment sur stderr (capté par
 # `journalctl -u electricore-relais-alerte.service`), pas de crash silencieux : mode
 # dégradé assumé (cf. deploy/relais/README.md « Alerte mail »).
 render_relais_alerte_msmtprc() {
@@ -333,7 +336,7 @@ port ${port}
 auth on
 from ${from}
 user ${user}
-passwordeval bash -o pipefail -c "SOPS_AGE_KEY_FILE=${agekey} sops decrypt --input-type dotenv --output-type dotenv ${secrets} | sed -n s/^ALERTE__SMTP__PASSWORD=//p | head -1"
+passwordeval bash -o pipefail -c "SOPS_AGE_KEY_FILE=${agekey} sops decrypt --input-type dotenv --output-type dotenv ${secrets} | sed -n s/^ALERTE__SMTP__PASSWORD=//p | head -1 | grep ."
 
 account default : electricore-relais
 EOF
@@ -344,10 +347,11 @@ EOF
 # bare-metal (#659) : EnvironmentFile= pointe désormais sur le config.env du layout
 # conteneurisé (#657, ${SRV_BASE:-/srv}/<slug>/config.env — où vit déjà
 # RELAIS_ALERTE_MAILS) au lieu de /etc/electricore-relais/relais.env, qui n'existe pas
-# dans ce layout. Paramétrée par slug comme render_relais_service ; msmtprc (chemin de
-# convention host-level /etc/electricore-relais/, un seul token SMTP par box, pas par
-# instance) est désormais RENDUE elle aussi (#674, render_relais_alerte_msmtprc) — plus
-# aucune édition manuelle.
+# dans ce layout. Paramétrée par slug comme render_relais_service ; msmtprc est
+# désormais RENDU lui aussi (#674, render_relais_alerte_msmtprc), paramétré par slug
+# (chemins /srv/<slug>/…) mais posé au chemin de convention host-level
+# /etc/electricore-relais/ : sur une box multi-slug le dernier install gagnerait —
+# assumé, une box = un relais aujourd'hui (arbitrage revue #675).
 render_relais_alerte_service() {
     local slug="$1"
     local home="${SRV_BASE:-/srv}/${slug}"

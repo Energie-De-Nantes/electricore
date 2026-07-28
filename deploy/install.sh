@@ -411,7 +411,9 @@ EOF
   plus aucune étape manuelle : le token vit dans providers/${OPT_SLUG}/secrets.env
   (ALERTE__SMTP__PASSWORD, chiffré), extrait à l'envoi par passwordeval (sops hôte).
   Params de routage (ALERTE__SMTP__{HOST,PORT,FROM,USER}) et destinataires
-  (RELAIS_ALERTE_MAILS) vivent dans ${HOME_DIR}/config.env (voir deploy/relais/README.md).
+  (RELAIS_ALERTE_MAILS) s'éditent dans providers/${OPT_SLUG}/config.env du DÉPÔT
+  (la copie ${HOME_DIR}/config.env est écrasée à chaque reconfigure) — voir
+  deploy/relais/README.md.
   Rotation du token : sops providers/${OPT_SLUG}/secrets.env, push, reconfigure.
 
   Amorçage (#643) — marque l'historique existant comme livré SANS le pousser au
