@@ -218,12 +218,30 @@ WantedBy=timers.target
 EOF
 }
 
+# relais_etat_vierge
+# Vrai si l'état du relais est vierge : volume docker absent, ou point de montage vide
+# (ni journal ni amorce dlt — les deux vivent dans le volume, pipelines_dir épinglé).
+# C'est LA condition de la garde #673 : sur état vierge, un timer armé pousserait TOUT
+# l'historique du dépôt au premier déclenchement (immédiat après `enable --now`, ou
+# OnBootSec=5min après un reboot). Le nom du volume découle du projet compose
+# (`name: electricore-relais` + volume `relais_data`, cf. render_relais_compose).
+relais_etat_vierge() {
+    local mp
+    mp=$(docker volume inspect -f '{{.Mountpoint}}' electricore-relais_relais_data 2>/dev/null) || return 0
+    [[ -z "$(ls -A "$mp" 2>/dev/null)" ]]
+}
+
 # install_relais_units <slug>
-# Pose le mini-compose + les unités systemd, puis active le timer. Idempotent :
-# régénère les fichiers à chaque appel (reconfigure) ; `enable --now` ne redémarre pas
-# un timer déjà actif. N'exécute JAMAIS de `docker compose run` elle-même — le premier
-# run réel se produit au premier déclenchement du timer (OnBootSec=5min), jamais
-# pendant l'installation (cf. install.sh, pas de test ingestion côté relais).
+# Pose le mini-compose + les unités systemd, puis active le timer — SAUF sur état
+# vierge (#673) : l'amorçage (seed) est un acte d'opérateur que l'installeur ne fait
+# jamais, et un timer armé avant lui pousserait tout l'historique au partenaire ;
+# l'installeur n'arme donc JAMAIS le timer tant que l'état est vierge (ni enable — un
+# reboot le démarrerait — ni start), et désarme au passage un résidu armé d'un install
+# antérieur au fix. Idempotent : régénère les fichiers à chaque appel (reconfigure) ;
+# `enable --now` ne redémarre pas un timer déjà actif. N'exécute JAMAIS de
+# `docker compose run` elle-même — le premier run réel se produit au premier
+# déclenchement du timer, jamais pendant l'installation (cf. install.sh, pas de test
+# ingestion côté relais).
 install_relais_units() {
     local slug="$1"
     local home="${SRV_BASE:-/srv}/${slug}"
@@ -234,8 +252,13 @@ install_relais_units() {
     render_relais_service "$slug" > /etc/systemd/system/electricore-relais.service
     render_relais_timer > /etc/systemd/system/electricore-relais.timer
     systemctl daemon-reload
-    systemctl enable --now electricore-relais.timer
-    log_ok "compose relais + timer systemd posés (${relais_dir}/compose-relais.yml, electricore-relais.timer actif)"
+    if relais_etat_vierge; then
+        systemctl disable --now electricore-relais.timer >/dev/null 2>&1 || true
+        log_ok "compose relais + unités posés (${relais_dir}/compose-relais.yml) — timer PAS armé : état vierge (#673), amorcer (seed) PUIS 'systemctl enable --now electricore-relais.timer'"
+    else
+        systemctl enable --now electricore-relais.timer
+        log_ok "compose relais + timer systemd posés (${relais_dir}/compose-relais.yml, electricore-relais.timer actif)"
+    fi
 }
 
 # ─── Alerte mail OnFailure= (#659, câblée sur ce layout conteneurisé par #668) ──────

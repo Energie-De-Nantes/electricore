@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Assertions e2e du composant relais de l'installeur (`install.sh --relais`, #657).
-# Vérifie l'ÉTAT POSÉ (timer actif, compose présent, refus sans clé SSH) — jamais un
-# push réel vers un partenaire (aucune invocation de `docker compose run` ici : le
-# premier run réel appartient au timer, pas à l'installeur ni à ce script).
+# Vérifie l'ÉTAT POSÉ (unités présentes, timer PAS armé sur état vierge #673, refus
+# sans clé SSH) — jamais un push réel vers un partenaire (aucune invocation de
+# `docker compose run` ici : le premier run réel appartient au timer, pas à
+# l'installeur ni à ce script).
 #
 # Le harnais multipass l'invoque via `multipass exec` (pas SSH) :
 #   ./deploy/tests/e2e/multipass.sh verify-relais refuse    <slug>   # avant `run --relais` (clé SSH absente)
@@ -55,9 +56,12 @@ case "$MODE" in
         check "unité service : ExecStart appelle docker compose run --rm" \
               "grep -q 'docker compose .* run --rm relais' /etc/systemd/system/electricore-relais.service"
         check "unité timer systemd présente"                       "test -f /etc/systemd/system/electricore-relais.timer"
-        check "timer electricore-relais.timer actif"                "systemctl is-active electricore-relais.timer"
-        check "timer electricore-relais.timer enabled (survit à un reboot)" \
-              "systemctl is-enabled electricore-relais.timer"
+        # Garde #673 : la VM e2e n'a jamais été amorcée (seed = geste d'opérateur,
+        # jamais joué par l'installeur ni par ce harnais) → état vierge → le timer
+        # doit être posé mais JAMAIS armé (ni actif ni enabled : un reboot ne doit
+        # pas le démarrer).
+        check "timer PAS armé sur état vierge (#673 : ni actif ni enabled)" \
+              "! systemctl is-active electricore-relais.timer && ! systemctl is-enabled electricore-relais.timer"
         check "clé SSH partenaire présente en 600"                 "test -f ${HOME_DIR}/relais_ssh_key"
         check "clé SSH partenaire : droits 600 exactement"         "[ \"\$(stat -c '%a' ${HOME_DIR}/relais_ssh_key)\" = 600 ]"
 
