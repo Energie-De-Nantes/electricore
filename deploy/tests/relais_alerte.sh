@@ -85,7 +85,29 @@ rm -f "$args_file"
 rc=$?
 [[ "$rc" -eq 0 && -f "$args_file" ]] && ok "hostname en échec → mail envoyé quand même" || ko "hostname en échec → pas de mail (rc=$rc)"
 
-# Cas 5 : le hook reste sur le chemin msmtprc host-level (jamais dans git, jamais
+# Cas 5 : commentaire de fin de ligne dans la valeur — systemd (EnvironmentFile=) ne
+# coupe PAS les commentaires inline, contrairement à dotenv/compose : le hook doit
+# l'amputer lui-même, sinon « # » et les mots du commentaire partent comme
+# destinataires → échec msmtp, AUCUN mail, silencieusement (revue #669).
+rm -f "$args_file"
+( PATH="${stub_dir}:$PATH" RELAIS_ALERTE_MAILS='a@x.fr,b@y.fr   # ops + astreinte' bash "$ALERTE_SH" )
+rc=$?
+[[ "$rc" -eq 0 ]] && ok "commentaire inline → exit 0" || ko "commentaire inline → exit non-zéro (got $rc)"
+grep -qx 'a@x.fr' "$args_file" 2>/dev/null && grep -qx 'b@y.fr' "$args_file" \
+    && ok "commentaire inline → les 2 destinataires, propres" \
+    || ko "commentaire inline → destinataires pollués ou absents"
+grep -q '#' "$args_file" 2>/dev/null && ko "un fragment de commentaire a fui dans les args msmtp" \
+    || ok "aucun fragment de commentaire dans les args msmtp"
+
+# Cas 6 : valeur réduite à un commentaire (« RELAIS_ALERTE_MAILS=  # à remplir ») →
+# même chemin que vide : exit 0 sans appeler msmtp.
+rm -f "$args_file"
+( PATH="${stub_dir}:$PATH" RELAIS_ALERTE_MAILS='   # à remplir' bash "$ALERTE_SH" ) 2>/dev/null
+rc=$?
+[[ "$rc" -eq 0 ]] && ok "valeur commentaire-seul → exit 0" || ko "valeur commentaire-seul → exit non-zéro (got $rc)"
+[[ ! -f "$args_file" ]] && ok "valeur commentaire-seul → msmtp jamais appelé" || ko "msmtp appelé sur une valeur commentaire-seul"
+
+# Cas 7 : le hook reste sur le chemin msmtprc host-level (jamais dans git, jamais
 # per-slug — un seul token SMTP par box), pas de résidu /etc/electricore-relais/relais.env.
 grep -q -- '--file=/etc/electricore-relais/msmtprc' "$ALERTE_SH" \
     && ok "msmtp --file= pointe /etc/electricore-relais/msmtprc (documenté, jamais dans git)" \

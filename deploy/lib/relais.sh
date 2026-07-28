@@ -264,7 +264,15 @@ set -euo pipefail
 
 UNIT="electricore-relais.service"
 
-if [[ -z "${RELAIS_ALERTE_MAILS:-}" ]]; then
+# systemd ne coupe PAS les commentaires de fin de ligne dans EnvironmentFile= (à la
+# différence de dotenv/compose) : un « a@x.fr  # ops » écrit à la main passerait « # »
+# et « ops » à msmtp comme destinataires → échec, AUCUN mail — précisément quand on en
+# a besoin (revue #669). On ampute nous-mêmes, et une valeur réduite à un commentaire
+# retombe sur le chemin « vide ».
+RELAIS_ALERTE_MAILS="${RELAIS_ALERTE_MAILS:-}"
+RELAIS_ALERTE_MAILS="${RELAIS_ALERTE_MAILS%%#*}"
+
+if [[ -z "${RELAIS_ALERTE_MAILS//[[:space:],]/}" ]]; then
     echo "electricore-relais-alerte: RELAIS_ALERTE_MAILS absent/vide — aucun mail envoyé" >&2
     exit 0
 fi
