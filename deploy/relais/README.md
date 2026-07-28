@@ -175,21 +175,30 @@ sudo -u <slug> docker compose --env-file /srv/<slug>/config.env \
 
 ## Complétude
 
-Requête ad hoc (zips reçus jamais relayés), depuis le conteneur :
+Sous-commande dédiée (`relais completude`, #690 — remplace l'ancien `python -c`
+à rallonge), depuis le conteneur. **Défaut** : l'écart restreint aux flux
+**dus** au partenaire (`RELAIS__FLUX`, arbitrage revue #688 — la vraie
+question opérateur) ; sortie : un zip par ligne (lisible à l'œil, consommable
+en pipe) puis une ligne de compte, exit **0** dans tous les cas — consultation
+passive, même philosophie que la vue d'audit ci-dessous, l'escalade du relais
+reste `relais_aveugle()` :
 
 ```bash
 sudo -u <slug> docker compose --env-file /srv/<slug>/config.env \
     -f /srv/<slug>/deploy/relais/compose-relais.yml run --rm relais \
-    python -c "
-from electricore.ingestion.relais.pipeline import zips_non_relayes
-print(zips_non_relayes('sftp://user:pass@source.example/flux', '/data/relais.duckdb'))
-"
+    python -m electricore.ingestion.relais completude
 ```
 
-Ajouter `flux_filtres=runtime.relais().flux_filtres()` (avec `from
-electricore.config import runtime`) pour ne lister que ce qui est **dû au
-partenaire** — sans lui, l'écart inclut les flux jamais relayés (X13, LTE01,
-R63…), et ce bruit peut masquer un vrai trou (#683).
+`--tous` : l'écart brut, tous flux confondus (comportement historique de
+`zips_non_relayes`) — sans le filtre par défaut, l'écart inclut les flux
+jamais dus au partenaire (X13, LTE01, R63…), du bruit qui a failli masquer un
+vrai trou de 47 zips à la générale (#683) :
+
+```bash
+sudo -u <slug> docker compose --env-file /srv/<slug>/config.env \
+    -f /srv/<slug>/deploy/relais/compose-relais.yml run --rm relais \
+    python -m electricore.ingestion.relais completude --tous
+```
 
 ## Vue d'audit (#646)
 
