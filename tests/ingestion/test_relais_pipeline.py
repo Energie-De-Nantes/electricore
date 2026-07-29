@@ -24,6 +24,7 @@ import os
 import sys
 import time
 import zipfile
+from datetime import UTC, datetime
 from pathlib import Path
 
 import dlt
@@ -39,6 +40,7 @@ from electricore.ingestion.relais.pipeline import (
     NOM_DATASET,
     NOM_RESOURCE,
     StatsRelais,
+    _dechiffrer_et_observer,
     executer,
     seed_avant,
     zips_non_relayes,
@@ -100,8 +102,8 @@ def _deposer_zip(bucket: Path, nom: str, contenu_interne: bytes, date=(2026, 6, 
 def _deposer_zip_cle_inconnue(bucket: Path, nom: str, contenu_interne: bytes, date=(2026, 6, 15, 12, 0, 0)) -> Path:
     """Dépose un zip chiffré avec `AES_KEY_INCONNUE` — jamais dans le trousseau configuré par
     `_configurer_env` (`AES_KEY`) : simule une rotation de clé Enedis (#692), decrypt échoue
-    (`ValueError`, oracle padding/magic bytes), échec compté dans `chaine.echecs_dechiffrement`,
-    jamais poussé, jamais journalisé `'vu'`."""
+    (`ValueError`, oracle padding/magic bytes), zip noté dans `zips_indechiffrables` (source
+    du prédicat et du journal, #695), jamais poussé, jamais journalisé `'vu'`."""
     bucket.mkdir(parents=True, exist_ok=True)
     chemin = bucket / nom
     buf = io.BytesIO()
@@ -589,6 +591,55 @@ def test_relais_aveugle_lit_zips_indechiffrables_pas_le_compteur_chaine():
 
     assert stats.chaine.echecs_dechiffrement == 0  # compteur interne resté à zéro
     assert stats.relais_aveugle() is True  # les noms suffisent à faire escalader
+
+
+class _FichierChiffreEnMemoire(dict):
+    """Sosie minimal de `FileItemDict` (dict + `.open()`) — exerce le wrapper observateur via
+    le seam de crypto.py (`_decrypt_aes_transformer_base`), sans dlt ni système de fichiers."""
+
+    def __init__(self, nom: str, contenu: bytes):
+        super().__init__(file_name=nom, modification_date=datetime(2026, 6, 15, tzinfo=UTC))
+        self._contenu = contenu
+
+    def open(self):
+        return io.BytesIO(self._contenu)
+
+
+def _zip_chiffre(contenu_interne: bytes, cle: bytes, iv: bytes) -> bytes:
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("doc.xml", contenu_interne)
+    return AES.new(cle, AES.MODE_CBC, iv).encrypt(pad(buf.getvalue(), AES.block_size))
+
+
+def test_wrapper_observateur_zip_indechiffrable_note_le_nom_sans_yield():
+    """Invariant du wrapper (#695) : la brique ne produit AUCUN document (toutes clés KO,
+    `ValueError` avalée par la discipline `etape_chaine`) ⟺ le nom est noté dans
+    `zips_indechiffrables`. Le compteur interne de la brique reste au diapason — c'est la
+    garde anti-dérive brique↔noms au grain unitaire."""
+    stats = StatsRelais()
+    fichier = _FichierChiffreEnMemoire(
+        "ENEDIS_C15_20260615_001.zip", _zip_chiffre(b"<data>ko</data>", AES_KEY_INCONNUE, AES_IV_INCONNUE)
+    )
+
+    docs = list(_dechiffrer_et_observer(fichier, [("test", AES_KEY, AES_IV)], stats))
+
+    assert docs == []
+    assert stats.zips_indechiffrables == ["ENEDIS_C15_20260615_001.zip"]
+    assert stats.chaine.echecs_dechiffrement == 1  # compteur et noms au diapason (anti-dérive)
+
+
+def test_wrapper_observateur_zip_dechiffrable_yield_le_doc_sans_noter():
+    """Réciproque de l'invariant (#695) : la brique yield exactement un document (clé du
+    trousseau correcte) ⟺ rien n'est noté dans `zips_indechiffrables`."""
+    stats = StatsRelais()
+    fichier = _FichierChiffreEnMemoire("ENEDIS_C15_20260615_001.zip", _zip_chiffre(b"<data>ok</data>", AES_KEY, AES_IV))
+
+    docs = list(_dechiffrer_et_observer(fichier, [("test", AES_KEY, AES_IV)], stats))
+
+    assert [doc["file_name"] for doc in docs] == ["ENEDIS_C15_20260615_001.zip"]
+    assert stats.zips_indechiffrables == []
+    assert (stats.chaine.fichiers, stats.chaine.dechiffres) == (1, 1)
 
 
 @pytest.mark.integration
