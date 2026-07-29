@@ -62,6 +62,20 @@ ko() { printf '  \033[31m✗\033[0m %s\n' "$1"; FAIL=$((FAIL+1)); }
 assert_ok()   { local desc="$1"; shift; if "$@" >/dev/null 2>&1; then ok "$desc"; else ko "$desc (exit non-zero)"; fi; }
 assert_fail() { local desc="$1"; shift; if "$@" >/dev/null 2>&1; then ko "$desc (devait échouer)"; else ok "$desc"; fi; }
 assert_eq()   { if [[ "$1" == "$2" ]]; then ok "$3"; else ko "$3 — got '$1', want '$2'"; fi; }
+# assert_fail_msg <desc> <motif> <cmd…> — la commande doit ÉCHOUER ET sa sortie (stdout+stderr)
+# contenir <motif> : distingue un échec pour la BONNE raison d'un échec pour une autre (une
+# exigence future ajoutée à la même fonction validée pourrait sinon faire illusion, #695).
+assert_fail_msg() {
+    local desc="$1" motif="$2"; shift 2
+    local sortie
+    if sortie=$("$@" 2>&1); then
+        ko "$desc (devait échouer)"
+    elif [[ "$sortie" == *"$motif"* ]]; then
+        ok "$desc"
+    else
+        ko "$desc (échec pour une autre raison) : $sortie"
+    fi
+}
 
 echo "→ validate.sh (args CLI seulement — le format des secrets vit en pydantic, ADR-0049)"
 assert_ok   "slug 'edn'"                       validate_slug edn
@@ -675,11 +689,12 @@ grep -q "OPT_VERSION_EXPLICIT" "$install_sh" \
 echo
 echo "→ env_validate.sh / read_env_var"
 tmp_rev=$(mktemp)
-printf 'API_KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nQUOTED_VALUE="hello world"\nWITH_COMMENT=foo   # trailing comment ignored\n' > "$tmp_rev"
+printf 'API_KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nQUOTED_VALUE="hello world"\nWITH_COMMENT=foo   # trailing comment ignored\n  INDENTED_KEY=indented_value\n' > "$tmp_rev"
 assert_eq "$(read_env_var "$tmp_rev" API_KEY)" "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" "read_env_var API_KEY"
 assert_eq "$(read_env_var "$tmp_rev" QUOTED_VALUE)" "hello world" "read_env_var avec guillemets"
 assert_eq "$(read_env_var "$tmp_rev" WITH_COMMENT)" "foo" "read_env_var ignore # comment"
 assert_eq "$(read_env_var "$tmp_rev" ABSENT)" "" "read_env_var clé absente → vide"
+assert_eq "$(read_env_var "$tmp_rev" INDENTED_KEY)" "indented_value" "read_env_var rogne l'indentation de la clé (#695)"
 rm -f "$tmp_rev"
 
 echo
@@ -804,13 +819,25 @@ rm -f "$tmp_cfg"
 # légitime — authentification par clé SSH, chemin nominal du relais.
 tmp_cfg=$(mktemp)
 printf 'INSTANCE_SLUG=edn\nRELAIS_VERSION=1.2.0\nRELAIS__SOURCE_URL=sftp://user:hunter2@source.example/flux\n' > "$tmp_cfg"
-assert_fail "validate_config_env (relais) : mot de passe embarqué dans RELAIS__SOURCE_URL → refuse (#693)" \
+assert_fail_msg "validate_config_env (relais) : mot de passe embarqué dans RELAIS__SOURCE_URL → refuse (#693)" \
+    "mot de passe embarqué" \
     validate_config_env "$tmp_cfg" "edn" "relais"
 rm -f "$tmp_cfg"
 
 tmp_cfg=$(mktemp)
 printf 'INSTANCE_SLUG=edn\nRELAIS_VERSION=1.2.0\nRELAIS__SOURCE_URL=sftp://relais@source.example/flux\nRELAIS__PARTNER_URL=sftp://user:hunter2@partenaire.example/in\n' > "$tmp_cfg"
-assert_fail "validate_config_env (relais) : mot de passe embarqué dans RELAIS__PARTNER_URL → refuse (#693)" \
+assert_fail_msg "validate_config_env (relais) : mot de passe embarqué dans RELAIS__PARTNER_URL → refuse (#693)" \
+    "mot de passe embarqué" \
+    validate_config_env "$tmp_cfg" "edn" "relais"
+rm -f "$tmp_cfg"
+
+# Fix racine read_env_var (#695) : une ligne INDENTÉE portant un mot de passe embarqué doit
+# rester détectée — avant #695, `read_env_var` la manquait ($1 incluait l'indentation), la
+# garde était invisible sur exactement ce que compose --env-file/pydantic-settings liraient.
+tmp_cfg=$(mktemp)
+printf 'INSTANCE_SLUG=edn\nRELAIS_VERSION=1.2.0\n  RELAIS__SOURCE_URL=sftp://user:hunter2@source.example/flux\n' > "$tmp_cfg"
+assert_fail_msg "validate_config_env (relais) : mot de passe embarqué dans une ligne indentée → refuse (#695)" \
+    "mot de passe embarqué" \
     validate_config_env "$tmp_cfg" "edn" "relais"
 rm -f "$tmp_cfg"
 
