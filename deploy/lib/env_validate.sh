@@ -9,12 +9,15 @@
 
 # read_env_var <env_file> <key>
 # Extrait la valeur de <key> dans le .env (gère KEY=value avec/sans guillemets,
-# ignore les # comments en fin de ligne).
+# ignore les # comments en fin de ligne, rogne l'indentation de la clé — #695 :
+# les parseurs dotenv réels (compose --env-file, pydantic-settings) rognent
+# l'indentation, une comparaison brute de $1 les rendait invisibles ici).
 read_env_var() {
     local file="$1"
     local key="$2"
     awk -v k="$key" -F= '
-        $1 == k {
+        { key=$1; sub(/^[[:space:]]+/, "", key) }
+        key == k {
             value=""
             for (i=2; i<=NF; i++) { value = value (i>2 ? "=" : "") $i }
             sub(/[[:space:]]+#.*$/, "", value)
