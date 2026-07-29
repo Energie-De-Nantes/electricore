@@ -96,11 +96,16 @@ class StatsRelais:
     (`crypto.py::_decrypt_aes_transformer_base`, réutilisée telle quelle via
     `_dechiffrer_et_observer`) — `chaine.fichiers` (pré-compte des zips entrés au
     déchiffrement), `chaine.dechiffres` et `chaine.echecs_dechiffrement` en découlent
-    gratuitement, aucune brique modifiée.
+    gratuitement, aucune brique modifiée. Depuis #695, `chaine.echecs_dechiffrement` est
+    **purement interne** (ses logs par zip demeurent) — affiché nulle part, aucune décision
+    n'en dépend.
     `zips_indechiffrables` : noms collectés par `_dechiffrer_et_observer` (wrapper composition
     autour de la brique decrypt) pour journalisation POST-RUN — la sortie du decrypt alimente
     directement le push dlt, un échec de déchiffrement ne peut donc pas transiter par la
-    chaîne jusqu'à `_pousser` comme le fait un échec de push.
+    chaîne jusqu'à `_pousser` comme le fait un échec de push. Cette liste est la **source
+    unique** du déchiffrement pour `relais_aveugle()` et le résumé CLI (#695) : une dérive
+    future entre le compteur de la brique et les noms collectés ne peut plus désynchroniser
+    prédicat et journal.
     """
 
     candidats: int = 0
@@ -113,13 +118,20 @@ class StatsRelais:
         """Même prédicat que `StatsChaine.flux_aveugle()`, étendu au déchiffrement (#692) :
         0 push réussi malgré ≥ 1 échec — de push OU de déchiffrement.
 
+        Lit `len(zips_indechiffrables)`, **PAS** `chaine.echecs_dechiffrement` (#695) : les
+        noms collectés par le wrapper observateur (`_dechiffrer_et_observer`) sont la source
+        unique du déchiffrement pour cette décision — le compteur de la brique `crypto.py`
+        redevient purement interne (ses logs par zip demeurent). Motivation : une dérive
+        future de la brique decrypt pourrait désynchroniser compteur et noms, exactement le
+        scénario que #692 combat (journal plein d'`echec` mais sortie 0, escalade re-aveugle).
+
         Un échec **isolé** noyé dans des push réussis (`pousses > 0`) est toléré — retenté
         au run suivant par le balayage réconciliant, jamais une raison d'escalader (sémantique
         tolérante inchangée : un échec de déchiffrement isolé pendant une rotation de clé ne
         fait pas non plus échouer le run tant qu'au moins un push a réussi). Un run SANS aucun
         candidat ni échec (source vide) n'est pas non plus aveugle.
         """
-        return self.pousses == 0 and (self.echecs_push + self.chaine.echecs_dechiffrement) > 0
+        return self.pousses == 0 and (self.echecs_push + len(self.zips_indechiffrables)) > 0
 
 
 def _match_flux(file_name: str, flux_filtres: set[str] | None) -> bool:
