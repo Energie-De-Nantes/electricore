@@ -200,7 +200,8 @@ def _decrypt_aes_transformer_base(
     succès ni échec : il vit donc HORS du combinateur (qui reste symétrique à deux compteurs sur
     les trois étages). Ce pré-compte précède la lecture SFTP de `_decrypt` ; un fichier dont la
     lecture échouerait est tout de même compté `fichiers` (l'erreur IO propage telle quelle, hors
-    discipline ADR-0037). Seam de test sans dlt : la factory `@dlt.transformer` ci-dessous l'appelle.
+    discipline ADR-0037). Seam de test sans dlt : la factory `@dlt.transformer` ci-dessous l'appelle
+    — et le wrapper observateur du relais (`relais/pipeline.py::_dechiffrer_et_observer`, #692).
     """
     stats.fichiers += 1
     yield from _decrypt(encrypted_file, key_chain, stats)  # stats : dernier positionnel (injecté)

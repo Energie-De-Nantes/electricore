@@ -38,6 +38,7 @@ from electricore.config import runtime
 from electricore.ingestion.relais.pipeline import (
     NOM_DATASET,
     NOM_RESOURCE,
+    StatsRelais,
     executer,
     seed_avant,
     zips_non_relayes,
@@ -113,26 +114,18 @@ def _deposer_zip_cle_inconnue(bucket: Path, nom: str, contenu_interne: bytes, da
     return chemin
 
 
-def _configurer_env(monkeypatch, source: Path, cible: Path, db: Path, *, flux: str = ""):
+def _configurer_env(
+    monkeypatch, source: Path, cible: Path, db: Path, *, flux: str = "", cle: bytes = AES_KEY, iv: bytes = AES_IV
+):
+    """`cle`/`iv` (#695) : défauts = trousseau correct (`AES_KEY`/`AES_IV`) ; passer
+    `cle=AES_KEY_INCONNUE, iv=AES_IV_INCONNUE` simule un trousseau entièrement faux (rotation
+    de clé Enedis, #692) — remplace l'ancienne fixture dédiée, dupliquée à 7/8 lignes près."""
     monkeypatch.setenv("RELAIS__SOURCE_URL", f"file://{source}/")
     monkeypatch.setenv("RELAIS__PARTNER_URL", f"file://{cible}/")
     monkeypatch.setenv("RELAIS__DESTINATION_DB", str(db))
     monkeypatch.setenv("RELAIS__FLUX", flux)
-    monkeypatch.setenv("AES__TROUSSEAU__test__KEY", AES_KEY.hex())
-    monkeypatch.setenv("AES__TROUSSEAU__test__IV", AES_IV.hex())
-    runtime.vider_cache()
-
-
-def _configurer_env_trousseau_entierement_faux(monkeypatch, source: Path, cible: Path, db: Path, *, flux: str = ""):
-    """Trousseau entièrement faux (#692) : aucune clé ne matche `AES_KEY` — simule une
-    rotation de clé Enedis où le nouveau `.env` n'a pas encore été mis à jour, TOUS les zips
-    déposés via `_deposer_zip` (chiffrés `AES_KEY`) deviennent indéchiffrables."""
-    monkeypatch.setenv("RELAIS__SOURCE_URL", f"file://{source}/")
-    monkeypatch.setenv("RELAIS__PARTNER_URL", f"file://{cible}/")
-    monkeypatch.setenv("RELAIS__DESTINATION_DB", str(db))
-    monkeypatch.setenv("RELAIS__FLUX", flux)
-    monkeypatch.setenv("AES__TROUSSEAU__mauvaise__KEY", AES_KEY_INCONNUE.hex())
-    monkeypatch.setenv("AES__TROUSSEAU__mauvaise__IV", AES_IV_INCONNUE.hex())
+    monkeypatch.setenv("AES__TROUSSEAU__test__KEY", cle.hex())
+    monkeypatch.setenv("AES__TROUSSEAU__test__IV", iv.hex())
     runtime.vider_cache()
 
 
@@ -580,26 +573,39 @@ def test_zip_vu_n_est_pas_rejournalise_au_run_suivant(tmp_path, monkeypatch):
 
 
 # =============================================================================
-# Escalade étendue au déchiffrement (#692) : l'ancien prédicat ne voyait que le push — une
-# rotation de clé Enedis (tous les zips indéchiffrables) affichait ✅ et sortait 0 pour
-# toujours. `StatsRelais.chaine` (composition, `StatsChaine` passé à la brique decrypt) compte
-# les échecs de déchiffrement ; le wrapper observateur journalise `statut='echec'` post-run.
+# Vérité unique des zips indéchiffrables (#695) : `relais_aveugle()` dérive des NOMS
+# collectés (`zips_indechiffrables`), pas du compteur interne de la brique decrypt
+# (`chaine.echecs_dechiffrement`) — test pur, sans dlt, sur `StatsRelais` seul.
 # =============================================================================
+
+
+def test_relais_aveugle_lit_zips_indechiffrables_pas_le_compteur_chaine():
+    """Preuve de l'unification (#695) : `chaine.echecs_dechiffrement` reste à zéro (la brique
+    n'a pas tourné) mais `zips_indechiffrables` porte un nom — `relais_aveugle()` doit être
+    vrai. Avant #695 (prédicat lisant `chaine.echecs_dechiffrement`), ce test échoue : c'est
+    exactement le scénario grave que #692 combat (journal plein d'`echec` mais compteur à
+    zéro à cause d'une brique désynchronisée)."""
+    stats = StatsRelais(pousses=0, zips_indechiffrables=["ENEDIS_C15_20260615_001.zip"])
+
+    assert stats.chaine.echecs_dechiffrement == 0  # compteur interne resté à zéro
+    assert stats.relais_aveugle() is True  # les noms suffisent à faire escalader
 
 
 @pytest.mark.integration
 def test_trousseau_entierement_faux_run_aveugle_et_indechiffrables_journalises(tmp_path, monkeypatch):
     """Critère d'acceptation #692 : trousseau entièrement faux → aucun push n'est même
     tenté (rien ne franchit decrypt), `relais_aveugle()` doit malgré tout être vrai (prédicat
-    étendu à `chaine.echecs_dechiffrement`) et chaque zip indéchiffrable journalisé `'echec'`."""
+    étendu au déchiffrement, lu depuis `zips_indechiffrables` — #695) et chaque zip
+    indéchiffrable journalisé `'echec'`."""
     source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
     _deposer_zip(source, "ENEDIS_C15_20260615_001.zip", b"<data>c15</data>")
-    _configurer_env_trousseau_entierement_faux(monkeypatch, source, cible, db)
+    _configurer_env(monkeypatch, source, cible, db, cle=AES_KEY_INCONNUE, iv=AES_IV_INCONNUE)
 
     info, stats = executer(_pipeline(tmp_path, db))
 
     assert (stats.candidats, stats.pousses, stats.echecs_push) == (0, 0, 0)  # rien n'atteint le push
-    assert stats.chaine.echecs_dechiffrement == 1
+    assert stats.chaine.echecs_dechiffrement == 1  # compteur interne de la brique (#695) : toujours tenu
+    assert len(stats.zips_indechiffrables) == 1  # source unique du prédicat (#695)
     assert stats.relais_aveugle() is True
     assert dict(_toutes_lignes_journal(db))["ENEDIS_C15_20260615_001.zip"] == "echec"
     assert not (cible / "C15").exists()
@@ -617,7 +623,8 @@ def test_trousseau_mixte_echecs_dechiffrement_comptes_journalises_et_retentes(tm
 
     info, stats = executer(_pipeline(tmp_path, db))
 
-    assert stats.chaine.echecs_dechiffrement == 1
+    assert stats.chaine.echecs_dechiffrement == 1  # compteur interne de la brique (#695) : toujours tenu
+    assert len(stats.zips_indechiffrables) == 1  # source unique du prédicat (#695)
     assert stats.pousses == 1
     assert stats.relais_aveugle() is False  # pousses > 0 ⇒ jamais aveugle (tolérant)
     lignes = dict(_toutes_lignes_journal(db))
@@ -655,7 +662,7 @@ def test_cli_run_trousseau_faux_sort_en_erreur_avec_resume_dechiffrement(tmp_pat
 
     source, cible, db = tmp_path / "source", tmp_path / "cible", tmp_path / "relais.duckdb"
     _deposer_zip(source, "ENEDIS_C15_20260615_001.zip", b"<data>c15</data>")
-    _configurer_env_trousseau_entierement_faux(monkeypatch, source, cible, db)
+    _configurer_env(monkeypatch, source, cible, db, cle=AES_KEY_INCONNUE, iv=AES_IV_INCONNUE)
     monkeypatch.setattr(sys, "argv", ["relais"])
 
     with pytest.raises(SystemExit) as exc:
