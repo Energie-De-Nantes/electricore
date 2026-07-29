@@ -101,7 +101,7 @@ def _run_relais() -> None:
     # une rotation de clé Enedis (rien n'atteint le push, tout se joue en amont).
     resume = (
         f"{stats.chaine.fichiers} entré(s) au déchiffrement, "
-        f"{stats.chaine.echecs_dechiffrement} indéchiffrable(s), "
+        f"{len(stats.zips_indechiffrables)} indéchiffrable(s), "
         f"{stats.candidats} candidat(s), {stats.pousses} poussé(s), {stats.echecs_push} échec(s)"
     )
     if stats.relais_aveugle():
