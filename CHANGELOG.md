@@ -9,6 +9,77 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.8.0] - 2026-08-03
+
+Minor centrée sur le **relais de flux Haulogy** : le cycle post-générale du 28/07
+(répétition complète sur la box Enargia) — escalade du déchiffrement, complétude
+requêtable, alerte mail conteneurisée, timer fiabilisé, gardes anti-fuite.
+`RELAIS_VERSION=3.8.0` épinglable pour le go-live (#661).
+
+### ✨ Ajouté
+
+- **Escalade du déchiffrement** (#692, #695) : les échecs de déchiffrement sont
+  comptés et journalisés (`echec`), le prédicat « relais aveugle » et le résumé
+  CLI dérivent des noms journalisés — plus de drop silencieux (la générale avait
+  révélé 47 zips AES-128 ramassés en `vu` sans alerte).
+- **Sous-commande `completude`** (#690) : l'écart dépôt/journal en CLI, restreint
+  par défaut aux flux dus (`RELAIS__FLUX`).
+- **Dépôt par flux chez le partenaire** (#686) : `<partner_url>/<CODE_FLUX>/`,
+  refus d'un code flux vide.
+- **Alerte mail sur le chemin conteneurisé** (#668, #674) : `install.sh --relais`
+  pose et branche le hook `OnFailure=`, msmtprc **rendu** avec
+  `passwordeval` (sops) — le token SMTP ne vit qu'en `secrets.env` chiffré ;
+  garde au reconfigure : `ALERTE__SMTP__*` exigés quand `RELAIS_ALERTE_MAILS`
+  est posé.
+- **Garde anti-fuite** (#693) : refuse les credentials embarqués dans
+  `RELAIS__SOURCE_URL`/`RELAIS__PARTNER_URL` ; `read_env_var` rogne
+  l'indentation (la garde ne se contourne plus par une ligne indentée).
+
+### 🐛 Corrigé
+
+- **Timer relais** : jamais armé sur état vierge — le seed reste un geste
+  explicite du go-live (#673) ; `OnActiveSec=1min` — un timer (re)démarré à
+  froid planifie au lieu d'attendre le reboot (#682).
+- **`age.key`** : appartient à `CONTAINER_UID` (lisible du conteneur), un résidu
+  vide de run interrompu ne s'empoisonne plus (écriture atomique), et
+  l'exception survit au `chown -R` du home (#672).
+- **Reconfigure** : pull du deploy-repo avec `safe.directory` (dubious
+  ownership), `ensure_secrets_tools` réellement appelé.
+- **Corps du mail d'alerte** filtré du bruit de pull docker (#678).
+- **Outillage relais** : le seed imprime son compte d'amorçage (#684) ;
+  `zips_non_relayes` accepte un chemin `str` et filtre le bruit hors flux (#683).
+
+### 📚 Documentation
+
+- Recette cookbook `trousseau-add-key` (ADR-0044/0046) ; glossaire « Relais
+  aveugle » recentré métier.
+
+## [3.7.0] - 2026-07-27
+
+Premier stable de la ligne **3.7** (cycle rc1→rc3 : endpoint prestations,
+sorties C15, empreinte de contenu — voir les entrées rc ci-dessous), qui embarque
+en plus le **relais de flux Haulogy** : première image ghcr contenant le relais
+et son installeur.
+
+### ✨ Ajouté
+
+- **Relais de flux — étage Transform et audit** (#646) : journal enrichi (tout
+  zip vu au balayage), contrôle intra-zip au dézippage, vérification d'écriture
+  post-dépôt, vue `audit_sequences` embarquée, marqueur `_FA` validé corpus.
+- **Installeur `--relais`** (#657) : composant relais seul dans `install.sh`
+  (mini-compose dédié, pin `RELAIS_VERSION` distinct, trousseau AES mutualisé
+  via le `secrets.env` provider), `FLUX_DEPOSIT_DIR` paramétrable.
+- **Préflight sshd non-vierge** (#656) : refuse de durcir une box dont un compte
+  existant vit au mot de passe (fail-closed, dates de dernier login mdp, diff
+  avant/après) ; scénario e2e multipass.
+- **Hook d'alerte mail `OnFailure=`** (#659) : script shell + msmtp (survit à un
+  venv cassé), destinataires CSV `RELAIS_ALERTE_MAILS`.
+
+### 📚 Documentation
+
+- Pin `paramiko <5` documenté — dlt sftp passe `gss_auth` (dlt-hub/dlt#3931).
+- CI : ruff épinglé `0.15.15`, aligné sur pre-commit.
+
 ## [3.7.0rc3] - 2026-07-14
 
 Release candidate : **fin de souscription Odoo** — l'endpoint sorties C15 arrive
