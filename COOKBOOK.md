@@ -132,3 +132,17 @@ when: changement des notebooks opérateur (accueil, facturation, injection RSC) 
 do: uv run --extra notebooks electricore-notebooks  # exige dans .env ELECTRICORE_API_URL (dev : http://localhost:8001, voir `api-up`) et ELECTRICORE_API_KEY (une clé du trousseau, reste dans .env)
 look: l'URL affichée par le lanceur marimo
 expect: le notebook charge et parle à l'API (pas de connexion refusée)
+
+## trousseau-add-key
+
+mode: human
+when: ajouter un ou plusieurs consommateurs au trousseau API d'un provider (secrets-as-code, ADR-0044/0046)
+do:
+```
+# Machine admin, dans le dépôt electricore-secrets — jamais de valeur en clair dans git
+python3 -c "import secrets; print('\n'.join(f'API__TROUSSEAU__{c}__KEY={secrets.token_urlsafe(32)}' for c in ('{consommateur}',)))"
+sops providers/{provider}/secrets.env   # coller les lignes, sauver → re-chiffrement auto
+git add providers/{provider}/secrets.env && git commit -m "feat({provider}): clé API {consommateur}" && git push
+```
+look: git diff du commit, puis `reconfigure` sur la box pour prise d'effet
+expect: valeurs de 43 caractères (token_urlsafe(32) > minimum 32 du registre runtime) ; le diff ne montre que des `ENC[AES256_GCM,...]` — les labels restent lisibles, c'est voulu (SOPS chiffre les valeurs, pas les noms)
