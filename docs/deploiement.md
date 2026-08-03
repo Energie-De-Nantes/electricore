@@ -696,19 +696,20 @@ déclenchement d'ingestion.
 Dans `secrets.env` (chiffré, dépôt de déploiement) :
 
 ```
-SFTP__URL=file:///var/enedis/
+SFTP__URL=file:///var/enedis
 ```
 
-Dans `/srv/<slug>/deploy/docker/docker-compose.yml`, décommenter le bind-mount
-du service **`api`** :
+Dans `config.env` (clair, même dépôt) — le même chemin, sans le schéma :
 
-```yaml
-services:
-  api:
-    volumes:
-      - duckdb_data:/data
-      - /var/enedis:/var/enedis:ro     # ← cette ligne
 ```
+FLUX_DEPOSIT_DIR=/var/enedis
+```
+
+Rien à éditer dans `docker-compose.yml` : le service **`api`** monte
+`${FLUX_DEPOSIT_DIR}` en lecture seule au même chemin dedans/dehors (substitution
+`--env-file`), donc l'URL `file://` vaut telle quelle des deux côtés. Sans la
+variable, le montage retombe sur un dossier vide inerte (mode A intact). C'est la
+même variable et le même mécanisme que côté relais (`compose-relais.yml`).
 
 > **⚠️ Important** : les fichiers Enedis restent chiffrés en AES sur disque
 > (même en mode collocé). Les clés `AES__*` sont toujours obligatoires.
