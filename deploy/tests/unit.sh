@@ -318,6 +318,13 @@ grep -qF -- '- ${FLUX_DEPOSIT_DIR:-/srv/electricore/flux-deposit}:${FLUX_DEPOSIT
     || ko "render_relais_compose: montage flux-deposit absent/incorrect"
 
 echo
+echo "→ docker/docker-compose.yml (stack) — montage collocé paramétré (mode B sans édition manuelle)"
+# NB : LIB_DIR et pas SCRIPT_DIR (écrasé par le sourçage d'install.sh, cf. en-tête).
+grep -qF -- '- ${FLUX_DEPOSIT_DIR:-/srv/electricore/flux-deposit}:${FLUX_DEPOSIT_DIR:-/srv/electricore/flux-deposit}:ro' "${LIB_DIR}/../docker/docker-compose.yml" \
+    && ok "docker-compose.yml: montage collocé du service api piloté par FLUX_DEPOSIT_DIR (défaut inerte, même idiome que le relais)" \
+    || ko "docker-compose.yml: montage collocé FLUX_DEPOSIT_DIR absent — le mode B redevient une édition manuelle perdue au reconfigure"
+
+echo
 echo "→ relais.sh / relais_etat_vierge (garde #673 : timer jamais armé sans amorce)"
 # Fake docker : `volume inspect` répond le mountpoint contrôlé par le test, ou échoue
 # (volume absent) si le drapeau `absent` existe — la garde ne dépend de docker que

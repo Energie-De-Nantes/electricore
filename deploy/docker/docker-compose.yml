@@ -57,8 +57,12 @@ services:
       # le secrets.env chiffré (pull du dépôt privé dans providers/<slug>/).
       - ../../age.key:/run/secrets/age.key:ro
       - ../../providers/${INSTANCE_SLUG:-electricore}/secrets.env:/run/secrets/secrets.env:ro
-      # Mode "fichiers collocés" : décommenter et adapter si SFTP__URL=file://... dans secrets.env
-      # - /var/enedis:/var/enedis:ro
+      # Mode "fichiers collocés" (SFTP__URL=file://… dans secrets.env) : dépôt monté ro
+      # au MÊME chemin dedans/dehors — l'URL vaut telle quelle des deux côtés.
+      # FLUX_DEPOSIT_DIR vient du config.env racine (substitution --env-file, cf. en-tête) ;
+      # sans la variable, défaut inerte (dossier vide) — mode SFTP distant intact.
+      # Même mécanisme que le relais (compose-relais.yml), même variable.
+      - ${FLUX_DEPOSIT_DIR:-/srv/electricore/flux-deposit}:${FLUX_DEPOSIT_DIR:-/srv/electricore/flux-deposit}:ro
     expose:
       - "8001"
     healthcheck:
