@@ -1,5 +1,5 @@
 ---
-fraicheur: 2026-07-04
+fraicheur: 2026-08-11
 ---
 
 # Onboarding d'un opérateur notebook (#414)
