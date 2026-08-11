@@ -1,0 +1,59 @@
+[project]
+name = "electricore-kiosque"
+version = "0.1.0"
+description = "Kiosque : apps marimo hébergées en lecture seule pour néophytes — voir ADR-0057"
+authors = [
+    {name = "Virgile"}
+]
+license = {text = "AGPL-3.0"}
+readme = "README.md"
+requires-python = ">=3.12"
+keywords = [
+    "electricore",
+    "energy",
+    "enedis",
+    "marimo",
+    "kiosque",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU Affero General Public License v3",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
+]
+# JAMAIS le moteur `electricore` (pas de polars/duckdb) — même invariant de légèreté
+# qu'electricore-client (ADR-0043), dont le Kiosque dépend comme tout intégrateur.
+dependencies = [
+    "marimo>=0.23.0",  # pre-auth RCE fix (CVE-2026-39987) — même pin que le moteur
+    "fastapi>=0.116.1",
+    "uvicorn>=0.35.0,<0.36.0",
+    "electricore-client",
+]
+
+[project.scripts]
+electricore-kiosque = "electricore_kiosque.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/Energie-De-Nantes/electricore"
+Repository = "https://github.com/Energie-De-Nantes/electricore"
+Issues = "https://github.com/Energie-De-Nantes/electricore/issues"
+
+[tool.uv.sources]
+electricore-client = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/electricore_kiosque"]
+
+[dependency-groups]
+test = [
+    "pytest>=8.2.0",
+    "httpx>=0.27.0",  # requis par starlette.testclient.TestClient
+]
