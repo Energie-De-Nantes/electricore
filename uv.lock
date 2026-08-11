@@ -6,6 +6,7 @@ requires-python = ">=3.12, <3.14"
 members = [
     "electricore",
     "electricore-client",
+    "electricore-kiosque",
 ]
 
 [[package]]
@@ -888,6 +889,37 @@ provides-extras = ["arrow"]
 
 [package.metadata.requires-dev]
 test = [{ name = "pytest", specifier = ">=8.2.0" }]
+
+[[package]]
+name = "electricore-kiosque"
+version = "0.1.0"
+source = { editable = "packages/electricore-kiosque" }
+dependencies = [
+    { name = "electricore-client" },
+    { name = "fastapi" },
+    { name = "marimo" },
+    { name = "uvicorn" },
+]
+
+[package.dev-dependencies]
+test = [
+    { name = "httpx" },
+    { name = "pytest" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "electricore-client", editable = "packages/electricore-client" },
+    { name = "fastapi", specifier = ">=0.116.1" },
+    { name = "marimo", specifier = ">=0.23.0" },
+    { name = "uvicorn", specifier = ">=0.35.0,<0.36.0" },
+]
+
+[package.metadata.requires-dev]
+test = [
+    { name = "httpx", specifier = ">=0.27.0" },
+    { name = "pytest", specifier = ">=8.2.0" },
+]
 
 [[package]]
 name = "execnet"
