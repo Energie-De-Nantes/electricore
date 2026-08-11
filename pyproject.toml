@@ -66,9 +66,8 @@ viz = [
     "marimo>=0.23.0",  # pre-auth RCE fix (CVE-2026-39987)
     "plotly[express]>=6.2.0",
 ]
-# Lanceur opérateur `electricore-notebooks` (pont transitoire, #414) : mêmes libs
-# que `viz` (uvicorn est déjà une dépendance de base). À retirer à l'arrivée de
-# souscriptions_odoo.
+# Lanceur opérateur `electricore-notebooks` (accès dev assumé, #414) : mêmes libs
+# que `viz` (uvicorn est déjà une dépendance de base).
 notebooks = [
     "marimo>=0.23.0",  # pre-auth RCE fix (CVE-2026-39987)
     "altair>=5.5.0,<6.0.0",
@@ -81,7 +80,7 @@ dbt = [
     "dbt-duckdb>=1.9.0,<2.0.0",
 ]
 
-# Lanceur opérateur (pont transitoire #414, à retirer avec souscriptions_odoo).
+# Lanceur opérateur — accès dev assumé (#414).
 [project.scripts]
 electricore-notebooks = "electricore.operator_launcher:main"
 
@@ -103,10 +102,10 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["electricore"]
 
-# Pont transitoire (#414) : les sources des notebooks opérateur restent dans
+# Accès dev assumé (#414) : les sources des notebooks opérateur restent dans
 # notebooks/ (aucun déplacement), mais sont force-incluses dans le wheel à un
 # emplacement résolvable par importlib.resources (electricore/_operator_notebooks/).
-# Le lanceur electricore-notebooks les sert en mode run. À retirer avec souscriptions_odoo.
+# Le lanceur electricore-notebooks les sert en mode run.
 [tool.hatch.build.targets.wheel.force-include]
 "notebooks/accueil.py" = "electricore/_operator_notebooks/accueil.py"
 "notebooks/facturation.py" = "electricore/_operator_notebooks/facturation.py"
