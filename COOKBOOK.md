@@ -128,7 +128,7 @@ expect: la commande répond (clavier inline sans argument, action directe avec),
 ## notebooks
 
 mode: human
-when: changement des notebooks opérateur (accueil, facturation, injection RSC) — pont transitoire #414
+when: changement des notebooks opérateur (accueil, facturation, injection RSC) — accès dev assumé #414
 do: uv run --extra notebooks electricore-notebooks  # exige dans .env ELECTRICORE_API_URL (dev : http://localhost:8001, voir `api-up`) et ELECTRICORE_API_KEY (une clé du trousseau, reste dans .env)
 look: l'URL affichée par le lanceur marimo
 expect: le notebook charge et parle à l'API (pas de connexion refusée)

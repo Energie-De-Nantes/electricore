@@ -2,13 +2,18 @@
 fraicheur: 2026-07-04
 ---
 
-# Onboarding d'un opérateur notebook (pont transitoire #414)
+# Onboarding d'un opérateur notebook (#414)
 
-> **Pont transitoire.** Les notebooks opérateur (`facturation`, `injection_rsc`)
-> sont la voie **actuelle** par laquelle un humain valide puis **écrit dans Odoo**
-> (human-in-the-loop, [ADR-0012](adr/0012-api-read-only-odoo.md)).
-> Ils disparaîtront à l'arrivée de `souscriptions_odoo` (« Odoo tire »). Ce guide
-> décrit le strict nécessaire pour qu'un **opérateur non-dev** s'en serve aujourd'hui.
+> **Accès dev assumé.** `electricore-notebooks` sert les notebooks opérateur
+> (`facturation`, `injection_rsc`) comme apps marimo en lecture seule sur le poste de
+> l'opérateur·ice — la voie **actuelle** par laquelle un humain valide puis **écrit
+> dans Odoo** (human-in-the-loop, [ADR-0012](adr/0012-api-read-only-odoo.md)). Cycle
+> de vie du notebook : exploratoire en dev (marimo `edit`) → app opérateur locale
+> (ici, marimo `run` sur poste) → app Kiosque hébergée pour les usages en lecture
+> seule ([ADR-0057](adr/0057-kiosque-acces-neophytes-package-separe.md)). L'écriture
+> Odoo human-in-the-loop, elle, migrera vers `souscriptions_odoo` (« Odoo tire »)
+> quand ce chantier arrivera. Ce guide décrit le strict nécessaire pour qu'un
+> **opérateur non-dev** s'en serve aujourd'hui.
 
 ## Ce que fait l'opérateur
 

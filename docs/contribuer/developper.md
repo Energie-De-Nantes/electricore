@@ -57,9 +57,11 @@ Deux principes structurants :
 | ⚙️ **`config/`** | Registre runtime pydantic-settings + règles tarifaires CSV (TURPE, accise, CTA) | [ADR-0024](../adr/0024-trois-registres-de-savoir.md)/[0025](../adr/0025-registre-runtime-pydantic-settings.md) |
 | 📦 **`packages/electricore-client/`** | **Client léger distribué séparément** (PyPI) : httpx + pydantic, flux JSONL typé | [README](https://github.com/Energie-De-Nantes/electricore/blob/main/packages/electricore-client/README.md) · [ADR-0043](../adr/0043-electricore-client-paquet-separe.md) |
 
-> `electricore/operator_launcher.py` (commande `electricore-notebooks`) est un **pont
-> transitoire** vers les notebooks opérateur (voir plus bas). Le dossier `electricore/client/`
-> est un résidu vide : le vrai client est `packages/electricore-client/`.
+> `electricore/operator_launcher.py` (commande `electricore-notebooks`) est **l'accès dev
+> assumé** vers les notebooks opérateur (voir plus bas) — cycle de vie : notebook
+> exploratoire → app opérateur locale → app Kiosque hébergée ([ADR-0057](../adr/0057-kiosque-acces-neophytes-package-separe.md)).
+> Le dossier `electricore/client/` est un résidu vide : le vrai client est
+> `packages/electricore-client/`.
 
 ## Installer pour développer
 
@@ -287,8 +289,9 @@ Ce qui précède décrit la **réalité livrée** sur `main`. Les directions en 
   ([ADR-0044](../adr/0044-secrets-as-code-sops-age.md), déjà mergée pour le mécanisme) : chiffrement
   disque (LUKS + Tang/NBDE), isolation `raw.db`/`serve.db`, durcissement DuckDB de l'API, et OpenBao
   quand la flotte le justifiera.
-- **`souscriptions_odoo`** — addon qui consommera l'API via `electricore-client` et **remplacera**
-  le lanceur de notebooks opérateur transitoire.
+- **`souscriptions_odoo`** — addon qui consommera l'API via `electricore-client` et
+  **remplacera** l'écriture Odoo human-in-the-loop portée aujourd'hui par les notebooks
+  opérateur (`electricore-notebooks` reste l'accès dev assumé, ADR-0057).
 - **Régularisation des contrats lissés** — recalcul a posteriori des contrats facturés au lissé
   ([#191](https://github.com/Energie-De-Nantes/electricore/issues/191)).
 - **Estimation des périodes non-communicantes via R15**

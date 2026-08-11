@@ -1,4 +1,4 @@
-"""Vérifie que le wheel force-inclut les notebooks opérateur (pont transitoire, #414).
+"""Vérifie que le wheel force-inclut les notebooks opérateur (accès dev assumé, #414).
 
 `uv build` doit produire un wheel `electricore` qui CONTIENT `accueil.py`,
 `facturation.py` et `injection_rsc.py` sous `electricore/_operator_notebooks/`,

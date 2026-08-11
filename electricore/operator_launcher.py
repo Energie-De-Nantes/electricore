@@ -1,6 +1,9 @@
-"""Lanceur opérateur `electricore-notebooks` — pont transitoire (#414).
+"""Lanceur opérateur `electricore-notebooks` — accès dev assumé (#414).
 
-PONT TRANSITOIRE — retirer à l'arrivée de `souscriptions_odoo`.
+Cycle de vie d'un notebook opérateur : exploratoire en dev (marimo `edit`) → app
+opérateur locale servie par CE lanceur (marimo `run` sur poste) → app Kiosque hébergée
+pour les usages en lecture seule (ADR-0057). `souscriptions_odoo` remplacera à terme
+l'écriture Odoo human-in-the-loop portée par ces notebooks, pas ce lanceur.
 
 Une seule commande pour qu'un opérateur non-dev fasse tourner les deux notebooks
 Odoo opérationnels (`facturation`, `injection_rsc`) comme apps marimo en mode

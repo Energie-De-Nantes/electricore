@@ -1,4 +1,4 @@
-"""Tests du lanceur opérateur `electricore-notebooks` (pont transitoire, #414).
+"""Tests du lanceur opérateur `electricore-notebooks` (accès dev assumé, #414).
 
 Couvre deux seams :
 - validation de l'environnement (creds Odoo + ELECTRICORE_API_URL/KEY) ;
