@@ -56,6 +56,7 @@ Deux principes structurants :
 | 🤖 **`bot/`** | Bot Telegram : UI opérationnelle, client de l'API (zéro logique métier) | [README](https://github.com/Energie-De-Nantes/electricore/blob/main/electricore/bot/README.md) |
 | ⚙️ **`config/`** | Registre runtime pydantic-settings + règles tarifaires CSV (TURPE, accise, CTA) | [ADR-0024](../adr/0024-trois-registres-de-savoir.md)/[0025](../adr/0025-registre-runtime-pydantic-settings.md) |
 | 📦 **`packages/electricore-client/`** | **Client léger distribué séparément** (PyPI) : httpx + pydantic, flux JSONL typé | [README](https://github.com/Energie-De-Nantes/electricore/blob/main/packages/electricore-client/README.md) · [ADR-0043](../adr/0043-electricore-client-paquet-separe.md) |
+| 🏪 **`packages/electricore-kiosque/`** | **Apps marimo hébergées en lecture seule** pour néophytes : catalogue → assemblage ASGI, clé API = seule identité | [README](https://github.com/Energie-De-Nantes/electricore/blob/main/packages/electricore-kiosque/README.md) · [ADR-0057](../adr/0057-kiosque-acces-neophytes-package-separe.md) |
 
 > `electricore/operator_launcher.py` (commande `electricore-notebooks`) est **l'accès dev
 > assumé** vers les notebooks opérateur (voir plus bas) — cycle de vie : notebook
