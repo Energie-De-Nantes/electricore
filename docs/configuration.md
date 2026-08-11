@@ -71,6 +71,18 @@ Domaine `odoo` du registre (`runtime.odoo()`) — bloc unique read-only
 façade déléguant au registre. Plus de sélecteur test/prod (#190 clos) : une variable absente
 lève `ConfigurationManquante` au boot (no-ERP servi tant que le bloc est entièrement absent).
 
+### Kiosque (`packages/electricore-kiosque`)
+
+| variable | rôle |
+|---|---|
+| `KIOSQUE__APPS` | sélection d'apps à monter (noms du catalogue, séparés par virgules ; vide = accueil seul) |
+| `KIOSQUE__TITRE` | nom de l'entité, affiché par l'accueil |
+
+**Exception assumée au registre runtime** (ADR-0025/0049) : le Kiosque ne peut pas dépendre
+du moteur (ADR-0057), donc pas de pydantic-settings — lecture directe de l'env dans
+`electricore_kiosque/config.py`. Le nommage `DOMAINE__CHAMP` (ADR-0046) reste respecté.
+Aucun secret : la clé API est saisie par l'utilisateur·ice dans l'app, jamais côté serveur.
+
 ## 2. Fichiers de configuration versionnés
 
 | fichier | rôle | quand y toucher |

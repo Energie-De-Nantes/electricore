@@ -20,8 +20,7 @@ _PORT = 8765
 
 
 def _accueil() -> str:
-    with resources.as_file(resources.files("electricore_kiosque").joinpath("accueil.py")) as chemin:
-        return str(chemin)
+    return str(resources.files("electricore_kiosque").joinpath("accueil.py"))
 
 
 def construire_app_ou_sortir(*, catalogue: dict[str, str], actifs: list[str], accueil: str) -> FastAPI:
