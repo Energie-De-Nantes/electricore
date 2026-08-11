@@ -1,4 +1,7 @@
-# Kiosque : accès néophytes en apps marimo hébergées, package séparé
+# 0057 — Kiosque : accès néophytes en apps marimo hébergées, package séparé
+
+- Status: accepted
+- Date: 2026-08-11
 
 ## Contexte
 
@@ -89,7 +92,7 @@ nommage que le reste de l'infra multi-provider, ADR-0044).
 
 ## Statut
 
-Accepté — implémenté par #703 (cet ADR + carte des trois accès) et #704 (squelette
+Implémenté par #703 (cet ADR + carte des trois accès) et #704 (squelette
 `packages/electricore-kiosque` : assemblage ASGI, accueil, config par entité, fail-fast).
 Tranches suivantes : #705 (catalogue d'apps réelles + saisie de clé API navigateur),
 #706-#708 (PRD #702).
