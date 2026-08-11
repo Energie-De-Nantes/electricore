@@ -17,5 +17,6 @@ ElectriCore est organisé en modules avec leur propre vocabulaire. Le glossaire 
 - `ingestion` ingère les flux Enedis dans DuckDB, consommés par `core`.
 - `api` expose `core` (calculs) et `integrations/<erp>` (orchestrations), et orchestre `ingestion` (déclenchements + jobs).
 - `bot` consomme `api` exclusivement (pas d'accès direct à `core` ni à `ingestion` ni à `integrations`).
+- Trois accès externes passent par `api` + `electricore-client` (hors repo) : le **module Odoo** (l'ERP tire les données), les **Notebooks** (`electricore-notebooks`, marimo `edit` local, exploratoire, orienté dev) et le **Kiosque** (`electricore-kiosque`, apps marimo hébergées, lecture seule, process fixes pour néophytes — la clé API est la seule identité, pas de comptes).
 
 Les ADRs structurants sont au niveau racine dans [docs/adr/](docs/adr/) ; aucun ADR par contexte pour l'instant.
