@@ -129,6 +129,40 @@ jobs:
         run: |
           /tmp/client-venv/bin/python -m pytest packages/electricore-client/tests -q
 
+  test-kiosque:
+    name: test-kiosque (isolé, sans le moteur)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          python-version: "3.12"
+
+      # Environnement ISOLÉ : uniquement electricore-kiosque (marimo + fastapi +
+      # electricore-client) + pytest. JAMAIS le moteur (polars/duckdb), même
+      # invariant que le job test-client (ADR-0057, #704).
+      - name: Créer un venv isolé pour le Kiosque
+        run: uv venv /tmp/kiosque-venv
+
+      - name: Installer electricore-kiosque seul (+ ses deps de test)
+        run: |
+          uv pip install --python /tmp/kiosque-venv ./packages/electricore-kiosque ./packages/electricore-client pytest httpx
+
+      - name: Garde-fou — polars/duckdb ABSENTS de l'environnement
+        run: |
+          uv pip list --python /tmp/kiosque-venv | tee /tmp/pkgs-kiosque.txt
+          if grep -iqE '^(polars|duckdb)[[:space:]]' /tmp/pkgs-kiosque.txt; then
+            echo "::error::Le moteur (polars/duckdb) a fuité dans l'env Kiosque isolé."
+            exit 1
+          fi
+
+      - name: Lancer les tests du Kiosque (couture ASGI, sans navigateur ni vrai serveur)
+        run: |
+          /tmp/kiosque-venv/bin/python -m pytest packages/electricore-kiosque/tests -q
+
   deploy-tests:
     name: deploy shell tests (bash, fake-binaries)
     runs-on: ubuntu-latest
