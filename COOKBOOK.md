@@ -133,6 +133,14 @@ do: uv run --extra notebooks electricore-notebooks  # exige dans .env ELECTRICOR
 look: l'URL affichée par le lanceur marimo
 expect: le notebook charge et parle à l'API (pas de connexion refusée)
 
+## kiosque-eyeball
+
+mode: human
+when: changement sous packages/electricore-kiosque (assemblage, accueil, notebook du catalogue)
+do: env KIOSQUE__APPS={apps} KIOSQUE__TITRE="{titre}" uv run --package electricore-kiosque electricore-kiosque  # {apps} = noms du catalogue séparés par virgules (vide = accueil seul) ; `env` marche sous fish comme bash
+look: http://127.0.0.1:8765 dans un navigateur
+expect: l'accueil affiche {titre} et exactement les apps de {apps} (une app du catalogue non listée n'a ni lien ni route) ; un nom hors catalogue doit faire échouer le démarrage avec un message explicite
+
 ## trousseau-add-key
 
 mode: human
