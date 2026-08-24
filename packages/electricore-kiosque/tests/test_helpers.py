@@ -14,7 +14,7 @@ import httpx
 import polars as pl
 import pytest
 from electricore_kiosque.helpers import (
-    LIMITE_RELEVES,
+    LIMITE_LIGNES,
     CleApiRefusee,
     TableFluxAbsente,
     construire_client,
@@ -133,12 +133,12 @@ def test_recuperer_releves_retourne_les_lignes_transmet_les_bornes_et_ferme_le_c
     assert params.get("prm") == "PDL456"
     assert params.get("debut") == "2026-05-01"
     assert params.get("fin") == "2026-06-01"
-    assert params.get("limit") == str(LIMITE_RELEVES)
+    assert params.get("limit") == str(LIMITE_LIGNES)
 
 
 def test_recuperer_releves_signale_la_troncature_quand_la_limite_est_atteinte() -> None:
-    """La limite dure côté kiosque (`LIMITE_RELEVES`) déclenche le bandeau « vue tronquée »."""
-    df = pl.DataFrame({"pdl": ["PDL456"] * LIMITE_RELEVES})
+    """La limite dure côté kiosque (`LIMITE_LIGNES`) déclenche le bandeau « vue tronquée »."""
+    df = pl.DataFrame({"pdl": ["PDL456"] * LIMITE_LIGNES})
 
     def handler(request: httpx.Request) -> httpx.Response:
         return _reponse_arrow(df)
@@ -146,7 +146,7 @@ def test_recuperer_releves_signale_la_troncature_quand_la_limite_est_atteinte() 
     http = _http(handler)
     lignes, tronque = recuperer_releves("une-cle", http_client=http)
 
-    assert len(lignes) == LIMITE_RELEVES
+    assert len(lignes) == LIMITE_LIGNES
     assert tronque is True
     assert http.is_closed
 
@@ -161,10 +161,22 @@ def test_recuperer_releves_cle_refusee_ferme_quand_meme_le_client() -> None:
     assert http.is_closed
 
 
+def test_recuperer_releves_propage_les_autres_erreurs_et_ferme_le_client() -> None:
+    """Une erreur qui n'est pas une clé refusée reste une erreur HTTP normale."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(500)
+
+    http = _http(handler)
+    with pytest.raises(httpx.HTTPStatusError):
+        recuperer_releves("une-cle", http_client=http)
+    assert http.is_closed
+
+
 # -- recuperer_flux ---------------------------------------------------------------
 
 
-def test_recuperer_flux_retourne_les_lignes_et_ferme_le_client() -> None:
+def test_recuperer_flux_retourne_les_lignes_transmet_la_limite_et_ferme_le_client() -> None:
     captures: list[httpx.URL] = []
     df = pl.DataFrame({"pdl": ["PDL456"], "evenement_declencheur": ["MES"]})
 
@@ -173,11 +185,29 @@ def test_recuperer_flux_retourne_les_lignes_et_ferme_le_client() -> None:
         return _reponse_arrow(df)
 
     http = _http(handler)
-    lignes = recuperer_flux("une-cle", "c15", prm="PDL456", http_client=http)
+    lignes, tronque = recuperer_flux("une-cle", "c15", prm="PDL456", http_client=http)
 
     assert lignes == df.to_dicts()
+    assert tronque is False
     assert http.is_closed
     assert captures[0].params.get("prm") == "PDL456"
+    assert captures[0].params.get("limit") == str(LIMITE_LIGNES)
+
+
+def test_recuperer_flux_signale_la_troncature_quand_la_limite_est_atteinte() -> None:
+    """Même plafond dur que `recuperer_releves` (#721) : une table de flux brute
+    peut être aussi volumineuse que le mart de relevés."""
+    df = pl.DataFrame({"pdl": ["PDL456"] * LIMITE_LIGNES})
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return _reponse_arrow(df)
+
+    http = _http(handler)
+    lignes, tronque = recuperer_flux("une-cle", "c15", http_client=http)
+
+    assert len(lignes) == LIMITE_LIGNES
+    assert tronque is True
+    assert http.is_closed
 
 
 def test_recuperer_flux_table_absente_ferme_quand_meme_le_client() -> None:
@@ -198,6 +228,18 @@ def test_recuperer_flux_cle_refusee_ferme_quand_meme_le_client() -> None:
 
     http = _http(handler)
     with pytest.raises(CleApiRefusee, match="admin"):
+        recuperer_flux("une-cle", "c15", http_client=http)
+    assert http.is_closed
+
+
+def test_recuperer_flux_propage_les_autres_erreurs_et_ferme_le_client() -> None:
+    """Une erreur qui n'est pas une clé refusée ni un 404 reste une erreur HTTP normale."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(500)
+
+    http = _http(handler)
+    with pytest.raises(httpx.HTTPStatusError):
         recuperer_flux("une-cle", "c15", http_client=http)
     assert http.is_closed
 

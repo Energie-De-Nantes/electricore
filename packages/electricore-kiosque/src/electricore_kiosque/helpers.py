@@ -24,11 +24,13 @@ from electricore_kiosque.config import api_url
 
 _STATUTS_CLE_REFUSEE = {401, 403}
 
-# Bandeau « vue tronquée » de l'onglet Relevés (#720) : plafond dur côté kiosque,
-# jamais de transfert du mart entier. Heuristique de troncature volontairement
-# simple : lignes retournées == la limite ⇒ probablement tronqué (faux positif
-# possible si le mart contient exactement ce compte, sans conséquence pratique).
-LIMITE_RELEVES = 100_000
+# Bandeau « vue tronquée » (relevés + flux bruts, #720/#721) : plafond dur côté
+# kiosque, jamais de transfert du mart/table entier. Heuristique de troncature
+# volontairement simple : lignes retournées >= la limite ⇒ probablement tronqué
+# (faux positif possible si la source contient exactement ce compte, sans
+# conséquence pratique). Partagée entre `recuperer_releves` et `recuperer_flux` :
+# même risque (fuite d'un flux entier), même garde-fou.
+LIMITE_LIGNES = 10_000
 
 
 class CleApiRefusee(Exception):
@@ -104,7 +106,7 @@ def recuperer_releves(
     fin: str | None = None,
     http_client: httpx.Client | None = None,
 ) -> tuple[list[dict], bool]:
-    """Mart de relevés canonique harmonisé (ADR-0029), plafonné à `LIMITE_RELEVES`.
+    """Mart de relevés canonique harmonisé (ADR-0029), plafonné à `LIMITE_LIGNES`.
 
     Retourne `(lignes, tronque)` — `tronque=True` quand la limite dure a été
     atteinte : le notebook affiche alors un bandeau « resserre tes filtres ».
@@ -118,13 +120,13 @@ def recuperer_releves(
     """
     with construire_client_arrow(cle, http_client=http_client) as client:
         try:
-            df = client.releves(prm=prm, debut=debut, fin=fin, limit=LIMITE_RELEVES)
+            df = client.releves(prm=prm, debut=debut, fin=fin, limit=LIMITE_LIGNES)
         except httpx.HTTPStatusError as exc:
             if exc.response.status_code in _STATUTS_CLE_REFUSEE:
                 raise CleApiRefusee() from exc
             raise
     lignes = df.to_dicts()
-    return lignes, len(lignes) >= LIMITE_RELEVES
+    return lignes, len(lignes) >= LIMITE_LIGNES
 
 
 def recuperer_flux(
@@ -133,8 +135,12 @@ def recuperer_flux(
     *,
     prm: str | None = None,
     http_client: httpx.Client | None = None,
-) -> list[dict]:
+) -> tuple[list[dict], bool]:
     """Contenu brut d'une table de flux Enedis, fidèle à la source (pas d'harmonisation).
+
+    Plafonné à `LIMITE_LIGNES`, même garde-fou que `recuperer_releves` — une table
+    de flux brute peut être aussi volumineuse que le mart. Retourne `(lignes,
+    tronque)` — `tronque=True` quand la limite dure a été atteinte.
 
     Ouvre et referme son propre client (même patron que `recuperer_meta_periodes`).
 
@@ -145,11 +151,12 @@ def recuperer_flux(
     """
     with construire_client_arrow(cle, http_client=http_client) as client:
         try:
-            df = client.flux(table, prm=prm)
+            df = client.flux(table, prm=prm, limit=LIMITE_LIGNES)
         except httpx.HTTPStatusError as exc:
             if exc.response.status_code in _STATUTS_CLE_REFUSEE:
                 raise CleApiRefusee() from exc
             if exc.response.status_code == 404:
                 raise TableFluxAbsente(table) from exc
             raise
-    return df.to_dicts()
+    lignes = df.to_dicts()
+    return lignes, len(lignes) >= LIMITE_LIGNES
