@@ -77,6 +77,7 @@ lève `ConfigurationManquante` au boot (no-ERP servi tant que le bloc est entiè
 |---|---|
 | `KIOSQUE__APPS` | sélection d'apps à monter (noms du catalogue, séparés par virgules ; vide = accueil seul) |
 | `KIOSQUE__TITRE` | nom de l'entité, affiché par l'accueil |
+| `KIOSQUE__API_URL` | URL de l'API `electricore` interrogée par les notebooks (ex. `exports`) ; **requise**, aucun défaut codé en dur — fournie par le `config.env` du provider (`electricore-secrets`, ADR-0044), fail-fast sinon |
 
 **Exception assumée au registre runtime** (ADR-0025/0049) : le Kiosque ne peut pas dépendre
 du moteur (ADR-0057), donc pas de pydantic-settings — lecture directe de l'env dans
