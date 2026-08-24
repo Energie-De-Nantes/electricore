@@ -139,7 +139,7 @@ mode: human
 when: changement sous packages/electricore-kiosque (assemblage, accueil, notebook du catalogue)
 do: env KIOSQUE__APPS={apps} KIOSQUE__TITRE="{titre}" KIOSQUE__API_URL={api_url} uv run --package electricore-kiosque electricore-kiosque  # {apps} = noms du catalogue séparés par virgules (vide = accueil seul) ; {api_url} = URL d'une API electricore réelle (requise dès qu'une app comme exports est active) ; `env` marche sous fish comme bash
 look: http://127.0.0.1:8765 dans un navigateur
-expect: l'accueil affiche {titre} et exactement les apps de {apps} (une app du catalogue non listée n'a ni lien ni route) ; un nom hors catalogue doit faire échouer le démarrage avec un message explicite ; sur `exports`, coller une clé API réelle affiche un tableau filtrable téléchargeable en CSV, une clé invalide affiche un message clair (pas de stacktrace)
+expect: l'accueil affiche {titre} et exactement les apps de {apps} (une app du catalogue non listée n'a ni lien ni route) ; un nom hors catalogue doit faire échouer le démarrage avec un message explicite ; sur `exports`, coller une clé API réelle affiche trois onglets (Facturation / Relevés / Flux bruts, chargement paresseux) — Facturation : tableau filtrable téléchargeable en CSV (comportement inchangé) ; Relevés : tableau du dernier mois par défaut, resserrer par pdl/dates, bandeau « vue tronquée » si la limite dure est atteinte, CSV ; Flux bruts : choisir une table (ex. c15) dans le dropdown, avertissement conventions Enedis affiché, tableau + CSV, demander une table absente de la box → message propre (pas de stacktrace) ; une clé invalide affiche un message clair dans chaque onglet
 
 ## trousseau-add-key
 

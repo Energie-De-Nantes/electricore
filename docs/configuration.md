@@ -84,6 +84,11 @@ du moteur (ADR-0057), donc pas de pydantic-settings — lecture directe de l'env
 `electricore_kiosque/config.py`. Le nommage `DOMAINE__CHAMP` (ADR-0046) reste respecté.
 Aucun secret : la clé API est saisie par l'utilisateur·ice dans l'app, jamais côté serveur.
 
+Depuis l'amendement du 2026-08-24 à l'ADR-0057 (#720), le Kiosque dépend d'
+`electricore-client[arrow]` : polars entre dans le package via cet extra public du client
+(onglets Relevés/Flux bruts du notebook `exports`) — l'invariant qui reste : jamais le
+moteur `electricore` ni DuckDB.
+
 ## 2. Fichiers de configuration versionnés
 
 | fichier | rôle | quand y toucher |
