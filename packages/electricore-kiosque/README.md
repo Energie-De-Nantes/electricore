@@ -41,7 +41,9 @@ Un nom absent du catalogue dans `KIOSQUE__APPS` fait échouer le démarrage (mes
   Les onglets Relevés/Flux bruts passent par `electricore-client[arrow]`
   (`ElectricoreArrowClient`, amendement 2026-08-24 à l'ADR-0057) — polars entre dans le
   kiosque via cet extra public du client, jamais via le moteur `electricore`. Clé invalide
-  ou révoquée : message clair, pas de stacktrace.
+  ou révoquée : message clair, pas de stacktrace. Même traitement pour les erreurs
+  opérationnelles côté serveur (ingestion en cours, API injoignable, versions
+  client/serveur désynchronisées, #722).
 
 ## Lancement local
 
