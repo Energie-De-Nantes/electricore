@@ -29,8 +29,8 @@ Un nom absent du catalogue dans `KIOSQUE__APPS` fait échouer le démarrage (mes
     « vue tronquée » quand il est atteint.
   - **Flux bruts** — tables Enedis fidèles à la source (dropdown en dur : c15, r151, r15,
     f15_detail, f12_detail, r64), filtre pdl optionnel, avertissement conventions Enedis
-    (`date_releve` R151 nue, sans le +1 d'harmonisation) ; table absente de la box →
-    message propre.
+    (colonnes propres à chaque flux, ni dédoublonnage ni harmonisation inter-flux) ;
+    table absente de la box → message propre.
 
   Les onglets Relevés/Flux bruts passent par `electricore-client[arrow]`
   (`ElectricoreArrowClient`, amendement 2026-08-24 à l'ADR-0057) — polars entre dans le

@@ -62,6 +62,26 @@ def test_exports_cle_refusee_affiche_toujours_un_message_actionnable(monkeypatch
     assert "Clé API refusée" in _rendu("une-cle")
 
 
+def test_exports_sans_cle_ne_declenche_aucun_appel_api(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pas de clé → zéro fetch : le garde `mo.stop` doit vivre dans le cell qui fetch.
+
+    `mo.stop` ne coupe que les *descendants* par flux de données : un garde isolé
+    dans son propre cell (qui ne définit rien) ne couperait rien et laisserait
+    partir une requête avec une clé vide.
+    """
+    monkeypatch.setenv("KIOSQUE__API_URL", "https://kiosque.test.invalide")
+    appels: list[str] = []
+
+    def _fake(cle: str, **kwargs: object) -> list[dict]:
+        appels.append(cle)
+        return []
+
+    monkeypatch.setattr(helpers, "recuperer_meta_periodes", _fake)
+
+    assert "En attente" in _rendu("")
+    assert appels == []
+
+
 # -- onglet Relevés (#720) -----------------------------------------------------
 
 

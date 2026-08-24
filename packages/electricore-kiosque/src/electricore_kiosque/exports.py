@@ -35,16 +35,15 @@ def _():
 
 @app.cell
 def _(cle):
-    if not cle.value:
-        mo.stop(True, mo.md("_En attente d'une clé API…_"))
-    return
-
-
-@app.cell
-def _(cle):
     # Onglet Facturation : comportement inchangé (#705, non-régression) — calculé
     # ici (pas dans un onglet paresseux) pour que clé refusée / KIOSQUE__API_URL
     # manquante restent des erreurs immédiates, avant même d'afficher les onglets.
+    # Le garde « pas de clé » vit ICI, dans le même cell que le fetch : `mo.stop`
+    # ne coupe que les *descendants* par flux de données, et un cell qui ne
+    # définit rien n'en a aucun — isolé, il laisserait partir un fetch à vide.
+    if not cle.value:
+        mo.stop(True, mo.md("_En attente d'une clé API…_"))
+
     try:
         lignes_facturation = helpers.recuperer_meta_periodes(cle.value)
     except (helpers.CleApiRefusee, config.ApiUrlManquante) as exc:
