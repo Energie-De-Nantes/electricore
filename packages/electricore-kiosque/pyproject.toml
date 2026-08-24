@@ -29,7 +29,6 @@ classifiers = [
 # qu'electricore-client (ADR-0043), dont le Kiosque dépend comme tout intégrateur.
 dependencies = [
     "marimo>=0.23.0",  # pre-auth RCE fix (CVE-2026-39987) — même pin que le moteur
-    "fastapi>=0.116.1",
     "uvicorn>=0.35.0,<0.36.0",
     "electricore-client",
 ]

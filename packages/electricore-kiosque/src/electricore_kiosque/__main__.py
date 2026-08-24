@@ -9,7 +9,7 @@ from __future__ import annotations
 import sys
 from importlib import resources
 
-from fastapi import FastAPI
+from starlette.types import ASGIApp
 
 from electricore_kiosque.app import NomAppInconnu, assembler
 from electricore_kiosque.catalogue import CATALOGUE
@@ -23,7 +23,7 @@ def _accueil() -> str:
     return str(resources.files("electricore_kiosque").joinpath("accueil.py"))
 
 
-def construire_app_ou_sortir(*, catalogue: dict[str, str], actifs: list[str], accueil: str) -> FastAPI:
+def construire_app_ou_sortir(*, catalogue: dict[str, str], actifs: list[str], accueil: str) -> ASGIApp:
     """Assemble l'app, ou sort en erreur (message explicite) si `actifs` est mal renseigné.
 
     Fail-fast voulu (ADR-0057) : une faute de frappe dans `KIOSQUE__APPS` doit planter le
