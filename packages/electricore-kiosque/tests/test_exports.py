@@ -71,6 +71,19 @@ def test_exports_cle_refusee_affiche_toujours_un_message_actionnable(monkeypatch
     assert "Clé API refusée" in _rendu("une-cle")
 
 
+def test_exports_service_indisponible_affiche_un_message_actionnable(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`ServiceIndisponible` (#722 : ingestion en cours, API injoignable, version) est
+    rattrapée par l'onglet Facturation, pas de traceback marimo brute."""
+    monkeypatch.setenv("KIOSQUE__API_URL", "https://kiosque.test.invalide")
+
+    def _lever(cle: str, **kwargs: object) -> list[dict]:
+        raise helpers.ServiceIndisponible("Ingestion en cours côté serveur — réessaie dans quelques minutes.")
+
+    monkeypatch.setattr(helpers, "recuperer_meta_periodes", _lever)
+
+    assert "Ingestion en cours" in _rendu("une-cle")
+
+
 def test_exports_sans_cle_ne_declenche_aucun_appel_api(monkeypatch: pytest.MonkeyPatch) -> None:
     """Pas de clé → zéro fetch : le garde `mo.stop` doit vivre dans le cell qui fetch.
 
@@ -129,6 +142,20 @@ def test_onglet_releves_cle_refusee_affiche_un_message_actionnable(monkeypatch: 
     assert "Clé API refusée" in defs["onglet_releves"]().text
 
 
+def test_onglet_releves_service_indisponible_affiche_un_message_actionnable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """#722 : API injoignable/ingestion en cours rattrapée, pas de traceback."""
+
+    def _lever(cle: str, **kwargs: object):
+        raise helpers.ServiceIndisponible("L'API est injoignable — vérifie l'URL ou contacte ton admin.")
+
+    monkeypatch.setattr(helpers, "recuperer_releves", _lever)
+    defs = _defs(monkeypatch)
+
+    assert "injoignable" in defs["onglet_releves"]().text
+
+
 # -- onglet Flux bruts (#720) ---------------------------------------------------
 
 
@@ -160,6 +187,20 @@ def test_onglet_flux_bruts_table_absente_affiche_un_message_propre(monkeypatch: 
     defs = _defs(monkeypatch)
 
     assert "absente de cette box" in defs["onglet_flux_bruts"]().text
+
+
+def test_onglet_flux_bruts_service_indisponible_affiche_un_message_actionnable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """#722 : ingestion en cours/API injoignable rattrapée, pas de traceback."""
+
+    def _lever(cle: str, table: str, **kwargs: object):
+        raise helpers.ServiceIndisponible("Ingestion en cours côté serveur — réessaie dans quelques minutes.")
+
+    monkeypatch.setattr(helpers, "recuperer_flux", _lever)
+    defs = _defs(monkeypatch)
+
+    assert "Ingestion en cours" in defs["onglet_flux_bruts"]().text
 
 
 # -- réactivité des filtres (#721, bug d'inertie) --------------------------------

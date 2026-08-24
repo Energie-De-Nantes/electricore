@@ -84,7 +84,7 @@ def _(cle):
 
     try:
         lignes_facturation = helpers.recuperer_meta_periodes(cle.value)
-    except (helpers.CleApiRefusee, config.ApiUrlManquante) as exc:
+    except (helpers.CleApiRefusee, helpers.ServiceIndisponible, config.ApiUrlManquante) as exc:
         mo.stop(True, mo.md(f"⚠️ **{exc}**"))
     onglet_facturation = mo.ui.table(lignes_facturation, label="Facturation mensuelle")
     return (onglet_facturation,)
@@ -117,7 +117,7 @@ def _(
                 debut=str(debut.value),
                 fin=str(fin.value),
             )
-        except (helpers.CleApiRefusee, config.ApiUrlManquante) as exc:
+        except (helpers.CleApiRefusee, helpers.ServiceIndisponible, config.ApiUrlManquante) as exc:
             return mo.vstack([pdl_releves, debut, fin, mo.md(f"⚠️ **{exc}**")])
 
         elements = [pdl_releves, debut, fin]
@@ -134,7 +134,12 @@ def _(
 
         try:
             lignes, tronque = helpers.recuperer_flux(cle.value, table_flux.value, prm=pdl_flux.value or None)
-        except (helpers.CleApiRefusee, helpers.TableFluxAbsente, config.ApiUrlManquante) as exc:
+        except (
+            helpers.CleApiRefusee,
+            helpers.TableFluxAbsente,
+            helpers.ServiceIndisponible,
+            config.ApiUrlManquante,
+        ) as exc:
             return mo.vstack([table_flux, pdl_flux, avertissement, mo.md(f"⚠️ **{exc}**")])
 
         elements = [table_flux, pdl_flux, avertissement]
