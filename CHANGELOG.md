@@ -9,6 +9,31 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.8.2] - 2026-08-24
+
+Patch de mise à jour des registres de taux régulés (#713, PR #716) — à déployer
+avant la facturation d'août (03/09).
+
+### 🐛 Corrigé
+
+- **Grille TURPE 7 au 1ᵉʳ août 2026** : +3,04 % (délibération CRE n° 2026-105
+  du 21 mai 2026) — fenêtres 2025-08-01 fermées, 11 nouvelles lignes (BTINF,
+  BTINF ACC, BTSUP), valeurs recoupées délibération + brochure tarifaire Enedis.
+- **Accise au 1ᵉʳ février 2026** : 30,85 €/MWh (tarif ménages 25,19 + majoration
+  ZNI 5,66 ; pas d'indexation au 1ᵉʳ janvier faute de LF 2026). Le constat de
+  sous-facturation février–juillet est suivi en #714.
+- Le check de péremption (#186) redevient muet une fois la version déployée.
+
+## [3.8.1] - 2026-08-24
+
+Patch sécurité dépendances (#711) : re-lock `uv.lock` seul, aucun pin pyproject.
+
+### 🔒 Sécurité
+
+- 19 alertes Dependabot résorbées : gitpython 3.1.59, aiohttp 3.14.3,
+  cryptography 50.0.0, sqlparse 0.6.0 (via dbt-core 1.12.3 + dbt-duckdb 1.11.0),
+  pymdown-extensions 11.0.2 (via marimo 0.24.0).
+
 ## [3.8.0] - 2026-08-03
 
 Minor centrée sur le **relais de flux Haulogy** : le cycle post-générale du 28/07
