@@ -60,6 +60,18 @@ def _():
 
 
 @app.cell
+def _():
+    # Onglet ouvert gardé en `mo.state` (#721) : la cellule des onglets est
+    # reconstruite à chaque changement de filtre, et un `mo.ui.tabs` reconstruit
+    # repart sur son premier onglet — sans ça, toucher un filtre Relevés
+    # renverrait le visiteur sur Facturation. `allow_self_loops=False` (défaut) :
+    # cliquer un onglet ne refait PAS tourner la cellule des onglets, donc pas
+    # de boucle ni de re-fetch au simple changement d'onglet.
+    onglet_ouvert, choisir_onglet = mo.state("Facturation")
+    return onglet_ouvert, choisir_onglet
+
+
+@app.cell
 def _(cle):
     # Onglet Facturation : comportement inchangé (#705, non-régression) — calculé
     # ici (pas dans un onglet paresseux) pour que clé refusée / KIOSQUE__API_URL
@@ -79,7 +91,17 @@ def _(cle):
 
 
 @app.cell
-def _(cle, onglet_facturation, pdl_releves, debut, fin, table_flux, pdl_flux):
+def _(
+    cle,
+    onglet_facturation,
+    pdl_releves,
+    debut,
+    fin,
+    table_flux,
+    pdl_flux,
+    onglet_ouvert,
+    choisir_onglet,
+):
     # Fonctions (pas des valeurs déjà calculées) : `mo.ui.tabs(..., lazy=True)`
     # ne fetch qu'à l'ouverture de l'onglet — jamais Relevés/Flux bruts au
     # chargement de la page. Elles ne FONT que fetch + rendre, en fermant sur les
@@ -128,7 +150,9 @@ def _(cle, onglet_facturation, pdl_releves, debut, fin, table_flux, pdl_flux):
                 "Relevés": onglet_releves,
                 "Flux bruts": onglet_flux_bruts,
             },
+            value=onglet_ouvert(),
             lazy=True,
+            on_change=choisir_onglet,
         )
     )
     return onglet_releves, onglet_flux_bruts
