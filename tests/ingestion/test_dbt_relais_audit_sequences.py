@@ -143,6 +143,28 @@ def test_flux_derive_du_nom_de_zip(tmp_path):
     assert any(ligne["flux"] == "R151" for ligne in lignes)
 
 
+def test_r17_reconnu_et_trou_detecte(tmp_path):
+    """Le R17 (flux relayé mais non ingéré, nomenclature sans segment DIR :
+    `ENEDIS_R17_<EIC>_<contrat>_NNNNN_<horodate>`) est reconnu par la macro — plus de
+    `nom_non_reconnu` systématique, et un trou de séquence est détecté comme pour les
+    autres flux (l'audit n'est plus aveugle sur le R17)."""
+    prefix = "ENEDIS_R17_17X000000501934R_GRD-F091_{seq}_2026081{j}120000.zip"
+    lignes = _construire_audit(
+        tmp_path,
+        [
+            _ligne(prefix.format(seq="00786", j=1)),
+            _ligne(prefix.format(seq="00787", j=2)),
+            # 00788 manque
+            _ligne(prefix.format(seq="00789", j=4)),
+        ],
+    )
+    r17 = [ligne for ligne in lignes if ligne["flux"] == "R17"]
+    assert not any(ligne["type_anomalie"] == "nom_non_reconnu" for ligne in r17)
+    trous = [ligne for ligne in r17 if ligne["type_anomalie"] == "trou"]
+    assert len(trous) == 1
+    assert trous[0]["seq_ou_plage"] == "00788"
+
+
 def test_vue_passive_aucun_data_test_aucune_anomalie(tmp_path):
     """Vue passive (#646) : `dbt build` reste vert même sur un journal avec un trou franc —
     aucun data test `aucune_anomalie` n'est câblé côté relais (contrairement à l'ingestion),
