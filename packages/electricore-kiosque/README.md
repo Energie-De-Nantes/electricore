@@ -5,7 +5,7 @@ seule app web, pour des néophytes qui consultent leurs données via un navigate
 [ADR-0057](../../docs/adr/0057-kiosque-acces-neophytes-package-separe.md).
 
 Aucun secret côté serveur : la clé API `electricore` est saisie par l'utilisateur·ice dans le
-notebook et sert de seule identité (tranche #705).
+notebook et sert de seule identité.
 
 ## Configuration (par entité)
 
