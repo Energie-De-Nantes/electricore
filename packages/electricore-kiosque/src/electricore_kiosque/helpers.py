@@ -17,12 +17,13 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 import httpx
-from electricore_client import ElectricoreClient
+from electricore_client import ContractVersionError, ElectricoreClient, IngestionEnCours
 from electricore_client.arrow import ElectricoreArrowClient
 
 from electricore_kiosque.config import api_url
 
 _STATUTS_CLE_REFUSEE = {401, 403}
+_ERREURS_CONNEXION = (httpx.ConnectError, httpx.ConnectTimeout)
 
 # Bandeau « vue tronquée » (relevés + flux bruts, #720/#721) : plafond dur côté
 # kiosque, jamais de transfert du mart/table entier. Heuristique de troncature
@@ -45,6 +46,30 @@ class TableFluxAbsente(Exception):
 
     def __init__(self, table: str) -> None:
         super().__init__(f"Table de flux « {table} » absente de cette box.")
+
+
+class ServiceIndisponible(Exception):
+    """L'API `electricore` est momentanément inutilisable — message actionnable, pas de stacktrace.
+
+    Une seule classe pour trois causes opérationnelles (#722) : ingestion en cours
+    (`IngestionEnCours`), API injoignable (`httpx.ConnectError`/`ConnectTimeout`),
+    versions client/serveur désynchronisées (`ContractVersionError`). Le notebook
+    les rattrape et les affiche identiquement (`mo.md(f"⚠️ **{exc}**")`) — un seul
+    message par cause suffit, pas besoin d'une hiérarchie.
+
+    `PreconditionNonRemplie` n'est volontairement pas de la partie : les trois
+    endpoints GET utilisés par le kiosque (méta-périodes, relevés, flux bruts)
+    ne l'émettent jamais côté API (seuls `/provision/estimation` et le detail de
+    facturation le font) — rien à convertir tant que ce chemin reste inatteignable.
+    """
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+
+
+_MSG_INGESTION_EN_COURS = "Ingestion en cours côté serveur — réessaie dans quelques minutes."
+_MSG_API_INJOIGNABLE = "L'API est injoignable — vérifie l'URL ou contacte ton admin."
+_MSG_VERSIONS_DESYNCHRONISEES = "Le kiosque et l'API ne parlent plus la même version — préviens ton admin."
 
 
 def fenetre_dernier_mois(aujourdhui: date | None = None) -> tuple[str, str]:
@@ -86,12 +111,20 @@ def recuperer_meta_periodes(cle: str, *, http_client: httpx.Client | None = None
 
     Raises:
         CleApiRefusee: clé API invalide ou révoquée (401/403 côté API).
+        ServiceIndisponible: ingestion en cours, API injoignable, ou versions
+            client/serveur désynchronisées.
         config.ApiUrlManquante: `KIOSQUE__API_URL` absente (via `construire_client`).
     """
     with construire_client(cle, http_client=http_client) as client:
         try:
             with client.meta_periodes() as stream:
                 return [ligne.model_dump(exclude={"releves_utilises"}) for ligne in stream]
+        except _ERREURS_CONNEXION as exc:
+            raise ServiceIndisponible(_MSG_API_INJOIGNABLE) from exc
+        except IngestionEnCours as exc:
+            raise ServiceIndisponible(_MSG_INGESTION_EN_COURS) from exc
+        except ContractVersionError as exc:
+            raise ServiceIndisponible(_MSG_VERSIONS_DESYNCHRONISEES) from exc
         except httpx.HTTPStatusError as exc:
             if exc.response.status_code in _STATUTS_CLE_REFUSEE:
                 raise CleApiRefusee() from exc
@@ -116,11 +149,18 @@ def recuperer_releves(
 
     Raises:
         CleApiRefusee: clé API invalide ou révoquée (401/403 côté API).
+        ServiceIndisponible: ingestion en cours ou API injoignable. (Pas de garde
+            de version de contrat sur cet endpoint Arrow — `ContractVersionError`
+            n'est donc pas de la partie ici, voir `ServiceIndisponible`.)
         config.ApiUrlManquante: `KIOSQUE__API_URL` absente (via `construire_client_arrow`).
     """
     with construire_client_arrow(cle, http_client=http_client) as client:
         try:
             df = client.releves(prm=prm, debut=debut, fin=fin, limit=LIMITE_LIGNES)
+        except _ERREURS_CONNEXION as exc:
+            raise ServiceIndisponible(_MSG_API_INJOIGNABLE) from exc
+        except IngestionEnCours as exc:
+            raise ServiceIndisponible(_MSG_INGESTION_EN_COURS) from exc
         except httpx.HTTPStatusError as exc:
             if exc.response.status_code in _STATUTS_CLE_REFUSEE:
                 raise CleApiRefusee() from exc
@@ -147,11 +187,17 @@ def recuperer_flux(
     Raises:
         CleApiRefusee: clé API invalide ou révoquée (401/403 côté API).
         TableFluxAbsente: la table n'existe pas sur cette box (404 côté API).
+        ServiceIndisponible: ingestion en cours ou API injoignable (même remarque
+            que `recuperer_releves` sur `ContractVersionError`).
         config.ApiUrlManquante: `KIOSQUE__API_URL` absente (via `construire_client_arrow`).
     """
     with construire_client_arrow(cle, http_client=http_client) as client:
         try:
             df = client.flux(table, prm=prm, limit=LIMITE_LIGNES)
+        except _ERREURS_CONNEXION as exc:
+            raise ServiceIndisponible(_MSG_API_INJOIGNABLE) from exc
+        except IngestionEnCours as exc:
+            raise ServiceIndisponible(_MSG_INGESTION_EN_COURS) from exc
         except httpx.HTTPStatusError as exc:
             if exc.response.status_code in _STATUTS_CLE_REFUSEE:
                 raise CleApiRefusee() from exc

@@ -16,6 +16,7 @@ import pytest
 from electricore_kiosque.helpers import (
     LIMITE_LIGNES,
     CleApiRefusee,
+    ServiceIndisponible,
     TableFluxAbsente,
     construire_client,
     construire_client_arrow,
@@ -102,6 +103,43 @@ def test_recuperer_meta_periodes_propage_les_autres_erreurs_et_ferme_le_client()
     assert http.is_closed
 
 
+# -- erreurs opérationnelles (#722) --------------------------------------------
+
+
+def test_recuperer_meta_periodes_ingestion_en_cours_ferme_quand_meme_le_client() -> None:
+    """503 + X-Error-Kind réel (`electricore_client._raise_for_status`) → message clair."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(503, headers={"X-Error-Kind": "ingestion-lock"})
+
+    http = _http(handler)
+    with pytest.raises(ServiceIndisponible, match="Ingestion en cours"):
+        recuperer_meta_periodes("une-cle", http_client=http)
+    assert http.is_closed
+
+
+def test_recuperer_meta_periodes_api_injoignable_ferme_quand_meme_le_client() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("connexion refusée", request=request)
+
+    http = _http(handler)
+    with pytest.raises(ServiceIndisponible, match="injoignable"):
+        recuperer_meta_periodes("une-cle", http_client=http)
+    assert http.is_closed
+
+
+def test_recuperer_meta_periodes_version_desynchronisee_ferme_quand_meme_le_client() -> None:
+    """Serveur en retard (`X-Contract-Version` < attendue) → message « préviens ton admin »."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, headers={"X-Contract-Version": "1"}, content=b"")
+
+    http = _http(handler)
+    with pytest.raises(ServiceIndisponible, match="admin"):
+        recuperer_meta_periodes("une-cle", http_client=http)
+    assert http.is_closed
+
+
 # -- client Arrow (#720) -------------------------------------------------------
 
 
@@ -173,6 +211,26 @@ def test_recuperer_releves_propage_les_autres_erreurs_et_ferme_le_client() -> No
     assert http.is_closed
 
 
+def test_recuperer_releves_ingestion_en_cours_ferme_quand_meme_le_client() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(503, headers={"X-Error-Kind": "ingestion-lock"})
+
+    http = _http(handler)
+    with pytest.raises(ServiceIndisponible, match="Ingestion en cours"):
+        recuperer_releves("une-cle", http_client=http)
+    assert http.is_closed
+
+
+def test_recuperer_releves_api_injoignable_ferme_quand_meme_le_client() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("connexion refusée", request=request)
+
+    http = _http(handler)
+    with pytest.raises(ServiceIndisponible, match="injoignable"):
+        recuperer_releves("une-cle", http_client=http)
+    assert http.is_closed
+
+
 # -- recuperer_flux ---------------------------------------------------------------
 
 
@@ -240,6 +298,26 @@ def test_recuperer_flux_propage_les_autres_erreurs_et_ferme_le_client() -> None:
 
     http = _http(handler)
     with pytest.raises(httpx.HTTPStatusError):
+        recuperer_flux("une-cle", "c15", http_client=http)
+    assert http.is_closed
+
+
+def test_recuperer_flux_ingestion_en_cours_ferme_quand_meme_le_client() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(503, headers={"X-Error-Kind": "ingestion-lock"})
+
+    http = _http(handler)
+    with pytest.raises(ServiceIndisponible, match="Ingestion en cours"):
+        recuperer_flux("une-cle", "c15", http_client=http)
+    assert http.is_closed
+
+
+def test_recuperer_flux_api_injoignable_ferme_quand_meme_le_client() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("connexion refusée", request=request)
+
+    http = _http(handler)
+    with pytest.raises(ServiceIndisponible, match="injoignable"):
         recuperer_flux("une-cle", "c15", http_client=http)
     assert http.is_closed
 
