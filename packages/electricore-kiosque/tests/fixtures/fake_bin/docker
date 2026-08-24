@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# Fake `docker` pour tester packages/electricore-kiosque/smoke.sh (#706).
+#
+# Modélise le comportement réel de l'image (app.py / __main__.py) : `KIOSQUE__APPS`
+# contenant un nom hors catalogue → le process quitte en erreur avec le message
+# explicite de `NomAppInconnu` sur stderr — SAUF si FAKE_DOCKER_NO_FAILFAST=1 (pour
+# tester que smoke.sh détecte bien l'ABSENCE du fail-fast attendu).
+#
+# `docker run -d …` → imprime un id de conteneur factice.
+# `docker stop …`   → no-op, exit 0.
+
+cmd="${1:-}"
+shift || true
+
+case "$cmd" in
+    run)
+        detach=0
+        apps=""
+        args=("$@")
+        i=0
+        while [[ $i -lt ${#args[@]} ]]; do
+            case "${args[$i]}" in
+                -d)
+                    detach=1
+                    i=$((i + 1))
+                    ;;
+                -e)
+                    kv="${args[$((i + 1))]}"
+                    [[ "$kv" == KIOSQUE__APPS=* ]] && apps="${kv#KIOSQUE__APPS=}"
+                    i=$((i + 2))
+                    ;;
+                *)
+                    i=$((i + 1))
+                    ;;
+            esac
+        done
+
+        if [[ "$apps" == *typo* && "${FAKE_DOCKER_NO_FAILFAST:-0}" != "1" ]]; then
+            echo "Kiosque : configuration invalide — KIOSQUE__APPS référence des apps inconnues du catalogue : ${apps} (disponibles : exports)" >&2
+            exit 1
+        fi
+
+        if [[ "$detach" -eq 1 ]]; then
+            echo "fakecid123"
+        fi
+        exit 0
+        ;;
+    stop)
+        exit 0
+        ;;
+    *)
+        echo "fake docker: commande non simulée ($cmd $*)" >&2
+        exit 1
+        ;;
+esac
