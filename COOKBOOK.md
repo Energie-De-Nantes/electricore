@@ -154,3 +154,19 @@ git add providers/{provider}/secrets.env && git commit -m "feat({provider}): cl�
 ```
 look: git diff du commit, puis `reconfigure` sur la box pour prise d'effet
 expect: valeurs de 43 caractères (token_urlsafe(32) > minimum 32 du registre runtime) ; le diff ne montre que des `ENC[AES256_GCM,...]` — les labels restent lisibles, c'est voulu (SOPS chiffre les valeurs, pas les noms)
+
+## relais-bump-version
+
+mode: human
+when: déployer une nouvelle version du relais sur une box (bump RELAIS_VERSION) sans toucher au journal — le volume `electricore-relais_relais_data` survit au bump par design (jamais recréé par un changement de tag, cf. render_relais_compose)
+do:
+```
+# 1. Relevé avant — nombre de lignes du journal (référence d'intégrité) :
+ssh ops@{box} 'sudo docker run --rm --entrypoint python -v electricore-relais_relais_data:/data ghcr.io/energie-de-nantes/electricore:{ancien_tag} -c "import duckdb; print(duckdb.connect(\"/data/relais.duckdb\", read_only=True).execute(\"select count(*) from journal.relais_livraisons\").fetchone())"'
+# 2. Épingler le tag : RELAIS_VERSION={tag} dans providers/{slug}/config.env (electricore-secrets), commit, push
+# 3. Reconfigure (pull du dépôt secrets + régénération compose/unités ; ne touche jamais à la DB) :
+ssh ops@{box} 'curl -fsSL https://raw.githubusercontent.com/Energie-De-Nantes/electricore/main/deploy/install.sh -o /tmp/install.sh && sudo bash /tmp/install.sh --slug {slug} --relais --deploy-repo git@github.com:Energie-De-Nantes/electricore-secrets.git'
+# 4. Relevé après : même commande qu'en 1 avec {tag} (pré-tire l'image au passage), puis attendre un passage du timer
+```
+look: récap installeur (ligne `Image …:{tag}`, timer actif) ; relevés avant/après ; `journalctl -u electricore-relais.service` pour le passage suivant
+expect: même nombre de lignes au journal avant/après (un passage à vide n'écrit rien), timer resté armé (état non vierge — sur état vierge l'installeur le désarme, #673), passage suivant sans échec ; toute édition locale de /srv/{slug}/config.env est écrasée par le reconfigure (la source de vérité est le dépôt). Validé le 2026-08-24 : 3.8.0 → 3.8.2 sur la box Enargia, 2524 lignes conservées, vue d'audit reconstruite au passage suivant (règle R17 active)
