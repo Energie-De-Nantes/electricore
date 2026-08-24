@@ -293,10 +293,11 @@ class TestComposanteDepassement:
         schema = regles.collect_schema()
         assert schema["cmdps"] == pl.Float64, f"Type incorrect pour cmdps: {schema['cmdps']}"
 
-        # Vérifier que BTSUPCU/BTSUPLU ont cmdps=12.41
+        # Vérifier que BTSUPCU/BTSUPLU ont un cmdps renseigné (12.41 en 2025, 12.79 en 2026)
         btsup = df.filter(pl.col("Formule_Tarifaire_Acheminement").str.starts_with("BTSUP"))
         assert btsup.shape[0] >= 2, "Règles BTSUP manquantes"
-        assert (btsup["cmdps"] == 12.41).all(), "Valeur cmdps incorrecte pour BTSUP"
+        assert btsup["cmdps"].is_not_null().all(), "cmdps manquant pour BTSUP"
+        assert btsup["cmdps"].is_in([12.41, 12.79]).all(), "Valeur cmdps incorrecte pour BTSUP"
 
         # Vérifier que BTINF* ont cmdps NULL
         btinf = df.filter(pl.col("Formule_Tarifaire_Acheminement").str.starts_with("BTINF"))
@@ -790,20 +791,20 @@ class TestTurpeFixeC4:
 
         assert df.shape[0] > 0, "BTSUPCU introuvable"
 
-        # Prendre la dernière ligne (tarifs 2025-08-01)
+        # Prendre la dernière ligne (tarifs 2026-08-01, délibération CRE n° 2026-105)
         row = df.row(-1, named=True)
 
         # Coefficients puissance (€/kVA/an) - CRE officiel
-        assert row["b_hph"] == 17.61, f"b_hph incorrect: {row['b_hph']}"
-        assert row["b_hch"] == 15.96, f"b_hch incorrect: {row['b_hch']}"
-        assert row["b_hpb"] == 14.56, f"b_hpb incorrect: {row['b_hpb']}"
-        assert row["b_hcb"] == 11.98, f"b_hcb incorrect: {row['b_hcb']}"
+        assert row["b_hph"] == 18.15, f"b_hph incorrect: {row['b_hph']}"
+        assert row["b_hch"] == 16.45, f"b_hch incorrect: {row['b_hch']}"
+        assert row["b_hpb"] == 15.00, f"b_hpb incorrect: {row['b_hpb']}"
+        assert row["b_hcb"] == 12.34, f"b_hcb incorrect: {row['b_hcb']}"
 
         # Coefficients énergie (c€/kWh) - CRE officiel
-        assert row["c_hph"] == 6.91, f"c_hph incorrect: {row['c_hph']}"
-        assert row["c_hch"] == 4.21, f"c_hch incorrect: {row['c_hch']}"
-        assert row["c_hpb"] == 2.13, f"c_hpb incorrect: {row['c_hpb']}"
-        assert row["c_hcb"] == 1.52, f"c_hcb incorrect: {row['c_hcb']}"
+        assert row["c_hph"] == 7.12, f"c_hph incorrect: {row['c_hph']}"
+        assert row["c_hch"] == 4.34, f"c_hch incorrect: {row['c_hch']}"
+        assert row["c_hpb"] == 2.19, f"c_hpb incorrect: {row['c_hpb']}"
+        assert row["c_hcb"] == 1.57, f"c_hcb incorrect: {row['c_hcb']}"
 
     def test_expr_valider_puissances_croissantes_c4_valide(self):
         """Test validation P₁ ≤ P₂ ≤ P₃ ≤ P₄ - cas valide."""
