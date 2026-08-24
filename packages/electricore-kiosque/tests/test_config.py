@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from electricore_kiosque.config import api_url, apps_actives, titre
+from electricore_kiosque.config import ApiUrlManquante, api_url, apps_actives, titre
 
 
 def test_apps_actives_liste_les_noms_separes_par_virgule(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -31,6 +31,8 @@ def test_api_url_lit_kiosque_api_url(monkeypatch: pytest.MonkeyPatch) -> None:
     assert api_url() == "https://kiosque.exemple.fr"
 
 
-def test_api_url_a_un_defaut(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_api_url_manquante_leve_une_erreur_actionnable(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pas de défaut codé en dur : une box réelle vient du config.env du provider."""
     monkeypatch.delenv("KIOSQUE__API_URL", raising=False)
-    assert api_url() == "https://edn.electricore.fr"
+    with pytest.raises(ApiUrlManquante, match="KIOSQUE__API_URL"):
+        api_url()

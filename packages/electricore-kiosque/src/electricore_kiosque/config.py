@@ -5,7 +5,14 @@ from __future__ import annotations
 import os
 
 _TITRE_DEFAUT = "ElectriCore"
-_API_URL_DEFAUT = "https://edn.electricore.fr"
+
+
+class ApiUrlManquante(ValueError):
+    """`KIOSQUE__API_URL` absente — fail-fast, message actionnable.
+
+    L'URL d'une box réelle est de la config de déploiement (config.env du
+    provider, `electricore-secrets`, ADR-0044) — jamais un défaut codé en dur ici.
+    """
 
 
 def apps_actives() -> list[str]:
@@ -22,7 +29,11 @@ def titre() -> str:
 def api_url() -> str:
     """`KIOSQUE__API_URL` : API `electricore` interrogée par les notebooks (#705).
 
-    Défaut : l'API publique de la box de référence (même URL que l'onboarding
-    notebook opérateur, `docs/operateur-notebook.md`).
+    Requise, sans défaut — l'URL d'une box réelle vit dans le config.env du
+    provider (`electricore-secrets`, ADR-0044), pas dans ce code versionné.
+    Lue paresseusement (à l'usage, pas à l'import) ; fail-fast si absente.
     """
-    return os.environ.get("KIOSQUE__API_URL", _API_URL_DEFAUT)
+    valeur = os.environ.get("KIOSQUE__API_URL")
+    if not valeur:
+        raise ApiUrlManquante("KIOSQUE__API_URL manquante — configure-la dans le config.env du provider.")
+    return valeur

@@ -12,6 +12,14 @@ import httpx
 import pytest
 from electricore_kiosque.helpers import CleApiRefusee, construire_client, recuperer_meta_periodes
 
+
+@pytest.fixture(autouse=True)
+def _api_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`KIOSQUE__API_URL` requise (fail-fast, pas de défaut) — posée pour les tests
+    qui ne portent pas spécifiquement sur cette configuration."""
+    monkeypatch.setenv("KIOSQUE__API_URL", "https://kiosque.test.invalide")
+
+
 _LIGNE = {
     "ref_situation_contractuelle": "RSC123",
     "pdl": "PDL456",
