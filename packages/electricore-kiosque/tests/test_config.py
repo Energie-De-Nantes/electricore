@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from electricore_kiosque.config import apps_actives, titre
+from electricore_kiosque.config import api_url, apps_actives, titre
 
 
 def test_apps_actives_liste_les_noms_separes_par_virgule(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -24,3 +24,13 @@ def test_titre_lit_kiosque_titre(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_titre_a_un_defaut(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("KIOSQUE__TITRE", raising=False)
     assert titre() == "ElectriCore"
+
+
+def test_api_url_lit_kiosque_api_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("KIOSQUE__API_URL", "https://kiosque.exemple.fr")
+    assert api_url() == "https://kiosque.exemple.fr"
+
+
+def test_api_url_a_un_defaut(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("KIOSQUE__API_URL", raising=False)
+    assert api_url() == "https://edn.electricore.fr"
