@@ -32,9 +32,8 @@ _LIGNE = {
 }
 
 
-def _client(handler, *, cle: str = "une-cle") -> object:
-    http = httpx.Client(transport=httpx.MockTransport(handler))
-    return construire_client(cle, http_client=http)
+def _http(handler) -> httpx.Client:
+    return httpx.Client(transport=httpx.MockTransport(handler))
 
 
 def test_construire_client_positionne_url_et_cle(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -44,7 +43,7 @@ def test_construire_client_positionne_url_et_cle(monkeypatch: pytest.MonkeyPatch
     assert client.api_key == "ma-cle"
 
 
-def test_recuperer_meta_periodes_retourne_les_lignes() -> None:
+def test_recuperer_meta_periodes_retourne_les_lignes_et_ferme_le_client() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(
             200,
@@ -52,30 +51,33 @@ def test_recuperer_meta_periodes_retourne_les_lignes() -> None:
             content=(json.dumps(_LIGNE) + "\n").encode(),
         )
 
-    client = _client(handler)
-    lignes = recuperer_meta_periodes(client)
+    http = _http(handler)
+    lignes = recuperer_meta_periodes("une-cle", http_client=http)
 
     assert len(lignes) == 1
     assert lignes[0]["ref_situation_contractuelle"] == "RSC123"
     assert lignes[0]["turpe_fixe_eur"] == 12.3
     assert "releves_utilises" not in lignes[0]
+    assert http.is_closed  # chaque appel referme sa connexion (kiosque multi-visiteurs)
 
 
-def test_recuperer_meta_periodes_cle_refusee() -> None:
+def test_recuperer_meta_periodes_cle_refusee_ferme_quand_meme_le_client() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(401)
 
-    client = _client(handler)
+    http = _http(handler)
     with pytest.raises(CleApiRefusee, match="admin"):
-        recuperer_meta_periodes(client)
+        recuperer_meta_periodes("une-cle", http_client=http)
+    assert http.is_closed
 
 
-def test_recuperer_meta_periodes_propage_les_autres_erreurs() -> None:
+def test_recuperer_meta_periodes_propage_les_autres_erreurs_et_ferme_le_client() -> None:
     """Une erreur qui n'est pas une clé refusée reste une erreur HTTP normale."""
 
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(500)
 
-    client = _client(handler)
+    http = _http(handler)
     with pytest.raises(httpx.HTTPStatusError):
-        recuperer_meta_periodes(client)
+        recuperer_meta_periodes("une-cle", http_client=http)
+    assert http.is_closed

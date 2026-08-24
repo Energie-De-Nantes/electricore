@@ -32,8 +32,7 @@ def _(cle):
         mo.stop(True, mo.md("_En attente d'une clé API…_"))
 
     try:
-        client = helpers.construire_client(cle.value)
-        lignes = helpers.recuperer_meta_periodes(client)
+        lignes = helpers.recuperer_meta_periodes(cle.value)
     except (helpers.CleApiRefusee, config.ApiUrlManquante) as exc:
         mo.stop(True, mo.md(f"⚠️ **{exc}**"))
     return (lignes,)
