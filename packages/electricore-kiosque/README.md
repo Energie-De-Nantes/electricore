@@ -20,10 +20,22 @@ Un nom absent du catalogue dans `KIOSQUE__APPS` fait échouer le démarrage (mes
 
 ## Catalogue
 
-- **`exports`** — clé API (saisie navigateur, jamais stockée côté serveur) → tableau
-  filtrable de la facturation mensuelle via `electricore-client` → téléchargement CSV de
-  la vue filtrée (bouton natif de `mo.ui.table`). Clé invalide ou révoquée : message clair,
-  pas de stacktrace.
+- **`exports`** — clé API (saisie navigateur, jamais stockée côté serveur), trois onglets
+  à chargement paresseux (`mo.ui.tabs(..., lazy=True)`), chacun tableau filtrable +
+  téléchargement CSV (bouton natif de `mo.ui.table`) :
+  - **Facturation** — méta-périodes mensuelles.
+  - **Relevés** — mart canonique harmonisé (ADR-0029) ; fenêtre par défaut le dernier
+    mois calendaire, filtres pdl + plage de dates, plafond dur côté kiosque avec bandeau
+    « vue tronquée » quand il est atteint.
+  - **Flux bruts** — tables Enedis fidèles à la source (dropdown en dur : c15, r151, r15,
+    f15_detail, f12_detail, r64), filtre pdl optionnel, avertissement conventions Enedis
+    (`date_releve` R151 nue, sans le +1 d'harmonisation) ; table absente de la box →
+    message propre.
+
+  Les onglets Relevés/Flux bruts passent par `electricore-client[arrow]`
+  (`ElectricoreArrowClient`, amendement 2026-08-24 à l'ADR-0057) — polars entre dans le
+  kiosque via cet extra public du client, jamais via le moteur `electricore`. Clé invalide
+  ou révoquée : message clair, pas de stacktrace.
 
 ## Lancement local
 
