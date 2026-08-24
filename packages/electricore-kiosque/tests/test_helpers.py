@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import io
 import json
+from datetime import date
 
 import httpx
 import polars as pl
@@ -18,6 +19,7 @@ from electricore_kiosque.helpers import (
     TableFluxAbsente,
     construire_client,
     construire_client_arrow,
+    fenetre_dernier_mois,
     recuperer_flux,
     recuperer_meta_periodes,
     recuperer_releves,
@@ -197,3 +199,16 @@ def test_recuperer_flux_cle_refusee_ferme_quand_meme_le_client() -> None:
     with pytest.raises(CleApiRefusee, match="admin"):
         recuperer_flux("une-cle", "c15", http_client=http)
     assert http.is_closed
+
+
+# -- fenetre_dernier_mois -----------------------------------------------------
+
+
+def test_fenetre_dernier_mois_renvoie_le_mois_calendaire_precedent() -> None:
+    debut, fin = fenetre_dernier_mois(date(2026, 8, 24))
+    assert (debut, fin) == ("2026-07-01", "2026-07-31")
+
+
+def test_fenetre_dernier_mois_traverse_le_changement_d_annee() -> None:
+    debut, fin = fenetre_dernier_mois(date(2026, 1, 15))
+    assert (debut, fin) == ("2025-12-01", "2025-12-31")
