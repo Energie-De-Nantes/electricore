@@ -23,6 +23,10 @@ from electricore_client.arrow import ElectricoreArrowClient
 from electricore_kiosque.config import api_url
 
 _STATUTS_CLE_REFUSEE = {401, 403}
+# Portée volontairement étroite : « API injoignable » = on n'a jamais établi la
+# connexion (#722). Une erreur APRÈS connexion (ReadTimeout sur un gros flux,
+# RemoteProtocolError…) n'est pas la même histoire et remonte telle quelle —
+# à élargir le jour où l'une d'elles se voit vraiment en prod.
 _ERREURS_CONNEXION = (httpx.ConnectError, httpx.ConnectTimeout)
 
 # Bandeau « vue tronquée » (relevés + flux bruts, #720/#721) : plafond dur côté
@@ -62,9 +66,6 @@ class ServiceIndisponible(Exception):
     ne l'émettent jamais côté API (seuls `/provision/estimation` et le detail de
     facturation le font) — rien à convertir tant que ce chemin reste inatteignable.
     """
-
-    def __init__(self, message: str) -> None:
-        super().__init__(message)
 
 
 _MSG_INGESTION_EN_COURS = "Ingestion en cours côté serveur — réessaie dans quelques minutes."
