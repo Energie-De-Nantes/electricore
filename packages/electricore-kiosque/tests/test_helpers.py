@@ -1,16 +1,27 @@
-"""Tests des helpers clé API → client `electricore-client` (#705).
+"""Tests des helpers clé API → client `electricore-client` (#705, #720).
 
 Transport HTTP mocké (`httpx.MockTransport`) : aucun réseau, même patron que
-`electricore_client/tests/test_transport.py`.
+`electricore_client/tests/test_transport.py` et `electricore_client/tests/test_arrow.py`.
 """
 
 from __future__ import annotations
 
+import io
 import json
 
 import httpx
+import polars as pl
 import pytest
-from electricore_kiosque.helpers import CleApiRefusee, construire_client, recuperer_meta_periodes
+from electricore_kiosque.helpers import (
+    LIMITE_RELEVES,
+    CleApiRefusee,
+    TableFluxAbsente,
+    construire_client,
+    construire_client_arrow,
+    recuperer_flux,
+    recuperer_meta_periodes,
+    recuperer_releves,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -34,6 +45,12 @@ _LIGNE = {
 
 def _http(handler) -> httpx.Client:
     return httpx.Client(transport=httpx.MockTransport(handler))
+
+
+def _reponse_arrow(df: pl.DataFrame, *, status_code: int = 200) -> httpx.Response:
+    buf = io.BytesIO()
+    df.write_ipc_stream(buf)
+    return httpx.Response(status_code, content=buf.getvalue())
 
 
 def test_construire_client_positionne_url_et_cle(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -80,4 +97,103 @@ def test_recuperer_meta_periodes_propage_les_autres_erreurs_et_ferme_le_client()
     http = _http(handler)
     with pytest.raises(httpx.HTTPStatusError):
         recuperer_meta_periodes("une-cle", http_client=http)
+    assert http.is_closed
+
+
+# -- client Arrow (#720) -------------------------------------------------------
+
+
+def test_construire_client_arrow_positionne_url_et_cle(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("KIOSQUE__API_URL", "https://kiosque.exemple.fr")
+    client = construire_client_arrow("ma-cle")
+    assert client.url == "https://kiosque.exemple.fr"
+    assert client.api_key == "ma-cle"
+
+
+# -- recuperer_releves ----------------------------------------------------------
+
+
+def test_recuperer_releves_retourne_les_lignes_transmet_les_bornes_et_ferme_le_client() -> None:
+    captures: list[httpx.URL] = []
+    df = pl.DataFrame({"pdl": ["PDL456"], "date_releve": ["2026-05-01"]})
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captures.append(request.url)
+        return _reponse_arrow(df)
+
+    http = _http(handler)
+    lignes, tronque = recuperer_releves("une-cle", prm="PDL456", debut="2026-05-01", fin="2026-06-01", http_client=http)
+
+    assert lignes == df.to_dicts()
+    assert tronque is False
+    assert http.is_closed
+    params = captures[0].params
+    assert params.get("prm") == "PDL456"
+    assert params.get("debut") == "2026-05-01"
+    assert params.get("fin") == "2026-06-01"
+
+
+def test_recuperer_releves_signale_la_troncature_quand_la_limite_est_atteinte() -> None:
+    """La limite dure côté kiosque (`LIMITE_RELEVES`) déclenche le bandeau « vue tronquée »."""
+    df = pl.DataFrame({"pdl": ["PDL456"] * LIMITE_RELEVES})
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return _reponse_arrow(df)
+
+    http = _http(handler)
+    lignes, tronque = recuperer_releves("une-cle", http_client=http)
+
+    assert len(lignes) == LIMITE_RELEVES
+    assert tronque is True
+    assert http.is_closed
+
+
+def test_recuperer_releves_cle_refusee_ferme_quand_meme_le_client() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(401)
+
+    http = _http(handler)
+    with pytest.raises(CleApiRefusee, match="admin"):
+        recuperer_releves("une-cle", http_client=http)
+    assert http.is_closed
+
+
+# -- recuperer_flux ---------------------------------------------------------------
+
+
+def test_recuperer_flux_retourne_les_lignes_et_ferme_le_client() -> None:
+    captures: list[httpx.URL] = []
+    df = pl.DataFrame({"pdl": ["PDL456"], "evenement_declencheur": ["MES"]})
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captures.append(request.url)
+        return _reponse_arrow(df)
+
+    http = _http(handler)
+    lignes = recuperer_flux("une-cle", "c15", prm="PDL456", http_client=http)
+
+    assert lignes == df.to_dicts()
+    assert http.is_closed
+    assert captures[0].params.get("prm") == "PDL456"
+
+
+def test_recuperer_flux_table_absente_ferme_quand_meme_le_client() -> None:
+    """Table hors registre côté box → message propre, pas de stacktrace (404 API)."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(404)
+
+    http = _http(handler)
+    with pytest.raises(TableFluxAbsente, match="inconnue"):
+        recuperer_flux("une-cle", "inconnue", http_client=http)
+    assert http.is_closed
+
+
+def test_recuperer_flux_cle_refusee_ferme_quand_meme_le_client() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(401)
+
+    http = _http(handler)
+    with pytest.raises(CleApiRefusee, match="admin"):
+        recuperer_flux("une-cle", "c15", http_client=http)
     assert http.is_closed
