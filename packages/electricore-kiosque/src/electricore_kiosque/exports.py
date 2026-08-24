@@ -6,7 +6,7 @@ app = marimo.App(width="medium")
 with app.setup:
     import marimo as mo
 
-    from electricore_kiosque import helpers
+    from electricore_kiosque import config, helpers
 
 
 @app.cell(hide_code=True)
@@ -34,7 +34,7 @@ def _(cle):
     try:
         client = helpers.construire_client(cle.value)
         lignes = helpers.recuperer_meta_periodes(client)
-    except helpers.CleApiRefusee as exc:
+    except (helpers.CleApiRefusee, config.ApiUrlManquante) as exc:
         mo.stop(True, mo.md(f"⚠️ **{exc}**"))
     return (lignes,)
 
