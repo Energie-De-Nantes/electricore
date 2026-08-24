@@ -142,20 +142,21 @@ jobs:
           python-version: "3.12"
 
       # Environnement ISOLÉ : uniquement electricore-kiosque (marimo + fastapi +
-      # electricore-client) + pytest. JAMAIS le moteur (polars/duckdb), même
-      # invariant que le job test-client (ADR-0057, #704).
+      # electricore-client[arrow]) + pytest. JAMAIS le moteur `electricore` ni
+      # DuckDB — polars est désormais toléré (amendement 2026-08-24 à l'ADR-0057,
+      # #720) : c'est l'extra public du client, pas un accès direct au moteur.
       - name: Créer un venv isolé pour le Kiosque
         run: uv venv /tmp/kiosque-venv
 
       - name: Installer electricore-kiosque seul (+ ses deps de test)
         run: |
-          uv pip install --python /tmp/kiosque-venv ./packages/electricore-kiosque ./packages/electricore-client pytest httpx
+          uv pip install --python /tmp/kiosque-venv ./packages/electricore-kiosque "./packages/electricore-client[arrow]" pytest httpx
 
-      - name: Garde-fou — polars/duckdb ABSENTS de l'environnement
+      - name: Garde-fou — moteur `electricore`/DuckDB ABSENTS de l'environnement
         run: |
           uv pip list --python /tmp/kiosque-venv | tee /tmp/pkgs-kiosque.txt
-          if grep -iqE '^(polars|duckdb)[[:space:]]' /tmp/pkgs-kiosque.txt; then
-            echo "::error::Le moteur (polars/duckdb) a fuité dans l'env Kiosque isolé."
+          if grep -iqE '^(duckdb|electricore)[[:space:]]' /tmp/pkgs-kiosque.txt; then
+            echo "::error::Le moteur electricore (ou DuckDB) a fuité dans l'env Kiosque isolé."
             exit 1
           fi
 
