@@ -883,7 +883,6 @@ version = "0.1.0"
 source = { editable = "packages/electricore-kiosque" }
 dependencies = [
     { name = "electricore-client" },
-    { name = "fastapi" },
     { name = "marimo" },
     { name = "uvicorn" },
 ]
@@ -897,7 +896,6 @@ test = [
 [package.metadata]
 requires-dist = [
     { name = "electricore-client", editable = "packages/electricore-client" },
-    { name = "fastapi", specifier = ">=0.116.1" },
     { name = "marimo", specifier = ">=0.23.0" },
     { name = "uvicorn", specifier = ">=0.35.0,<0.36.0" },
 ]

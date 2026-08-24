@@ -2,7 +2,7 @@
 
 `assembler()` prend catalogue + sélection en paramètres (couture testable, pas de lecture
 d'env ici) : les notebooks sont des fixtures factices, il n'y a ni navigateur ni vrai
-serveur — juste l'app FastAPI assemblée, exercée par `TestClient`.
+serveur — juste l'app ASGI assemblée, exercée par `TestClient`.
 """
 
 from __future__ import annotations

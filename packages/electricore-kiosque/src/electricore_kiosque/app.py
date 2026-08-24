@@ -1,4 +1,4 @@
-"""Assemblage ASGI du Kiosque : catalogue de notebooks marimo → app FastAPI unique.
+"""Assemblage ASGI du Kiosque : catalogue de notebooks marimo → app ASGI unique.
 
 Le Kiosque sert plusieurs notebooks marimo en mode `run` (lecture seule, ADR-0057) sous un
 seul process : un accueil monté à la racine (`path=""`), chaque app active du catalogue
@@ -9,7 +9,7 @@ en paramètres — c'est la couture testable, sans lecture d'env (voir `config.p
 from __future__ import annotations
 
 import marimo
-from fastapi import FastAPI
+from starlette.types import ASGIApp
 
 
 class NomAppInconnu(ValueError):
@@ -20,8 +20,8 @@ class NomAppInconnu(ValueError):
     """
 
 
-def assembler(catalogue: dict[str, str], actifs: list[str], *, accueil: str) -> FastAPI:
-    """Construit l'app FastAPI du Kiosque à partir d'un catalogue et d'une sélection active.
+def assembler(catalogue: dict[str, str], actifs: list[str], *, accueil: str) -> ASGIApp:
+    """Construit l'app ASGI du Kiosque à partir d'un catalogue et d'une sélection active.
 
     `catalogue` : nom → chemin de notebook marimo disponible.
     `actifs` : sélection à monter (valeur de `KIOSQUE__APPS`) — chaque nom DOIT exister
@@ -41,6 +41,4 @@ def assembler(catalogue: dict[str, str], actifs: list[str], *, accueil: str) -> 
         server = server.with_app(path=f"/{nom}", root=catalogue[nom])
     server = server.with_app(path="", root=accueil)
 
-    app = FastAPI()
-    app.mount("/", server.build())
-    return app
+    return server.build()

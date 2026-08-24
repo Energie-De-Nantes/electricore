@@ -17,7 +17,7 @@ Un nom absent du catalogue dans `KIOSQUE__APPS` fait échouer le démarrage (mes
 ## Lancement local
 
 ```bash
-KIOSQUE__APPS= KIOSQUE__TITRE="Ma structure" uv run --package electricore-kiosque electricore-kiosque
+env KIOSQUE__APPS= KIOSQUE__TITRE="Ma structure" uv run --package electricore-kiosque electricore-kiosque
 ```
 
 Le catalogue réel (exports…) arrive en tranche suivante (#705) ; ce squelette part d'un
