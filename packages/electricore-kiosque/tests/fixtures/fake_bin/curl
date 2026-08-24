@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Fake `curl` pour tester packages/electricore-kiosque/smoke.sh (#706).
+# FAKE_CURL_FAIL=1 simule un service qui ne répond pas (HTTP smoke KO).
+[[ "${FAKE_CURL_FAIL:-0}" == "1" ]] && exit 7
+exit 0
