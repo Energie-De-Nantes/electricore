@@ -143,19 +143,27 @@ def _(
         elements.append(mo.ui.table(lignes, label=f"Flux {table_flux.value}"))
         return mo.vstack(elements)
 
-    mo.output.replace(
-        mo.ui.tabs(
-            {
-                "Facturation": onglet_facturation,
-                "Relevés": onglet_releves,
-                "Flux bruts": onglet_flux_bruts,
-            },
-            value=onglet_ouvert(),
-            lazy=True,
-            on_change=choisir_onglet,
-        )
+    # `onglets` est LIÉ à un nom et renvoyé (#721) : `UIElementRegistry` ne garde
+    # les éléments qu'en weakref, et un `mo.ui.tabs(...)` passé directement à
+    # `mo.output.replace()` n'est référencé par rien à la fin de la cellule — il
+    # est collecté, sort du registre, et le kernel jette alors le clic d'onglet
+    # (« A UI element may go out of scope if it was not assigned to a global
+    # variable », `marimo/_runtime/runtime.py`). `on_change` ne partait donc
+    # jamais, `mo.state` restait sur « Facturation », et le prochain re-render
+    # ramenait le visiteur au premier onglet. Lié, l'élément survit et le couple
+    # état/on_change fait son travail.
+    onglets = mo.ui.tabs(
+        {
+            "Facturation": onglet_facturation,
+            "Relevés": onglet_releves,
+            "Flux bruts": onglet_flux_bruts,
+        },
+        value=onglet_ouvert(),
+        lazy=True,
+        on_change=choisir_onglet,
     )
-    return onglet_releves, onglet_flux_bruts
+    mo.output.replace(onglets)
+    return onglet_releves, onglet_flux_bruts, onglets
 
 
 if __name__ == "__main__":
