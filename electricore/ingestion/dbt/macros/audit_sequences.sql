@@ -4,14 +4,17 @@
 -- SEUL lieu où vivent les règles de nomenclature Enedis : extraction du *numéro de
 -- séquence* et de la *clé de séquence* depuis le nom du zip (glossaire, `CONTEXT.md`
 -- « Complétude des flux »), propres à chaque type de flux (guides SGE) :
---   C15/R15 = (contrat, DIR) ; F15 = destinataire×contrat×DIR×type_facture×fréquence×
---   type_client ; F12 = destinataire×contrat×DIR ; C12 = contrat ; X12/X13 =
---   destinataire×code_flux ; R151 = abonnement (compteur INTER-zips, hors macro — la
+--   C15/R15 = (contrat, DIR) ; R17 = destinataire×contrat (pas de segment DIR —
+--   nomenclature constatée sur les dépôts Enargia 2023→2026 :
+--   `ENEDIS_R17_<EIC destinataire>_<contrat>_NNNNN_<horodate>`) ; F15 = destinataire×
+--   contrat×DIR×type_facture×fréquence×type_client ; F12 = destinataire×contrat×DIR ;
+--   C12 = contrat ; X12/X13 = destinataire×code_flux ; R151 = abonnement (compteur
+--   INTER-zips, hors macro — la
 --   caller ingestion le traite dans sa propre CTE, cf. `models/marts/audit_sequences.sql`).
 --
 -- Paramètres :
 --   relation    : relation déjà UNIONÉE (une ligne par document), portant une colonne
---                 `flux` (code flux Enedis : 'C15'/'R15'/'F15'/'F12'/'R151'/'C12'/
+--                 `flux` (code flux Enedis : 'C15'/'R15'/'R17'/'F15'/'F12'/'R151'/'C12'/
 --                 'X12'/'X13') — convention fixe, pas un paramètre (le caller construit
 --                 l'union avec ce nom de colonne).
 --   colonne_zip : nom de la colonne portant le nom de l'archive (`_source_zip` côté
@@ -38,6 +41,8 @@
     'C15':  {'pattern': '^[^_]+_C15_[^_]+_([^_]+)_([^_]+)_([0-9]{5})_[0-9]+$',
              'cle': '\\1|\\2', 'seq': '\\3'},
     'R15':  {'pattern': '^[^_]+_R15_[^_]+_([^_]+)_([^_]+)_([0-9]{5})_[0-9]+$',
+             'cle': '\\1|\\2', 'seq': '\\3'},
+    'R17':  {'pattern': '^[^_]+_R17_([^_]+)_([^_]+)_([0-9]{5})_[0-9]+$',
              'cle': '\\1|\\2', 'seq': '\\3'},
     'F15':  {'pattern': '^[^_]+_F15_([^_]+)_([^_]+)_([^_]+)_([^_]+)_([^_]+)_([^_]+)_[^_]+_([0-9]{5})_[0-9]+$',
              'cle': '\\1|\\2|\\3|\\4|\\5|\\6', 'seq': '\\7'},
