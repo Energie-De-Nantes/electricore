@@ -164,6 +164,12 @@ jobs:
         run: |
           /tmp/kiosque-venv/bin/python -m pytest packages/electricore-kiosque/tests -q
 
+      # Bash pur, fake-binaires docker/curl, zéro dépendance (même motif que
+      # deploy/tests/unit.sh) — couvre la logique de packages/electricore-kiosque/smoke.sh
+      # (image Docker kiosque, #706) sans jamais lancer de vrai conteneur ici.
+      - name: Auto-test du smoke Docker kiosque (fake docker/curl)
+        run: bash packages/electricore-kiosque/tests/test_smoke.sh
+
   deploy-tests:
     name: deploy shell tests (bash, fake-binaries)
     runs-on: ubuntu-latest
@@ -211,3 +217,12 @@ jobs:
     permissions:
       contents: read
     uses: ./.github/workflows/docker-image.yml
+
+  # Idem pour l'image electricore-kiosque (#706) — workflow SIBLING (Dockerfile et
+  # smoke distincts, scope moteur absent). `push` reste à false : seul
+  # release-kiosque.yml (tag kiosque-v*) pousse.
+  docker-image-kiosque:
+    name: docker image kiosque (build + smoke)
+    permissions:
+      contents: read
+    uses: ./.github/workflows/docker-image-kiosque.yml
