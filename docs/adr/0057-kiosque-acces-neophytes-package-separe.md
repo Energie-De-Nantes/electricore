@@ -1,6 +1,6 @@
 # 0057 — Kiosque : accès néophytes en apps marimo hébergées, package séparé
 
-- Status: accepted
+- Status: accepted (amendé le 2026-08-24 — voir « Amendements »)
 - Date: 2026-08-11
 
 ## Contexte
@@ -100,3 +100,19 @@ Tranches suivantes : #705 (catalogue d'apps réelles + saisie de clé API naviga
 S'appuie sur ADR-0043 (`electricore-client`, paquet workspace séparé), ADR-0009
 (architecture API-centrique, notebooks comme état transitoire du dev local), ADR-0027
 (« Odoo tire »), ADR-0044 (secrets-as-code, nommage par slug d'entité).
+
+## Amendements
+
+### 2026-08-24 — polars admis via `electricore-client[arrow]`, le moteur reste interdit
+
+L'extension du notebook `exports` aux **relevés** (mart canonique, ADR-0029) et aux
+**flux bruts** exige des tableaux volumineux dans le process kiosque. Le seul chemin
+client existant est `ElectricoreArrowClient` (extra `[arrow]`), qui tire `polars` —
+en contradiction avec la lettre de la décision 1 (« pas de `polars`/`duckdb` »).
+
+Amendement : le Kiosque **peut dépendre de `electricore-client[arrow]`** (donc de
+polars) ; c'est l'extra public du client, consommé comme le ferait tout intégrateur.
+L'invariant qui portait la décision est réaffirmé et inchangé : **jamais le moteur
+`electricore`** (ni DuckDB, ni accès direct aux données — tout passe par l'API). La
+« légèreté » cède d'un cran (image plus lourde) ; la frontière d'architecture, elle,
+ne bouge pas.
