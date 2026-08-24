@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 
 _TITRE_DEFAUT = "ElectriCore"
+_API_URL_DEFAUT = "https://edn.electricore.fr"
 
 
 def apps_actives() -> list[str]:
@@ -16,3 +17,12 @@ def apps_actives() -> list[str]:
 def titre() -> str:
     """`KIOSQUE__TITRE` : nom de l'entité, affiché par l'accueil."""
     return os.environ.get("KIOSQUE__TITRE", _TITRE_DEFAUT)
+
+
+def api_url() -> str:
+    """`KIOSQUE__API_URL` : API `electricore` interrogée par les notebooks (#705).
+
+    Défaut : l'API publique de la box de référence (même URL que l'onboarding
+    notebook opérateur, `docs/operateur-notebook.md`).
+    """
+    return os.environ.get("KIOSQUE__API_URL", _API_URL_DEFAUT)
