@@ -4,11 +4,13 @@ fraicheur: 2026-07-04
 
 # Processus de release
 
-Deux cycles de publication distincts et indépendants : le **moteur** (paquet
-`electricore`, tags `vX.Y.Z…`) et le **client léger** (paquet `electricore-client`, tags
-`client-vX.Y.Z…`, [ADR-0043](../adr/0043-electricore-client-paquet-separe.md)). Ce qui suit
-décrit le moteur ; le client suit le même principe (tag = action publiante) avec un
-paquet PyPI en moins de sortie (pas d'image Docker).
+Trois cycles de publication distincts et indépendants : le **moteur** (paquet
+`electricore`, tags `vX.Y.Z…`), le **client léger** (paquet `electricore-client`, tags
+`client-vX.Y.Z…`, [ADR-0043](../adr/0043-electricore-client-paquet-separe.md)) et le
+**Kiosque** (image Docker seule, tags `kiosque-vX.Y.Z…`,
+[ADR-0057](../adr/0057-kiosque-acces-neophytes-package-separe.md)). Ce qui suit décrit le
+moteur ; les deux autres suivent le même principe (tag = action publiante) avec une
+sortie plus étroite (le client : PyPI sans image ; le Kiosque : image sans PyPI).
 
 ## 1. Avant de taguer : bump en PR, comme tout le reste
 
