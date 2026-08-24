@@ -15,6 +15,8 @@ qui empêche de tester leur rendu via `sorties[-1].text`. Le dernier cell les
 
 from __future__ import annotations
 
+from datetime import date
+
 import pytest
 from electricore_kiosque import exports, helpers
 
@@ -23,6 +25,13 @@ class _FakeCle:
     """Stand-in pour `mo.ui.text` : seule sa `.value` compte pour le notebook."""
 
     def __init__(self, value: str) -> None:
+        self.value = value
+
+
+class _FakeWidget:
+    """Stand-in générique pour un widget `mo.ui.*` — seule sa `.value` compte."""
+
+    def __init__(self, value: object) -> None:
         self.value = value
 
 
@@ -126,13 +135,21 @@ def test_onglet_releves_cle_refusee_affiche_un_message_actionnable(monkeypatch: 
 def test_onglet_flux_bruts_affiche_le_tableau_et_l_avertissement_conventions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(helpers, "recuperer_flux", lambda cle, table, **kw: [{"pdl": "PDL456"}])
+    monkeypatch.setattr(helpers, "recuperer_flux", lambda cle, table, **kw: ([{"pdl": "PDL456"}], False))
     defs = _defs(monkeypatch)
 
     rendu = defs["onglet_flux_bruts"]().text
 
     assert "PDL456" in rendu
     assert "conventions Enedis" in rendu
+
+
+def test_onglet_flux_bruts_affiche_le_bandeau_vue_tronquee(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Même plafond `LIMITE_LIGNES` que Relevés — le bandeau doit suivre (#721)."""
+    monkeypatch.setattr(helpers, "recuperer_flux", lambda cle, table, **kw: ([{"pdl": "P1"}], True))
+    defs = _defs(monkeypatch)
+
+    assert "tronqu" in defs["onglet_flux_bruts"]().text.lower()
 
 
 def test_onglet_flux_bruts_table_absente_affiche_un_message_propre(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -143,3 +160,69 @@ def test_onglet_flux_bruts_table_absente_affiche_un_message_propre(monkeypatch: 
     defs = _defs(monkeypatch)
 
     assert "absente de cette box" in defs["onglet_flux_bruts"]().text
+
+
+# -- réactivité des filtres (#721, bug d'inertie) --------------------------------
+#
+# `mo.lazy` n'appelle la fonction d'un onglet qu'UNE fois par ouverture, et ne
+# retient pas l'objet retourné (weakref côté `UIElementRegistry`). Des widgets
+# créés À L'INTÉRIEUR de `onglet_releves`/`onglet_flux_bruts` seraient donc
+# inertes : les tests ci-dessus, qui appellent `defs["onglet_releves"]()`
+# directement, ne l'auraient JAMAIS détecté puisqu'ils recréent des widgets par
+# défaut à chaque appel — exactement le bug. La preuve qui aurait attrapé le
+# bug : les widgets doivent vivre dans leurs PROPRES cellules (`pdl_releves`,
+# `debut`, `fin`, `table_flux`, `pdl_flux`), overridables via `app.run(defs=…)`
+# — si `onglet_releves`/`onglet_flux_bruts` les recréaient en interne, cet
+# override n'aurait aucun effet sur ce que `helpers.recuperer_*` reçoit.
+
+
+def test_onglet_releves_recoit_les_valeurs_des_widgets_de_filtre_injectes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("KIOSQUE__API_URL", "https://kiosque.test.invalide")
+    monkeypatch.setattr(helpers, "recuperer_meta_periodes", lambda cle, **kw: [])
+    captures: dict = {}
+
+    def _fake(cle: str, **kwargs: object):
+        captures.update(kwargs)
+        return [], False
+
+    monkeypatch.setattr(helpers, "recuperer_releves", _fake)
+
+    _, defs = exports.app.run(
+        defs={
+            "cle": _FakeCle("une-cle"),
+            "pdl_releves": _FakeWidget("PDL999"),
+            "debut": _FakeWidget(date(2020, 1, 1)),
+            "fin": _FakeWidget(date(2020, 1, 31)),
+        }
+    )
+    defs["onglet_releves"]()
+
+    assert captures["prm"] == "PDL999"
+    assert captures["debut"] == "2020-01-01"
+    assert captures["fin"] == "2020-01-31"
+
+
+def test_onglet_flux_bruts_recoit_la_table_du_dropdown_injecte(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Changer la valeur injectée du dropdown change la table demandée à l'API."""
+    monkeypatch.setenv("KIOSQUE__API_URL", "https://kiosque.test.invalide")
+    monkeypatch.setattr(helpers, "recuperer_meta_periodes", lambda cle, **kw: [])
+    captures: dict = {}
+
+    def _fake(cle: str, table: str, **kwargs: object):
+        captures["table"] = table
+        return [], False
+
+    monkeypatch.setattr(helpers, "recuperer_flux", _fake)
+
+    _, defs = exports.app.run(
+        defs={
+            "cle": _FakeCle("une-cle"),
+            "table_flux": _FakeWidget("r151"),
+            "pdl_flux": _FakeWidget(""),
+        }
+    )
+    defs["onglet_flux_bruts"]()
+
+    assert captures["table"] == "r151"

@@ -34,6 +34,32 @@ def _():
 
 
 @app.cell
+def _():
+    # Widgets de filtre Relevés — cell À PART, hors de toute fonction paresseuse
+    # (#721, bug d'inertie). `mo.lazy` n'appelle `onglet_releves` qu'une fois par
+    # ouverture d'onglet et ne retient pas l'objet résolu ; des widgets créés
+    # DEDANS seraient donc des candidats GC, invisibles aux changements ultérieurs
+    # (`UIElementRegistry` ne les garde qu'en weakref). Déclarés ici, ce sont des
+    # cellules réactives normales : la cellule des onglets (plus bas) en dépend,
+    # donc tout changement de filtre la refait tourner et redéclenche le fetch de
+    # l'onglet ouvert. `_debut_defaut`/`_fin_defaut` préfixés `_` : privés à la
+    # cellule (convention marimo), ils n'ont pas besoin d'exister pour l'onglet.
+    _debut_defaut, _fin_defaut = helpers.fenetre_dernier_mois()
+    pdl_releves = mo.ui.text(label="PDL (optionnel)")
+    debut = mo.ui.date(value=_debut_defaut, label="Depuis")
+    fin = mo.ui.date(value=_fin_defaut, label="Jusqu'à")
+    return pdl_releves, debut, fin
+
+
+@app.cell
+def _():
+    # Widgets de filtre Flux bruts — même raison qu'au-dessus.
+    table_flux = mo.ui.dropdown(TABLES_FLUX, value=TABLES_FLUX[0], label="Table de flux")
+    pdl_flux = mo.ui.text(label="PDL (optionnel)")
+    return table_flux, pdl_flux
+
+
+@app.cell
 def _(cle):
     # Onglet Facturation : comportement inchangé (#705, non-régression) — calculé
     # ici (pas dans un onglet paresseux) pour que clé refusée / KIOSQUE__API_URL
@@ -53,47 +79,47 @@ def _(cle):
 
 
 @app.cell
-def _(cle, onglet_facturation):
+def _(cle, onglet_facturation, pdl_releves, debut, fin, table_flux, pdl_flux):
     # Fonctions (pas des valeurs déjà calculées) : `mo.ui.tabs(..., lazy=True)`
     # ne fetch qu'à l'ouverture de l'onglet — jamais Relevés/Flux bruts au
-    # chargement de la page. Exposées via `return` (pas seulement fermées sur
-    # `cle`) pour rester testables unitairement (voir `test_exports.py`).
+    # chargement de la page. Elles ne FONT que fetch + rendre, en fermant sur les
+    # `.value` des widgets déclarés au-dessus (jamais recréés ici) — c'est ce qui
+    # rend la cellule des onglets dépendante des widgets, donc réactive à leurs
+    # changements (voir cellules précédentes). Exposées via `return` pour rester
+    # testables unitairement (voir `test_exports.py`).
     def onglet_releves():
-        debut_defaut, fin_defaut = helpers.fenetre_dernier_mois()
-        pdl = mo.ui.text(label="PDL (optionnel)")
-        debut = mo.ui.date(value=debut_defaut, label="Depuis")
-        fin = mo.ui.date(value=fin_defaut, label="Jusqu'à")
-
         try:
             lignes, tronque = helpers.recuperer_releves(
                 cle.value,
-                prm=pdl.value or None,
+                prm=pdl_releves.value or None,
                 debut=str(debut.value),
                 fin=str(fin.value),
             )
         except (helpers.CleApiRefusee, config.ApiUrlManquante) as exc:
-            return mo.vstack([pdl, debut, fin, mo.md(f"⚠️ **{exc}**")])
+            return mo.vstack([pdl_releves, debut, fin, mo.md(f"⚠️ **{exc}**")])
 
-        elements = [pdl, debut, fin]
+        elements = [pdl_releves, debut, fin]
         if tronque:
             elements.append(mo.callout("Vue tronquée : resserre tes filtres pour tout voir.", kind="warn"))
         elements.append(mo.ui.table(lignes, label="Relevés"))
         return mo.vstack(elements)
 
     def onglet_flux_bruts():
-        table = mo.ui.dropdown(TABLES_FLUX, value=TABLES_FLUX[0], label="Table de flux")
-        pdl = mo.ui.text(label="PDL (optionnel)")
         avertissement = mo.md(
             "⚠️ Données brutes fidèles à la source, conventions Enedis — pour des "
             "relevés harmonisés, onglet **Relevés**."
         )
 
         try:
-            lignes = helpers.recuperer_flux(cle.value, table.value, prm=pdl.value or None)
+            lignes, tronque = helpers.recuperer_flux(cle.value, table_flux.value, prm=pdl_flux.value or None)
         except (helpers.CleApiRefusee, helpers.TableFluxAbsente, config.ApiUrlManquante) as exc:
-            return mo.vstack([table, pdl, avertissement, mo.md(f"⚠️ **{exc}**")])
+            return mo.vstack([table_flux, pdl_flux, avertissement, mo.md(f"⚠️ **{exc}**")])
 
-        return mo.vstack([table, pdl, avertissement, mo.ui.table(lignes, label=f"Flux {table.value}")])
+        elements = [table_flux, pdl_flux, avertissement]
+        if tronque:
+            elements.append(mo.callout("Vue tronquée : resserre tes filtres pour tout voir.", kind="warn"))
+        elements.append(mo.ui.table(lignes, label=f"Flux {table_flux.value}"))
+        return mo.vstack(elements)
 
     mo.output.replace(
         mo.ui.tabs(
