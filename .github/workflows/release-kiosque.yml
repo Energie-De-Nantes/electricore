@@ -1,0 +1,79 @@
+name: Release electricore-kiosque (Docker)
+
+# Publication de l'image Docker electricore-kiosque sur ghcr.io, déclenchée par un tag
+# `kiosque-v*` (distinct des tags `v*` du moteur et `client-v*` du client) — même logique
+# de découplage que release-client.yml (#706, PRD #702) : bump de version via PR AVANT
+# tag, PAS de release moteur ni PyPI impliquée (le Kiosque n'est pas un paquet PyPI).
+on:
+  push:
+    tags:
+      # Stable : kiosque-v0.1.0
+      - 'kiosque-v[0-9]+.[0-9]+.[0-9]+'
+      # Pré-releases PEP 440 : kiosque-v0.1.0a1 / b1 / rc1 / .dev1
+      - 'kiosque-v[0-9]+.[0-9]+.[0-9]+a[0-9]+'
+      - 'kiosque-v[0-9]+.[0-9]+.[0-9]+b[0-9]+'
+      - 'kiosque-v[0-9]+.[0-9]+.[0-9]+rc[0-9]+'
+      - 'kiosque-v[0-9]+.[0-9]+.[0-9]+.dev[0-9]+'
+
+# Pas de bloc concurrency : un release ne doit jamais être annulé en cours de publication.
+
+permissions:
+  contents: read
+  packages: write   # push image Docker sur ghcr.io
+
+jobs:
+  verifier-version:
+    name: Vérifier que le tag correspond à la version du package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Pas de wheel ici (image Docker, pas PyPI) : le garde-fou équivalent au « nom
+      # d'artefact vs tag » de release-client.yml est la version du pyproject.toml.
+      - name: Comparer pyproject.toml et le tag
+        run: |
+          set -euo pipefail
+          TAG_VERSION="${GITHUB_REF_NAME#kiosque-v}"
+          PKG_VERSION=$(grep -m1 '^version = ' packages/electricore-kiosque/pyproject.toml | sed -E 's/version = "(.*)"/\1/')
+          echo "tag=${TAG_VERSION} pyproject.toml=${PKG_VERSION}"
+          if [[ "${TAG_VERSION}" != "${PKG_VERSION}" ]]; then
+            echo "::error::Tag kiosque-v${TAG_VERSION} ne correspond pas à packages/electricore-kiosque/pyproject.toml (${PKG_VERSION}) — bump de version via PR avant de tagger."
+            exit 1
+          fi
+
+  docker_meta:
+    name: Compute Docker tags
+    needs: verifier-version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      tags: ${{ steps.compute.outputs.tags }}
+    steps:
+      - name: Compute tags (pré-release ne touche ni :latest ni :MAJOR.MINOR)
+        id: compute
+        run: |
+          set -euo pipefail
+          OWNER="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          V="${GITHUB_REF_NAME#kiosque-v}"
+          MAJOR_MINOR="${V%.*}"
+          if [[ "${GITHUB_REF_NAME}" =~ ^kiosque-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            # Stable : :latest + :MAJOR.MINOR + :version exacte.
+            TAGS="ghcr.io/${OWNER}/electricore-kiosque:${V},ghcr.io/${OWNER}/electricore-kiosque:${MAJOR_MINOR},ghcr.io/${OWNER}/electricore-kiosque:latest"
+          else
+            # Pré-release : seulement :version exacte (ne pas rediriger les déploiements
+            # stables vers la rc/dev).
+            TAGS="ghcr.io/${OWNER}/electricore-kiosque:${V}"
+          fi
+          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
+
+  image:
+    name: Build, scan, smoke & push image
+    needs: [verifier-version, docker_meta]
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/docker-image-kiosque.yml
+    with:
+      push: true
+      push_tags: ${{ needs.docker_meta.outputs.tags }}
