@@ -15,7 +15,10 @@ from electricore_kiosque.app import NomAppInconnu, assembler
 from electricore_kiosque.catalogue import CATALOGUE
 from electricore_kiosque.config import apps_actives
 
-_HOTE = "127.0.0.1"
+# 0.0.0.0 : le Kiosque est un service à joindre depuis l'extérieur du process (navigateur
+# distant, ou port-mapping Docker, #706) — jamais juste une boucle locale, contrairement à
+# un outil CLI de dev. Même convention que l'API du moteur (uvicorn --host 0.0.0.0).
+_HOTE = "0.0.0.0"
 _PORT = 8765
 
 
