@@ -133,6 +133,7 @@ def test_recuperer_releves_retourne_les_lignes_transmet_les_bornes_et_ferme_le_c
     assert params.get("prm") == "PDL456"
     assert params.get("debut") == "2026-05-01"
     assert params.get("fin") == "2026-06-01"
+    assert params.get("limit") == str(LIMITE_RELEVES)
 
 
 def test_recuperer_releves_signale_la_troncature_quand_la_limite_est_atteinte() -> None:
