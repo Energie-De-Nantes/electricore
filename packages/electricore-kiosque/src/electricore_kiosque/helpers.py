@@ -14,6 +14,8 @@ public du client, jamais via le moteur `electricore`.
 
 from __future__ import annotations
 
+from datetime import date, timedelta
+
 import httpx
 from electricore_client import ElectricoreClient
 from electricore_client.arrow import ElectricoreArrowClient
@@ -41,6 +43,19 @@ class TableFluxAbsente(Exception):
 
     def __init__(self, table: str) -> None:
         super().__init__(f"Table de flux « {table} » absente de cette box.")
+
+
+def fenetre_dernier_mois(aujourdhui: date | None = None) -> tuple[str, str]:
+    """Fenêtre par défaut de l'onglet Relevés : le dernier mois calendaire complet.
+
+    `aujourdhui` injectable pour les tests ; par défaut `date.today()`. Le mois
+    en cours est volontairement exclu (incomplet) — on montre le dernier mois
+    plein, resserrable ensuite via les filtres.
+    """
+    aujourdhui = aujourdhui or date.today()
+    fin = aujourdhui.replace(day=1) - timedelta(days=1)
+    debut = fin.replace(day=1)
+    return debut.isoformat(), fin.isoformat()
 
 
 def construire_client(cle: str, *, http_client: httpx.Client | None = None) -> ElectricoreClient:
