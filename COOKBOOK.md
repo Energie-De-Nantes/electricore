@@ -109,6 +109,20 @@ gh run list --workflow release-client.yml --limit 1
 look: le run "Release electricore-client" et https://pypi.org/project/electricore-client/
 expect: job vert (build uv → vérif artefacts vs tag → Trusted Publishing OIDC, aucun token PyPI) ; la version apparaît sur PyPI, puis souscriptions_odoo peut bumper son pin
 
+## kiosque-release
+
+mode: human
+when: publier l'image Docker electricore-kiosque sur ghcr.io (après merge dans main du bump de version du pyproject du package)
+do:
+```
+git fetch origin main
+git tag kiosque-v{version} origin/main   # {version} = celle du pyproject mergé (pré-releases PEP 440 : a1/b1/rc1/.devN)
+git push origin kiosque-v{version}       # hors sandbox ; le tag déclenche .github/workflows/release-kiosque.yml
+gh run list --workflow release-kiosque.yml --limit 1
+```
+look: le run "Release electricore-kiosque (Docker)" et https://github.com/Energie-De-Nantes/electricore/pkgs/container/electricore-kiosque
+expect: job vert (tag vs pyproject → build → TruffleHog → smoke → push) ; tag stable → :X.Y.Z + :X.Y + :latest, pré-release → :X.Y.ZrcN seule
+
 ## docs-eyeball
 
 mode: human

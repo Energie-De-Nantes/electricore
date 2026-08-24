@@ -41,6 +41,11 @@ smoke_kiosque_sert() {
         tries=$((tries + 1))
     done
 
+    # Logs AVANT le stop : le conteneur tourne en --rm, `docker logs` devient impossible
+    # dès qu'il s'arrête — sans ça le diagnostic d'échec renvoie vers des logs supprimés.
+    if [[ "$rc" -ne 0 ]]; then
+        "$DOCKER_BIN" logs "$cid" >&2 || true
+    fi
     "$DOCKER_BIN" stop "$cid" >/dev/null 2>&1
     return "$rc"
 }
@@ -69,7 +74,7 @@ smoke_kiosque_image() {
     if smoke_kiosque_sert "$tag"; then
         echo "smoke: le service sert (HTTP 200 sur /) OK"
     else
-        echo "smoke: ÉCHEC — le service ne sert pas (voir docker logs)" >&2
+        echo "smoke: ÉCHEC — le service ne sert pas (logs du conteneur ci-dessus)" >&2
         rc=1
     fi
     if smoke_kiosque_fail_fast "$tag"; then

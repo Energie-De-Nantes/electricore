@@ -45,6 +45,10 @@ case "$cmd" in
         fi
         exit 0
         ;;
+    logs)
+        echo "fake docker logs: (sortie du conteneur)" >&2
+        exit 0
+        ;;
     stop)
         exit 0
         ;;
