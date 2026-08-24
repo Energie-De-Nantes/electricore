@@ -51,3 +51,37 @@ Un nom absent du catalogue dans `KIOSQUE__APPS` fait échouer le démarrage (mes
 env KIOSQUE__APPS=exports KIOSQUE__TITRE="Ma structure" KIOSQUE__API_URL=https://mon-api.exemple.fr \
     uv run --package electricore-kiosque electricore-kiosque
 ```
+
+## Image Docker
+
+Une seule image publique, publiée sur `ghcr.io/energie-de-nantes/electricore-kiosque` —
+tout le catalogue embarqué, la personnalisation par entité reste de la configuration au
+lancement (voir [ADR-0057](../../docs/adr/0057-kiosque-acces-neophytes-package-separe.md)).
+Aucun secret embarqué, aucun build par client ([`Dockerfile`](Dockerfile)).
+
+```bash
+docker run --rm -p 8765:8765 \
+    -e KIOSQUE__APPS=exports \
+    -e KIOSQUE__TITRE="Ma structure" \
+    -e KIOSQUE__API_URL=https://mon-api.exemple.fr \
+    ghcr.io/energie-de-nantes/electricore-kiosque:latest
+```
+
+Puis ouvrir `http://localhost:8765`. Changer `KIOSQUE__APPS`/`KIOSQUE__TITRE` change les
+apps servies sans rebuild — c'est le même artefact pour toutes les entités.
+
+### Publier une nouvelle version de l'image
+
+Même logique de découplage que `electricore-client` (tag dédié, pas de release moteur) :
+
+1. Bumper `version` dans [`pyproject.toml`](pyproject.toml) via une PR normale, merger.
+2. Tagger `kiosque-vX.Y.Z` (ou une pré-release `kiosque-vX.Y.ZrcN`/`aN`/`bN`/`.devN`) sur
+   `main` et pousser le tag.
+3. Le workflow [`release-kiosque.yml`](../../.github/workflows/release-kiosque.yml) build,
+   scanne (TruffleHog), fume l'image ([`smoke.sh`](smoke.sh)), puis pousse sur ghcr.io.
+   Tag stable → `:X.Y.Z` + `:X.Y` + `:latest` ; pré-release → seulement `:X.Y.ZrcN` (ne
+   touche jamais `:latest`, même convention que l'image moteur).
+
+Chaque PR construit + scanne + fume l'image (sans la pousser) via le même workflow
+réutilisable ([`docker-image-kiosque.yml`](../../.github/workflows/docker-image-kiosque.yml),
+appelé par `ci.yml`) — les régressions Docker sont visibles avant le tag.
