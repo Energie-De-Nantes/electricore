@@ -7,6 +7,10 @@ seule app web, pour des néophytes qui consultent leurs données via un navigate
 Aucun secret côté serveur : la clé API `electricore` est saisie par l'utilisateur·ice dans le
 notebook et sert de seule identité.
 
+![Principe de fonctionnement du Kiosque](../../docs/kiosque-principe.png)
+
+(source : [`docs/kiosque-principe.excalidraw`](../../docs/kiosque-principe.excalidraw))
+
 ## Configuration (par entité)
 
 - `KIOSQUE__APPS` — noms séparés par des virgules, sélection dans le catalogue à monter.
