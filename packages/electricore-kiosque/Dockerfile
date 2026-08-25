@@ -59,9 +59,11 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends tini \
  && rm -rf /var/lib/apt/lists/*
 
-# Utilisateur non-root
+# Utilisateur non-root, avec un VRAI home writable : marimo cherche sa config sous
+# $HOME/.config au démarrage — un home root-owned (ou /app) spamme les logs de
+# « Permission denied » à chaque requête (vu au premier docker run, PR #724).
 RUN groupadd --system --gid 1000 kiosque \
- && useradd --system --uid 1000 --gid kiosque --home-dir /app --shell /usr/sbin/nologin kiosque
+ && useradd --system --uid 1000 --gid kiosque --create-home --home-dir /home/kiosque --shell /usr/sbin/nologin kiosque
 
 WORKDIR /app
 
@@ -69,7 +71,10 @@ WORKDIR /app
 # aucun `electricore/` : l'image runtime ne peut PAS accidentellement importer le moteur.
 COPY --from=builder --chown=kiosque:kiosque /app/.venv /app/.venv
 
+# HOME explicite : la directive USER ne pose PAS $HOME — sans lui, marimo retombe
+# sur le cwd (/app, root-owned) pour sa config.
 ENV PATH="/app/.venv/bin:${PATH}" \
+    HOME=/home/kiosque \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     TZ=Europe/Paris
