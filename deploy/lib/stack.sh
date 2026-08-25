@@ -16,6 +16,11 @@ compose_up() {
     # bind-mount). Note : le user <slug> est dans le groupe docker (cf. user.sh).
     sudo -u "$slug" -- bash -c \
         "cd '${home}/deploy/docker' && docker compose --env-file ../../config.env up -d"
+    # Le Caddyfile est un bind-mount : `up -d` ne recrée pas le conteneur quand seul le
+    # CONTENU du fichier change (spec du mount identique) — Caddy garderait l'ancienne
+    # config en mémoire (vécu : bloc kiosque.<domaine> absent après reconfigure, #707).
+    # Reload à chaud, idempotent, zéro coupure.
+    sudo -u "$slug" -- docker exec electricore-caddy caddy reload --config /etc/caddy/Caddyfile
 }
 
 # wait_for_health <slug> [<max_retries>] [<delay_seconds>]
