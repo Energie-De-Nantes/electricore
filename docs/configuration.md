@@ -79,6 +79,15 @@ lève `ConfigurationManquante` au boot (no-ERP servi tant que le bloc est entiè
 | `KIOSQUE__TITRE` | nom de l'entité, affiché par l'accueil |
 | `KIOSQUE__API_URL` | URL de l'API `electricore` interrogée par les notebooks (ex. `exports`) ; **requise**, aucun défaut codé en dur — fournie par le `config.env` du provider (`electricore-secrets`, ADR-0044), fail-fast sinon |
 
+Déploiement provider (deploy/docker, #707) — service compose à part, désactivé par défaut :
+
+| variable | rôle |
+|---|---|
+| `COMPOSE_PROFILES` | `kiosque` active le conteneur (profil Compose, `config.env`) ; absent/vide = pas de service kiosque |
+| `KIOSQUE_VERSION` | tag GHCR à épingler (`ghcr.io/energie-de-nantes/electricore-kiosque`), même logique qu'`ELECTRICORE_VERSION` |
+
+Voir [docs/deploiement.md](deploiement.md) « Kiosque (optionnel) » pour l'activation/désactivation côté provider.
+
 **Exception assumée au registre runtime** (ADR-0025/0049) : le Kiosque ne peut pas dépendre
 du moteur (ADR-0057), donc pas de pydantic-settings — lecture directe de l'env dans
 `electricore_kiosque/config.py`. Le nommage `DOMAINE__CHAMP` (ADR-0046) reste respecté.
