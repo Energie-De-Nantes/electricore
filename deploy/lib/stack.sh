@@ -16,11 +16,14 @@ compose_up() {
     # bind-mount). Note : le user <slug> est dans le groupe docker (cf. user.sh).
     sudo -u "$slug" -- bash -c \
         "cd '${home}/deploy/docker' && docker compose --env-file ../../config.env up -d"
-    # Le Caddyfile est un bind-mount : `up -d` ne recrée pas le conteneur quand seul le
-    # CONTENU du fichier change (spec du mount identique) — Caddy garderait l'ancienne
-    # config en mémoire (vécu : bloc kiosque.<domaine> absent après reconfigure, #707).
-    # Reload à chaud, idempotent, zéro coupure.
-    sudo -u "$slug" -- docker exec electricore-caddy caddy reload --config /etc/caddy/Caddyfile
+    # Le Caddyfile est un bind-mount PAR INODE : `up -d` ne recrée pas le conteneur quand
+    # seul le contenu change, et `sed -i` (substitute_caddyfile) écrit un NOUVEL inode —
+    # le conteneur reste attaché à l'ancien, c.-à-d. le template brut écrit par curl.
+    # Un `caddy reload` chargerait donc le template non substitué (vécu sur enargia,
+    # #707 : domaine principal tombé). Seule une recréation re-résout le chemin.
+    # ~1 s de coupure ; les certificats survivent dans le volume caddy_data.
+    sudo -u "$slug" -- bash -c \
+        "cd '${home}/deploy/docker' && docker compose --env-file ../../config.env up -d --force-recreate caddy"
 }
 
 # wait_for_health <slug> [<max_retries>] [<delay_seconds>]
