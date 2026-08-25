@@ -306,6 +306,18 @@ main() {
             wait_for_dns "$OPT_DOMAIN" "$public_ip" || die \
                 "DNS non propagé après 5 minutes." \
                 "Vérifier le A-record de ${OPT_DOMAIN}. Relancer le script quand c'est propre."
+
+            # Kiosque (#707) : sous-domaine optionnel, activé par profil Compose
+            # (COMPOSE_PROFILES=kiosque dans config.env, déjà pullé à l'étape 9). Même
+            # check DNS que le domaine principal, seulement si le profil est posé.
+            kiosque_profiles=$(read_env_var "$config_env" COMPOSE_PROFILES 2>/dev/null || true)
+            if [[ ",${kiosque_profiles}," == *,kiosque,* ]]; then
+                kiosque_domain="kiosque.${OPT_DOMAIN}"
+                log_info "Kiosque activé (COMPOSE_PROFILES=kiosque) — attente que ${kiosque_domain} pointe vers ${public_ip}…"
+                wait_for_dns "$kiosque_domain" "$public_ip" || die \
+                    "DNS non propagé pour ${kiosque_domain} après 5 minutes." \
+                    "Vérifier le A-record de ${kiosque_domain} (même IP que ${OPT_DOMAIN}). Relancer le script quand c'est propre."
+            fi
         fi
 
         # ─── Étape 11 : stack ────────────────────────────────────────────────
@@ -341,12 +353,19 @@ main() {
         # OPT_VERSION pour le chemin legacy .env (pas de config.env).
         effective_version=$(read_env_var "${HOME_DIR}/config.env" ELECTRICORE_VERSION 2>/dev/null || true)
         [[ -n "$effective_version" ]] || effective_version="$OPT_VERSION"
+        # Kiosque (#707) : ligne de récap seulement si activé (COMPOSE_PROFILES=kiosque).
+        kiosque_recap=""
+        kiosque_profiles=$(read_env_var "${HOME_DIR}/config.env" COMPOSE_PROFILES 2>/dev/null || true)
+        if [[ ",${kiosque_profiles}," == *,kiosque,* ]]; then
+            kiosque_recap="  Kiosque          https://kiosque.${OPT_DOMAIN}
+"
+        fi
         cat <<EOF
 
   ${_C_GREEN}${_C_BOLD}✓ Instance ${OPT_SLUG} opérationnelle.${_C_RESET}
 
   URL              https://${OPT_DOMAIN}
-  /health          curl https://${OPT_DOMAIN}/health
+${kiosque_recap}  /health          curl https://${OPT_DOMAIN}/health
   Image            ghcr.io/energie-de-nantes/electricore:${effective_version}
 ${ssh_recap}
   Logs             sudo -u ${OPT_SLUG} docker compose -f ${DOCKER_DIR}/docker-compose.yml logs -f

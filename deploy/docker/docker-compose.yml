@@ -30,6 +30,13 @@
 # ne sont PAS utilisées pour les substitutions du compose lui-même — c'est une
 # subtilité Compose qui justifie l'invocation explicite.
 #
+# Kiosque (optionnel, #707, ADR-0057) : conteneur derrière un profil Compose
+# ("kiosque"), activé en posant `COMPOSE_PROFILES=kiosque` dans config.env — cette
+# variable spéciale est lue par le CLI Compose lui-même depuis --env-file, pas
+# besoin d'un `--profile kiosque` sur la ligne de commande. Config via les 3
+# `KIOSQUE__*` (aucun secret) + `KIOSQUE_VERSION` (tag GHCR, même logique
+# qu'ELECTRICORE_VERSION) — voir docs/deploiement.md « Kiosque (optionnel) ».
+#
 # Documentation complète : docs/deploiement.md
 
 services:
@@ -108,6 +115,30 @@ services:
     depends_on:
       api:
         condition: service_healthy
+    restart: unless-stopped
+
+  kiosque:
+    image: ghcr.io/energie-de-nantes/electricore-kiosque:${KIOSQUE_VERSION:-latest}
+    container_name: electricore-kiosque
+    # Profil Compose (#707) : conteneur absent tant que COMPOSE_PROFILES (config.env,
+    # lu via --env-file) ne contient pas "kiosque" — activer/désactiver un provider
+    # = une seule ligne dans son config.env, aucune autre plomberie.
+    profiles:
+      - kiosque
+    env_file:
+      - ../../config.env
+    expose:
+      - "8765"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8765/',timeout=5).status==200 else 1)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     restart: unless-stopped
 
   caddy:

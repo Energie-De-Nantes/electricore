@@ -35,3 +35,27 @@ electricore.exemple.fr {
         }
     }
 }
+
+# Kiosque (optionnel, #707, ADR-0057) : sous-domaine dédié, dérivé du domaine
+# principal (jamais de montage sous préfixe de chemin — plomberie base-path/
+# WebSockets fragile derrière un proxy). Certificat HTTP-01 automatique, comme
+# ci-dessus. Le conteneur `kiosque` n'existe que si le profil Compose "kiosque"
+# est activé (COMPOSE_PROFILES=kiosque dans config.env) — sans lui, ce bloc
+# répond 502 pour cet hôte, le reste de la stack n'est pas affecté.
+kiosque.electricore.exemple.fr {
+    encode zstd gzip
+
+    log {
+        output stdout
+        format console
+    }
+
+    header {
+        -Server
+        Cache-Control "no-store"
+    }
+
+    # reverse_proxy de Caddy proxie nativement les WebSockets (marimo en dépend) —
+    # aucune configuration supplémentaire requise.
+    reverse_proxy kiosque:8765
+}

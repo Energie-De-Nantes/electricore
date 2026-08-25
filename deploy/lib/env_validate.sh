@@ -97,6 +97,22 @@ validate_config_env() {
         backups=$(read_env_var "$file" BACKUPS_PATH)
         [[ -n "$version" ]] || errors+=("ELECTRICORE_VERSION manquant (substitution compose)")
         [[ -n "$backups" ]] || errors+=("BACKUPS_PATH manquant (substitution compose)")
+
+        # Kiosque (#707, ADR-0057) : service optionnel activé par profil Compose. Le
+        # profil posé sans la config qui va avec ferait planter le conteneur au
+        # démarrage (KIOSQUE__API_URL fail-fast) — on le détecte ici, avant compose up,
+        # même philosophie fail-fast qu'ELECTRICORE_VERSION/BACKUPS_PATH ci-dessus.
+        local profiles
+        profiles=$(read_env_var "$file" COMPOSE_PROFILES)
+        if [[ ",${profiles}," == *,kiosque,* ]]; then
+            local kiosque_version kiosque_api_url kiosque_apps
+            kiosque_version=$(read_env_var "$file" KIOSQUE_VERSION)
+            kiosque_api_url=$(read_env_var "$file" KIOSQUE__API_URL)
+            kiosque_apps=$(read_env_var "$file" KIOSQUE__APPS)
+            [[ -n "$kiosque_version" ]] || errors+=("KIOSQUE_VERSION manquant (COMPOSE_PROFILES contient kiosque, #707)")
+            [[ -n "$kiosque_api_url" ]] || errors+=("KIOSQUE__API_URL manquant (COMPOSE_PROFILES contient kiosque, #707)")
+            [[ -n "$kiosque_apps" ]] || errors+=("KIOSQUE__APPS manquant (COMPOSE_PROFILES contient kiosque, #707)")
+        fi
     fi
 
     # Garde-fou anti-fuite (#693) : RELAIS__SOURCE_URL / RELAIS__PARTNER_URL APPARTIENNENT à

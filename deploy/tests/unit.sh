@@ -1176,6 +1176,108 @@ assert_ok   "poll_ingestion_job: running×2 puis completed → 0" \
 rm -f "$_poll_seq" "${_poll_seq}.tmp"
 
 echo
+echo "→ Kiosque (#707, ADR-0057) : intégration deploy provider"
+
+# env_validate.sh : COMPOSE_PROFILES=kiosque exige KIOSQUE_VERSION/KIOSQUE__API_URL/
+# KIOSQUE__APPS, même philosophie fail-fast qu'ELECTRICORE_VERSION/BACKUPS_PATH.
+tmp_cfg=$(mktemp)
+printf 'INSTANCE_SLUG=edn\nELECTRICORE_VERSION=1.7.0\nBACKUPS_PATH=/srv/edn/backups\nCOMPOSE_PROFILES=kiosque\n' > "$tmp_cfg"
+assert_fail_msg "validate_config_env (kiosque activé) : KIOSQUE_VERSION manquant → refuse" \
+    "KIOSQUE_VERSION manquant" \
+    validate_config_env "$tmp_cfg" "edn"
+rm -f "$tmp_cfg"
+
+tmp_cfg=$(mktemp)
+printf 'INSTANCE_SLUG=edn\nELECTRICORE_VERSION=1.7.0\nBACKUPS_PATH=/srv/edn/backups\nCOMPOSE_PROFILES=kiosque\nKIOSQUE_VERSION=1.0.0\n' > "$tmp_cfg"
+assert_fail_msg "validate_config_env (kiosque activé) : KIOSQUE__API_URL manquant → refuse" \
+    "KIOSQUE__API_URL manquant" \
+    validate_config_env "$tmp_cfg" "edn"
+rm -f "$tmp_cfg"
+
+tmp_cfg=$(mktemp)
+printf 'INSTANCE_SLUG=edn\nELECTRICORE_VERSION=1.7.0\nBACKUPS_PATH=/srv/edn/backups\nCOMPOSE_PROFILES=kiosque\nKIOSQUE_VERSION=1.0.0\nKIOSQUE__API_URL=https://edn.electricore.fr\n' > "$tmp_cfg"
+assert_fail_msg "validate_config_env (kiosque activé) : KIOSQUE__APPS manquant → refuse" \
+    "KIOSQUE__APPS manquant" \
+    validate_config_env "$tmp_cfg" "edn"
+rm -f "$tmp_cfg"
+
+tmp_cfg=$(mktemp)
+printf 'INSTANCE_SLUG=edn\nELECTRICORE_VERSION=1.7.0\nBACKUPS_PATH=/srv/edn/backups\nCOMPOSE_PROFILES=kiosque\nKIOSQUE_VERSION=1.0.0\nKIOSQUE__API_URL=https://edn.electricore.fr\nKIOSQUE__APPS=exports\n' > "$tmp_cfg"
+assert_ok "validate_config_env (kiosque activé) : les 3 variables présentes → OK" \
+    validate_config_env "$tmp_cfg" "edn"
+rm -f "$tmp_cfg"
+
+# COMPOSE_PROFILES portant d'autres profils + kiosque (liste virgule) → toujours détecté.
+tmp_cfg=$(mktemp)
+printf 'INSTANCE_SLUG=edn\nELECTRICORE_VERSION=1.7.0\nBACKUPS_PATH=/srv/edn/backups\nCOMPOSE_PROFILES=autre,kiosque\n' > "$tmp_cfg"
+assert_fail_msg "validate_config_env : kiosque détecté au milieu d'une liste COMPOSE_PROFILES" \
+    "KIOSQUE_VERSION manquant" \
+    validate_config_env "$tmp_cfg" "edn"
+rm -f "$tmp_cfg"
+
+# Sans COMPOSE_PROFILES (ou sans "kiosque" dedans) : aucune exigence KIOSQUE__* — le
+# comportement historique (stack seule) reste intact, config par défaut inchangée.
+tmp_cfg=$(mktemp)
+printf 'INSTANCE_SLUG=edn\nELECTRICORE_VERSION=1.7.0\nBACKUPS_PATH=/srv/edn/backups\n' > "$tmp_cfg"
+assert_ok "validate_config_env : sans COMPOSE_PROFILES, aucune exigence KIOSQUE__*" \
+    validate_config_env "$tmp_cfg" "edn"
+rm -f "$tmp_cfg"
+
+# docker-compose.yml : service kiosque défini derrière un profil Compose, zéro secret
+# (pas de volumes ni de SOPS/age.key montés pour ce service — seulement env_file).
+compose_yml="${LIB_DIR}/../docker/docker-compose.yml"
+grep -q "^  kiosque:" "$compose_yml" \
+    && ok "docker-compose.yml : service kiosque défini" \
+    || ko "docker-compose.yml : service kiosque absent"
+grep -q 'ghcr.io/energie-de-nantes/electricore-kiosque:\${KIOSQUE_VERSION:-latest}' "$compose_yml" \
+    && ok "docker-compose.yml : image kiosque pinnable via KIOSQUE_VERSION" \
+    || ko "docker-compose.yml : image kiosque non pinnable via KIOSQUE_VERSION"
+grep -q '"8765"' "$compose_yml" \
+    && ok "docker-compose.yml : port 8765 exposé" \
+    || ko "docker-compose.yml : port 8765 absent"
+awk '/^  kiosque:/,/^  caddy:/' "$compose_yml" | grep -q "profiles:" \
+    && ok "docker-compose.yml : service kiosque derrière un profil Compose" \
+    || ko "docker-compose.yml : service kiosque sans profil (toujours démarré)"
+awk '/^  kiosque:/,/^  caddy:/' "$compose_yml" | grep -qE '^\s*-\s*(\.\./\.\./age\.key|\.\./\.\./providers)' \
+    && ko "docker-compose.yml : service kiosque monte un secret (age.key/secrets.env) — zéro secret attendu" \
+    || ok "docker-compose.yml : service kiosque ne monte aucun secret"
+
+# Caddyfile.example : bloc kiosque dérivé du même placeholder de domaine — substitute_caddyfile
+# (sed global) le patche gratuitement, sans plomberie dédiée (issue #707).
+caddyfile_example="${LIB_DIR}/../docker/Caddyfile.example"
+grep -q "kiosque.electricore.exemple.fr" "$caddyfile_example" \
+    && ok "Caddyfile.example : bloc kiosque.<domaine> présent" \
+    || ko "Caddyfile.example : bloc kiosque.<domaine> absent"
+grep -q "reverse_proxy kiosque:8765" "$caddyfile_example" \
+    && ok "Caddyfile.example : reverse_proxy vers kiosque:8765" \
+    || ko "Caddyfile.example : reverse_proxy kiosque absent"
+tmp_caddy_kiosque=$(mktemp)
+cp "$caddyfile_example" "$tmp_caddy_kiosque"
+substitute_caddyfile "$tmp_caddy_kiosque" "edn.electricore.fr" "ops@edn.fr"
+grep -q "kiosque.edn.electricore.fr" "$tmp_caddy_kiosque" \
+    && ok "substitute_caddyfile : patche aussi le sous-domaine kiosque (même sed global)" \
+    || ko "substitute_caddyfile : le sous-domaine kiosque n'est pas patché"
+! grep -q "kiosque.electricore.exemple.fr" "$tmp_caddy_kiosque" \
+    && ok "substitute_caddyfile : pas de placeholder kiosque résiduel" \
+    || ko "substitute_caddyfile : placeholder kiosque résiduel"
+rm -f "$tmp_caddy_kiosque"
+
+# install.sh : câblage du check DNS optionnel + du récap kiosque (garde de présence,
+# même motif que la garde anti-régression --version #299 ci-dessus).
+grep -q 'kiosque_profiles' "$install_sh" \
+    && ok "install.sh : lit COMPOSE_PROFILES pour détecter le kiosque" \
+    || ko "install.sh ne lit PAS COMPOSE_PROFILES — DNS/récap kiosque inertes"
+grep -q 'wait_for_dns "\$kiosque_domain"' "$install_sh" \
+    && ok "install.sh : attend la propagation DNS de kiosque.<domain> quand activé" \
+    || ko "install.sh n'attend PAS le DNS du sous-domaine kiosque"
+
+# config.env.example : le modèle documente le bloc kiosque (commenté, prêt à activer).
+provider_example="${LIB_DIR}/../providers/example/config.env.example"
+grep -q "KIOSQUE_VERSION" "$provider_example" && grep -q "KIOSQUE__API_URL" "$provider_example" \
+    && ok "config.env.example : bloc kiosque documenté" \
+    || ko "config.env.example : bloc kiosque absent"
+
+echo
 if [[ "$FAIL" -eq 0 ]]; then
     printf "\033[32m%d passed, %d failed\033[0m\n" "$PASS" "$FAIL"
     exit 0

@@ -155,6 +155,44 @@ La colonne **Bloc** ci-dessous indique dans quel fichier chaque variable vit.
 |---|---|
 | `ODOO__URL` / `ODOO__DB` / `ODOO__USERNAME` / `ODOO__PASSWORD` | Coordonnées Odoo du fournisseur (bloc unique read-only, #439). |
 
+### Kiosque (optionnel)
+
+Service compose à part ([`packages/electricore-kiosque`](https://github.com/Energie-De-Nantes/electricore/tree/main/packages/electricore-kiosque), [ADR-0057](adr/0057-kiosque-acces-neophytes-package-separe.md)),
+**désactivé par défaut** — un provider qui n'en a pas l'usage ne voit rien de plus.
+Aucun secret : la clé API `electricore` est saisie côté navigateur, jamais stockée
+serveur — tout vit dans `config.env` (clair).
+
+| Variable | Bloc | Notes |
+|---|---|---|
+| `COMPOSE_PROFILES` | `config.env` | `kiosque` pour activer le conteneur (profil Compose, lu par le CLI depuis `--env-file` — pas de `--profile` à ajouter sur la ligne de commande). Absent/vide = pas de conteneur kiosque. |
+| `KIOSQUE_VERSION` | `config.env` | Tag GHCR à épingler (`ghcr.io/energie-de-nantes/electricore-kiosque`), même logique qu'`ELECTRICORE_VERSION`. |
+| `KIOSQUE__API_URL` | `config.env` | URL **publique** de l'API (`https://<domain>` de cette instance) — le kiosque l'appelle comme n'importe quel client, jamais par le réseau Docker interne. |
+| `KIOSQUE__APPS` | `config.env` | Apps du catalogue à monter (ex. `exports`). |
+| `KIOSQUE__TITRE` | `config.env` | Nom de l'entité, affiché à l'accueil. |
+
+**Activer** pour un provider : ajouter les 5 lignes ci-dessus à
+`providers/<slug>/config.env` (dépôt de déploiement — modèle commenté dans
+[`deploy/providers/example/config.env.example`](https://github.com/Energie-De-Nantes/electricore/blob/main/deploy/providers/example/config.env.example)),
+créer le A-record `kiosque.<slug>.electricore.fr` (même IP que le domaine principal,
+cf. [§3](#3-créer-le-a-record-dns)), pousser, relancer `install.sh` en mode
+reconfigure (§5 ci-dessous) — le check DNS et le récap final couvrent
+automatiquement le sous-domaine kiosque dès que le profil est posé.
+
+**Désactiver** : retirer (ou vider) `COMPOSE_PROFILES` dans `config.env`, pousser,
+reconfigure — le conteneur s'arrête, rien d'autre à toucher (le bloc Caddy
+`kiosque.<domain>` répond simplement 502 pour cet hôte tant qu'aucun conteneur
+n'écoute derrière).
+
+**Test local** (avant toute box réelle) : depuis `deploy/docker/`, avec un
+`config.env` local portant `COMPOSE_PROFILES=kiosque` + les 3 `KIOSQUE__*` :
+
+```bash
+docker compose --env-file ../../config.env up -d
+```
+
+Puis `https://kiosque.electricore.localhost` via Caddy (`tls internal`, même
+principe que `https://electricore.localhost` — cf. [TLS local](#tls-local-cert-auto-signé)).
+
 `install.sh` **valide le split** automatiquement (pas d'éditeur) : `validate_config_env`
 sur la moitié claire (slug qui matche, `ELECTRICORE_VERSION`/`BACKUPS_PATH` présents,
 **garde-fou anti-fuite** rejetant tout secret en clair), et un **test de déchiffrement**
@@ -199,6 +237,16 @@ dig +short <slug>.electricore.fr
 
 Pas de wildcard `*.electricore.fr` — chaque VPS gère son propre certificat via
 HTTP-01 (cf. [ADR-0015](adr/0015-deploiement-multi-instance.md)).
+
+**Kiosque activé** (`COMPOSE_PROFILES=kiosque`, cf. [Kiosque (optionnel)](#kiosque-optionnel))
+— ajouter le A-record du sous-domaine, même IP :
+
+```
+kiosque.<slug>.electricore.fr.   A   <IP-VPS>
+```
+
+`install.sh` attend sa propagation en plus de celle du domaine principal
+(sauté avec `--skip-dns`, comme le domaine principal).
 
 ### 4. Configurer l'accès SSH
 
