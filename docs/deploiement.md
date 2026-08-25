@@ -378,8 +378,8 @@ Vérifs manuelles complémentaires :
 ## Reconfigurer une instance existante
 
 Toutes les modifications post-install passent par le **mode reconfigure** : tu
-relances `install.sh` avec les mêmes `--slug`, `--domain` et `--deploy-repo`, le script
-détecte l'instance, **re-pull** `providers/<slug>/{config.env,secrets.env}` depuis le
+relances `install.sh` avec les mêmes `--slug`, `--domain`, `--email` et `--deploy-repo`, le
+script détecte l'instance, **re-pull** `providers/<slug>/{config.env,secrets.env}` depuis le
 dépôt, **valide le split + déchiffre**, restart la stack. Les changements de config/secrets
 se font **dans le dépôt de déploiement** (commit + push), pas sur la box. **Jamais touche à
 la DB ni aux backups.**
@@ -388,8 +388,16 @@ la DB ni aux backups.**
 # VPS durci (ADR-0031) : login admin via ops — le SSH root est désactivé
 ssh ops@<vps>
 sudo bash /srv/<slug>/deploy/install.sh --slug <slug> --domain <slug>.electricore.fr \
+    --email <email-letsencrypt> \
     --deploy-repo git@github.com:Energie-De-Nantes/electricore-secrets.git
 ```
+
+> **`--email` obligatoire en pratique** : le Caddyfile est régénéré à chaque reconfigure
+> depuis le template ; sans `--email`, le placeholder `votre-email@example.com` reste et
+> Let's Encrypt **refuse** ce contact (`invalidContact`) — les certificats déjà en cache
+> continuent de servir, mais aucun nouveau nom (ex. `kiosque.<domaine>`) n'en obtient.
+> L'installeur ne fait qu'un warn. L'email de chaque box est rappelé en commentaire dans
+> son `providers/<slug>/config.env`.
 
 > Sur un VPS pas encore durci (ancienne instance, ou install lancée avec
 > `--no-harden`), c'est encore `ssh root@<vps>`. Le durcissement est idempotent :
