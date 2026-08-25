@@ -1251,11 +1251,14 @@ grep -q "kiosque.electricore.exemple.fr" "$caddyfile_example" \
 grep -q "reverse_proxy kiosque:8765" "$caddyfile_example" \
     && ok "Caddyfile.example : reverse_proxy vers kiosque:8765" \
     || ko "Caddyfile.example : reverse_proxy kiosque absent"
-# compose_up recharge Caddy après `up -d` : un Caddyfile bind-monté modifié ne
-# provoque aucune recréation du conteneur, sans reload l'ancienne config reste en mémoire.
-grep -q "caddy reload --config /etc/caddy/Caddyfile" "${LIB_DIR}/stack.sh" \
-    && ok "stack.sh : compose_up recharge Caddy (Caddyfile bind-monté)" \
-    || ko "stack.sh : compose_up ne recharge pas Caddy"
+# compose_up RECRÉE caddy après `up -d` : le Caddyfile est bind-monté par inode et
+# sed -i en crée un nouveau — ni `up -d` ni `caddy reload` ne voient le fichier substitué.
+grep -q "up -d --force-recreate caddy" "${LIB_DIR}/stack.sh" \
+    && ok "stack.sh : compose_up recrée caddy (Caddyfile bind-monté par inode)" \
+    || ko "stack.sh : compose_up ne recrée pas caddy"
+! grep -q "exec electricore-caddy caddy reload" "${LIB_DIR}/stack.sh" \
+    && ok "stack.sh : pas de caddy reload (chargerait le template brut)" \
+    || ko "stack.sh : caddy reload présent"
 tmp_caddy_kiosque=$(mktemp)
 cp "$caddyfile_example" "$tmp_caddy_kiosque"
 substitute_caddyfile "$tmp_caddy_kiosque" "edn.electricore.fr" "ops@edn.fr"
