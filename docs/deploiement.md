@@ -179,9 +179,18 @@ reconfigure (§5 ci-dessous) — le check DNS et le récap final couvrent
 automatiquement le sous-domaine kiosque dès que le profil est posé.
 
 **Désactiver** : retirer (ou vider) `COMPOSE_PROFILES` dans `config.env`, pousser,
-reconfigure — le conteneur s'arrête, rien d'autre à toucher (le bloc Caddy
-`kiosque.<domain>` répond simplement 502 pour cet hôte tant qu'aucun conteneur
-n'écoute derrière).
+reconfigure — **puis arrêter le conteneur explicitement**. Le `docker compose up -d`
+du reconfigure ne passe pas `--remove-orphans` : un kiosque déjà lancé survit au
+retrait du profil (Compose le voit comme un orphelin et se contente d'un warning) et
+Caddy continue de le servir. Le retirer par son nom de conteneur (fixe), sans toucher
+au reste de la stack ni à d'éventuels autres conteneurs du même projet Compose :
+
+```bash
+docker rm -f electricore-kiosque
+```
+
+Une fois le conteneur parti, le bloc Caddy `kiosque.<domain>` répond simplement 502
+pour cet hôte, le reste de la stack n'est pas affecté.
 
 **Test local** (avant toute box réelle) : depuis `deploy/docker/`, avec un
 `config.env` local portant `COMPOSE_PROFILES=kiosque` + les 3 `KIOSQUE__*` :
@@ -190,8 +199,18 @@ n'écoute derrière).
 docker compose --env-file ../../config.env up -d
 ```
 
-Puis `https://kiosque.electricore.localhost` via Caddy (`tls internal`, même
-principe que `https://electricore.localhost` — cf. [TLS local](#tls-local-cert-auto-signé)).
+Le `Caddyfile` local (non versionné, copie adaptée de `Caddyfile.example`) n'a pas de
+bloc kiosque : l'ajouter à la main pour ce test, à côté du bloc `electricore.localhost` —
+
+```
+kiosque.electricore.localhost {
+    tls internal
+    reverse_proxy kiosque:8765
+}
+```
+
+puis ouvrir `https://kiosque.electricore.localhost` (`tls internal`, même principe que
+`https://electricore.localhost` — cf. [TLS local](#tls-local-cert-auto-signé)).
 
 `install.sh` **valide le split** automatiquement (pas d'éditeur) : `validate_config_env`
 sur la moitié claire (slug qui matche, `ELECTRICORE_VERSION`/`BACKUPS_PATH` présents,
