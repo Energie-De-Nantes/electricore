@@ -133,6 +133,9 @@ celerybeat.pid
 .env
 .env.pass
 .env.pass.*
+# config.env local pour tester le compose (docs/deploiement.md « Test local ») —
+# le modèle versionné est deploy/providers/example/config.env.example.
+/config.env
 .venv
 env/
 venv/
