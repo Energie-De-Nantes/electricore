@@ -1251,6 +1251,11 @@ grep -q "kiosque.electricore.exemple.fr" "$caddyfile_example" \
 grep -q "reverse_proxy kiosque:8765" "$caddyfile_example" \
     && ok "Caddyfile.example : reverse_proxy vers kiosque:8765" \
     || ko "Caddyfile.example : reverse_proxy kiosque absent"
+# compose_up recharge Caddy après `up -d` : un Caddyfile bind-monté modifié ne
+# provoque aucune recréation du conteneur, sans reload l'ancienne config reste en mémoire.
+grep -q "caddy reload --config /etc/caddy/Caddyfile" "${LIB_DIR}/stack.sh" \
+    && ok "stack.sh : compose_up recharge Caddy (Caddyfile bind-monté)" \
+    || ko "stack.sh : compose_up ne recharge pas Caddy"
 tmp_caddy_kiosque=$(mktemp)
 cp "$caddyfile_example" "$tmp_caddy_kiosque"
 substitute_caddyfile "$tmp_caddy_kiosque" "edn.electricore.fr" "ops@edn.fr"
