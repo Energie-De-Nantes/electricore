@@ -294,7 +294,19 @@ chmod 600 "${ck_root}/edn/relais_ssh_key"
     && ok "check_relais_ssh_key: présente + 600 → passe" || ko "check_relais_ssh_key aurait dû passer (600)"
 assert_eq "$(stat -c '%u' "${ck_root}/edn/relais_ssh_key")" "$(id -u)" \
     "check_relais_ssh_key: aligne l'ownership sur CONTAINER_UID (lecture conteneur, uid 1000/home /app)"
-rm -rf "$ck_root"
+
+# Échec du chown → refuse (die), plus d'`|| true` silencieux : avant l'incident box
+# Enargia du 26/08, un chown raté loguait quand même « verrouillée » — clé illisible
+# du conteneur, relais aveugle au premier push. Fake chown qui échoue, sur PATH.
+ck_fail_bin=$(mktemp -d)
+printf '#!/usr/bin/env bash\nexit 1\n' > "${ck_fail_bin}/chown"
+chmod +x "${ck_fail_bin}/chown"
+out=$(PATH="${ck_fail_bin}:$PATH" SRV_BASE="$ck_root" check_relais_ssh_key edn 2>&1); rc=$?
+[[ "$rc" -ne 0 ]] && ok "check_relais_ssh_key: échec du chown → refuse (die, plus d'|| true silencieux)" \
+    || ko "check_relais_ssh_key aurait dû refuser (chown échoué = clé illisible conteneur, relais aveugle)"
+grep -q "chown" <<<"$out" && ok "check_relais_ssh_key: message d'échec chown nomme la remédiation" \
+    || ko "check_relais_ssh_key: pas de remédiation dans le message d'échec chown"
+rm -rf "$ck_fail_bin" "$ck_root"
 
 echo
 echo "→ relais.sh / render_relais_compose (mini-compose, pur, #657)"
@@ -858,29 +870,34 @@ rm -f "$tmp_cfg"
 # SSOT pydantic (tests/unit/test_runtime.py), vérifié par le conteneur étapes 11-12 (ADR-0049).
 
 echo
-echo "→ user.sh / chown_instance_home (l'exception age.key survit au chown -R, #672 bis)"
+echo "→ user.sh / chown_instance_home (les exceptions clés conteneur survivent au chown -R, #672 bis)"
 # Fake chown : journalise les appels — l'assertion porte sur l'ORDRE (le ré-assert
-# age.key doit venir APRÈS le balayage -R, sinon il est écrasé — reconfigure Enargia
-# 28/07). Testable sans root : aucun vrai chown n'est exécuté.
+# des clés lues par le conteneur doit venir APRÈS le balayage -R, sinon il est écrasé —
+# age.key : reconfigure Enargia 28/07 ; relais_ssh_key : relais aveugle Enargia 26/08).
+# Testable sans root : aucun vrai chown n'est exécuté.
 ch_root=$(mktemp -d)
 ch_bin="${ch_root}/bin"; mkdir -p "$ch_bin" "${ch_root}/edn"
 : > "${ch_root}/edn/age.key"
+: > "${ch_root}/edn/relais_ssh_key"
 cat > "${ch_bin}/chown" <<EOF
 #!/usr/bin/env bash
 printf '%s\n' "\$*" >> "${ch_root}/chown.log"
 EOF
 chmod +x "${ch_bin}/chown"
 PATH="${ch_bin}:$PATH" SRV_BASE="$ch_root" CONTAINER_UID=1000 CONTAINER_GID=1000 chown_instance_home edn
-grep -q -- "-R edn:edn ${ch_root}/edn" "${ch_root}/chown.log" \
-    && ok "chown_instance_home: balayage -R slug:slug du home" || ko "chown_instance_home: balayage -R absent"
-tail -1 "${ch_root}/chown.log" | grep -q "1000:1000 ${ch_root}/edn/age.key" \
+head -1 "${ch_root}/chown.log" | grep -q -- "-R edn:edn ${ch_root}/edn" \
+    && ok "chown_instance_home: balayage -R slug:slug du home en PREMIER" || ko "chown_instance_home: balayage -R absent ou pas en premier"
+sed -n '2,$p' "${ch_root}/chown.log" | grep -q "1000:1000 ${ch_root}/edn/age.key" \
     && ok "chown_instance_home: age.key ré-asserté CONTAINER_UID APRÈS le balayage" \
     || ko "chown_instance_home: age.key pas ré-asserté après le -R (l'entrypoint SOPS re-cassera au reconfigure)"
-rm -f "${ch_root}/chown.log" "${ch_root}/edn/age.key"
+sed -n '2,$p' "${ch_root}/chown.log" | grep -q "1000:1000 ${ch_root}/edn/relais_ssh_key" \
+    && ok "chown_instance_home: relais_ssh_key ré-assertée CONTAINER_UID APRÈS le balayage" \
+    || ko "chown_instance_home: relais_ssh_key pas ré-assertée après le -R (relais aveugle au reconfigure sans chemin relais, Enargia 26/08)"
+rm -f "${ch_root}/chown.log" "${ch_root}/edn/age.key" "${ch_root}/edn/relais_ssh_key"
 PATH="${ch_bin}:$PATH" SRV_BASE="$ch_root" chown_instance_home edn
 [[ "$(wc -l < "${ch_root}/chown.log")" == "1" ]] \
-    && ok "chown_instance_home: sans age.key → seul le balayage (pas de chown fantôme)" \
-    || ko "chown_instance_home: appel chown inattendu en l'absence d'age.key"
+    && ok "chown_instance_home: sans clés → seul le balayage (pas de chown fantôme)" \
+    || ko "chown_instance_home: appel chown inattendu en l'absence de clés"
 
 echo
 echo "→ secrets.sh (fake-binaries age-keygen/ssh-keygen/sops/git)"

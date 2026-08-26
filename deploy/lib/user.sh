@@ -61,20 +61,28 @@ setup_ssh_authorized_keys() {
 # chown_instance_home <slug>
 # S'assure que tout sous /srv/<slug>/ est owned par le user.
 # NB : ce chown -R aveugle écrase les exceptions uid conteneur → elles doivent être
-# (ré)appliquées APRÈS lui : backups/ via ensure_backups_dir (#459), relais_ssh_key
-# via check_relais_ssh_key (étape 11 relais), et age.key ICI MÊME — le fix #672
-# (generate_box_identities chowne age.key à CONTAINER_UID) tourne à l'étape 7 du
-# chemin relais, AVANT ce balayage (étape 10) qui l'écrasait à CHAQUE reconfigure
-# (constaté box Enargia, 28/07 : entrypoint SOPS « permission denied » de retour).
+# (ré)appliquées APRÈS lui : backups/ via ensure_backups_dir (#459), et les clés
+# lues par le conteneur ICI MÊME :
+#   - age.key — fix #672 : generate_box_identities la chowne à CONTAINER_UID à
+#     l'étape 7 du chemin relais, AVANT ce balayage (étape 10) qui l'écrasait à
+#     CHAQUE reconfigure (constaté box Enargia, 28/07 : entrypoint SOPS
+#     « permission denied » de retour) ;
+#   - relais_ssh_key — même bug (constaté box Enargia, 26/08 : relais aveugle,
+#     « permission denied /app/.ssh/id_ed25519 » sur chaque push) :
+#     check_relais_ssh_key (étape 11 relais) la re-chowne, mais un reconfigure
+#     SANS chemin relais balaie le home sans jamais y repasser.
 # Auto-correctrice plutôt qu'un ré-assert chez chaque appelant : tout futur chemin
-# qui balaie le home garde un age.key lisible du conteneur.
+# qui balaie le home garde des clés lisibles du conteneur.
 chown_instance_home() {
     local slug="$1"
     local home="${SRV_BASE:-/srv}/${slug}"
     chown -R "$slug:$slug" "$home"
-    if [[ -f "${home}/age.key" ]]; then
-        chown "${CONTAINER_UID:-1000}:${CONTAINER_GID:-1000}" "${home}/age.key" 2>/dev/null || true
-    fi
+    local key
+    for key in age.key relais_ssh_key; do
+        if [[ -f "${home}/${key}" ]]; then
+            chown "${CONTAINER_UID:-1000}:${CONTAINER_GID:-1000}" "${home}/${key}" 2>/dev/null || true
+        fi
+    done
 }
 
 # Identité du user du conteneur (Dockerfile : `USER electricore`, uid:gid 1000:1000).
