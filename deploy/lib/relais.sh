@@ -39,7 +39,9 @@ relais_ssh_key_mode_ok() {
 # pour que le conteneur puisse la LIRE une fois montée ro — le code du relais ne passe
 # aucun key_filename ; fsspec/paramiko ne cherche que les noms standards dans le HOME
 # du user conteneur (electricore, home /app — cf. deploy/docker/Dockerfile
-# `useradd --home-dir /app`).
+# `useradd --home-dir /app`). Un chown qui échoue REFUSE (die) au lieu d'être avalé :
+# l'avaler (`|| true`, avant l'incident box Enargia du 26/08) loguait « verrouillée »
+# sur une clé que le conteneur ne pouvait pas lire — relais aveugle au premier push.
 check_relais_ssh_key() {
     local slug="$1"
     local path
@@ -55,8 +57,10 @@ check_relais_ssh_key() {
     relais_ssh_key_mode_ok "$path" || \
         die "clé SSH partenaire trop permissive (${path})." \
             "chmod 600 ${path} puis relancer."
-    chown "${CONTAINER_UID:-1000}:${CONTAINER_GID:-1000}" "$path" 2>/dev/null || true
-    log_ok "clé SSH partenaire présente, verrouillée (${path})"
+    chown "${CONTAINER_UID:-1000}:${CONTAINER_GID:-1000}" "$path" || \
+        die "chown ${CONTAINER_UID:-1000}:${CONTAINER_GID:-1000} impossible sur la clé SSH partenaire (${path})." \
+            "Sans cet ownership le conteneur (uid ${CONTAINER_UID:-1000}) ne peut pas lire la clé : relais aveugle au premier push. Relancer en root, ou : sudo chown ${CONTAINER_UID:-1000}:${CONTAINER_GID:-1000} ${path}"
+    log_ok "clé SSH partenaire présente, verrouillée, lisible conteneur (${path})"
 }
 
 # ensure_relais_flux_deposit <dir>
