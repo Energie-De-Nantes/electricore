@@ -860,30 +860,32 @@ Le scheduler crée un snapshot complet chaque nuit à 03:30 (Europe/Paris) — v
 [`deploy/docker/backup_duckdb.sh`](https://github.com/Energie-De-Nantes/electricore/blob/main/deploy/docker/backup_duckdb.sh).
 
 - Format : `EXPORT DATABASE` (SQL + parquet), compressé en `tar.gz`.
-- Emplacement : `/srv/<slug>/backups/` (bind-mount, lisible directement côté host).
+- Emplacement : `/srv/<slug>/backups/` (bind-mount, uid:gid 1000 du conteneur, mode
+  2750 : lisible côté host en root seulement — `<slug>` n'est pas dans le groupe 1000,
+  dont le gid peut être pris sur l'hôte, cf. #734).
 - Nommage : `snapshot_<slug>_<TS>.tar.gz` (préfixe par slug, cf. [ADR-0015](adr/0015-deploiement-multi-instance.md)).
 - Rétention : 14 snapshots les plus récents (variable `RETAIN_DAYS`).
 
 ```bash
-ssh <slug>@<vps>
-ls -lh /srv/<slug>/backups/
+ssh ops@<vps>
+sudo ls -lh /srv/<slug>/backups/
 ```
 
 ### Copie offsite (recommandée)
 
 Le snapshot reste sur le VPS. Ajouter une copie hors-site via
-[rclone](https://rclone.org/) (à configurer côté user `<slug>`) :
+[rclone](https://rclone.org/) (configuré côté root, seul à lire les backups) :
 
 ```bash
-# Dans la crontab du user <slug>
+# Dans la crontab de root (sudo crontab -e)
 45 3 * * * rclone copy /srv/<slug>/backups remote:electricore-backups --max-age 24h
 ```
 
 ### Restauration
 
 ```bash
-ssh <slug>@<vps>
-cd /srv/<slug>/
+ssh ops@<vps>
+cd /srv/<slug>/   # en root : sudo -i, /srv/<slug> est en 750
 
 # 1. Choisir un snapshot
 ls -lh backups/
@@ -1221,13 +1223,15 @@ les archives historiques). Commit + push, puis relancer le `reconfigure` sur la 
 
 ### Erreur de permissions sur `/srv/<slug>/backups/`
 
-Le bind-mount est owned uid 1000 (user `electricore` du conteneur). Pour que
-`<slug>` puisse `ls /srv/<slug>/backups/`, il doit être dans le même groupe :
+Le bind-mount est owned uid 1000 (user `electricore` du conteneur), mode 2750 :
+`<slug>` ne peut pas le lister, c'est voulu — passer par root (`sudo ls`). Ne pas
+ajouter `<slug>` au groupe gid 1000 : sur l'hôte ce gid peut appartenir à autre chose
+(box Enargia : `sftpusers`, chrooté par un `Match Group` sshd — les sessions SSH de
+`<slug>` y seraient enfermées, #734).
 
-```bash
-usermod -aG 1000 <slug>
-# se reconnecter en ssh pour que le groupe s'applique
-```
+Si c'est le **conteneur** qui échoue (`Permission denied` au mkdir du snapshot dans
+le log du cron 03:30), le dossier a été rendu à `<slug>` : relancer le reconfigure,
+ou `sudo chown 1000:1000 /srv/<slug>/backups`.
 
 ### Le script `install.sh` s'arrête sur "OS non supporté"
 

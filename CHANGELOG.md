@@ -9,6 +9,25 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+### 🐛 Corrigé
+
+- **Backups : `/srv/<slug>/backups` rendu au conteneur après le `chown -R` de
+  l'installeur.** L'appel `ensure_backups_dir` de #459 avait disparu de
+  `install.sh` dans 284aed1 (06/2026) : toute box installée depuis tournait sans
+  aucune sauvegarde (`Permission denied` au mkdir du snapshot, cron 03:30
+  silencieux — box Enargia installée le 03/08, constaté le 15/09, rétablie à la
+  main le 21/09/2026). Appel restauré à l'étape 7 stack (câblage désormais testé),
+  et `chown_instance_home` ré-asserte `backups/` lui-même, comme `age.key` et
+  `relais_ssh_key`. (PR #734)
+
+### 🗑️ Retiré
+
+- **`ensure_slug_in_container_group`** : `<slug>` n'est plus ajouté au groupe gid
+  1000. Ce gid peut être pris sur l'hôte (box Enargia : `sftpusers`, chrooté par un
+  `Match Group` sshd) — y ajouter `<slug>` enfermerait ses sessions SSH. Les backups
+  se lisent côté host en root (`sudo ls`, offsite rclone en crontab root) ;
+  `docs/deploiement.md` mis à jour. (PR #734)
+
 ## [3.8.3] - 2026-10-04
 
 Patch d'ingestion : depuis que le volume R151 a franchi le seuil mémoire, le

@@ -61,8 +61,10 @@ setup_ssh_authorized_keys() {
 # chown_instance_home <slug>
 # S'assure que tout sous /srv/<slug>/ est owned par le user.
 # NB : ce chown -R aveugle écrase les exceptions uid conteneur → elles doivent être
-# (ré)appliquées APRÈS lui : backups/ via ensure_backups_dir (#459), et les clés
-# lues par le conteneur ICI MÊME :
+# (ré)appliquées APRÈS lui, ICI MÊME, pour backups/ et les clés lues par le conteneur :
+#   - backups/ (le dossier seul, non récursif) — #459 : ensure_backups_dir le
+#     ré-assertait chez l'appelant, mais l'appel a sauté dans 284aed1 sans qu'aucun
+#     test ne le voie (box Enargia sans sauvegarde, #734) ;
 #   - age.key — fix #672 : generate_box_identities la chowne à CONTAINER_UID à
 #     l'étape 7 du chemin relais, AVANT ce balayage (étape 10) qui l'écrasait à
 #     CHAQUE reconfigure (constaté box Enargia, 28/07 : entrypoint SOPS
@@ -72,15 +74,16 @@ setup_ssh_authorized_keys() {
 #     check_relais_ssh_key (étape 11 relais) la re-chowne, mais un reconfigure
 #     SANS chemin relais balaie le home sans jamais y repasser.
 # Auto-correctrice plutôt qu'un ré-assert chez chaque appelant : tout futur chemin
-# qui balaie le home garde des clés lisibles du conteneur.
+# qui balaie le home garde ces exceptions au conteneur. Le mode 2750 de backups/
+# reste l'affaire d'ensure_backups_dir (chemin stack).
 chown_instance_home() {
     local slug="$1"
     local home="${SRV_BASE:-/srv}/${slug}"
     chown -R "$slug:$slug" "$home"
-    local key
-    for key in age.key relais_ssh_key; do
-        if [[ -f "${home}/${key}" ]]; then
-            chown "${CONTAINER_UID:-1000}:${CONTAINER_GID:-1000}" "${home}/${key}" 2>/dev/null || true
+    local cible
+    for cible in age.key relais_ssh_key backups; do
+        if [[ -e "${home}/${cible}" ]]; then
+            chown "${CONTAINER_UID:-1000}:${CONTAINER_GID:-1000}" "${home}/${cible}" 2>/dev/null || true
         fi
     done
 }
@@ -99,43 +102,21 @@ CONTAINER_GID="${CONTAINER_GID:-1000}"
 # aucune sauvegarde n'est produite.
 #
 # Doit être appelé APRÈS chown_instance_home pour écraser son `chown -R`. setgid
-# (2750) : les snapshots créés par le conteneur héritent du groupe 1000, donc
-# <slug> — ajouté à ce groupe par ensure_slug_in_container_group — peut les lire
-# et les pousser en offsite (rclone). Idempotent (ré-asserte à chaque reconfigure).
+# (2750) : les snapshots créés par le conteneur héritent du groupe 1000. Idempotent
+# (ré-asserte à chaque reconfigure).
+#
+# <slug> n'est PAS ajouté au groupe 1000 (#734) : sur l'hôte ce gid n'est pas forcément
+# libre — box Enargia : `sftpusers`, chrooté par un `Match Group` sshd, y ajouter <slug>
+# enfermerait ses sessions SSH. Lecture des backups côté host : root (`sudo ls`, offsite
+# en `sudo rclone`). Les membres du groupe 1000 ont la lecture du dossier mais n'y
+# arrivent pas tant que /srv/<slug> reste en 750 <slug>:<slug>.
 #
 # Le groupe n'a PAS le write (2750 = rwxr-s---), et c'est suffisant : backup_duckdb.sh
 # — écriture du snapshot ET purge de rétention — tourne DANS le conteneur (uid 1000 =
-# owner), pas en <slug> ; <slug> ne fait que LIRE (ls + `rclone copy`). Ne passer à 2770
-# que si un offsite host-side fait un `rclone move --delete` en tant que <slug>.
+# owner).
 ensure_backups_dir() {
     local slug="$1"
     local backups="${SRV_BASE:-/srv}/${slug}/backups"
     install -d -m 2750 -o "$CONTAINER_UID" -g "$CONTAINER_GID" "$backups"
     log_ok "backups ${backups} → uid:gid ${CONTAINER_UID}:${CONTAINER_GID} (writable conteneur)"
-}
-
-# ensure_slug_in_container_group <slug>
-# Ajoute <slug> au groupe gid CONTAINER_GID (celui du user conteneur) pour qu'il
-# puisse lire les backups écrits en gid 1000 (`ls`, offsite rclone). Crée le groupe
-# s'il n'existe pas encore sur l'hôte (un host sans user uid 1000 n'a pas forcément
-# de groupe gid 1000). Idempotent.
-ensure_slug_in_container_group() {
-    local slug="$1"
-    local gid="$CONTAINER_GID"
-    local grp
-    grp=$(getent group "$gid" | cut -d: -f1)
-    if [[ -z "$grp" ]]; then
-        grp="electricore-data"
-        if ! groupadd -g "$gid" "$grp" 2>/dev/null; then
-            log_warn "création du groupe gid ${gid} échouée — lecture des backups par ${slug} non garantie."
-            return 0
-        fi
-        log_ok "groupe ${grp} (gid ${gid}) créé"
-    fi
-    if id -nG "$slug" 2>/dev/null | tr ' ' '\n' | grep -qx "$grp"; then
-        log_skip "user $slug déjà dans le groupe $grp (gid $gid)"
-    else
-        usermod -aG "$grp" "$slug"
-        log_ok "user $slug ajouté au groupe $grp (gid $gid) — lecture des backups"
-    fi
 }

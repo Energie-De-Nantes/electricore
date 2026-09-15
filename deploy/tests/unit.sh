@@ -898,6 +898,13 @@ PATH="${ch_bin}:$PATH" SRV_BASE="$ch_root" chown_instance_home edn
 [[ "$(wc -l < "${ch_root}/chown.log")" == "1" ]] \
     && ok "chown_instance_home: sans clés → seul le balayage (pas de chown fantôme)" \
     || ko "chown_instance_home: appel chown inattendu en l'absence de clés"
+# backups/ : même exception que les clés (#459, appel install.sh perdu dans 284aed1,
+# #734). Le dir seul, comme ensure_backups_dir.
+rm -f "${ch_root}/chown.log"; mkdir -p "${ch_root}/edn/backups"
+PATH="${ch_bin}:$PATH" SRV_BASE="$ch_root" CONTAINER_UID=1000 CONTAINER_GID=1000 chown_instance_home edn
+sed -n '2,$p' "${ch_root}/chown.log" | grep -qx "1000:1000 ${ch_root}/edn/backups" \
+    && ok "chown_instance_home: backups/ ré-asserté CONTAINER_UID APRÈS le balayage (non récursif)" \
+    || ko "chown_instance_home: backups/ pas ré-asserté après le -R (backup_duckdb.sh replantera au reconfigure)"
 
 echo
 echo "→ secrets.sh (fake-binaries age-keygen/ssh-keygen/sops/git)"
@@ -1084,7 +1091,7 @@ bk_root=$(mktemp -d)
 assert_eq "$(stat -c '%u' "${bk_root}/edn/backups" 2>/dev/null)" "$(id -u)" \
     "ensure_backups_dir: backups owned par CONTAINER_UID (pas <slug>)"
 assert_eq "$(stat -c '%a' "${bk_root}/edn/backups" 2>/dev/null)" "2750" \
-    "ensure_backups_dir: setgid 2750 (snapshots héritent du groupe → lecture <slug>)"
+    "ensure_backups_dir: setgid 2750 (snapshots héritent du groupe 1000, pas de write groupe)"
 # Idempotent + ré-assertion après un chown -R clobber (cas reconfigure : chown_instance_home
 # redonne backups à <slug>, ensure_backups_dir doit le reprendre).
 chmod 0700 "${bk_root}/edn/backups"
@@ -1094,38 +1101,13 @@ assert_eq "$(stat -c '%a' "${bk_root}/edn/backups" 2>/dev/null)" "2750" \
     "ensure_backups_dir: ré-asserte le mode après clobber (reconfigure)"
 rm -rf "$bk_root"
 
-# ensure_slug_in_container_group : no-op si <slug> est déjà membre du groupe cible.
-# On joue le user courant + son gid primaire → branche skip atteignable sans root.
-me=$(id -un)
-( CONTAINER_GID="$(id -g)" ensure_slug_in_container_group "$me" >/dev/null 2>&1 ) \
-    && ok "ensure_slug_in_container_group: no-op si déjà membre (pas de usermod)" \
-    || ko "ensure_slug_in_container_group a échoué sur un membre existant"
-
-# La branche `usermod -aG` EST le correctif (#459) : sans root, on la rend atteignable
-# via des stubs getent/id/usermod sur le PATH. Groupe gid 1000 « existant » (getent
-# stubé) + <slug> pas encore membre (id stubé) → on vérifie que usermod est invoqué
-# avec le bon groupe (résolu depuis le gid) et le bon slug.
-stub_dir=$(mktemp -d); usermod_log="${stub_dir}/usermod.args"
-cat > "${stub_dir}/getent" <<'STUB'
-#!/usr/bin/env bash
-[[ "$1" == group ]] && { printf 'edn-data:x:%s:\n' "$2"; exit 0; }
-exit 2
-STUB
-cat > "${stub_dir}/id" <<'STUB'
-#!/usr/bin/env bash
-[[ "$1" == -nG ]] && { echo users; exit 0; }
-exit 0
-STUB
-cat > "${stub_dir}/usermod" <<'STUB'
-#!/usr/bin/env bash
-printf '%s\n' "$*" > "$USERMOD_ARGS_FILE"
-STUB
-chmod +x "${stub_dir}/getent" "${stub_dir}/id" "${stub_dir}/usermod"
-( PATH="${stub_dir}:$PATH" USERMOD_ARGS_FILE="$usermod_log" \
-    ensure_slug_in_container_group edn >/dev/null 2>&1 )
-assert_eq "$(cat "$usermod_log" 2>/dev/null)" "-aG edn-data edn" \
-    "ensure_slug_in_container_group: usermod -aG <grp> <slug> quand <slug> non-membre"
-rm -rf "$stub_dir"
+# Câblage (#734) : c'est l'APPEL qui avait sauté dans 284aed1, pas la fonction — garde de
+# présence ET d'ordre (après le chown -R de l'étape 7, sinon il est écrasé).
+chown_l=$(grep -n 'chown_instance_home "\$OPT_SLUG"' "$install_sh" | head -1 | cut -d: -f1)
+backups_l=$(grep -n 'ensure_backups_dir "\$OPT_SLUG"' "$install_sh" | head -1 | cut -d: -f1)
+[[ -n "$chown_l" && -n "$backups_l" && "$backups_l" -gt "$chown_l" ]] \
+    && ok "install.sh appelle ensure_backups_dir après chown_instance_home (étape 7 stack)" \
+    || ko "install.sh n'appelle plus ensure_backups_dir après chown_instance_home → box sans sauvegarde (régression 284aed1)"
 
 echo
 echo "→ ingestion.sh / _ingestion_parse_job_id (clé réelle de l'API = id, pas job_id)"
