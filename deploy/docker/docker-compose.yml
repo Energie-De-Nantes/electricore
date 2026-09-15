@@ -105,9 +105,9 @@ services:
       - ../../age.key:/run/secrets/age.key:ro
       - ../../providers/${INSTANCE_SLUG:-electricore}/secrets.env:/run/secrets/secrets.env:ro
       # Bind-mount des backups (cf. ADR-0017). Côté host, le dossier est owned
-      # par uid 1000 (le user `electricore` du conteneur). Le user système
-      # de l'instance (`<slug>`) doit être ajouté au groupe 1000 par le script
-      # d'installation pour pouvoir y faire `ls`/`rclone` directement.
+      # par uid 1000 (le user `electricore` du conteneur), mode 2750 : lecture
+      # côté host en root (`sudo ls`/`sudo rclone`) — `<slug>` n'est pas ajouté
+      # au groupe 1000, dont le gid peut être pris sur l'hôte (#734).
       # Défaut `./backups` = dev local depuis le repo, à remplacer en prod par
       # `/srv/<slug>/backups` via BACKUPS_PATH dans .env.
       - ${BACKUPS_PATH:-./backups}:/backups

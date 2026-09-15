@@ -221,6 +221,12 @@ main() {
         skip_env=0; [[ -n "$OPT_DEPLOY_REPO" ]] && skip_env=1
         download_config_files "$OPT_VERSION" "$HOME_DIR" "$skip_env"
         chown_instance_home "$OPT_SLUG"
+        # Exception au chown global (#459) : /srv/<slug>/backups doit rester writable par
+        # le conteneur (uid 1000), pas par <slug> — sinon backup_duckdb.sh plante au mkdir
+        # du snapshot et la box tourne sans backup. Perdu dans 284aed1, remis ici.
+        # ponytail: <slug> n'est plus ajouté au groupe 1000 (#734, cf. ensure_backups_dir) —
+        # lecture des backups en root. Groupe dédié le jour où un offsite doit tourner en <slug>.
+        ensure_backups_dir "$OPT_SLUG"
 
         # ─── Étape 8 : substitutions ─────────────────────────────────────────
         log_step "Patch des templates (slug + domaine + email)"
