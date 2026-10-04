@@ -91,7 +91,7 @@ async def _suivre(bot, chat_id: int, message_id: int, client: ElectriCoreClient,
 
     texte = _texte_suivi(mode, job_id, statut)
     if job.get("error"):
-        texte += f"\n\n<code>{escape(job['error'][:500])}</code>"
+        texte += f"\n\n<code>{escape(job['error'][-500:])}</code>"
     elif job.get("output"):
         texte += f"\n\n<pre>{escape(job['output'][:800])}</pre>"
     await bot.edit_message_text(texte, chat_id=chat_id, message_id=message_id, parse_mode="HTML")

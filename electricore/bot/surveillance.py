@@ -45,7 +45,7 @@ async def verifier_jobs(bot, client: ElectriCoreClient, vus: set[str], chat_id: 
             continue
         texte = f"🚨 Job d'ingestion <code>{escape(job['mode'])}</code> en échec — <code>{job['id'][:8]}</code>"
         if job.get("error"):
-            texte += f"\n\n<code>{escape(job['error'][:500])}</code>"
+            texte += f"\n\n<code>{escape(job['error'][-500:])}</code>"
         try:
             await bot.send_message(chat_id=chat_id, text=texte, parse_mode="HTML")
         except Exception:

@@ -150,9 +150,9 @@ def _run_pipeline(job: JobIngestion) -> None:
         # cas (succès comme échec), sinon la vraie cause d'un échec est jetée (#298).
         job.output = result.stdout.strip() or None
         if result.returncode != 0:
-            # stderr est souvent vide (logs sur stdout) → reporter le tail de stdout pour
+            # Tail de stderr (sa tête = barres de progression dlt), sinon de stdout (logs dbt) pour
             # une `error` lisible, pas un « exit code 1 » nu.
-            raise RuntimeError(result.stderr.strip() or _tail(result.stdout) or f"exit code {result.returncode}")
+            raise RuntimeError(_tail(result.stderr) or _tail(result.stdout) or f"exit code {result.returncode}")
         job.status = StatutIngestion.completed
     except Exception as exc:
         job.status = StatutIngestion.failed

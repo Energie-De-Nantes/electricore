@@ -16,7 +16,7 @@ with prms as (
             modification_date,
             content ->> '$.En_Tete_Flux[0].Unite_Mesure_Index' as unite,
             cast(content -> '$.PRM' as json[])               as prms
-        from {{ source('flux_raw', 'raw_r151') }}
+        from {{ scan_par_lots(source('flux_raw', 'raw_r151')) }}
     )
 )
 
