@@ -9,6 +9,13 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.8.3] - 2026-10-04
+
+Patch d'ingestion : depuis que le volume R151 a franchi le seuil mémoire, le
+`dbt build` nocturne échouait sur la box edn et les tables `flux_*` comme les marts
+n'étaient plus rafraîchis. À déployer sur **edn et Enargia** (`reconfigure`). Les
+fichiers déjà ajoutés aux tables brutes seront matérialisés au premier build qui passe.
+
 ### 🐛 Corrigé
 
 - **`dbt build` en Out of Memory sur les gros documents JSON** : `flux_f15_detail`
@@ -32,6 +39,9 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
   stdout. L'erreur porte désormais le diagnostic du runner (fin de stdout), le
   traceback d'une exception non rattrapée, ou le signal d'un kill (OOM-killer). Le bot
   en affiche les 1 000 derniers caractères. (PR #732)
+- **Déploiement** : `relais_ssh_key` survit au `chown -R` du `reconfigure` ; Caddy est
+  recréé, et non rechargé, après un changement de Caddyfile (bind-monté par inode) ;
+  `--email` est documenté comme faisant partie du `reconfigure`.
 
 ## [3.8.2] - 2026-08-24
 
