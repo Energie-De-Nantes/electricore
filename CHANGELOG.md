@@ -9,6 +9,24 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+### 🐛 Corrigé
+
+- **`dbt build` en Out of Memory sur les gros documents JSON** : `flux_f15_detail`
+  (box Enargia, 02/09/2026, à partir de ~1 000 F15 ; 6,2 Go saturés puis 12 Go avec
+  `memory_limit` relevé) et `flux_r151` (box edn, 04/10/2026, 6,2 Go). Comme chaque
+  job reconstruit `+releves`, **tous** les builds échouaient et les tables restaient
+  figées. Cause mesurée : DuckDB évalue chaque fonction JSON sur un vecteur entier,
+  donc les arbres yyjson de tous les documents du vecteur (jusqu'à 2 048) sont en
+  mémoire en même temps, ~10 × le texte chacun. `threads: 1` ne fait que diviser ce
+  pic. Nouvelle macro `scan_par_lots` (32 lots `hash(file_name) % 32` lus au scan de
+  la table brute, réunis par `union all`) appliquée à `stg_f15`, `stg_r151` et
+  `stg_r64`. Sous 1 Go : R151 réel (319 Mo) et F15 synthétique (1 500 × 256 Ko)
+  passent, au lieu d'un OOM ; sorties identiques. Plafond connu et sortie
+  structurelle (éclater les documents à l'atterrissage) : #731.
+- **Alerte d'échec d'ingestion illisible** : l'erreur de job reprenait le début de
+  stderr (barres de progression dlt) et la vraie exception était tronquée. L'API
+  garde la fin de stderr, et le bot affiche les 500 derniers caractères.
+
 ## [3.8.2] - 2026-08-24
 
 Patch de mise à jour des registres de taux régulés (#713, PR #716) — à déployer
