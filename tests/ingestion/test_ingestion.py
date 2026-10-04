@@ -140,31 +140,40 @@ def test_l_api_subprocess_le_runner_dbt():
 
 
 BARRES_DLT = "--- Normalize flux_enedis_brut ---\nFiles: 1/2 (50.0%) | Time: 0.03s\n" * 30
+# Message réel de l'incident edn (04/10), avec le préfixe du runner : ~480 caractères.
+OOM_DBT = (
+    "🔨 dbt build\n  ✗ flux_r151 [error] — Runtime Error in model flux_r151 (models/flux/flux_r151.sql) "
+    "Out of Memory Error: could not allocate block of size 256.0 KiB (6.2 GiB/6.2 GiB used) "
+    "Possible solutions: * Reducing the number of threads (SET threads=X) * Disabling insertion-order "
+    "preservation (SET preserve_insertion_order=false) * Increasing the memory limit (SET memory_limit='...GB') "
+    "See also https://duckdb.org/docs/stable/guides/performance/how_to_tune_workloads\n❌ dbt build a échoué\n"
+)
 
 
 @pytest.mark.parametrize(
-    ("stdout", "stderr", "cause"),
+    ("stdout", "stderr", "returncode", "cause"),
     [
         # #298 : diagnostic dbt sur stdout, stderr vide.
-        ("Failure in test not_null_flux_affaires_statut — Got 45 results\n", "", "not_null_flux_affaires_statut"),
+        ("Failure in test not_null_flux_affaires_statut\n❌ dbt build a échoué\n", "", 1, "not_null_flux_affaires"),
         # Incident edn 04/10 : stderr plein de barres dlt, le nœud dbt en échec est sur stdout.
-        (
-            "🔨 dbt build\n  ✗ flux_r151 [error] — Out of Memory Error\n❌ dbt build a échoué\n",
-            BARRES_DLT,
-            "✗ flux_r151",
-        ),
+        (OOM_DBT, BARRES_DLT, 1, "✗ flux_r151 [error]"),
+        # Un traceback rattrapé dans stderr ne détourne pas d'un échec prévu sur stdout.
+        (OOM_DBT, "Traceback (most recent call last):\nKeyError: x\n" + BARRES_DLT, 1, "✗ flux_r151 [error]"),
         # Exception non rattrapée : le traceback termine stderr, après les barres.
         (
             "🚀 Landing brut\n",
             BARRES_DLT + "Traceback (most recent call last):\nValueError: boom\n",
+            1,
             "ValueError: boom",
         ),
+        # Kill par signal (OOM-killer du conteneur) : ni « ❌ » ni traceback.
+        ("🔨 dbt build\n", BARRES_DLT, -9, "signal 9"),
     ],
-    ids=["stdout_seul", "barres_dlt_et_echec_dbt", "traceback"],
+    ids=["stdout_seul", "barres_dlt_et_echec_dbt", "traceback_rattrape", "traceback", "signal"],
 )
-def test_job_en_echec_expose_la_vraie_cause(monkeypatch, stdout, stderr, cause):
-    """Un job en échec expose la vraie cause dans `error` (lue par l'alerte bot), jamais les
-    barres de progression dlt ni un « exit code 1 » nu (#298), et capture stdout dans `output`."""
+def test_job_en_echec_expose_la_vraie_cause(monkeypatch, stdout, stderr, returncode, cause):
+    """Un job en échec expose la vraie cause dans `error`, jamais les barres de progression
+    dlt ni un « exit code 1 » nu (#298), et capture stdout dans `output`."""
     import subprocess
     from datetime import datetime
 
@@ -174,14 +183,14 @@ def test_job_en_echec_expose_la_vraie_cause(monkeypatch, stdout, stderr, cause):
     monkeypatch.setattr(
         ingestion_service.subprocess,
         "run",
-        lambda *a, **k: subprocess.CompletedProcess(args=a, returncode=1, stdout=stdout, stderr=stderr),
+        lambda *a, **k: subprocess.CompletedProcess(args=a, returncode=returncode, stdout=stdout, stderr=stderr),
     )
 
     job = JobIngestion(id="j1", mode="test", status=StatutIngestion.running, started_at=datetime.now())
     _run_pipeline(job)
 
     assert job.status == StatutIngestion.failed
-    assert cause in (job.error or "")[-500:], "la cause doit tenir dans les 500 derniers caractères affichés par le bot"
+    assert cause in (job.error or "")
     assert job.output == stdout.strip()
 
 

@@ -17,19 +17,21 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
   job reconstruit `+releves`, **tous** les builds échouaient et les tables restaient
   figées. Cause mesurée : DuckDB évalue chaque fonction JSON sur un vecteur entier,
   donc les arbres yyjson de tous les documents du vecteur (jusqu'à 2 048) sont en
-  mémoire en même temps, ~10 × le texte chacun. `threads: 1` ne fait que diviser ce
-  pic. Nouvelle macro `scan_par_partitions` (32 partitions `hash(file_name) % 32` lues
-  au scan de la table brute, réunies par `union all`) appliquée à `stg_f15`, `stg_r151`
-  et `stg_r64`. `flux_f15_detail` passe ses unnest en SELECT : en FROM, une
-  `LEFT_DELIM_JOIN` reformait des vecteurs pleins au-dessus des partitions. Sous 1 Go,
+  mémoire en même temps, ~10 × le texte chacun ; `threads: 1` limite seulement le
+  nombre de vecteurs en vol. Nouvelle macro `scan_par_partitions` (32 partitions
+  `hash(file_name) % 32` lues au scan de la table brute, réunies par `union all`)
+  appliquée à `stg_f15`, `stg_r151` et `stg_r64`. `flux_f15_detail` passe ses unnest
+  en SELECT : en FROM, une `LEFT_DELIM_JOIN` reformait des vecteurs pleins au-dessus
+  des partitions. Sous 1 Go,
   avec des documents distincts, R151 réel (319 Mo) et F15 synthétique (1 000 × 256 Ko)
   passent au lieu de l'OOM, et les sorties sont identiques. Piège n° 4 dans
   `docs/ingestion.md`. Plafond connu et sortie structurelle (éclater les documents à
-  l'atterrissage) : #731.
+  l'atterrissage) : #731. (PR #732)
 - **Alerte d'échec d'ingestion illisible** : l'erreur de job reprenait stderr, où dlt
   écrit ses barres de progression, alors que le runner signale ses échecs dbt sur
-  stdout. L'erreur porte désormais la fin de stdout, ou le traceback de stderr en cas
-  d'exception non rattrapée. Le bot en affiche les 500 derniers caractères.
+  stdout. L'erreur porte désormais le diagnostic du runner (fin de stdout), le
+  traceback d'une exception non rattrapée, ou le signal d'un kill (OOM-killer). Le bot
+  en affiche les 1 000 derniers caractères. (PR #732)
 
 ## [3.8.2] - 2026-08-24
 
