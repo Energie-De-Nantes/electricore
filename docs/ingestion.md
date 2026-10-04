@@ -218,16 +218,11 @@ absente (landing partiel, smoke `max_files`).
 3. **Cast struct strict** : `CAST(json AS STRUCT(...))` casse sur toute clé inattendue/absente
    (4 formes de `classeTemporelle` observées sur le corpus R64 réel) → **accès JSON tolérant**
    (`->>` / `unnest(cast(... as json[]))`).
-4. **Mémoire JSON par vecteur** : DuckDB évalue chaque fonction JSON sur un vecteur entier
-   (≤ 2 048 documents), dont tous les arbres yyjson sont en mémoire en même temps (~10 × le
-   texte). Le pic vaut donc environ documents par vecteur × taille d'un document, et
-   `threads` comme `memory_limit` n'y changent rien. On a eu des OOM sur `flux_f15_detail`
-   (Enargia, 09/2026) et `flux_r151` (edn, 10/2026). La parade : **lire la source brute
-   par partitions** avec la macro `scan_par_partitions`, posée au scan dans le staging
-   (filtrer à travers la vue ne sert à rien), et **unnest en SELECT, pas en FROM**. Un
-   unnest latéral en FROM produit une `LEFT_DELIM_JOIN` qui reforme des vecteurs pleins au-dessus
-   des partitions. Plafond et sortie structurelle :
-   [#731](https://github.com/Energie-De-Nantes/electricore/issues/731).
+4. **Mémoire JSON par vecteur** : chaque fonction JSON est évaluée sur un vecteur entier (≤ 2 048
+   documents, ~10 × le texte chacun en mémoire), indépendamment de `memory_limit`. `threads` ne
+   multiplie que le nombre de vecteurs en vol → **lire la source brute par partitions au scan
+   du staging, et unnest en SELECT** (cf. macro `scan_par_partitions`, `flux_f15_detail.sql`).
+   `flux_f12_detail` n'est pas encore aligné (#731).
 
 ## Décisions et histoire
 

@@ -138,15 +138,18 @@ def _tail(texte: str, lignes: int = 40) -> str:
     return "\n".join(texte.strip().splitlines()[-lignes:])
 
 
-def _cause_echec(result: subprocess.CompletedProcess) -> str:
+def _extraire_cause_echec(result: subprocess.CompletedProcess) -> str:
     """Cause utile d'un échec, pour une `error` lisible plutôt qu'un « exit code 1 » nu.
 
-    Le runner rapporte ses échecs prévus (nœud dbt, flux aveugle) sur stdout ; stderr ne
-    porte que les barres de progression dlt — sauf exception non rattrapée, dont le
-    traceback y termine."""
-    if "Traceback" in result.stderr:
-        return _tail(result.stderr)
-    return _tail(result.stdout) or _tail(result.stderr) or f"exit code {result.returncode}"
+    Tout échec prévu du runner (nœud dbt, flux aveugle) termine stdout par une ligne « ❌ »
+    précédée de son diagnostic. Sinon c'est un crash : traceback en fin de stderr (où dlt
+    écrit aussi ses barres de progression), ou kill par signal (OOM-killer du conteneur)."""
+    sortie = _tail(result.stdout)
+    if sortie.rsplit("\n", 1)[-1].startswith("❌"):
+        return sortie
+    if result.returncode < 0:
+        return f"{sortie}\n💀 processus tué par le signal {-result.returncode} (OOM-killer ?)".strip()
+    return _tail(result.stderr) or sortie or f"exit code {result.returncode}"
 
 
 def _run_pipeline(job: JobIngestion) -> None:
@@ -161,7 +164,7 @@ def _run_pipeline(job: JobIngestion) -> None:
         # cas (succès comme échec), sinon la vraie cause d'un échec est jetée (#298).
         job.output = result.stdout.strip() or None
         if result.returncode != 0:
-            raise RuntimeError(_cause_echec(result))
+            raise RuntimeError(_extraire_cause_echec(result))
         job.status = StatutIngestion.completed
     except Exception as exc:
         job.status = StatutIngestion.failed

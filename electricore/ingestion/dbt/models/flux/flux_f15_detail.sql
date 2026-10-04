@@ -5,10 +5,8 @@
 -- taux_tva reste VARCHAR (vaut « NS » = non soumis, pas un nombre) ; les montants
 -- signés sont typés.
 --
--- Mémoire : stg_f15 lit la source par partitions (scan_par_partitions, #731) ; unnest en
--- SELECT, pas en FROM : un unnest latéral en FROM produit une LEFT_DELIM_JOIN sur content
--- qui reforme des vecteurs pleins au-dessus des partitions — OOM inchangé (mesuré :
--- 1 000 F15 distincts de 256 Ko, OOM à 2 Go en FROM, OK à 1 Go en SELECT).
+-- Mémoire : unnest en SELECT, pas en FROM — un unnest latéral sur content produit une
+-- LEFT_DELIM_JOIN qui annule les partitions de stg_f15 (docs/ingestion.md, piège n° 4).
 
 with dv as (
     select

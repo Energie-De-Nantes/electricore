@@ -36,6 +36,19 @@ def test_un_nouveau_job_failed_declenche_une_alerte():
     assert "🚨" in texte and "all" in texte and "boom" in texte
 
 
+def test_l_alerte_garde_la_fin_d_une_erreur_longue():
+    """La cause d'un échec est en fin d'`error` (diagnostic dbt, traceback) : l'alerte
+    tronque par la tête, pas par la queue (incident edn 04/10)."""
+    bot = FakeBot()
+    erreur = "barre dlt\n" * 300 + "✗ flux_r151 [error] — Out of Memory Error"
+    client = FakeClient([_job("aaaa", "failed", error=erreur)])
+
+    asyncio.run(surveillance.verifier_jobs(bot, client, set(), chat_id="-100123"))
+
+    ((_, texte),) = bot.messages
+    assert "✗ flux_r151 [error] — Out of Memory Error" in texte
+
+
 def test_pas_de_doublon_d_alerte_pour_un_meme_job():
     bot = FakeBot()
     client = FakeClient([_job("aaaa", "failed")])

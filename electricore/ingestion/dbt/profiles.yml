@@ -9,14 +9,10 @@ electricore_flux:
       # Schéma cible = celui que lisent les loaders core (mêmes noms de tables que
       # l'ex-chemin legacy → bascule transparente pour l'aval, ADR-0020/#134).
       schema: flux_enedis
-      # Mémoire : le pic vient de l'analyse JSON, évaluée par vecteur (tous les documents
-      # du vecteur en mémoire à la fois, ~10 × le texte). Elle **ne déverse pas** sur
-      # disque : baisser memory_limit échoue plus tôt. Chaque thread a son vecteur, d'où
-      # 1 thread à la mémoire machine pleine (batch nocturne, lenteur acceptable). Ça
-      # divise le pic mais ne le borne pas : la vraie parade est la lecture par
-      # partitions (macro scan_par_partitions, docs/ingestion.md « pièges DuckDB », #731).
-      # `preserve_insertion_order: false` allège les tris (ordre des lignes sans
-      # importance : loaders trient, golden = match modulo ordre).
+      # Mémoire : 1 thread = un seul vecteur JSON en vol (batch nocturne, lenteur
+      # acceptable) ; le pic par vecteur se borne par scan_par_partitions (docs/ingestion.md,
+      # piège n° 4, #731). `preserve_insertion_order: false` allège les tris (ordre des
+      # lignes sans importance : loaders trient, golden = match modulo ordre).
       # Cf. https://duckdb.org/docs/stable/guides/performance/how_to_tune_workloads
       settings:
         preserve_insertion_order: false

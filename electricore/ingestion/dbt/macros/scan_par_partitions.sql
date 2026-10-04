@@ -2,9 +2,9 @@
 --
 -- DuckDB évalue chaque fonction JSON sur un vecteur entier (≤ 2 048 lignes) : les arbres
 -- yyjson de tous les documents du vecteur vivent en même temps, ~10 × le texte chacun.
--- Besoin ≈ (documents par vecteur) × (taille d'un document) × 10, quels que soient
--- threads/memory_limit. OOM prod : flux_f15_detail (Enargia, 02/09/2026), flux_r151
--- (edn, 04/10/2026). Filtrer AU SCAN de la source brute réduit les documents par vecteur
+-- Besoin par vecteur ≈ (documents par vecteur) × (taille d'un document) × 10, quel que
+-- soit memory_limit ; threads ne fait que multiplier les vecteurs en vol. OOM prod :
+-- flux_f15_detail (Enargia, 02/09/2026), flux_r151 (edn, 04/10/2026). Filtrer AU SCAN de la source brute réduit les documents par vecteur
 -- d'un facteur ~`partitions` ; filtrer à travers une vue staging ne descend pas sous ses
 -- extractions. Partition exhaustive et disjointe : même résultat, à l'ordre près.
 --
