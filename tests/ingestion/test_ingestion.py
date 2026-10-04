@@ -6,6 +6,8 @@ legacy (test = échantillon, all = tout, sélection de flux, reset = re-téléch
 complet via drop_sources).
 """
 
+import pytest
+
 from electricore.api.services.ingestion_service import ModeIngestion
 from electricore.ingestion.runner import PlanRun, flux_aveugles, interpreter_flux
 from electricore.ingestion.transformers.chaine import StatsChaine
@@ -137,32 +139,50 @@ def test_l_api_subprocess_le_runner_dbt():
     assert "electricore.ingestion.pipeline_production" not in commande
 
 
-def test_job_en_echec_expose_la_sortie_reelle(monkeypatch):
-    """dlt/dbt écrivent leurs diagnostics sur stdout : un job en échec doit exposer cette
-    sortie — `error` lisible ET `output` capturé — pas un « exit code 1 » nu (#298)."""
+BARRES_DLT = "--- Normalize flux_enedis_brut ---\nFiles: 1/2 (50.0%) | Time: 0.03s\n" * 30
+
+
+@pytest.mark.parametrize(
+    ("stdout", "stderr", "cause"),
+    [
+        # #298 : diagnostic dbt sur stdout, stderr vide.
+        ("Failure in test not_null_flux_affaires_statut — Got 45 results\n", "", "not_null_flux_affaires_statut"),
+        # Incident edn 04/10 : stderr plein de barres dlt, le nœud dbt en échec est sur stdout.
+        (
+            "🔨 dbt build\n  ✗ flux_r151 [error] — Out of Memory Error\n❌ dbt build a échoué\n",
+            BARRES_DLT,
+            "✗ flux_r151",
+        ),
+        # Exception non rattrapée : le traceback termine stderr, après les barres.
+        (
+            "🚀 Landing brut\n",
+            BARRES_DLT + "Traceback (most recent call last):\nValueError: boom\n",
+            "ValueError: boom",
+        ),
+    ],
+    ids=["stdout_seul", "barres_dlt_et_echec_dbt", "traceback"],
+)
+def test_job_en_echec_expose_la_vraie_cause(monkeypatch, stdout, stderr, cause):
+    """Un job en échec expose la vraie cause dans `error` (lue par l'alerte bot), jamais les
+    barres de progression dlt ni un « exit code 1 » nu (#298), et capture stdout dans `output`."""
     import subprocess
     from datetime import datetime
 
     from electricore.api.services import ingestion_service
-    from electricore.api.services.ingestion_service import (
-        JobIngestion,
-        StatutIngestion,
-        _run_pipeline,
-    )
+    from electricore.api.services.ingestion_service import JobIngestion, StatutIngestion, _run_pipeline
 
-    erreur_dbt = "Failure in test not_null_flux_affaires_statut — Got 45 results"
     monkeypatch.setattr(
         ingestion_service.subprocess,
         "run",
-        lambda *a, **k: subprocess.CompletedProcess(args=a, returncode=1, stdout=f"{erreur_dbt}\n", stderr=""),
+        lambda *a, **k: subprocess.CompletedProcess(args=a, returncode=1, stdout=stdout, stderr=stderr),
     )
 
     job = JobIngestion(id="j1", mode="test", status=StatutIngestion.running, started_at=datetime.now())
     _run_pipeline(job)
 
     assert job.status == StatutIngestion.failed
-    assert erreur_dbt in (job.error or ""), "l'erreur doit porter la vraie cause (stdout), pas « exit code 1 »"
-    assert erreur_dbt in (job.output or ""), "stdout doit être capturé même en échec"
+    assert cause in (job.error or "")[-500:], "la cause doit tenir dans les 500 derniers caractères affichés par le bot"
+    assert job.output == stdout.strip()
 
 
 def test_main_echoue_si_un_flux_est_aveugle(monkeypatch):

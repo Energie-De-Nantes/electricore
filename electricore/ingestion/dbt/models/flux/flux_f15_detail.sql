@@ -1,35 +1,49 @@
 -- Linéarisation F15 : une ligne par Element_Valorise (détail de facture valorisé).
 --
 -- Pas de pivot : éclatement à trois niveaux Donnees_Valorisation → Groupe_Valorise →
--- Element_Valorise. Les champs des parents (PDL, type de facturation, nature EV) sont
--- en scope après unnest — l'axe parent ../../ du DSL legacy disparaît. taux_tva reste
--- VARCHAR (vaut « NS » = non soumis, pas un nombre) ; les montants signés sont typés.
+-- Element_Valorise, chaque niveau projetant ses scalaires avant de descendre.
+-- taux_tva reste VARCHAR (vaut « NS » = non soumis, pas un nombre) ; les montants
+-- signés sont typés.
+--
+-- Mémoire : stg_f15 lit la source par partitions (scan_par_partitions, #731) ; unnest en
+-- SELECT, pas en FROM : un unnest latéral en FROM produit une LEFT_DELIM_JOIN sur content
+-- qui reforme des vecteurs pleins au-dessus des partitions — OOM inchangé (mesuré :
+-- 1 000 F15 distincts de 256 Ko, OOM à 2 Go en FROM, OK à 1 Go en SELECT).
 
 with dv as (
-    select flux, num_facture, date_facture, d.v as dv
-    from {{ ref('stg_f15') }},
-        unnest(cast(content -> '$.Donnees_Valorisation' as json[])) as d(v)
+    select
+        flux, num_facture, date_facture,
+        unnest(cast(content -> '$.Donnees_Valorisation' as json[])) as dv
+    from {{ ref('stg_f15') }}
 ),
 
-gv as (
-    select flux, num_facture, date_facture, dv, g.v as gv
-    from dv,
-        unnest(cast(dv -> '$.Groupe_Valorise' as json[])) as g(v)
+dv_scal as (
+    select
+        flux, num_facture, date_facture,
+        dv ->> '$.Type_Facturation'                           as type_facturation,
+        dv ->> '$.Donnees_PRM[0].Id_PRM'                      as pdl,
+        dv ->> '$.Donnees_PRM[0].Ref_Situation_Contractuelle' as ref_situation_contractuelle,
+        dv ->> '$.Donnees_PRM[0].Type_Compteur'               as type_compteur,
+        unnest(cast(dv -> '$.Groupe_Valorise' as json[]))     as gv
+    from dv
 ),
 
-ev as (
-    select flux, num_facture, date_facture, dv, gv, e.v as ev
-    from gv,
-        unnest(cast(gv -> '$.Element_Valorise' as json[])) as e(v)
+gv_scal as (
+    select
+        flux, num_facture, date_facture,
+        type_facturation, pdl, ref_situation_contractuelle, type_compteur,
+        gv ->> '$.Nature_EV'                                  as nature_ev,
+        unnest(cast(gv -> '$.Element_Valorise' as json[]))    as ev
+    from dv_scal
 )
 
 select
-    dv ->> '$.Type_Facturation'                       as type_facturation,
-    dv ->> '$.Donnees_PRM[0].Id_PRM'                  as pdl,
-    dv ->> '$.Donnees_PRM[0].Ref_Situation_Contractuelle' as ref_situation_contractuelle,
-    dv ->> '$.Donnees_PRM[0].Type_Compteur'          as type_compteur,
+    type_facturation,
+    pdl,
+    ref_situation_contractuelle,
+    type_compteur,
     ev ->> '$.Id_EV'                                  as id_ev,
-    gv ->> '$.Nature_EV'                              as nature_ev,
+    nature_ev,
     ev ->> '$.Taux_TVA_Applicable'                    as taux_tva_applicable,
     ev ->> '$.Formule_Tarifaire_Acheminement'        as formule_tarifaire_acheminement,
     ev ->> '$.Unite_Quantite'                        as unite,
@@ -46,4 +60,4 @@ select
     date_facture,
     -- Source résiduelle descendue du loader (ADR-0042, #396) : `f15()` devient un SELECT *.
     'flux_F15' as source
-from ev
+from gv_scal
