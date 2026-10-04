@@ -24,5 +24,5 @@ from (
         content ->> '$.header.codeFlux'      as code_flux,
         content ->> '$.header.format'        as format,
         cast(content -> '$.mesures' as json[]) as mesures
-    from {{ source('flux_raw', 'raw_r64') }}
+    from {{ scan_par_lots(source('flux_raw', 'raw_r64')) }}
 )
