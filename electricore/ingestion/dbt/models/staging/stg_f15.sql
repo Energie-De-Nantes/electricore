@@ -11,4 +11,4 @@ select
     content ->> '$.Rappel_En_Tete[0].Num_Facture'       as num_facture,
     cast(content ->> '$.Rappel_En_Tete[0].Date_Facture' as date) as date_facture,
     content                                             as content
-from {{ source('flux_raw', 'raw_f15') }}
+from {{ scan_par_lots(source('flux_raw', 'raw_f15')) }}
