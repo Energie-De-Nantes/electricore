@@ -138,6 +138,17 @@ def _tail(texte: str, lignes: int = 40) -> str:
     return "\n".join(texte.strip().splitlines()[-lignes:])
 
 
+def _cause_echec(result: subprocess.CompletedProcess) -> str:
+    """Cause utile d'un échec, pour une `error` lisible plutôt qu'un « exit code 1 » nu.
+
+    Le runner rapporte ses échecs prévus (nœud dbt, flux aveugle) sur stdout ; stderr ne
+    porte que les barres de progression dlt — sauf exception non rattrapée, dont le
+    traceback y termine."""
+    if "Traceback" in result.stderr:
+        return _tail(result.stderr)
+    return _tail(result.stdout) or _tail(result.stderr) or f"exit code {result.returncode}"
+
+
 def _run_pipeline(job: JobIngestion) -> None:
     """Exécute le pipeline d'ingestion via subprocess (isolation des dépendances DLT)."""
     try:
@@ -150,9 +161,7 @@ def _run_pipeline(job: JobIngestion) -> None:
         # cas (succès comme échec), sinon la vraie cause d'un échec est jetée (#298).
         job.output = result.stdout.strip() or None
         if result.returncode != 0:
-            # Tail de stderr (sa tête = barres de progression dlt), sinon de stdout (logs dbt) pour
-            # une `error` lisible, pas un « exit code 1 » nu.
-            raise RuntimeError(_tail(result.stderr) or _tail(result.stdout) or f"exit code {result.returncode}")
+            raise RuntimeError(_cause_echec(result))
         job.status = StatutIngestion.completed
     except Exception as exc:
         job.status = StatutIngestion.failed

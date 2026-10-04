@@ -208,7 +208,7 @@ absente (landing partiel, smoke `max_files`).
   il trace les vraies anomalies dans la sortie du job sans jamais le faire échouer
   (l'ingestion reste verte sur une base réelle qui a ses trous historiques connus).
 
-### Les trois pièges DuckDB (appris sur données réelles, encodés dans les modèles)
+### Les quatre pièges DuckDB (appris sur données réelles, encodés dans les modèles)
 
 1. **Pushdown sous unnest** : un `WHERE` sur un chemin JSON d'un élément unnesté peut être poussé
    sous l'unnest et casté contre le mauvais objet → **extraire en colonnes nommées dans un CTE,
@@ -218,6 +218,16 @@ absente (landing partiel, smoke `max_files`).
 3. **Cast struct strict** : `CAST(json AS STRUCT(...))` casse sur toute clé inattendue/absente
    (4 formes de `classeTemporelle` observées sur le corpus R64 réel) → **accès JSON tolérant**
    (`->>` / `unnest(cast(... as json[]))`).
+4. **Mémoire JSON par vecteur** : DuckDB évalue chaque fonction JSON sur un vecteur entier
+   (≤ 2 048 documents), dont tous les arbres yyjson sont en mémoire en même temps (~10 × le
+   texte). Le pic vaut donc environ documents par vecteur × taille d'un document, et
+   `threads` comme `memory_limit` n'y changent rien. On a eu des OOM sur `flux_f15_detail`
+   (Enargia, 09/2026) et `flux_r151` (edn, 10/2026). La parade : **lire la source brute
+   par partitions** avec la macro `scan_par_partitions`, posée au scan dans le staging
+   (filtrer à travers la vue ne sert à rien), et **unnest en SELECT, pas en FROM**. Un
+   unnest latéral en FROM produit une `LEFT_DELIM_JOIN` qui reforme des vecteurs pleins au-dessus
+   des partitions. Plafond et sortie structurelle :
+   [#731](https://github.com/Energie-De-Nantes/electricore/issues/731).
 
 ## Décisions et histoire
 
