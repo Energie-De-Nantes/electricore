@@ -158,11 +158,15 @@ def test_garde_detecte_collision(base_c15_propre, colonne, valeur_divergente, tm
 # --- Renvois d'événement C15 (#740) : la première publication fait foi ---------
 
 
-def _livraison(file_name: str, modification_date: str, *, niveau: str, nature: str = "MCT") -> dict:
-    """Document C15 de la fixture, avec niveau d'ouverture et nature d'événement forcés."""
+def _livraison(
+    file_name: str, modification_date: str, *, niveau: str, nature: str = "MCT", etat: str | None = None
+) -> dict:
+    """Document C15 de la fixture, avec niveau d'ouverture, nature d'événement (et état) forcés."""
     contenu = xml_vers_dict((FIXTURES / "c15_avec_releves.xml").read_bytes())
     prm = contenu["PRM"][0]
     prm["Niveau_Ouverture_Services"] = niveau
+    if etat is not None:
+        prm["Situation_Contractuelle"][0]["Etat_Contractuel"] = etat
     prm["Evenement_Declencheur"][0]["Nature_Evenement"] = nature
     return {"file_name": file_name, "modification_date": modification_date, "content": contenu}
 
@@ -193,7 +197,7 @@ def test_renvoi_ecarte_premiere_publication_fait_foi(tmp_path):
     """Même événement livré deux fois, le renvoi arrive avec un autre niveau : on garde la 1re."""
     lignes, build = _flux_c15_depuis(
         [
-            _livraison("c15_b_renvoi.xml", "2026-10-15T00:00:00", niveau="1"),
+            _livraison("c15_b_renvoi.xml", "2026-10-15T00:00:00", niveau="1", etat="RESILIE"),
             _livraison("c15_a_initial.xml", "2026-09-11T00:00:00", niveau="2"),
         ],
         tmp_path,
