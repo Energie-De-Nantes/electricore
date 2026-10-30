@@ -9,6 +9,19 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.8.5] - 2026-10-30
+
+Patch de dépendances, sans changement fonctionnel. À déployer sur **edn et Enargia**
+(`reconfigure`), dans la foulée de la 3.8.4.
+
+### 🔒 Sécurité
+
+- **31 alertes Dependabot résorbées** par un re-lock ciblé de `uv.lock`, toutes sur
+  des dépendances transitives : gitpython 3.2.1 (12 alertes), aiohttp 3.14.5 (8),
+  urllib3 2.8.0, anyio 4.14.2 (dont 1 critique), certifi 2026.10.23 (critique :
+  autorités emSign compromises), fsspec, msgpack, multidict, opentelemetry-api,
+  setuptools, mkdocs-material. (PR #743)
+
 ## [3.8.4] - 2026-10-30
 
 Patch avant la campagne d'octobre (ancre du 05/11). Depuis le 16/10 environ, le
