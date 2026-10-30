@@ -59,6 +59,11 @@ def _():
     0 ou plusieurs RSC en service sur le PDL → commande listée à part, **jamais
     d'écriture silencieuse**.
 
+    **Une RSC déjà renseignée n'est jamais écrasée (#735)** : après un déménagement, la
+    seule RSC en service est celle du nouvel occupant — l'écrire sur la commande encore
+    active de l'ancien occupant le facturerait en double. Une RSC Odoo différente de la
+    candidate est listée à part.
+
     **Lecture seule** — aucune écriture dans Odoo.
     """)
     return
@@ -120,8 +125,13 @@ def _():
             _odoo,
             "sale.order",
             domain=[("x_pdl", "!=", False), ("state", "=", "sale")],
-            fields=["name", "x_pdl", "date_order", "partner_id"],
+            fields=["name", "x_pdl", "date_order", "partner_id", "x_ref_situation_contractuelle"],
         ).collect()
+    # RSC déjà portée par la commande (#735) — renommée pour ne pas entrer en collision
+    # avec la colonne RSC de l'asof ci-dessous.
+    orders_df = orders_df.rename({"x_ref_situation_contractuelle": "rsc_odoo"}).with_columns(
+        pl.col("rsc_odoo").cast(pl.Utf8)
+    )
     # Normaliser date_order en Datetime naïf (Odoo envoie UTC en string)
     orders_df = orders_df.with_columns(pl.col("date_order").str.to_datetime("%Y-%m-%d %H:%M:%S", strict=False))
     mo.vstack(
@@ -157,7 +167,7 @@ def _(contrats_par_pdl, orders_df):
         right_on="date_debut_contrat",
         by="x_pdl",
         strategy="nearest",
-    ).select(["sale_order_id", "name", "x_pdl", "date_order", "ref_situation_contractuelle"])
+    ).select(["sale_order_id", "name", "x_pdl", "date_order", "rsc_odoo", "ref_situation_contractuelle"])
     return (orders_avec_rsc,)
 
 
@@ -233,6 +243,8 @@ def _(orders_avec_rsc, rsc_en_service_par_pdl):
     # Attribution cible (#580) : ignore l'asof (`rsc_asof`, gardé en diagnostic) — une seule
     # RSC en service sur le PDL est attribuée ; 0 ou plusieurs → ref_situation_contractuelle
     # null (jamais d'écriture silencieuse, cf. cellules 4 ci-dessous).
+    # `statut` (#735) : seule une commande SANS RSC Odoo est injectée ; une RSC Odoo égale à
+    # la candidate est déjà à jour ; différente (déménagement…) → à part, jamais écrasée.
     orders_attribution = (
         orders_avec_rsc.rename({"ref_situation_contractuelle": "rsc_asof"})
         .join(rsc_en_service_par_pdl, left_on="x_pdl", right_on="pdl", how="left")
@@ -243,15 +255,26 @@ def _(orders_avec_rsc, rsc_en_service_par_pdl):
             .otherwise(None)
             .alias("ref_situation_contractuelle")
         )
+        .with_columns(
+            pl.when(pl.col("rsc_odoo").is_null() & (pl.col("nb_rsc_en_service") == 1))
+            .then(pl.lit("a_injecter"))
+            .when(pl.col("rsc_odoo") == pl.col("ref_situation_contractuelle"))
+            .then(pl.lit("deja_a_jour"))
+            .otherwise(pl.lit("a_part"))
+            .alias("statut")
+        )
     )
     return (orders_attribution,)
 
 
 @app.cell
 def _(orders_attribution):
-    _attribuees = orders_attribution.filter(pl.col("nb_rsc_en_service") == 1)
-    _a_part = orders_attribution.filter(pl.col("nb_rsc_en_service") != 1).with_columns(
-        pl.when(pl.col("nb_rsc_en_service") == 0)
+    _attribuees = orders_attribution.filter(pl.col("statut") == "a_injecter")
+    _a_jour = orders_attribution.filter(pl.col("statut") == "deja_a_jour")
+    _a_part = orders_attribution.filter(pl.col("statut") == "a_part").with_columns(
+        pl.when(pl.col("rsc_odoo").is_not_null() & (pl.col("nb_rsc_en_service") == 1))
+        .then(pl.lit("RSC Odoo ≠ RSC en service (déménagement ?) — jamais écrasée"))
+        .when(pl.col("nb_rsc_en_service") == 0)
         .then(pl.lit("aucune RSC en service sur le PDL"))
         .otherwise(pl.lit("plusieurs RSC en service sur le PDL"))
         .alias("motif")
@@ -263,8 +286,9 @@ def _(orders_attribution):
 
         | | |
         |---|---|
-        | ✅ Attribuées (1 RSC en service) | **{len(_attribuees)}** orders |
-        | ⚠️ À traiter à part (0 ou plusieurs) | **{len(_a_part)}** orders |
+        | ✅ À attribuer (sans RSC, 1 RSC en service) | **{len(_attribuees)}** orders |
+        | ☑️ Déjà à jour (RSC Odoo = RSC en service) | **{len(_a_jour)}** orders |
+        | ⚠️ À traiter à part (RSC Odoo différente, 0 ou plusieurs candidates) | **{len(_a_part)}** orders |
         """),
             mo.ui.table(
                 _attribuees.select(["sale_order_id", "name", "x_pdl", "rsc_asof", "ref_situation_contractuelle"])
@@ -272,7 +296,9 @@ def _(orders_attribution):
             mo.md("### Commandes à traiter à part (jamais d'écriture silencieuse)")
             if not _a_part.is_empty()
             else mo.md(""),
-            mo.ui.table(_a_part.select(["sale_order_id", "name", "x_pdl", "motif", "nb_rsc_en_service"]))
+            mo.ui.table(
+                _a_part.select(["sale_order_id", "name", "x_pdl", "motif", "rsc_odoo", "ref_situation_contractuelle"])
+            )
             if not _a_part.is_empty()
             else mo.md(""),
         ]
@@ -292,8 +318,8 @@ def _():
 def _(orders_attribution):
     from electricore.integrations.odoo import OdooWriter
 
-    _a_injecter = orders_attribution.filter(pl.col("nb_rsc_en_service") == 1)
-    _a_part = orders_attribution.filter(pl.col("nb_rsc_en_service") != 1)
+    _a_injecter = orders_attribution.filter(pl.col("statut") == "a_injecter")
+    _a_part = orders_attribution.filter(pl.col("statut") == "a_part")
 
     sim_mode = mo.ui.checkbox(label="Mode simulation (aucune écriture réelle)", value=True)
     run_button = mo.ui.run_button(label="Injecter dans Odoo")
@@ -317,7 +343,7 @@ def _(OdooWriter, orders_attribution, run_button, sim_mode):
     mo.stop(not run_button.value, mo.md("Vérifiez les données ci-dessus puis cliquez sur **Injecter**."))
 
     _records = (
-        orders_attribution.filter(pl.col("nb_rsc_en_service") == 1)
+        orders_attribution.filter(pl.col("statut") == "a_injecter")
         .rename({"sale_order_id": "id", "ref_situation_contractuelle": "x_ref_situation_contractuelle"})
         .select(["id", "x_ref_situation_contractuelle"])
         .to_dicts()
