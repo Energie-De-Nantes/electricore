@@ -22,12 +22,15 @@ _SOURCE_INJECTION_RSC = (_RACINE / "notebooks" / "injection_rsc.py").read_text()
 
 
 def _attribuer_rsc_en_service(orders: pl.DataFrame, contrats: pl.DataFrame) -> pl.DataFrame:
-    """Reproduction fidèle de la règle d'attribution #580.
+    """Reproduction fidèle de la règle d'attribution #580 + garde anti-écrasement #735.
 
-    `orders` : une ligne par commande active, colonnes `pdl` (+ tout identifiant).
+    `orders` : une ligne par commande active, colonnes `pdl`, `rsc_odoo` (RSC déjà
+    portée par la commande, null si vide) + tout identifiant.
     `contrats` : une ligne par (pdl, ref_situation_contractuelle), colonne
     `dernier_etat_contractuel`.
     """
+    if "rsc_odoo" not in orders.columns:
+        orders = orders.with_columns(pl.lit(None, dtype=pl.Utf8).alias("rsc_odoo"))
     en_service = contrats.filter(pl.col("dernier_etat_contractuel") != "RESILIE")
     rsc_en_service_par_pdl = en_service.group_by("pdl").agg(
         pl.col("ref_situation_contractuelle").alias("rsc_en_service"),
@@ -42,7 +45,49 @@ def _attribuer_rsc_en_service(orders: pl.DataFrame, contrats: pl.DataFrame) -> p
             .otherwise(None)
             .alias("ref_situation_contractuelle")
         )
+        .with_columns(
+            pl.when(pl.col("rsc_odoo").is_null() & (pl.col("nb_rsc_en_service") == 1))
+            .then(pl.lit("a_injecter"))
+            .when(pl.col("rsc_odoo") == pl.col("ref_situation_contractuelle"))
+            .then(pl.lit("deja_a_jour"))
+            .otherwise(pl.lit("a_part"))
+            .alias("statut")
+        )
     )
+
+
+class TestNeJamaisEcraserUneRscRenseignee:
+    """#735 : après un déménagement, la commande de l'ancien occupant garde sa RSC."""
+
+    def test_demenagement_ancien_occupant_garde_sa_rsc(self):
+        # C15 : RES de l'ancienne RSC + MES de la nouvelle, le même jour, sur le même PDL.
+        contrats = pl.DataFrame(
+            {
+                "pdl": ["PDL_DEM", "PDL_DEM"],
+                "ref_situation_contractuelle": ["RSC_ANCIEN", "RSC_NOUVEAU"],
+                "dernier_etat_contractuel": ["RESILIE", "EN SERVICE"],
+            }
+        )
+        # Deux commandes actives : l'ancien occupant (RSC déjà posée), le nouveau (vide).
+        orders = pl.DataFrame(
+            {"sale_order_id": [1, 2], "pdl": ["PDL_DEM", "PDL_DEM"], "rsc_odoo": ["RSC_ANCIEN", None]}
+        )
+
+        result = _attribuer_rsc_en_service(orders, contrats).sort("sale_order_id")
+
+        ancien, nouveau = result.row(0, named=True), result.row(1, named=True)
+        assert ancien["statut"] == "a_part"  # jamais écrasée, signalée
+        assert nouveau["statut"] == "a_injecter"
+        assert nouveau["ref_situation_contractuelle"] == "RSC_NOUVEAU"
+        injectees = result.filter(pl.col("statut") == "a_injecter")["sale_order_id"].to_list()
+        assert injectees == [2]
+
+    def test_rsc_deja_a_jour_nest_pas_reecrite(self):
+        contrats = pl.DataFrame(
+            {"pdl": ["PDL"], "ref_situation_contractuelle": ["RSC"], "dernier_etat_contractuel": ["EN SERVICE"]}
+        )
+        orders = pl.DataFrame({"sale_order_id": [1], "pdl": ["PDL"], "rsc_odoo": ["RSC"]})
+        assert _attribuer_rsc_en_service(orders, contrats)["statut"][0] == "deja_a_jour"
 
 
 class TestAttributionRscEnService:
@@ -121,6 +166,12 @@ class TestSourceInjectionRsc:
         """L'asof n'est pas supprimé : diagnostic/départage, cf. #580."""
         assert 'strategy="nearest"' in _SOURCE_INJECTION_RSC
         assert "diagnostic" in _SOURCE_INJECTION_RSC.lower()
+
+    def test_injection_filtree_sur_statut_a_injecter(self):
+        """#735 : seule une commande sans RSC Odoo est écrite — jamais d'écrasement."""
+        assert 'pl.col("rsc_odoo").is_null() & (pl.col("nb_rsc_en_service") == 1)' in _SOURCE_INJECTION_RSC
+        assert '"x_ref_situation_contractuelle"' in _SOURCE_INJECTION_RSC  # lu dans Odoo
+        assert 'orders_attribution.filter(pl.col("nb_rsc_en_service") == 1)' not in _SOURCE_INJECTION_RSC
 
     def test_jamais_ecriture_silencieuse_mentionne(self):
         assert "jamais d'écriture silencieuse" in _SOURCE_INJECTION_RSC
