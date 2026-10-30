@@ -9,8 +9,34 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+## [3.8.4] - 2026-10-30
+
+Patch avant la campagne d'octobre (ancre du 05/11). Depuis le 16/10 environ, le
+`dbt build` nocturne d'edn échouait sur le garde-fou C15 : `flux_c15` et tout ce qui
+en dépend (relevés, chronologie, facturation) n'étaient plus reconstruits, et aucune
+alerte n'est partie. À déployer sur **edn et Enargia** (`reconfigure`). Le premier
+build qui passe matérialise les fichiers déjà landés.
+
 ### 🐛 Corrigé
 
+- **`dbt build` bloqué par des renvois d'événement C15.** Enedis a ré-émis le 15-18/10
+  quatre événements d'août-septembre en y recollant la situation au moment de
+  l'extraction : une MES renvoyée après la résiliation arrivait `RESILIE`. Les deux
+  versions coexistaient dans `flux_c15` et le garde-fou de collision bloquait le build.
+  `flux_c15` garde désormais une ligne par événement, **la première publication fait
+  foi**. C'est l'inverse de la règle des affaires et de R64, où une re-livraison corrige
+  (terme « renvoi d'événement C15 » ajouté au glossaire). (#740, PR #741)
+- **Alertes du bot jamais démarrées.** L'API lance le bot sans `run_polling`, et
+  python-telegram-bot n'appelle alors pas `post_init`. La surveillance des jobs
+  d'ingestion, le check de péremption des taux et le menu natif ne tournaient pas,
+  même avec `BOT__NOTIFY_CHAT_ID` configuré. (PR #739)
+- **Accise au 1ᵉʳ août 2026** : 30,62 €/MWh (24,69 + majoration ZNI 5,93). Le barème
+  s'arrêtait à 30,85 au 01/02/2026. Le check de péremption attend désormais l'accise
+  au **1ᵉʳ février et au 1ᵉʳ août** (indexation ZNI) au lieu du 1ᵉʳ janvier. (#736, PR #738)
+- **`injection_rsc` n'écrase plus une RSC déjà renseignée.** Après un déménagement, la
+  commande encore active de l'ancien occupant recevait la RSC du nouveau, d'où une
+  double facturation. Une RSC Odoo différente de la RSC en service est maintenant
+  listée à part, jamais réécrite. (#735, PR #737)
 - **Backups : `/srv/<slug>/backups` rendu au conteneur après le `chown -R` de
   l'installeur.** L'appel `ensure_backups_dir` de #459 avait disparu de
   `install.sh` dans 284aed1 (06/2026) : toute box installée depuis tournait sans
