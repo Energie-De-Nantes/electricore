@@ -67,6 +67,9 @@ async def lifespan(app: FastAPI):
 
         _tg_app = build_application(settings.telegram_bot_token)
         await _tg_app.initialize()
+        # PTB n'appelle `post_init` que depuis run_polling/run_webhook : sans cet appel,
+        # menu natif, surveillance des jobs et check de péremption ne démarrent jamais.
+        await _tg_app.post_init(_tg_app)
         await _tg_app.start()
         await _tg_app.updater.start_polling()
         logger.info("Bot Telegram démarré.")
