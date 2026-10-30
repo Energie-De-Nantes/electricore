@@ -8,7 +8,7 @@ d'ADR-0024). Le check produit des avertissements, jamais d'auto-correction.
 
 Rythmes encodés :
 - TURPE — nouvelle grille effective au 1ᵉʳ août (indexation annuelle CRE) ;
-- Accise — loi de finances, effet au 1ᵉʳ janvier ;
+- Accise — majoration ZNI indexée au 1ᵉʳ février et au 1ᵉʳ août (depuis 2025) ;
 - CTA — pas de rythme connu, pas de check.
 """
 
@@ -21,17 +21,20 @@ import polars as pl
 
 @dataclass(frozen=True, slots=True)
 class RythmeAttendu:
-    """Heuristique de renouvellement d'un taux régulé : un jalon annuel (mois, jour)."""
+    """Heuristique de renouvellement d'un taux régulé : jalons annuels (mois, jour)."""
 
     taxe: str
-    mois: int
-    jour: int
+    jalons: tuple[tuple[int, int], ...]
     consigne: str
 
 
 RYTHMES: tuple[RythmeAttendu, ...] = (
-    RythmeAttendu("TURPE", 8, 1, "vérifier la délibération CRE (indexation annuelle au 1ᵉʳ août)"),
-    RythmeAttendu("Accise", 1, 1, "vérifier la loi de finances (effet au 1ᵉʳ janvier)"),
+    RythmeAttendu("TURPE", ((8, 1),), "vérifier la délibération CRE (indexation annuelle au 1ᵉʳ août)"),
+    RythmeAttendu(
+        "Accise",
+        ((2, 1), (8, 1)),
+        "vérifier l'arrêté tarifaire au JO (majoration ZNI indexée au 1ᵉʳ février et au 1ᵉʳ août)",
+    ),
     # CTA : pas de rythme connu — changements apériodiques par arrêté, pas de check
 )
 
@@ -55,8 +58,12 @@ class AvertissementPeremption:
 
 def dernier_jalon(rythme: RythmeAttendu, a_date: dt.date) -> dt.date:
     """Dernière échéance du rythme tombée au plus tard à `a_date`."""
-    jalon = dt.date(a_date.year, rythme.mois, rythme.jour)
-    return jalon if jalon <= a_date else dt.date(a_date.year - 1, rythme.mois, rythme.jour)
+    return max(
+        jalon
+        for annee in (a_date.year - 1, a_date.year)
+        for mois, jour in rythme.jalons
+        if (jalon := dt.date(annee, mois, jour)) <= a_date
+    )
 
 
 def _derniers_starts_des_csv() -> dict[str, dt.date]:

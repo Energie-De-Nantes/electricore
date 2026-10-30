@@ -46,7 +46,7 @@ def get_peremption(api_key: str = Depends(get_current_api_key)) -> list[Perempti
     """Avertissements de péremption des taux régulés à la date du jour (#186, ADR-0024).
 
     Rythmes attendus encodés comme heuristiques (TURPE au 1ᵉʳ août, Accise au
-    1ᵉʳ janvier, CTA sans rythme connu). Liste vide = registres présumés à jour.
+    1ᵉʳ février et au 1ᵉʳ août, CTA sans rythme connu). Liste vide = registres présumés à jour.
     """
     return [PeremptionResponse(**asdict(a), message=a.message) for a in avertissements_peremption(date.today())]
 

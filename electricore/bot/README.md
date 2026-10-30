@@ -45,7 +45,7 @@ démarrage, pas de doublon. Vide = désactivé.
 
 Même canal pour la **péremption des taux régulés** (#186, ADR-0024) : un check
 quotidien compare la dernière entrée en vigueur de chaque fichier de taux aux
-rythmes attendus (heuristiques : TURPE au 1ᵉʳ août, Accise au 1ᵉʳ janvier,
+rythmes attendus (heuristiques : TURPE au 1ᵉʳ août, Accise au 1ᵉʳ février et au 1ᵉʳ août,
 CTA sans rythme connu) et pousse un ⚠️ par jalon manqué — warning seulement,
 jamais d'auto-correction. Un changement hors calendrier passe sous le radar
 (Limites d'ADR-0024).

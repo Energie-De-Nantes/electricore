@@ -2,7 +2,7 @@
 Tests du check de péremption des taux régulés (issue #186, ADR-0024).
 
 Les rythmes attendus sont des heuristiques (TURPE au 1ᵉʳ août, Accise au
-1ᵉʳ janvier, CTA sans rythme connu) : un warning, jamais d'auto-correction.
+1ᵉʳ février et au 1ᵉʳ août, CTA sans rythme connu) : un warning, jamais d'auto-correction.
 """
 
 import datetime as dt
@@ -15,7 +15,7 @@ class TestAvertissementsPeremption:
         """Chaque taxe à rythme a une ligne postérieure à son dernier jalon → rien à signaler."""
         avertissements = avertissements_peremption(
             dt.date(2026, 7, 1),
-            derniers_starts={"TURPE": dt.date(2025, 8, 1), "Accise": dt.date(2026, 1, 1)},
+            derniers_starts={"TURPE": dt.date(2025, 8, 1), "Accise": dt.date(2026, 2, 1)},
         )
 
         assert avertissements == ()
@@ -24,7 +24,7 @@ class TestAvertissementsPeremption:
         """Au 2 août, la grille attendue du 1ᵉʳ août manque → avertissement TURPE."""
         avertissements = avertissements_peremption(
             dt.date(2026, 8, 2),
-            derniers_starts={"TURPE": dt.date(2025, 8, 1), "Accise": dt.date(2026, 1, 1)},
+            derniers_starts={"TURPE": dt.date(2025, 8, 1), "Accise": dt.date(2026, 8, 1)},
         )
 
         (a,) = avertissements
@@ -33,8 +33,8 @@ class TestAvertissementsPeremption:
         assert a.dernier_start == dt.date(2025, 8, 1)
         assert "délibération CRE" in a.consigne
 
-    def test_accise_en_retard_apres_le_premier_janvier(self):
-        """Loi de finances attendue au 1ᵉʳ janvier : ligne absente → avertissement Accise."""
+    def test_accise_en_retard_apres_le_premier_fevrier(self):
+        """Indexation ZNI attendue au 1ᵉʳ février : ligne absente → avertissement Accise."""
         avertissements = avertissements_peremption(
             dt.date(2026, 6, 13),
             derniers_starts={"TURPE": dt.date(2025, 8, 1), "Accise": dt.date(2025, 8, 1)},
@@ -42,14 +42,24 @@ class TestAvertissementsPeremption:
 
         (a,) = avertissements
         assert a.taxe == "Accise"
-        assert a.attendu_depuis == dt.date(2026, 1, 1)
-        assert "loi de finances" in a.consigne
+        assert a.attendu_depuis == dt.date(2026, 2, 1)
+        assert "arrêté" in a.consigne
+
+    def test_accise_en_retard_apres_le_premier_aout(self):
+        """#736 : le 1ᵉʳ août 2026 est passé inaperçu avec un seul jalon au 1ᵉʳ janvier."""
+        (a,) = avertissements_peremption(
+            dt.date(2026, 10, 30),
+            derniers_starts={"TURPE": dt.date(2026, 8, 1), "Accise": dt.date(2026, 2, 1)},
+        )
+
+        assert a.taxe == "Accise"
+        assert a.attendu_depuis == dt.date(2026, 8, 1)
 
     def test_cta_sans_rythme_jamais_signalee(self):
         """Pas de rythme connu pour la CTA : pas de check, même très ancienne."""
         avertissements = avertissements_peremption(
             dt.date(2030, 6, 1),
-            derniers_starts={"TURPE": dt.date(2029, 8, 1), "Accise": dt.date(2030, 1, 1), "CTA": dt.date(2020, 1, 1)},
+            derniers_starts={"TURPE": dt.date(2029, 8, 1), "Accise": dt.date(2030, 2, 1), "CTA": dt.date(2020, 1, 1)},
         )
 
         assert avertissements == ()
@@ -58,7 +68,7 @@ class TestAvertissementsPeremption:
         """Le message dit quoi vérifier, avec les deux dates qui situent le retard."""
         (a,) = avertissements_peremption(
             dt.date(2026, 8, 2),
-            derniers_starts={"TURPE": dt.date(2025, 8, 1), "Accise": dt.date(2026, 1, 1)},
+            derniers_starts={"TURPE": dt.date(2025, 8, 1), "Accise": dt.date(2026, 8, 1)},
         )
 
         assert "TURPE" in a.message
