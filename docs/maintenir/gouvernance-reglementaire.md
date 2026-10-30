@@ -45,7 +45,7 @@ technique de la fédération, une alerte automatisée, peu importe le canal : le
 d'entrée reste toujours la contribution, jamais un flux de données lu en direct par les
 pipelines. Un **check de péremption** heuristique existe déjà comme filet
 (`core/peremption.py`, exposé via `GET /taxes/peremption`) : il compare la dernière ligne
-connue de chaque registre à un rythme attendu (TURPE ~1ᵉʳ août, Accise ~1ᵉʳ janvier ; la
+connue de chaque registre à un rythme attendu (TURPE ~1ᵉʳ août, Accise ~1ᵉʳ février et ~1ᵉʳ août ; la
 CTA n'a pas de rythme connu, donc pas de check) et **avertit sans jamais corriger** —
 un changement hors calendrier reste invisible tant qu'un humain ne le signale pas.
 
