@@ -19,6 +19,8 @@
 with flat as (
     select
         prm_id,
+        file_name,
+        modification_date,
         prm ->> '$.Id_PRM'                                                    as pdl,
         prm ->> '$.Segment_Clientele'                                         as segment_clientele,
         prm ->> '$.Num_Depannage'                                             as num_depannage,
@@ -117,7 +119,7 @@ releves_agg as (
 )
 
 select
-    * exclude (prm_id),
+    * exclude (prm_id, file_name, modification_date),
     -- Forme résiduelle descendue du loader (ADR-0042, #397) : `c15()` devient un SELECT *.
     -- Les dates sont déjà bien typées (date_evenement/avant/apres = TIMESTAMPTZ offset ;
     -- date_changement_niveau / date_derniere_modification_fta = DATE), rien à ré-ancrer.
@@ -125,3 +127,12 @@ select
     'kWh'      as unite,
     'kWh'      as precision
 from flat left join releves_agg using (prm_id)
+-- Renvoi d'événement C15 (glossaire ingestion, #740) : Enedis ré-émet parfois un
+-- événement déjà publié avec la situation *au moment de l'extraction* (MES renvoyée
+-- « RESILIE »). Ce n'est pas une correction → la PREMIÈRE publication fait foi, à
+-- l'inverse de `flux_affaires`/R64 (la plus récente gagne). file_name départage à
+-- égalité de date de publication (déterminisme). Le brut conserve les renvois.
+qualify row_number() over (
+    partition by pdl, ref_situation_contractuelle, date_evenement, evenement_declencheur
+    order by modification_date asc, file_name asc
+) = 1

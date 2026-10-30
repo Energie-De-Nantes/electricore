@@ -153,3 +153,74 @@ def test_garde_detecte_collision(base_c15_propre, colonne, valeur_divergente, tm
         f"le garde-fou n'a pas détecté la collision sur {colonne} "
         f"(statut={_statut_test(resultat, GARDE)}, success={resultat.success})"
     )
+
+
+# --- Renvois d'événement C15 (#740) : la première publication fait foi ---------
+
+
+def _livraison(file_name: str, modification_date: str, *, niveau: str, nature: str = "MCT") -> dict:
+    """Document C15 de la fixture, avec niveau d'ouverture et nature d'événement forcés."""
+    contenu = xml_vers_dict((FIXTURES / "c15_avec_releves.xml").read_bytes())
+    prm = contenu["PRM"][0]
+    prm["Niveau_Ouverture_Services"] = niveau
+    prm["Evenement_Declencheur"][0]["Nature_Evenement"] = nature
+    return {"file_name": file_name, "modification_date": modification_date, "content": contenu}
+
+
+def _flux_c15_depuis(livraisons: list[dict], tmp_path: Path):
+    """Lande les livraisons, bâtit `+flux_c15`, renvoie (lignes flux_c15, résultat du build)."""
+    import dlt
+
+    from electricore.ingestion.raw_landing import lander_documents_bruts
+
+    db_path = tmp_path / "flux.duckdb"
+    pipeline = dlt.pipeline(
+        pipeline_name=f"test_renvoi_{tmp_path.name}",
+        destination=dlt.destinations.duckdb(str(db_path)),
+        dataset_name="flux_raw",
+    )
+    lander_documents_bruts(pipeline, "raw_c15", livraisons)
+    build = _invoke(["build", "--select", "+flux_c15"], db_path, tmp_path)
+    con = duckdb.connect(str(db_path))
+    lignes = con.execute(
+        "select evenement_declencheur, niveau_ouverture_services from flux_enedis.flux_c15 order by 1, 2"
+    ).fetchall()
+    con.close()
+    return lignes, build
+
+
+def test_renvoi_ecarte_premiere_publication_fait_foi(tmp_path):
+    """Même événement livré deux fois, le renvoi arrive avec un autre niveau : on garde la 1re."""
+    lignes, build = _flux_c15_depuis(
+        [
+            _livraison("c15_b_renvoi.xml", "2026-10-15T00:00:00", niveau="1"),
+            _livraison("c15_a_initial.xml", "2026-09-11T00:00:00", niveau="2"),
+        ],
+        tmp_path,
+    )
+    assert lignes == [("MCT", "2")]
+    assert _statut_test(build, GARDE) == "pass"
+
+
+def test_renvoi_meme_date_depart_par_nom_de_fichier(tmp_path):
+    """Égalité de date de publication : le plus petit nom de fichier gagne (déterminisme)."""
+    lignes, _ = _flux_c15_depuis(
+        [
+            _livraison("c15_b.xml", "2026-10-15T00:00:00", niveau="1"),
+            _livraison("c15_a.xml", "2026-10-15T00:00:00", niveau="2"),
+        ],
+        tmp_path,
+    )
+    assert lignes == [("MCT", "2")]
+
+
+def test_evenements_de_types_differents_au_meme_instant_conserves(tmp_path):
+    """Deux natures d'événement au même instant sur la même RSC : pas un renvoi, on garde les deux."""
+    lignes, _ = _flux_c15_depuis(
+        [
+            _livraison("c15_a.xml", "2026-09-11T00:00:00", niveau="2", nature="MCT"),
+            _livraison("c15_b.xml", "2026-09-11T00:00:00", niveau="2", nature="MES"),
+        ],
+        tmp_path,
+    )
+    assert lignes == [("MCT", "2"), ("MES", "2")]
