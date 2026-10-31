@@ -6,7 +6,7 @@ l'appel d'une méthode). La base du paquet reste donc polars-free — l'invarian
 prouvé par le test de pureté tient même quand `[arrow]` n'est pas installé.
 
 Endpoints Arrow IPC (`/flux/{table}.arrow`, `/releves.arrow`, `/facturation/
-detail.arrow`, `/taxes/{accise,cta}/detail.arrow`) — pour les notebooks distants
+detail.arrow`, `/taxes/{accise,cta}/detail.arrow`, `/taxes/cta/declaration.arrow`) — pour les notebooks distants
 qui n'ont pas la base DuckDB en local (ADR-0009). Lecture seule (ADR-0012).
 
 Installer avec l'extra : `pip install "electricore-client[arrow]"`.
@@ -123,6 +123,19 @@ class ElectricoreArrowClient(_BaseClient):
             trimestre: "YYYY-TX" (ex. "2025-T1") — défaut : tous les trimestres.
         """
         return self._get_arrow("/taxes/cta/detail.arrow", {"trimestre": trimestre} if trimestre else {})
+
+    def declaration_cta(self, trimestre: str | None = None) -> pl.DataFrame:
+        """Déclaration CTA parc entier, sans Odoo — grain RSC × mois (#651, ADR-0058).
+
+        Colonnes : assiette `turpe_fixe_eur`, `taux_cta_pct`, `cta_eur`, `trimestre`, plus
+        `source_hash` (par ligne) et `empreinte_trimestre` (même valeur sur chaque ligne
+        du trimestre) pour repérer une dérive après déclaration.
+
+        Args:
+            trimestre: "YYYY-TN" (ex. "2026-T3"), qui doit être terminé, sinon
+                `PreconditionNonRemplie`. Défaut : tous les trimestres terminés.
+        """
+        return self._get_arrow("/taxes/cta/declaration.arrow", {"trimestre": trimestre} if trimestre else {})
 
 
 __all__ = ["ElectricoreArrowClient"]

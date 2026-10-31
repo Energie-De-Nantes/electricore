@@ -78,3 +78,17 @@ def test_message_clair_si_polars_absent(monkeypatch):
 
     # Restaure pour les imports ultérieurs.
     importlib.reload(arrow_mod)
+
+
+def test_declaration_cta_propage_le_trimestre():
+    """`declaration_cta(trimestre)` lit `/taxes/cta/declaration.arrow` (#651)."""
+    attendu = pl.DataFrame({"pdl": ["p"], "cta_eur": [1.5], "empreinte_trimestre": ["0123456789abcdef"]})
+    captures: list[httpx.URL] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captures.append(request.url)
+        return httpx.Response(200, content=_arrow_response(attendu))
+
+    assert _client(handler).declaration_cta("2026-T3").equals(attendu)
+    assert captures[0].path == "/taxes/cta/declaration.arrow"
+    assert captures[0].params.get("trimestre") == "2026-T3"
