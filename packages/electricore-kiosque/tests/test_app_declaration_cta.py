@@ -6,6 +6,7 @@ process via `app.run(defs=...)` (même patron que `test_exports.py`), helpers st
 
 from __future__ import annotations
 
+import base64
 import io
 
 import httpx
@@ -114,7 +115,7 @@ def test_notebook_affiche_le_dernier_trimestre_son_total_et_son_empreinte(monkey
 
     assert "2026-T3" in texte
     assert "empreinte-2026-T3" in texte
-    assert "3.00 €" in texte  # 2 lignes × 1,50 € — somme d'affichage du seul trimestre choisi
+    assert "3,00 €" in texte  # 2 lignes × 1,50 € — somme d'affichage du seul trimestre choisi
     assert "empreinte-2026-T2" not in texte
     assert "declaration_cta_2026-T3.xlsx" in texte
 
@@ -136,3 +137,30 @@ def test_notebook_erreurs_affichees_sans_traceback(monkeypatch: pytest.MonkeyPat
 def test_notebook_sans_cle_attend() -> None:
     sorties, _ = declaration_cta.app.run(defs={"cle": _FakeCle("")})
     assert "En attente d'une clé API" in sorties[-1].text
+
+
+def test_notebook_telecharge_les_octets_de_l_api_tels_quels(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Le bouton sert exactement les octets rendus par l'API (aucun fichier fabriqué ici)."""
+    xlsx = b"PK\x03\x04contenu-xlsx-de-l-api"
+    texte = _rendu(monkeypatch, xlsx=xlsx)
+    assert base64.b64encode(xlsx).decode() in texte
+
+
+def test_notebook_echec_du_telechargement_affiche_le_motif(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _refus(cle: str, trimestre: str, **kw: object) -> bytes:
+        raise helpers.ServiceIndisponible(
+            "Le trimestre 2026-T3 n'est pas terminé : seul un trimestre terminé se déclare."
+        )
+
+    monkeypatch.setattr(helpers, "recuperer_declaration_cta", lambda cle, **kw: _LIGNES)
+    monkeypatch.setattr(helpers, "telecharger_declaration_cta", _refus)
+    sorties, _ = declaration_cta.app.run(defs={"cle": _FakeCle("une-cle")})
+    texte = sorties[-1].text
+    assert "seul un trimestre terminé se déclare" in texte
+    assert "empreinte-2026-T3" in texte  # l'aperçu reste affiché
+
+
+def test_notebook_api_url_manquante(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("KIOSQUE__API_URL", raising=False)
+    sorties, _ = declaration_cta.app.run(defs={"cle": _FakeCle("une-cle")})
+    assert "KIOSQUE__API_URL manquante" in sorties[-1].text

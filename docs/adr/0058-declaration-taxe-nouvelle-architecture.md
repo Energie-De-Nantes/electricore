@@ -114,3 +114,13 @@ régulariser, c'est l'écart sur le total.
 - Le même schéma (`/taxes/<taxe>/declaration.*`) sert de modèle pour les taxes suivantes.
   **L'accise ne le suit pas directement** : son assiette de déclaration est le *facturé*,
   qui appartient à l'ERP (ADR-0027). Elle demandera sa propre décision.
+
+## Amendements
+
+### 2026-11-01 — sommes d'affichage dans l'aperçu Kiosque (#708)
+
+Précision du §1, conforme au cadrage de #708 : l'aperçu du Kiosque affiche, pour le
+trimestre choisi, le total CTA, l'assiette TURPE fixe et le nombre de PDL — de simples
+sommes d'affichage sur les lignes du cœur Arrow. Ce ne sont pas des livrables : les
+onglets Résumé et Par taux restent produits par l'API seule, et le document téléchargé
+est l'XLSX servi par l'API. Aucun consommateur ne recalcule la CTA ni l'empreinte.

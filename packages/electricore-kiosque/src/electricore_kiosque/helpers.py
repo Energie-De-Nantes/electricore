@@ -7,7 +7,7 @@ notebook, jamais stockée ici. Un notebook appelle directement une fonction
 nu) — toute la logique de fetch/erreur/cycle de vie vit ici pour que le notebook
 reste de la présentation pure au-dessus des helpers (voir `exports.py`).
 
-Les relevés/flux bruts passent par `ElectricoreArrowClient` (extra `[arrow]`,
+Les relevés, flux bruts et la déclaration CTA passent par `ElectricoreArrowClient` (extra `[arrow]`,
 amendement 2026-08-24 à l'ADR-0057) : polars entre dans le Kiosque via cet extra
 public du client, jamais via le moteur `electricore`.
 """
@@ -32,7 +32,8 @@ _STATUTS_CLE_REFUSEE = {401, 403}
 _ERREURS_CONNEXION = (httpx.ConnectError, httpx.ConnectTimeout)
 
 # Bandeau « vue tronquée » (relevés + flux bruts, #720/#721) : plafond dur côté
-# kiosque, jamais de transfert du mart/table entier. Heuristique de troncature
+# kiosque, jamais de transfert du mart/table entier (la déclaration CTA en est exemptée :
+# grain RSC × mois des seuls trimestres terminés, volume borné par construction). Heuristique de troncature
 # volontairement simple : lignes retournées >= la limite ⇒ probablement tronqué
 # (faux positif possible si la source contient exactement ce compte, sans
 # conséquence pratique). Partagée entre `recuperer_releves` et `recuperer_flux` :
@@ -57,7 +58,7 @@ class TableFluxAbsente(Exception):
 class ServiceIndisponible(Exception):
     """L'API `electricore` est momentanément inutilisable — message actionnable, pas de stacktrace.
 
-    Une seule classe pour trois causes opérationnelles (#722) : ingestion en cours
+    Une seule classe pour les causes opérationnelles (#722) : ingestion en cours
     (`IngestionEnCours`), API injoignable (`httpx.ConnectError`/`ConnectTimeout`),
     versions client/serveur désynchronisées (`ContractVersionError`). Le notebook
     les rattrape et les affiche identiquement (`mo.md(f"⚠️ **{exc}**")`) — un seul
@@ -163,9 +164,8 @@ def recuperer_releves(
 
     Raises:
         CleApiRefusee: clé API invalide ou révoquée (401/403 côté API).
-        ServiceIndisponible: ingestion en cours ou API injoignable. (Pas de garde
-            de version de contrat sur cet endpoint Arrow — `ContractVersionError`
-            n'est donc pas de la partie ici, voir `ServiceIndisponible`.)
+        ServiceIndisponible: ingestion en cours ou API injoignable (traduction commune
+            `_traduire_erreurs_api` ; cet endpoint Arrow n'a pas de garde de version).
         config.ApiUrlManquante: `KIOSQUE__API_URL` absente (via `construire_client_arrow`).
     """
     with construire_client_arrow(cle, http_client=http_client) as client, _traduire_erreurs_api():
@@ -192,8 +192,8 @@ def recuperer_flux(
     Raises:
         CleApiRefusee: clé API invalide ou révoquée (401/403 côté API).
         TableFluxAbsente: la table n'existe pas sur cette box (404 côté API).
-        ServiceIndisponible: ingestion en cours ou API injoignable (même remarque
-            que `recuperer_releves` sur `ContractVersionError`).
+        ServiceIndisponible: ingestion en cours ou API injoignable (même traduction
+            commune que `recuperer_releves`).
         config.ApiUrlManquante: `KIOSQUE__API_URL` absente (via `construire_client_arrow`).
     """
     with construire_client_arrow(cle, http_client=http_client) as client:

@@ -25,7 +25,7 @@ smoke_kiosque_sert() {
     local port="${SMOKE_KIOSQUE_PORT:-18765}"
     local cid
     cid=$("$DOCKER_BIN" run -d --rm \
-        -e KIOSQUE__APPS=exports \
+        -e KIOSQUE__APPS=exports,declaration-cta \
         -e KIOSQUE__TITRE=Smoke \
         -e KIOSQUE__API_URL=http://smoke.invalid \
         -p "${port}:8765" \

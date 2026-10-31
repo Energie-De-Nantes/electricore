@@ -167,7 +167,7 @@ serveur — tout vit dans `config.env` (clair).
 | `COMPOSE_PROFILES` | `config.env` | `kiosque` pour activer le conteneur (profil Compose, lu par le CLI depuis `--env-file` — pas de `--profile` à ajouter sur la ligne de commande). Absent/vide = pas de conteneur kiosque. |
 | `KIOSQUE_VERSION` | `config.env` | Tag GHCR à épingler (`ghcr.io/energie-de-nantes/electricore-kiosque`), même logique qu'`ELECTRICORE_VERSION`. |
 | `KIOSQUE__API_URL` | `config.env` | URL **publique** de l'API (`https://<domain>` de cette instance) — le kiosque l'appelle comme n'importe quel client, jamais par le réseau Docker interne. |
-| `KIOSQUE__APPS` | `config.env` | Apps du catalogue à monter (ex. `exports`). |
+| `KIOSQUE__APPS` | `config.env` | Apps du catalogue à monter, séparées par virgules : `exports`, `declaration-cta` (cf. [catalogue](https://github.com/Energie-De-Nantes/electricore/blob/main/packages/electricore-kiosque/README.md#catalogue)). |
 | `KIOSQUE__TITRE` | `config.env` | Nom de l'entité, affiché à l'accueil. |
 
 **Activer** pour un provider : ajouter les 5 lignes ci-dessus à

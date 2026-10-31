@@ -13,6 +13,10 @@ with app.setup:
     # sommes d'affichage ; le fichier téléchargé est l'XLSX servi par l'API.
     ERREURS_AFFICHABLES = (helpers.CleApiRefusee, helpers.ServiceIndisponible, config.ApiUrlManquante)
 
+    def euros(montant: float) -> str:
+        """Montant à la française : espace fine insécable des milliers, virgule décimale."""
+        return f"{montant:,.2f}".replace(",", "\u202f").replace(".", ",") + " €"
+
 
 @app.cell(hide_code=True)
 def _():
@@ -54,8 +58,8 @@ def _(cle, lignes, trimestre):
     du_trimestre = [ligne for ligne in lignes if ligne["trimestre"] == trimestre.value]
     premiere = du_trimestre[0]
     resume = mo.md(
-        f"**CTA {trimestre.value} : {sum(ligne['cta_eur'] for ligne in du_trimestre):,.2f} €** "
-        f"(assiette TURPE fixe {sum(ligne['turpe_fixe_eur'] for ligne in du_trimestre):,.2f} €, "
+        f"**CTA {trimestre.value} : {euros(sum(ligne['cta_eur'] for ligne in du_trimestre))}** "
+        f"(assiette TURPE fixe {euros(sum(ligne['turpe_fixe_eur'] for ligne in du_trimestre))}, "
         f"{len({ligne['pdl'] for ligne in du_trimestre})} PDL)\n\n"
         f"Empreinte du trimestre : `{premiere['empreinte_trimestre']}` "
         f"(version {premiere['version_empreinte']})"
