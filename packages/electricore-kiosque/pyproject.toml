@@ -1,6 +1,6 @@
 [project]
 name = "electricore-kiosque"
-version = "0.1.0"
+version = "0.2.0"
 description = "Kiosque : apps marimo hébergées en lecture seule pour néophytes — voir ADR-0057"
 authors = [
     {name = "Virgile"}
