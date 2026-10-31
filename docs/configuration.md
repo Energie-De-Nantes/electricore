@@ -75,7 +75,7 @@ lève `ConfigurationManquante` au boot (no-ERP servi tant que le bloc est entiè
 
 | variable | rôle |
 |---|---|
-| `KIOSQUE__APPS` | sélection d'apps à monter (noms du catalogue, séparés par virgules ; vide = accueil seul) |
+| `KIOSQUE__APPS` | sélection d'apps à monter (noms du catalogue — `exports`, `declaration-cta` —, séparés par virgules ; vide = accueil seul) |
 | `KIOSQUE__TITRE` | nom de l'entité, affiché par l'accueil |
 | `KIOSQUE__API_URL` | URL de l'API `electricore` interrogée par les notebooks (ex. `exports`) ; **requise**, aucun défaut codé en dur — fournie par le `config.env` du provider (`electricore-secrets`, ADR-0044), fail-fast sinon |
 
