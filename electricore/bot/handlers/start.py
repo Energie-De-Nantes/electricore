@@ -19,7 +19,7 @@ COMMANDES: list[tuple[str, str]] = [
     ("ingestion", "Ingestion : lancer, suivre, statut des jobs"),
     ("flux", "Tables brutes : stats et exports XLSX"),
     ("perimetre", "Périmètre : entrées et sorties C15"),
-    ("taxes", "Accise TICFE et CTA, par trimestre"),
+    ("taxes", "Déclaration CTA (et accise TICFE avec ERP), par trimestre"),
     ("facturation", "Documents et contrôles pré-facturation"),
     ("provision", "Estimation de provision d'un lissé par PDL"),
 ]

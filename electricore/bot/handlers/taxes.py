@@ -49,7 +49,7 @@ def clavier_principal() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([taxes, [InlineKeyboardButton("📜 Millésimes", callback_data="taxes:millesimes")]])
 
 
-async def _accise_indisponible(update: Update, taxe: str) -> bool:
+async def _refuser_accise_sans_erp(update: Update, taxe: str) -> bool:
     """Refuse l'accise (legacy, lue dans Odoo) sur une instance sans ERP (#159)."""
     if taxe == "accise" and not settings.is_odoo_configured:
         await update.effective_message.reply_text(_ACCISE_SANS_ERP)
@@ -114,7 +114,7 @@ async def cmd_taxes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if taxe not in _LIBELLES:
         await update.effective_message.reply_text(_USAGE)
         return
-    if await _accise_indisponible(update, taxe):
+    if await _refuser_accise_sans_erp(update, taxe):
         return
     trimestre = context.args[1] if len(context.args) > 1 else None
     msg = await update.effective_message.reply_html(f"⏳ Calcul {_LIBELLES[taxe]}…")
@@ -144,7 +144,7 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         )
     elif data.startswith("taxes:choix:"):
         taxe = data.removeprefix("taxes:choix:")
-        if await _accise_indisponible(update, taxe):
+        if await _refuser_accise_sans_erp(update, taxe):
             return
         await context.bot.edit_message_text(
             f"<b>{_LIBELLES[taxe]}</b> — choisis la période :",
@@ -156,6 +156,6 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     elif data.startswith("taxes:run:"):
         taxe, _, periode = data.removeprefix("taxes:run:").partition(":")
         trimestre = None if periode == "all" else periode
-        if await _accise_indisponible(update, taxe):
+        if await _refuser_accise_sans_erp(update, taxe):
             return
         await _envoyer_rapport(context.bot, chat_id, message_id, taxe, trimestre)

@@ -51,8 +51,9 @@ Trois comportements à connaître :
 - **Confirmation à deux taps** pour les actions coûteuses (le `resync` d'ingestion) —
   rien de lourd ne part par mégarde.
 
-> Si votre instance n'a **pas d'Odoo** configuré, les domaines `/taxes` et
-> `/facturation` sont **masqués** du menu (ils dépendent de l'ERP).
+> Si votre instance n'a **pas d'Odoo** configuré, le domaine `/facturation` est
+> **masqué** du menu (il dépend de l'ERP). `/taxes` reste disponible pour la **CTA** ;
+> seule l'**accise** y est masquée.
 
 ---
 
