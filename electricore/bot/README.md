@@ -25,7 +25,9 @@ adapté à l'instance.
 | `/start`, `/help` | — | annonce l'instance servie et la surface |
 
 ⁽ᵉʳᵖ⁾ masqué du menu et dégradé proprement quand aucun ERP n'est configuré
-(`is_odoo_configured`, cf. ADR-0016).
+(`is_odoo_configured`, cf. ADR-0016). Un domaine entier se garde par `@require_odoo` ;
+quand une seule action dépend de l'ERP (l'accise dans `/taxes`, la CTA s'en passe —
+ADR-0058), le handler masque son bouton et la refuse lui-même.
 
 Comportements notables :
 

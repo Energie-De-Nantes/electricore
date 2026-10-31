@@ -280,3 +280,24 @@ def test_get_cta_xlsx_appelle_la_declaration():
 
     assert vus[0].path == "/taxes/cta/declaration.xlsx"
     assert vus[0].params.get("trimestre") == "2025-T4"
+
+
+def test_vrai_422_precondition_remonte_le_detail_dans_le_chat(monkeypatch):
+    """Bout en bout côté bot : un vrai 422 (`detail` JSON) traverse `_lever_pour_statut`."""
+    motif = (
+        "Le trimestre 2026-T4 n'est pas terminé (calcul arrêté au 2026-11-01) : seul un trimestre terminé se déclare."
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(422, json={"detail": motif}, headers={"X-Error-Kind": "precondition"})
+
+    transport = httpx.MockTransport(handler)
+    monkeypatch.setattr(handlers_taxes, "ElectriCoreClient", lambda: ElectriCoreClient(transport=transport))
+    bot = FakeBot()
+
+    asyncio.run(handlers_taxes.cmd_taxes(update_commande(), contexte(args=["cta", "2026-T4"], bot=bot)))
+
+    texte = bot.edits[-1][2]
+    assert "seul un trimestre terminé se déclare" in texte
+    assert "Client error" not in texte
+    assert bot.documents == []

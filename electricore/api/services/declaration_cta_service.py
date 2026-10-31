@@ -71,7 +71,8 @@ def declaration_cta(trimestre: str | None = None, horizon: dt.datetime | None = 
             status_code=422,
             detail=(
                 f"Le trimestre {trimestre} n'est pas terminé (calcul arrêté au "
-                f"{jour_horizon.isoformat()}) : impossible de le déclarer."
+                f"{jour_horizon.isoformat()}) : seul un trimestre terminé se déclare. "
+                "Sans trimestre, tous les trimestres terminés sont servis."
             ),
             headers={"X-Error-Kind": "precondition"},
         )

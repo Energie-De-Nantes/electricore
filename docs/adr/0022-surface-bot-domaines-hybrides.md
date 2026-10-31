@@ -11,6 +11,6 @@ La surface du bot Telegram passe de 11 commandes plates (`/etl`, `/status`, `/st
 ## Conséquences
 
 - [ADR-0010](0010-bot-telegram-ui-operationnelle.md) reste valide : le choix Telegram et le statut de contrat de la surface ne changent pas. Le contrat est cassé une seule fois, annoncé dans le chat des opérateurs.
-- Le menu natif (`setMyCommands`) est publié au démarrage et adapté à l'instance : les domaines ERP-dépendants (`/taxes`, `/facturation`) sont masqués quand aucun ERP n'est configuré, et répondent par un message explicite s'ils sont tapés quand même.
+- Le menu natif (`setMyCommands`) est publié au démarrage et adapté à l'instance : les domaines ERP-dépendants (`/taxes`, `/facturation`) sont masqués quand aucun ERP n'est configuré, et répondent par un message explicite s'ils sont tapés quand même. *(Depuis [ADR-0058](0058-declaration-taxe-nouvelle-architecture.md), `/taxes` reste servi sans ERP pour la CTA ; seule l'accise est masquée — #746.)*
 - Chaque instance a son bot, nommé `@<slug>_electricore_bot` ; `/start` annonce l'instance servie.
 - Le mode déprécié `reset` disparaît de la surface ; `rebuild`, `resync` et la sélection de flux arbitraire (déjà supportés par l'API) y entrent.
