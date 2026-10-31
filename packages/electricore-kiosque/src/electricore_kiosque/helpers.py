@@ -14,10 +14,12 @@ public du client, jamais via le moteur `electricore`.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import date, timedelta
 
 import httpx
-from electricore_client import ContractVersionError, ElectricoreClient, IngestionEnCours
+from electricore_client import ContractVersionError, ElectricoreClient, IngestionEnCours, PreconditionNonRemplie
 from electricore_client.arrow import ElectricoreArrowClient
 
 from electricore_kiosque.config import api_url
@@ -61,10 +63,9 @@ class ServiceIndisponible(Exception):
     les rattrape et les affiche identiquement (`mo.md(f"⚠️ **{exc}**")`) — un seul
     message par cause suffit, pas besoin d'une hiérarchie.
 
-    `PreconditionNonRemplie` n'est volontairement pas de la partie : les trois
-    endpoints GET utilisés par le kiosque (méta-périodes, relevés, flux bruts)
-    ne l'émettent jamais côté API (seuls `/provision/estimation` et le detail de
-    facturation le font) — rien à convertir tant que ce chemin reste inatteignable.
+    S'y ajoute `PreconditionNonRemplie` (#708) : la déclaration CTA refuse un
+    trimestre non terminé (422 `precondition`) ; le motif de l'API est affiché tel
+    quel, il dit déjà quoi faire.
     """
 
 
@@ -84,6 +85,29 @@ def fenetre_dernier_mois(aujourdhui: date | None = None) -> tuple[str, str]:
     fin = aujourdhui.replace(day=1) - timedelta(days=1)
     debut = fin.replace(day=1)
     return debut.isoformat(), fin.isoformat()
+
+
+@contextmanager
+def _traduire_erreurs_api() -> Iterator[None]:
+    """Erreurs du client → exceptions affichables du kiosque (une seule table de traduction).
+
+    Une `httpx.HTTPStatusError` hors 401/403 est relancée telle quelle : à l'appelant
+    d'en traduire d'autres (ex. 404 → `TableFluxAbsente`).
+    """
+    try:
+        yield
+    except _ERREURS_CONNEXION as exc:
+        raise ServiceIndisponible(_MSG_API_INJOIGNABLE) from exc
+    except IngestionEnCours as exc:
+        raise ServiceIndisponible(_MSG_INGESTION_EN_COURS) from exc
+    except ContractVersionError as exc:
+        raise ServiceIndisponible(_MSG_VERSIONS_DESYNCHRONISEES) from exc
+    except PreconditionNonRemplie as exc:
+        raise ServiceIndisponible(str(exc)) from exc
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code in _STATUTS_CLE_REFUSEE:
+            raise CleApiRefusee() from exc
+        raise
 
 
 def construire_client(cle: str, *, http_client: httpx.Client | None = None) -> ElectricoreClient:
@@ -116,20 +140,9 @@ def recuperer_meta_periodes(cle: str, *, http_client: httpx.Client | None = None
             client/serveur désynchronisées.
         config.ApiUrlManquante: `KIOSQUE__API_URL` absente (via `construire_client`).
     """
-    with construire_client(cle, http_client=http_client) as client:
-        try:
-            with client.meta_periodes() as stream:
-                return [ligne.model_dump(exclude={"releves_utilises"}) for ligne in stream]
-        except _ERREURS_CONNEXION as exc:
-            raise ServiceIndisponible(_MSG_API_INJOIGNABLE) from exc
-        except IngestionEnCours as exc:
-            raise ServiceIndisponible(_MSG_INGESTION_EN_COURS) from exc
-        except ContractVersionError as exc:
-            raise ServiceIndisponible(_MSG_VERSIONS_DESYNCHRONISEES) from exc
-        except httpx.HTTPStatusError as exc:
-            if exc.response.status_code in _STATUTS_CLE_REFUSEE:
-                raise CleApiRefusee() from exc
-            raise
+    with construire_client(cle, http_client=http_client) as client, _traduire_erreurs_api():
+        with client.meta_periodes() as stream:
+            return [ligne.model_dump(exclude={"releves_utilises"}) for ligne in stream]
 
 
 def recuperer_releves(
@@ -155,17 +168,8 @@ def recuperer_releves(
             n'est donc pas de la partie ici, voir `ServiceIndisponible`.)
         config.ApiUrlManquante: `KIOSQUE__API_URL` absente (via `construire_client_arrow`).
     """
-    with construire_client_arrow(cle, http_client=http_client) as client:
-        try:
-            df = client.releves(prm=prm, debut=debut, fin=fin, limit=LIMITE_LIGNES)
-        except _ERREURS_CONNEXION as exc:
-            raise ServiceIndisponible(_MSG_API_INJOIGNABLE) from exc
-        except IngestionEnCours as exc:
-            raise ServiceIndisponible(_MSG_INGESTION_EN_COURS) from exc
-        except httpx.HTTPStatusError as exc:
-            if exc.response.status_code in _STATUTS_CLE_REFUSEE:
-                raise CleApiRefusee() from exc
-            raise
+    with construire_client_arrow(cle, http_client=http_client) as client, _traduire_erreurs_api():
+        df = client.releves(prm=prm, debut=debut, fin=fin, limit=LIMITE_LIGNES)
     lignes = df.to_dicts()
     return lignes, len(lignes) >= LIMITE_LIGNES
 
@@ -194,16 +198,36 @@ def recuperer_flux(
     """
     with construire_client_arrow(cle, http_client=http_client) as client:
         try:
-            df = client.flux(table, prm=prm, limit=LIMITE_LIGNES)
-        except _ERREURS_CONNEXION as exc:
-            raise ServiceIndisponible(_MSG_API_INJOIGNABLE) from exc
-        except IngestionEnCours as exc:
-            raise ServiceIndisponible(_MSG_INGESTION_EN_COURS) from exc
+            with _traduire_erreurs_api():
+                df = client.flux(table, prm=prm, limit=LIMITE_LIGNES)
         except httpx.HTTPStatusError as exc:
-            if exc.response.status_code in _STATUTS_CLE_REFUSEE:
-                raise CleApiRefusee() from exc
             if exc.response.status_code == 404:
                 raise TableFluxAbsente(table) from exc
             raise
     lignes = df.to_dicts()
     return lignes, len(lignes) >= LIMITE_LIGNES
+
+
+def recuperer_declaration_cta(cle: str, *, http_client: httpx.Client | None = None) -> list[dict]:
+    """Déclaration CTA parc entier (#708, ADR-0058) : grain RSC × mois, trimestres terminés.
+
+    Chaque ligne porte `source_hash`, `empreinte_trimestre` et `version_empreinte` —
+    calculées côté API, jamais ici. Volume borné (un an ≈ quelques milliers de lignes),
+    pas de plafond `LIMITE_LIGNES`.
+
+    Raises:
+        CleApiRefusee, ServiceIndisponible, config.ApiUrlManquante : voir `_traduire_erreurs_api`.
+    """
+    with construire_client_arrow(cle, http_client=http_client) as client, _traduire_erreurs_api():
+        return client.declaration_cta().to_dicts()
+
+
+def telecharger_declaration_cta(cle: str, trimestre: str, *, http_client: httpx.Client | None = None) -> bytes:
+    """Octets du XLSX de déclaration servi par l'API pour `trimestre` — le même document que le bot.
+
+    Raises:
+        CleApiRefusee, ServiceIndisponible (dont trimestre non terminé),
+        config.ApiUrlManquante : voir `_traduire_erreurs_api`.
+    """
+    with construire_client(cle, http_client=http_client) as client, _traduire_erreurs_api():
+        return client.declaration_cta_xlsx(trimestre)

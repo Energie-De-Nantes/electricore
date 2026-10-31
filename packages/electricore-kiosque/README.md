@@ -49,6 +49,16 @@ Un nom absent du catalogue dans `KIOSQUE__APPS` fait échouer le démarrage (mes
   opérationnelles côté serveur (ingestion en cours, API injoignable, versions
   client/serveur désynchronisées, #722).
 
+- **`declaration-cta`** — déclaration CTA parc entier, sans Odoo (#708,
+  [ADR-0058](../../docs/adr/0058-declaration-taxe-nouvelle-architecture.md)) : choix d'un
+  **trimestre terminé**, total CTA et assiette TURPE fixe du trimestre, **empreinte** du
+  trimestre (à noter avec la déclaration ; elle change si un montant ou une ligne bouge),
+  détail RSC × mois, et téléchargement de l'**XLSX servi par l'API** (Résumé / Par taux /
+  Détail) — le même document que livre le bot `/taxes cta`. Présentation pure : CTA,
+  agrégats Par taux et empreintes sont calculés côté API, le notebook ne fait qu'un
+  filtre et deux sommes d'affichage. Trimestre non terminé (422 `precondition`) : le
+  motif de l'API s'affiche, comme les autres erreurs opérationnelles.
+
 ## Lancement local
 
 ```bash
