@@ -116,4 +116,47 @@ def test_feuilles_resume_porte_empreinte_et_version(monkeypatch):
     ]
     assert resume.join(df.select("trimestre", "empreinte_trimestre").unique(), on="trimestre").height == 2
     assert (resume["version_empreinte"] == service.VERSION_EMPREINTE).all()
+    assert (df["version_empreinte"] == service.VERSION_EMPREINTE).all()
     assert feuilles["Détail"].equals(df)
+
+
+@pytest.mark.parametrize("operation", ["ajout", "retrait"])
+def test_empreinte_change_si_une_ligne_apparait_ou_disparait(monkeypatch, operation):
+    """Une ligne de plus ou de moins dans un trimestre change son empreinte, pas celle des autres."""
+    base = _facturation()
+    _brancher(monkeypatch, base)
+    avant = service.declaration_cta(horizon=HORIZON)
+
+    if operation == "ajout":
+        nouvelle = base.filter(pl.col("ref_situation_contractuelle") == "RSC-1", pl.col("mois_annee") == "2025-02")
+        modifiee = pl.concat([base, nouvelle.with_columns(ref_situation_contractuelle=pl.lit("RSC-3"))])
+    else:
+        modifiee = base.filter(
+            ~((pl.col("ref_situation_contractuelle") == "RSC-2") & (pl.col("mois_annee") == "2025-02"))
+        )
+    _brancher(monkeypatch, modifiee)
+    apres = service.declaration_cta(horizon=HORIZON)
+
+    def empreinte(df: pl.DataFrame, trimestre: str) -> str:
+        return df.filter(pl.col("trimestre") == trimestre)["empreinte_trimestre"][0]
+
+    assert empreinte(avant, "2025-T1") != empreinte(apres, "2025-T1")
+    assert empreinte(avant, "2025-T2") == empreinte(apres, "2025-T2")
+
+
+@pytest.mark.parametrize(
+    ("horizon", "termine", "en_cours"),
+    [
+        # 1ᵉʳ janvier : changement d'année, le T4 précédent vient de se terminer.
+        (dt.datetime(2026, 1, 1, tzinfo=PARIS), "2025-T4", "2026-T1"),
+        # Milieu de trimestre : le trimestre de l'horizon reste en cours.
+        (dt.datetime(2025, 8, 1, tzinfo=PARIS), "2025-T2", "2025-T3"),
+        # Horizon exprimé en UTC (22 h la veille) : jugé sur le jour civil de Paris.
+        (dt.datetime(2025, 9, 30, 22, tzinfo=dt.UTC), "2025-T3", "2025-T4"),
+    ],
+)
+def test_frontiere_trimestre_termine(monkeypatch, horizon, termine, en_cours):
+    _brancher(monkeypatch, _facturation())
+    service.declaration_cta(termine, horizon=horizon)  # ne lève pas
+    with pytest.raises(HTTPException):
+        service.declaration_cta(en_cours, horizon=horizon)

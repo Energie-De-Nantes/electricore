@@ -302,8 +302,8 @@ class ElectricoreClient(_BaseClient):
     def declaration_cta_xlsx(self, trimestre: str | None = None) -> bytes:
         """Déclaration CTA parc entier en XLSX — octets du document servi par l'API (#651).
 
-        Onglets Résumé (avec l'empreinte du trimestre) / Par taux / Détail : le même
-        document que livre le bot, à enregistrer tel quel. Le cœur structuré est
+        Onglets Résumé (avec l'empreinte du trimestre) / Par taux / Détail : le
+        document de référence servi par l'API, à enregistrer tel quel. Le cœur structuré est
         `ElectricoreArrowClient.declaration_cta()` (extra `[arrow]`).
 
         Args:

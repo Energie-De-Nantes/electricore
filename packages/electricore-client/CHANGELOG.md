@@ -10,9 +10,11 @@ le versionnage suit [SemVer](https://semver.org/lang/fr/).
 - Déclaration CTA parc entier, sans Odoo (#651, ADR-0058) :
   - `ElectricoreArrowClient.declaration_cta(trimestre)` (extra `[arrow]`) : GET
     `/taxes/cta/declaration.arrow`, grain RSC × mois (assiette TURPE fixe, taux,
-    CTA, trimestre) avec `source_hash` par ligne et `empreinte_trimestre` ;
+    CTA, trimestre) avec `source_hash` par ligne, `empreinte_trimestre` et
+    `version_empreinte` ;
   - `ElectricoreClient.declaration_cta_xlsx(trimestre)` : octets du XLSX
-    (Résumé avec empreinte / Par taux / Détail), le même document que livre le bot.
+    (Résumé avec empreinte / Par taux / Détail), le document de référence à enregistrer
+    tel quel.
   Un trimestre non terminé lève `PreconditionNonRemplie` (422 `precondition`) ;
   sans trimestre, seuls les trimestres terminés sont servis.
 

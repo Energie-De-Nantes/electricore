@@ -62,14 +62,15 @@ Pour repérer une dérive sans comparer des fichiers entiers :
   de montant `ref_situation_contractuelle`, `pdl`, `mois_annee`, `turpe_fixe_eur`,
   `taux_cta_pct`, `cta_eur` (sans `trimestre`, qui se déduit de `mois_annee`). Il dit
   *quelles* lignes ont bougé.
-- `empreinte_trimestre` est le sha256 tronqué des `source_hash` **triés** du trimestre. Elle
+- `empreinte_trimestre` est le sha256 tronqué des `source_hash` **triés** du trimestre
+  (`empreinte_agregat`, dans le même module que le noyau). Elle
   est répétée sur chaque ligne de l'Arrow et affichée dans l'onglet Résumé. C'est la valeur
   qu'on note avec la déclaration : la même empreinte au retéléchargement signifie que rien
   n'a bougé. Elle est calculée **une seule fois, côté serveur**, plutôt que par chaque
   consommateur (trois implémentations à garder identiques).
 
 La liste de colonnes et la construction de l'empreinte forment un **contrat** :
-`VERSION_EMPREINTE` (exposée dans le Résumé) doit être incrémentée à toute modification,
+`VERSION_EMPREINTE` (colonne `version_empreinte`, dans l'Arrow comme dans le Résumé) doit être incrémentée à toute modification,
 puisque les empreintes de deux versions différentes ne se comparent pas. L'empreinte est
 volontairement **plus sensible que la déclaration** : une CTA qui passe d'un contrat à un
 autre, total inchangé, la fait changer. C'est un signal d'audit. Ce qui décide s'il faut

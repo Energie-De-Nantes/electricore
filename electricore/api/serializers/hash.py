@@ -59,3 +59,13 @@ def empreinte_contenu(df: pl.DataFrame, colonnes: list[str]) -> pl.Series:
         for ligne in zip(*valeurs_par_colonne, strict=True)
     ]
     return pl.Series(hashes, dtype=pl.Utf8)
+
+
+def empreinte_agregat(empreintes: list[str]) -> str:
+    """Empreinte d'un ensemble de lignes : sha256 tronqué de leurs empreintes **triées**.
+
+    Indépendante de l'ordre des lignes, sensible à tout ajout, retrait ou changement
+    d'une ligne (ex. `empreinte_trimestre` de la déclaration CTA, ADR-0058). Même
+    séparateur `␟` et même troncature à 16 que `empreinte_contenu`.
+    """
+    return hashlib.sha256("␟".join(sorted(empreintes)).encode()).hexdigest()[:16]

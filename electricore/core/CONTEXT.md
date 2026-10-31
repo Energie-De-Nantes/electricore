@@ -269,6 +269,16 @@ qui remplace deux canonicaliseurs divergents historiques (`_ajouter_source_hash`
 _Éviter_ : hash Polars natif (`pl.Expr.hash()`, instable entre versions, ne couvre pas
 les colonnes `pl.Object`).
 
+**Empreinte de trimestre** (`empreinte_trimestre`, kernel `empreinte_agregat`, ADR-0058) :
+Empreinte d'un trimestre de la *déclaration CTA* : sha256 tronqué des *empreintes de
+contenu* (`source_hash`) **triées** de ses lignes RSC × mois — indépendante de l'ordre,
+sensible à tout montant changé et à toute ligne ajoutée ou retirée. Se note avec la
+déclaration : même empreinte au retéléchargement = rien n'a bougé. Contrat versionné
+(`version_empreinte`) : deux empreintes de versions différentes ne se comparent pas. Plus
+sensible que la déclaration elle-même (une CTA déplacée entre contrats à total constant la
+change) — signal d'audit ; c'est l'écart de total qui décide d'une *régularisation*.
+_Éviter_ : la recalculer côté consommateur (une seule implémentation, côté serveur).
+
 **Origine de relevé** :
 Axe qui distingue **comment** un relevé a été pris : *périodique* (télérelevé automatique R151/R64, à cadence régulière) ou *événementiel* (relevé pris à un *événement* contractuel C15 — `evenement_declencheur` en précise la cause : `MES` mise en service, `MCT` modification/changement, `RES` résiliation…). Porté aux champs `origine_releve` (+ `evenement` si événementiel) des *Relevés utilisés* exposés ; dérivé à l'exposition de la `source` du relevé et de l'`evenement_declencheur` que le mart `releves` porte **nativement** depuis les relevés C15 (non forward-fillé — un télérelevé n'est déclenché par aucun événement ; comme RSC/FTA/niveau, désormais natifs eux aussi, plus recopiés, [ADR-0039](../../docs/adr/0039-chronologie-substrat-attributs-situation-hors-mart.md)). Axe **orthogonal** à la *nature d'index* (réel/estimé/corrigé, qui qualifie la *valeur* lue, pas l'origine).
 _Éviter_ : « quotidien » (un R151 est périodique sans être quotidien), confondre avec la *nature d'index*.

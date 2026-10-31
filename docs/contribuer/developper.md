@@ -223,7 +223,8 @@ que le writer DuckDB relâche le verrou.
 | `GET /perimetre/affaires` | Cockpit des affaires SGE ouvertes (X12/X13) |
 | `POST /ingestion/run` · `GET /ingestion/jobs` · `/jobs/{id}` | Déclencher et suivre les jobs d'ingestion |
 | `GET /taxes/millesimes` · `/peremption` | Millésimes et péremption des taux régulés (sans ERP) |
-| `GET /taxes/accise/*` · `/cta/*` | Rapports & détails Accise / CTA (XLSX, Arrow) — *requiert Odoo* |
+| `GET /taxes/cta/declaration.{arrow,xlsx}` | Déclaration CTA parc entier, avec empreintes ([ADR-0058](../adr/0058-declaration-taxe-nouvelle-architecture.md)) — *sans Odoo* |
+| `GET /taxes/accise/*` · `/taxes/cta/{rapport,detail}*` | Rapports & détails Accise / CTA legacy (XLSX, Arrow) — *requiert Odoo* |
 | **`GET /facturation/meta-periodes`** | Méta-périodes mensuelles en **flux JSONL typé** |
 | **`GET /facturation/chronologie`** | Frise facturiste d'un `pdl` ou `rsc` (faits + verdicts, **sans montant**) |
 | **`POST /facturation/turpe-variable`** | Calculateur TURPE variable (RPC typé, l'appelant fournit l'assiette) |

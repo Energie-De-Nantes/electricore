@@ -38,6 +38,7 @@ def declaration() -> pl.DataFrame:
             "cta_eur": [2.19],
             "source_hash": ["deadbeefcafe0001"],
             "empreinte_trimestre": ["0123456789abcdef"],
+            "version_empreinte": [1],
         }
     )
 

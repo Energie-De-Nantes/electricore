@@ -129,7 +129,8 @@ class ElectricoreArrowClient(_BaseClient):
 
         Colonnes : assiette `turpe_fixe_eur`, `taux_cta_pct`, `cta_eur`, `trimestre`, plus
         `source_hash` (par ligne) et `empreinte_trimestre` (même valeur sur chaque ligne
-        du trimestre) pour repérer une dérive après déclaration.
+        du trimestre) pour repérer une dérive après déclaration ; `version_empreinte`
+        dit si deux empreintes sont comparables.
 
         Args:
             trimestre: "YYYY-TN" (ex. "2026-T3"), qui doit être terminé, sinon
