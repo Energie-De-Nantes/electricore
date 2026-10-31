@@ -15,6 +15,7 @@ from electricore.api.config import settings
 from electricore.api.routers import admin as admin_router
 from electricore.api.routers import affaires as affaires_router
 from electricore.api.routers import chronologie as chronologie_router
+from electricore.api.routers import declaration_cta as declaration_cta_router
 from electricore.api.routers import facturation as facturation_router
 from electricore.api.routers import flux as flux_router
 from electricore.api.routers import ingestion as ingestion_router
@@ -111,7 +112,8 @@ app = FastAPI(
         {
             "name": "taxes",
             "description": "Registre des taux régulés en vigueur — millésimes et péremption de TURPE, "
-            "Accise TICFE et CTA (authentification requise)",
+            "Accise TICFE et CTA — et déclarations sans Odoo (`/taxes/cta/declaration.*`, ADR-0058) "
+            "(authentification requise)",
         },
         {
             "name": "facturation",
@@ -162,6 +164,7 @@ app.include_router(ingestion_router.router)
 app.include_router(flux_router.router)
 app.include_router(releves_router.router)
 app.include_router(taxes_router.router)
+app.include_router(declaration_cta_router.router)
 app.include_router(facturation_router.router)
 app.include_router(meta_periodes_router.router)
 app.include_router(prestations_router.router)

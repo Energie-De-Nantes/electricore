@@ -43,10 +43,14 @@ with client.prestations() as stream:
 # Résolution RSC : lot d'id_Affaire (X12) → ref_situation_contractuelle (POST RPC)
 resultats = client.resoudre_rsc(["id_affaire_1", "id_affaire_2"])
 par_id = {r.id_affaire: r for r in resultats}   # chaque résultat porte ref ou error
+
+# Déclaration CTA parc entier en XLSX (octets du document servi par l'API)
+contenu = client.declaration_cta_xlsx("2026-T3")  # trimestre non terminé → PreconditionNonRemplie
 ```
 
-Le client Arrow historique (`flux/releves/facturation/accise/cta` → `pl.DataFrame`)
-vit dans `electricore_client.arrow`, derrière l'extra `[arrow]`.
+Le client Arrow (`flux/releves/facturation/accise/cta` historiques, plus
+`declaration_cta(trimestre)` → `pl.DataFrame`) vit dans `electricore_client.arrow`,
+derrière l'extra `[arrow]`.
 
 ## Conception
 

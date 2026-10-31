@@ -299,6 +299,25 @@ class ElectricoreClient(_BaseClient):
 
         return RapportProvision.model_validate(response.json())
 
+    def declaration_cta_xlsx(self, trimestre: str | None = None) -> bytes:
+        """Déclaration CTA parc entier en XLSX — octets du document servi par l'API (#651).
+
+        Onglets Résumé (avec l'empreinte du trimestre) / Par taux / Détail : le même
+        document que livre le bot, à enregistrer tel quel. Le cœur structuré est
+        `ElectricoreArrowClient.declaration_cta()` (extra `[arrow]`).
+
+        Args:
+            trimestre: "YYYY-TN", qui doit être terminé, sinon `PreconditionNonRemplie`.
+                Défaut : tous les trimestres terminés.
+        """
+        response = self._http.get(
+            f"{self.url}/taxes/cta/declaration.xlsx",
+            params={"trimestre": trimestre} if trimestre else {},
+            headers=self._headers,
+        )
+        self._raise_for_status(response)
+        return response.content
+
     def sorties(self, rsc: list[str]) -> list[LigneSortie]:
         """Sorties du périmètre pour un lot de RSC — **POST RPC** (pas un stream).
 
