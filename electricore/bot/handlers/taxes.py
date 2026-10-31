@@ -3,6 +3,10 @@
 Navigation par boutons (type de taxe → trimestre, dérivé de la date courante)
 ou raccourcis texte v1 inchangés : `/taxes accise [trimestre]`, `/taxes cta
 [trimestre]`.
+
+La CTA est la déclaration parc entier sans Odoo (#746, ADR-0058) : le domaine
+reste servi sur une instance sans ERP, seule l'accise (legacy, Odoo) y est
+masquée et refusée.
 """
 
 from datetime import date
@@ -10,7 +14,8 @@ from datetime import date
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
-from electricore.bot.auth import require_allowed, require_odoo
+from electricore.api.config import settings
+from electricore.bot.auth import require_allowed
 from electricore.bot.client import ElectriCoreClient
 from electricore.bot.format import escape
 from electricore.bot.livraison import envoyer_document
@@ -21,6 +26,8 @@ _USAGE = (
 )
 
 _LIBELLES = {"accise": "Accise TICFE", "cta": "CTA"}
+
+_ACCISE_SANS_ERP = "⚠️ Instance sans ERP connecté — l'accise n'est pas disponible ici (la CTA, si)."
 
 
 def derniers_trimestres(aujourd_hui: date, n: int = 4) -> list[str]:
@@ -36,15 +43,18 @@ def derniers_trimestres(aujourd_hui: date, n: int = 4) -> list[str]:
 
 
 def clavier_principal() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        [
-            [
-                InlineKeyboardButton("🧾 Accise", callback_data="taxes:choix:accise"),
-                InlineKeyboardButton("📊 CTA", callback_data="taxes:choix:cta"),
-            ],
-            [InlineKeyboardButton("📜 Millésimes", callback_data="taxes:millesimes")],
-        ]
-    )
+    taxes = [InlineKeyboardButton("📊 CTA", callback_data="taxes:choix:cta")]
+    if settings.is_odoo_configured:
+        taxes.insert(0, InlineKeyboardButton("🧾 Accise", callback_data="taxes:choix:accise"))
+    return InlineKeyboardMarkup([taxes, [InlineKeyboardButton("📜 Millésimes", callback_data="taxes:millesimes")]])
+
+
+async def _accise_indisponible(update: Update, taxe: str) -> bool:
+    """Refuse l'accise (legacy, lue dans Odoo) sur une instance sans ERP (#159)."""
+    if taxe == "accise" and not settings.is_odoo_configured:
+        await update.effective_message.reply_text(_ACCISE_SANS_ERP)
+        return True
+    return False
 
 
 def formater_millesimes(millesimes: list[dict]) -> str:
@@ -91,7 +101,6 @@ async def _envoyer_rapport(bot, chat_id: int, message_id: int, taxe: str, trimes
 
 
 @require_allowed
-@require_odoo
 async def cmd_taxes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not context.args:
         await update.effective_message.reply_html(_TITRE_MENU, reply_markup=clavier_principal())
@@ -105,13 +114,14 @@ async def cmd_taxes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if taxe not in _LIBELLES:
         await update.effective_message.reply_text(_USAGE)
         return
+    if await _accise_indisponible(update, taxe):
+        return
     trimestre = context.args[1] if len(context.args) > 1 else None
     msg = await update.effective_message.reply_html(f"⏳ Calcul {_LIBELLES[taxe]}…")
     await _envoyer_rapport(context.bot, msg.chat_id, msg.message_id, taxe, trimestre)
 
 
 @require_allowed
-@require_odoo
 async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
@@ -134,6 +144,8 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         )
     elif data.startswith("taxes:choix:"):
         taxe = data.removeprefix("taxes:choix:")
+        if await _accise_indisponible(update, taxe):
+            return
         await context.bot.edit_message_text(
             f"<b>{_LIBELLES[taxe]}</b> — choisis la période :",
             chat_id=chat_id,
@@ -144,4 +156,6 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     elif data.startswith("taxes:run:"):
         taxe, _, periode = data.removeprefix("taxes:run:").partition(":")
         trimestre = None if periode == "all" else periode
+        if await _accise_indisponible(update, taxe):
+            return
         await _envoyer_rapport(context.bot, chat_id, message_id, taxe, trimestre)

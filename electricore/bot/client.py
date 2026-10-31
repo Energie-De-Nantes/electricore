@@ -121,8 +121,9 @@ class ElectriCoreClient:
         return await self._get_bytes("/taxes/accise/rapport.xlsx", params=params, timeout=TIMEOUT_LOURD)
 
     async def get_cta_xlsx(self, trimestre: str | None = None) -> bytes:
+        """Déclaration CTA parc entier, sans Odoo (#746, ADR-0058) — trimestres terminés seulement."""
         params = {"trimestre": trimestre} if trimestre else None
-        return await self._get_bytes("/taxes/cta/rapport.xlsx", params=params, timeout=TIMEOUT_LOURD)
+        return await self._get_bytes("/taxes/cta/declaration.xlsx", params=params, timeout=TIMEOUT_LOURD)
 
     async def get_millesimes(self) -> list[dict]:
         """Millésimes des taux régulés (TURPE, Accise, CTA) — #185, ADR-0024."""
