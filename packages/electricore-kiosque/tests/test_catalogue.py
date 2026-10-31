@@ -37,3 +37,13 @@ def test_exports_absent_quand_non_liste() -> None:
     with TestClient(app) as client:
         reponse = client.get("/exports")
     assert reponse.status_code == 404
+
+
+def test_declaration_cta_au_catalogue_montee_si_listee_absente_sinon() -> None:
+    """#708 : `declaration-cta` se monte quand listée dans `KIOSQUE__APPS`, et seulement alors."""
+    assert Path(CATALOGUE["declaration-cta"]).is_file()
+
+    with TestClient(assembler(CATALOGUE, ["declaration-cta"], accueil=_accueil())) as client:
+        assert client.get("/declaration-cta").status_code == 200
+    with TestClient(assembler(CATALOGUE, ["exports"], accueil=_accueil())) as client:
+        assert client.get("/declaration-cta").status_code == 404

@@ -32,7 +32,7 @@ classifiers = [
 dependencies = [
     "marimo>=0.23.0",  # pre-auth RCE fix (CVE-2026-39987) — même pin que le moteur
     "uvicorn>=0.35.0,<0.36.0",
-    "electricore-client[arrow]",
+    "electricore-client[arrow]>=0.6.0",  # declaration_cta() / declaration_cta_xlsx() (#708)
 ]
 
 [project.scripts]
