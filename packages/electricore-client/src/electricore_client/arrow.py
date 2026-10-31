@@ -6,7 +6,7 @@ l'appel d'une méthode). La base du paquet reste donc polars-free — l'invarian
 prouvé par le test de pureté tient même quand `[arrow]` n'est pas installé.
 
 Endpoints Arrow IPC (`/flux/{table}.arrow`, `/releves.arrow`, `/facturation/
-detail.arrow`, `/taxes/{accise,cta}/detail.arrow`) — pour les notebooks distants
+{detail,periodes}.arrow`, `/taxes/{accise,cta}/detail.arrow`) — pour les notebooks distants
 qui n'ont pas la base DuckDB en local (ADR-0009). Lecture seule (ADR-0012).
 
 Installer avec l'extra : `pip install "electricore-client[arrow]"`.
@@ -107,6 +107,13 @@ class ElectricoreArrowClient(_BaseClient):
             mois: "YYYY-MM-DD" — défaut : dernier mois disponible côté serveur.
         """
         return self._get_arrow("/facturation/detail.arrow", {"mois": mois} if mois else {})
+
+    def periodes(self) -> pl.DataFrame:
+        """Facturation mensuelle parc entier × tous les mois, CTA + `trimestre` inclus (#651).
+
+        ERP-agnostique (aucune jointure Odoo) : TURPE fixe/variable et `cta_eur` du parc.
+        """
+        return self._get_arrow("/facturation/periodes.arrow", {})
 
     def accise(self, trimestre: str | None = None) -> pl.DataFrame:
         """Détail Accise TICFE pour le trimestre donné.

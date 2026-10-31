@@ -4,6 +4,15 @@ Toutes les évolutions notables de ce paquet sont consignées ici.
 Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/) ;
 le versionnage suit [SemVer](https://semver.org/lang/fr/).
 
+## [0.6.0] — 2026-10-31
+
+### Ajouté
+- Méthode `ElectricoreArrowClient.periodes()` (extra `[arrow]`) : GET
+  `/facturation/periodes.arrow`, la facturation mensuelle **parc entier × tous
+  les mois** enrichie de `cta_eur` et `trimestre` (#651). Interface d'analyse
+  ERP-agnostique (TURPE/CTA du parc, consommée par le Kiosque #708) — pas le
+  contrat de campagne : ni traces d'index ni `source_hash`.
+
 ## [0.5.0] — 2026-07-12
 
 ### Ajouté

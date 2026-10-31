@@ -18,6 +18,7 @@ from electricore.core.builds.contexte_mensuel import contexte_du_mois
 from electricore.core.models.cadrans import CADRANS, col_index, famille_cadrans
 from electricore.core.pipelines.accise import load_accise_rules
 from electricore.core.pipelines.cta import ajouter_cta
+from electricore.core.pipelines.facturation import expr_calculer_trimestre
 from electricore.core.pipelines.taux import ajouter_taux_en_vigueur
 
 # Version du contrat exposée dans l'enveloppe (#229). Bump sur rupture (cf. ADR-0027,
@@ -205,3 +206,20 @@ def meta_periodes(mois: str | None = None, rsc: list[str] | None = None) -> tupl
     # côté Odoo : skip-si-inchangé + détection de dérive sous verrou (ADR-0027/0038).
     hash_source = empreinte_contenu(df, [*COLONNES_CONTRAT, "releves_utilises"])
     return contexte.mois, df.with_columns(hash_source.alias("source_hash"))
+
+
+def periodes_parc() -> pl.DataFrame:
+    """Facturation mensuelle **parc entier × tous les mois**, enrichie de la CTA (#651).
+
+    Interface d'**analyse** (TURPE/CTA du parc, Kiosque #708), pas le contrat de campagne :
+    ni filtre de mois, ni traces d'index, ni `source_hash` — c'est ce qui la distingue de
+    `meta_periodes()`, mono-mois par design. Même brique CTA (`ajouter_cta`, ADR-0027),
+    jamais `pipeline_cta` legacy (jointure Odoo). `trimestre` (`YYYY-TX`) servi tout fait
+    pour que le consommateur n'ait aucun calcul métier à refaire.
+    """
+    return (
+        ajouter_cta(contexte_du_mois().facturation_mensuelle.lazy())
+        .with_columns(expr_calculer_trimestre().alias("trimestre"))
+        .sort("pdl", "mois_annee")
+        .collect()
+    )
