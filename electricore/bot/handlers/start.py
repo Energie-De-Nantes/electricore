@@ -24,8 +24,9 @@ COMMANDES: list[tuple[str, str]] = [
     ("provision", "Estimation de provision d'un lissé par PDL"),
 ]
 
-# Domaines masqués quand aucun ERP n'est configuré (#159, P2.5).
-ERP_DEPENDANTES = frozenset({"taxes", "facturation"})
+# Domaines masqués quand aucun ERP n'est configuré (#159, P2.5). `/taxes` n'en est
+# plus : la CTA s'en passe (#746) — seule l'accise y est refusée, dans le handler.
+ERP_DEPENDANTES = frozenset({"facturation"})
 
 
 def commandes_disponibles() -> list[tuple[str, str]]:

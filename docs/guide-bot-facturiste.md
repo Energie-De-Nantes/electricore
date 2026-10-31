@@ -109,6 +109,13 @@ confronte **Odoo ↔ Enedis** (énergie HP/HC/Base, abonnements). C'est votre su
 « Toutes périodes »). Le bot livre le rapport en `.xlsx`. Raccourci :
 `/taxes accise 2025-T1`.
 
+La **CTA** est la **déclaration sur tout le périmètre Enedis**, sans passer par Odoo : elle
+reste disponible sur une instance sans ERP. On ne déclare qu'un **trimestre terminé** —
+en demander un en cours renvoie un message d'explication, pas de fichier ; « Toutes
+périodes » livre les trimestres terminés. L'onglet **Résumé** porte une **empreinte** par
+trimestre : notez-la avec votre déclaration. Si, en retéléchargeant plus tard, l'empreinte
+a changé, c'est qu'un montant ou une ligne a bougé depuis (voir l'onglet Détail).
+
 📜 **Millésimes** affiche les **taux régulés que cette instance connaît** (valeur,
 date de vigueur, référence) — utile pour vérifier qu'un taux n'est pas périmé avant de
 déclarer.
@@ -162,7 +169,7 @@ HC), la **couverture** disponible (✅ suffisante / ⚠️ insuffisante), la **q
 | `/ingestion` | All · Test · Rebuild · Flux… · Resync · Statut | `/ingestion statut`, `/ingestion r151 c15` |
 | `/flux` | tables → 📊 stats / 📥 export | `/flux stats c15`, `/flux export r151` |
 | `/perimetre` | Entrées · Sorties · Affaires en cours | `/perimetre entrees`, `/perimetre affaires` |
-| `/taxes` ⁽ᵉʳᵖ⁾ | Accise · CTA → trimestre · Millésimes | `/taxes accise 2025-T1`, `/taxes cta` |
+| `/taxes` | Accise ⁽ᵉʳᵖ⁾ · CTA → trimestre · Millésimes | `/taxes accise 2025-T1`, `/taxes cta` |
 | `/facturation` ⁽ᵉʳᵖ⁾ | 📑 Documents · 🔍 Check Odoo | `/facturation documents 2026-05-01`, `/facturation check` |
 | `/provision` | — | `/provision 12345678901234` |
 | `/start`, `/help` | aide + instance servie | — |

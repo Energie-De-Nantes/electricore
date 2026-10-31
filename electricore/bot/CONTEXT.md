@@ -18,7 +18,7 @@ Invocation d'un domaine avec arguments texte qui court-circuite la navigation pa
 Validation explicite en deux taps exigée avant une action coûteuse ou risquée (ex : `resync`, qui purge l'état incrémental et re-télécharge tout le SFTP).
 
 **Menu natif** :
-Liste des commandes publiée à Telegram au démarrage du bot, adaptée à l'instance : les domaines dépendant d'un ERP (`/taxes`, `/facturation`) sont masqués quand aucun ERP n'est configuré.
+Liste des commandes publiée à Telegram au démarrage du bot, adaptée à l'instance : les domaines dépendant d'un ERP (`/facturation`) sont masqués quand aucun ERP n'est configuré. `/taxes` reste servi (la CTA s'en passe, #746) : seule son action accise y est masquée et refusée.
 
 **Chat de notification** :
 Chat Telegram destinataire des alertes proactives du bot (échec d'un job d'ingestion, y compris ceux lancés par le scheduler ; taux régulé présumé périmé, #186), distinct des réponses aux commandes.

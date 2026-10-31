@@ -247,3 +247,36 @@ def test_cta_pendant_l_ingestion_affiche_le_detail_api(monkeypatch):
     _, _, texte, _ = bot.edits[-1]
     assert "Ingestion en cours" in texte
     assert "Server error" not in texte, "la ligne de statut httpx ne doit plus fuiter dans le chat"
+
+
+def test_trimestre_cta_non_termine_affiche_le_motif_de_l_api(monkeypatch):
+    """422 `precondition` de la déclaration (#746) : le motif de l'API, pas une stacktrace."""
+    from electricore.bot.client import APIError
+
+    class Refus:
+        async def get_cta_xlsx(self, trimestre=None):
+            raise APIError("Le trimestre 2026-T4 n'est pas terminé (calcul arrêté au 2026-11-01)", 422)
+
+    monkeypatch.setattr(handlers_taxes, "ElectriCoreClient", Refus)
+    bot = FakeBot()
+
+    asyncio.run(handlers_taxes.cmd_taxes(update_commande(), contexte(args=["cta", "2026-T4"], bot=bot)))
+
+    texte = bot.edits[-1][2]
+    assert texte.startswith("❌") and "2026-T4 n'est pas terminé" in texte
+    assert "Traceback" not in texte
+    assert bot.documents == []
+
+
+def test_get_cta_xlsx_appelle_la_declaration():
+    """Le client bot cible `/taxes/cta/declaration.xlsx`, plus le legacy `rapport.xlsx` (#746)."""
+    vus: list[httpx.URL] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        vus.append(request.url)
+        return httpx.Response(200, content=b"PK\x03\x04")
+
+    asyncio.run(ElectriCoreClient(transport=httpx.MockTransport(handler)).get_cta_xlsx("2025-T4"))
+
+    assert vus[0].path == "/taxes/cta/declaration.xlsx"
+    assert vus[0].params.get("trimestre") == "2025-T4"
