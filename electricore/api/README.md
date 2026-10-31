@@ -42,7 +42,8 @@ API__TROUSSEAU__bot__KEY=une-autre-cle-pour-le-bot
 - `GET /flux/{table_name}` · `/info` - Flux Enedis bruts (métadonnées : lignes, fraîcheur `derniere_date`)
 - `GET /releves` · `/info` - Mart canonique des relevés (ADR-0029)
 - `POST /ingestion/run` · `GET /ingestion/jobs` · `/jobs/{id}` - Jobs d'ingestion (modes `test`/`all`/`rebuild`/`resync`)
-- `GET /taxes/...` - Calculs accise et CTA (exports Arrow/XLSX) — *requiert Odoo*
+- `GET /taxes/cta/declaration.{arrow,xlsx}` - Déclaration CTA parc entier, avec empreintes — *sans Odoo* (ADR-0058)
+- `GET /taxes/...` (autres) - Calculs accise et CTA legacy (exports Arrow/XLSX) — *requiert Odoo*
 - `GET /facturation/meta-periodes` · `/chronologie` - Flux JSONL typés (méta-périodes, frise facturiste)
 - `POST /facturation/turpe-variable` - Calculateur TURPE variable (RPC typé)
 - `GET /facturation/rapport.xlsx` · `/documents.xlsx` · `/check/odoo` - Rapports & contrôles pré-facturation — *requiert Odoo*

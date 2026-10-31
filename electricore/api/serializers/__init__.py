@@ -10,7 +10,7 @@ import io
 import polars as pl
 import xlsxwriter
 
-from electricore.api.serializers.hash import empreinte_contenu
+from electricore.api.serializers.hash import empreinte_agregat, empreinte_contenu
 
 
 def xlsx_multi_sheet(onglets: dict[str, pl.DataFrame]) -> bytes:
@@ -48,4 +48,4 @@ def arrow_stream(df: pl.DataFrame) -> bytes:
     return buf.getvalue()
 
 
-__all__ = ["xlsx_multi_sheet", "arrow_stream", "empreinte_contenu"]
+__all__ = ["xlsx_multi_sheet", "arrow_stream", "empreinte_contenu", "empreinte_agregat"]

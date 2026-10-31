@@ -9,12 +9,12 @@ permettent de repérer une dérive ultérieure. ERP-agnostique : zéro `integrat
 """
 
 import datetime as dt
-import hashlib
+from zoneinfo import ZoneInfo
 
 import polars as pl
 from fastapi import HTTPException
 
-from electricore.api.serializers import empreinte_contenu
+from electricore.api.serializers import empreinte_agregat, empreinte_contenu
 from electricore.core.builds.contexte_mensuel import contexte_du_mois
 from electricore.core.builds.rapport_taxe import agreger_par_taux, agreger_resume
 from electricore.core.pipelines.cta import ajouter_cta
@@ -25,6 +25,8 @@ from electricore.core.pipelines.historique import horizon_par_defaut
 # construction de `empreinte_trimestre` change — les empreintes d'une autre version ne
 # sont pas comparables.
 VERSION_EMPREINTE = 1
+
+_PARIS = ZoneInfo("Europe/Paris")
 
 # Colonnes de montant couvertes par les empreintes — `trimestre` exclu (dérivé de
 # `mois_annee`). Ordre = contrat d'octets.
@@ -45,11 +47,6 @@ def trimestre_de(jour: dt.date) -> str:
     return f"{jour.year}-T{(jour.month - 1) // 3 + 1}"
 
 
-def _empreinte_trimestre(source_hashes: list[str]) -> str:
-    """Empreinte d'un trimestre : sha256 tronqué des `source_hash` triés (indépendant de l'ordre)."""
-    return hashlib.sha256("␟".join(sorted(source_hashes)).encode()).hexdigest()[:16]
-
-
 def declaration_cta(trimestre: str | None = None, horizon: dt.datetime | None = None) -> pl.DataFrame:
     """Cœur de la déclaration CTA : une ligne par (RSC, mois), parc entier.
 
@@ -61,16 +58,20 @@ def declaration_cta(trimestre: str | None = None, horizon: dt.datetime | None = 
 
     Returns:
         `COLONNES_DECLARATION` + `source_hash` (par ligne) + `empreinte_trimestre`
-        (répétée sur chaque ligne du trimestre), trié par `trimestre`, `pdl`, `mois_annee`.
+        (répétée sur chaque ligne du trimestre) + `version_empreinte`, trié par
+        `trimestre`, `pdl`, `mois_annee`.
     """
     horizon = horizon or horizon_par_defaut()
-    trimestre_en_cours = trimestre_de(horizon.date())
+    # Jour civil de l'horizon **en heure de Paris** (un horizon UTC à 22 h la veille
+    # tomberait sinon dans le trimestre précédent).
+    jour_horizon = horizon.astimezone(_PARIS).date()
+    trimestre_en_cours = trimestre_de(jour_horizon)
     if trimestre is not None and trimestre >= trimestre_en_cours:
         raise HTTPException(
             status_code=422,
             detail=(
                 f"Le trimestre {trimestre} n'est pas terminé (calcul arrêté au "
-                f"{horizon.date().isoformat()}) : impossible de le déclarer."
+                f"{jour_horizon.isoformat()}) : impossible de le déclarer."
             ),
             headers={"X-Error-Kind": "precondition"},
         )
@@ -86,10 +87,11 @@ def declaration_cta(trimestre: str | None = None, horizon: dt.datetime | None = 
     )
     df = df.with_columns(empreinte_contenu(df, list(COLONNES_EMPREINTE)).alias("source_hash"))
     empreintes = {
-        cle[0]: _empreinte_trimestre(groupe["source_hash"].to_list()) for cle, groupe in df.group_by("trimestre")
+        cle[0]: empreinte_agregat(groupe["source_hash"].to_list()) for cle, groupe in df.group_by("trimestre")
     }
     return df.with_columns(
-        pl.col("trimestre").replace_strict(empreintes, return_dtype=pl.Utf8, default=None).alias("empreinte_trimestre")
+        pl.col("trimestre").replace_strict(empreintes, return_dtype=pl.Utf8, default=None).alias("empreinte_trimestre"),
+        pl.lit(VERSION_EMPREINTE).alias("version_empreinte"),
     )
 
 
@@ -101,7 +103,9 @@ def feuilles_declaration_cta(declaration: pl.DataFrame) -> dict[str, pl.DataFram
         cle_montant="cta_eur",
         nom_assiette_total="turpe_fixe_total_eur",
         nom_montant_total="cta_total_eur",
-    ).join(declaration.select("trimestre", "empreinte_trimestre").unique(), on="trimestre", how="left")
+    ).join(
+        declaration.select("trimestre", "empreinte_trimestre", "version_empreinte").unique(), on="trimestre", how="left"
+    )
     par_taux = agreger_par_taux(
         declaration,
         cle_taux="taux_cta_pct",
@@ -110,7 +114,7 @@ def feuilles_declaration_cta(declaration: pl.DataFrame) -> dict[str, pl.DataFram
         extra_groupby=("trimestre",),
     )
     return {
-        "Résumé": resume.with_columns(pl.lit(VERSION_EMPREINTE).alias("version_empreinte")),
+        "Résumé": resume,
         "Par taux": par_taux,
         "Détail": declaration,
     }

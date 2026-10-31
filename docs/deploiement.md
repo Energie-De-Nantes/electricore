@@ -149,7 +149,7 @@ La colonne **Bloc** ci-dessous indique dans quel fichier chaque variable vit.
 | `BOT__ALLOWED_USERS` | `secrets.env` | IDs Telegram autorisés (séparés par virgules). Par exception privacy (ADR-0046 §7). Via [@userinfobot](https://t.me/userinfobot). |
 | `BOT__NOTIFY_CHAT_ID` | `config.env` | Canal d'alerte du bot — un chat-id seul = routage, pas une capacité → clair (ADR-0046 §7). |
 
-**Odoo** (optionnel — requis pour `/taxes/*` et `/facturation/check/odoo`) — `secrets.env` (chiffré)
+**Odoo** (optionnel — requis pour les `/taxes/{accise,cta}/*` legacy et `/facturation/check/odoo` ; la déclaration CTA `/taxes/cta/declaration.*` s'en passe) — `secrets.env` (chiffré)
 
 | Variable | Notes |
 |---|---|
@@ -713,6 +713,7 @@ d'écriture vers Odoo (cf. [ADR-0012](adr/0012-api-read-only-odoo.md)).
 | `GET /facturation/arrow` | `lignes_facture_rapprochees` (rapprochement Odoo ↔ Enedis du mois) | `mois=YYYY-MM-DD` (défaut : dernier mois) |
 | `GET /taxes/accise/detail.arrow` | Détail Accise TICFE | `trimestre=YYYY-TX` |
 | `GET /taxes/cta/arrow` | Détail CTA mensuel | idem |
+| `GET /taxes/cta/declaration.arrow` | Déclaration CTA parc entier sans Odoo, avec empreintes (ADR-0058) | `trimestre=YYYY-TN` (terminé) |
 
 Les endpoints `xlsx` existants restent inchangés.
 
