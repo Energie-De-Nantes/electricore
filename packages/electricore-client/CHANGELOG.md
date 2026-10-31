@@ -4,6 +4,18 @@ Toutes les évolutions notables de ce paquet sont consignées ici.
 Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/) ;
 le versionnage suit [SemVer](https://semver.org/lang/fr/).
 
+## [0.6.0] — 2026-10-31
+
+### Ajouté
+- Déclaration CTA parc entier, sans Odoo (#651, ADR-0058) :
+  - `ElectricoreArrowClient.declaration_cta(trimestre)` (extra `[arrow]`) : GET
+    `/taxes/cta/declaration.arrow`, grain RSC × mois (assiette TURPE fixe, taux,
+    CTA, trimestre) avec `source_hash` par ligne et `empreinte_trimestre` ;
+  - `ElectricoreClient.declaration_cta_xlsx(trimestre)` : octets du XLSX
+    (Résumé avec empreinte / Par taux / Détail), le même document que livre le bot.
+  Un trimestre non terminé lève `PreconditionNonRemplie` (422 `precondition`) ;
+  sans trimestre, seuls les trimestres terminés sont servis.
+
 ## [0.5.0] — 2026-07-12
 
 ### Ajouté
