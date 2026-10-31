@@ -8,6 +8,9 @@ qu'en enveloppe paginée (ADR-0043) : pas de pagination, le serveur streame tout
 lignes, et les métadonnées (`contract_version`, `mois` résolu) remontent dans les en-têtes
 de réponse. Les modèles de ligne (`PeriodeMeta`/`ObjetReleve`) sont **single-sourcés** dans
 `electricore_client` — le router les importe, ne les redéfinit pas.
+
+Voisin d'analyse : `GET /facturation/periodes.arrow` (#651) sert la même facturation
+mensuelle, parc entier × tous les mois, en Arrow — sans contrat ni traces.
 """
 
 from typing import Annotated
@@ -17,9 +20,11 @@ from electricore_client.models import PeriodeMeta
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 
+from electricore.api.decorators import ARROW_MEDIA_TYPE, binary_endpoint
 from electricore.api.security import get_current_api_key
+from electricore.api.serializers import arrow_stream
 from electricore.api.serializers.jsonl import jsonl_response, reponses_openapi_jsonl
-from electricore.api.services.meta_periodes_service import CONTRAT_VERSION, meta_periodes
+from electricore.api.services.meta_periodes_service import CONTRAT_VERSION, meta_periodes, periodes_parc
 
 router = APIRouter(tags=["facturation"])
 
@@ -68,3 +73,14 @@ async def get_meta_periodes(
     # Validate-then-stream (#426) : `jsonl_response` valide toutes les lignes en amont, donc
     # une ligne hors-contrat fait un 500 atomique avant tout octet (pas un 200 tronqué).
     return jsonl_response(df, valider=PeriodeMeta.model_validate, headers=headers)
+
+
+@binary_endpoint(router, "/facturation/periodes.arrow", media_type=ARROW_MEDIA_TYPE)
+def export_periodes_arrow() -> bytes:
+    """Facturation mensuelle **parc entier × tous les mois** + CTA, en Arrow IPC stream (#651).
+
+    **Authentification requise** (`X-API-Key`). Interface d'analyse (TURPE fixe/variable,
+    `cta_eur`, `trimestre`) sans Odoo : pas le contrat de campagne — ni traces d'index ni
+    `source_hash`, voir `/facturation/meta-periodes` pour l'upsert mono-mois.
+    """
+    return arrow_stream(periodes_parc())

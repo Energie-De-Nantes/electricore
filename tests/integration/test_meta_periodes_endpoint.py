@@ -8,6 +8,7 @@ la fonction de service `meta_periodes` référencée dans le router — on court
 DuckDB, le chemin transport + sérialisation reste réel.
 """
 
+import io
 import json
 import re
 from datetime import datetime
@@ -219,3 +220,37 @@ def test_meta_periodes_propage_mois_et_rsc(monkeypatch, meta_periodes_synthetiqu
 
     assert response.status_code == 200
     assert appels == [("2026-05-01", ["RSC-1", "RSC-2"])]
+
+
+# =============================================================================
+# /facturation/periodes.arrow — parc entier × tous les mois (#651)
+# =============================================================================
+
+
+def test_periodes_arrow_round_trip(monkeypatch):
+    """L'endpoint sert `periodes_parc()` en Arrow IPC, tag `facturation` (pas `legacy`)."""
+    attendu = pl.DataFrame(
+        {
+            "pdl": ["12345678901234"],
+            "mois_annee": ["2026-05"],
+            "trimestre": ["2026-T2"],
+            "turpe_fixe_eur": [9.13],
+            "cta_eur": [1.97],
+        }
+    )
+    monkeypatch.setattr("electricore.api.routers.meta_periodes.periodes_parc", lambda: attendu)
+    app.dependency_overrides[get_current_api_key] = lambda: "test-key"
+    try:
+        response = TestClient(app).get("/facturation/periodes.arrow")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/vnd.apache.arrow.stream"
+    assert pl.read_ipc_stream(io.BytesIO(response.content)).equals(attendu)
+    tags = app.openapi()["paths"]["/facturation/periodes.arrow"]["get"]["tags"]
+    assert tags == ["facturation"]
+
+
+def test_periodes_arrow_refuse_sans_api_key():
+    assert TestClient(app).get("/facturation/periodes.arrow").status_code == 401

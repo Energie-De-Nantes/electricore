@@ -78,3 +78,17 @@ def test_message_clair_si_polars_absent(monkeypatch):
 
     # Restaure pour les imports ultérieurs.
     importlib.reload(arrow_mod)
+
+
+def test_periodes_cible_le_bon_endpoint():
+    """`periodes()` lit `/facturation/periodes.arrow` sans paramètre (parc entier, #651)."""
+    attendu = pl.DataFrame({"pdl": ["p"], "cta_eur": [1.5]})
+    captures: list[httpx.URL] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captures.append(request.url)
+        return httpx.Response(200, content=_arrow_response(attendu))
+
+    assert _client(handler).periodes().equals(attendu)
+    assert captures[0].path == "/facturation/periodes.arrow"
+    assert not captures[0].params
