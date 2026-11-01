@@ -7,7 +7,7 @@ notebook, jamais stockée ici. Un notebook appelle directement une fonction
 nu) — toute la logique de fetch/erreur/cycle de vie vit ici pour que le notebook
 reste de la présentation pure au-dessus des helpers (voir `exports.py`).
 
-Les relevés, flux bruts et la déclaration CTA passent par `ElectricoreArrowClient` (extra `[arrow]`,
+Les relevés, flux bruts et le cœur de la déclaration CTA passent par `ElectricoreArrowClient` (extra `[arrow]`,
 amendement 2026-08-24 à l'ADR-0057) : polars entre dans le Kiosque via cet extra
 public du client, jamais via le moteur `electricore`.
 """
@@ -19,7 +19,11 @@ from contextlib import contextmanager
 from datetime import date, timedelta
 
 import httpx
-from electricore_client import ContractVersionError, ElectricoreClient, IngestionEnCours, PreconditionNonRemplie
+from electricore_client import ContractVersionError, ElectricoreClient, IngestionEnCours
+
+# Ré-export explicite (#708) : refus métier du client (422 `precondition`), affiché tel
+# quel par le notebook — `str(exc)` est le motif de l'API. Pas une `ServiceIndisponible`.
+from electricore_client import PreconditionNonRemplie as PreconditionNonRemplie
 from electricore_client.arrow import ElectricoreArrowClient
 
 from electricore_kiosque.config import api_url
@@ -58,15 +62,16 @@ class TableFluxAbsente(Exception):
 class ServiceIndisponible(Exception):
     """L'API `electricore` est momentanément inutilisable — message actionnable, pas de stacktrace.
 
-    Une seule classe pour les causes opérationnelles (#722) : ingestion en cours
+    Une seule classe pour trois causes opérationnelles (#722) : ingestion en cours
     (`IngestionEnCours`), API injoignable (`httpx.ConnectError`/`ConnectTimeout`),
     versions client/serveur désynchronisées (`ContractVersionError`). Le notebook
     les rattrape et les affiche identiquement (`mo.md(f"⚠️ **{exc}**")`) — un seul
     message par cause suffit, pas besoin d'une hiérarchie.
 
-    S'y ajoute `PreconditionNonRemplie` (#708) : la déclaration CTA refuse un
-    trimestre non terminé (422 `precondition`) ; le motif de l'API est affiché tel
-    quel, il dit déjà quoi faire.
+    `PreconditionNonRemplie` n'en est pas : un refus métier (ex. trimestre de
+    déclaration CTA non terminé, #708) n'est pas une indisponibilité. Elle est
+    ré-exportée telle quelle (voir plus bas) et le notebook l'affiche avec le
+    motif de l'API, qui dit déjà quoi faire.
     """
 
 
@@ -103,8 +108,6 @@ def _traduire_erreurs_api() -> Iterator[None]:
         raise ServiceIndisponible(_MSG_INGESTION_EN_COURS) from exc
     except ContractVersionError as exc:
         raise ServiceIndisponible(_MSG_VERSIONS_DESYNCHRONISEES) from exc
-    except PreconditionNonRemplie as exc:
-        raise ServiceIndisponible(str(exc)) from exc
     except httpx.HTTPStatusError as exc:
         if exc.response.status_code in _STATUTS_CLE_REFUSEE:
             raise CleApiRefusee() from exc
@@ -226,7 +229,8 @@ def telecharger_declaration_cta(cle: str, trimestre: str, *, http_client: httpx.
     """Octets du XLSX de déclaration servi par l'API pour `trimestre` — le même document que le bot.
 
     Raises:
-        CleApiRefusee, ServiceIndisponible (dont trimestre non terminé),
+        PreconditionNonRemplie: trimestre non terminé (422 `precondition`, motif de l'API).
+        CleApiRefusee, ServiceIndisponible,
         config.ApiUrlManquante : voir `_traduire_erreurs_api`.
     """
     with construire_client(cle, http_client=http_client) as client, _traduire_erreurs_api():

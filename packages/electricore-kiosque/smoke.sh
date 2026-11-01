@@ -40,6 +40,13 @@ smoke_kiosque_sert() {
         sleep 0.5
         tries=$((tries + 1))
     done
+    # Accueil servi → chaque app montée doit répondre aussi (pas seulement démarrer).
+    if [[ "$rc" -eq 0 ]]; then
+        local app
+        for app in exports declaration-cta; do
+            "$CURL_BIN" -sf -o /dev/null "http://127.0.0.1:${port}/${app}" || rc=1
+        done
+    fi
 
     # Logs AVANT le stop : le conteneur tourne en --rm, `docker logs` devient impossible
     # dès qu'il s'arrête — sans ça le diagnostic d'échec renvoie vers des logs supprimés.

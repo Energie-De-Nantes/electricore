@@ -79,8 +79,36 @@ def test_trimestre_non_termine_devient_un_message_affichable() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(422, json={"detail": motif}, headers={"X-Error-Kind": "precondition"})
 
-    with pytest.raises(helpers.ServiceIndisponible, match="seul un trimestre terminé"):
+    with pytest.raises(helpers.PreconditionNonRemplie, match="seul un trimestre terminé"):
         helpers.telecharger_declaration_cta("cle", "2026-T4", http_client=_http(handler))
+
+
+def test_trimestre_non_termine_n_est_pas_une_indisponibilite() -> None:
+    """Refus métier ≠ panne : pas une `ServiceIndisponible` (#708)."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(422, json={"detail": "non terminé"}, headers={"X-Error-Kind": "precondition"})
+
+    with pytest.raises(helpers.PreconditionNonRemplie) as exc:
+        helpers.telecharger_declaration_cta("cle", "2026-T4", http_client=_http(handler))
+    assert not isinstance(exc.value, helpers.ServiceIndisponible)
+
+
+@pytest.mark.parametrize(
+    ("reponse", "motif"),
+    [
+        (httpx.Response(503, headers={"X-Error-Kind": "ingestion-lock"}), "Ingestion en cours"),
+        (httpx.ConnectError("refusé"), "injoignable"),
+    ],
+)
+def test_declaration_cta_service_indisponible(reponse, motif: str) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if isinstance(reponse, Exception):
+            raise reponse
+        return reponse
+
+    with pytest.raises(helpers.ServiceIndisponible, match=motif):
+        helpers.recuperer_declaration_cta("cle", http_client=_http(handler))
 
 
 def test_cle_refusee_sur_la_declaration() -> None:
@@ -148,7 +176,7 @@ def test_notebook_telecharge_les_octets_de_l_api_tels_quels(monkeypatch: pytest.
 
 def test_notebook_echec_du_telechargement_affiche_le_motif(monkeypatch: pytest.MonkeyPatch) -> None:
     def _refus(cle: str, trimestre: str, **kw: object) -> bytes:
-        raise helpers.ServiceIndisponible(
+        raise helpers.PreconditionNonRemplie(
             "Le trimestre 2026-T3 n'est pas terminé : seul un trimestre terminé se déclare."
         )
 
