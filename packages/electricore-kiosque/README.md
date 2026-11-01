@@ -56,8 +56,9 @@ Un nom absent du catalogue dans `KIOSQUE__APPS` fait échouer le démarrage (mes
   détail RSC × mois, et téléchargement de l'**XLSX servi par l'API** (Résumé / Par taux /
   Détail) — le même document que livre le bot `/taxes cta`. Présentation pure : CTA,
   agrégats Par taux et empreintes sont calculés côté API, le notebook ne fait qu'un
-  filtre et deux sommes d'affichage. Trimestre non terminé (422 `precondition`) : le
-  motif de l'API s'affiche, comme les autres erreurs opérationnelles.
+  filtre et deux sommes d'affichage. Trimestre non terminé (422 `precondition`) : refus
+  métier (`PreconditionNonRemplie`, distinct d'une indisponibilité), le motif de l'API
+  s'affiche tel quel.
 
 ## Lancement local
 

@@ -11,9 +11,14 @@ with app.setup:
     # Présentation pure (#708) : CTA, Par taux et empreintes viennent de l'API
     # (ADR-0058). Les seules opérations ici sont un filtre par trimestre et deux
     # sommes d'affichage ; le fichier téléchargé est l'XLSX servi par l'API.
-    ERREURS_AFFICHABLES = (helpers.CleApiRefusee, helpers.ServiceIndisponible, config.ApiUrlManquante)
+    ERREURS_AFFICHABLES = (
+        helpers.CleApiRefusee,
+        helpers.ServiceIndisponible,
+        helpers.PreconditionNonRemplie,
+        config.ApiUrlManquante,
+    )
 
-    def euros(montant: float) -> str:
+    def formater_euros(montant: float) -> str:
         """Montant à la française : espace fine insécable des milliers, virgule décimale."""
         return f"{montant:,.2f}".replace(",", "\u202f").replace(".", ",") + " €"
 
@@ -58,8 +63,8 @@ def _(cle, lignes, trimestre):
     du_trimestre = [ligne for ligne in lignes if ligne["trimestre"] == trimestre.value]
     premiere = du_trimestre[0]
     resume = mo.md(
-        f"**CTA {trimestre.value} : {euros(sum(ligne['cta_eur'] for ligne in du_trimestre))}** "
-        f"(assiette TURPE fixe {euros(sum(ligne['turpe_fixe_eur'] for ligne in du_trimestre))}, "
+        f"**CTA {trimestre.value} : {formater_euros(sum(ligne['cta_eur'] for ligne in du_trimestre))}** "
+        f"(assiette TURPE fixe {formater_euros(sum(ligne['turpe_fixe_eur'] for ligne in du_trimestre))}, "
         f"{len({ligne['pdl'] for ligne in du_trimestre})} PDL)\n\n"
         f"Empreinte du trimestre : `{premiere['empreinte_trimestre']}` "
         f"(version {premiere['version_empreinte']})"

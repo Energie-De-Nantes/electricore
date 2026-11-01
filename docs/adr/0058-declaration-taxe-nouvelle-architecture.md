@@ -1,6 +1,6 @@
 # 0058 — Déclaration de taxe dans la nouvelle architecture : un service, deux représentations, sans état
 
-- Status: accepted
+- Status: accepted (amendé le 2026-11-01 — voir « Amendements »)
 - Date: 2026-10-31
 
 ## Contexte
