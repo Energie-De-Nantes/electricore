@@ -82,8 +82,9 @@ lecture : « état de la base au JJ/MM ».
 
 **Les identités ne se recouvrent pas.** Le grain d'ElectriCore est la **RSC** (référence
 de situation contractuelle), pas le PDL : un PDL peut avoir deux lignes dans le même
-mois. Le C15 **ne porte pas le titulaire** : nom, SIRET, payeur, groupement de
-facturation sont dans l'ERP.
+mois. Le C15 porte le **titulaire** (nom ou raison sociale, SIRET), mais ElectriCore
+ne l'extrait pas encore ; le payeur et le groupement de facturation, eux, n'existent que
+dans l'ERP.
 
 **Le périmètre Enedis n'est pas forcément « le nôtre ».** Le périmètre est une donnée
 réseau ; il peut être partagé entre entités, et savoir si un client est « chez nous »
