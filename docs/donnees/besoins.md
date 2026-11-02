@@ -127,11 +127,19 @@ plutôt qu'un script refait à chaque fois).
   dans `flux_c15`.
 - **Accès** : `GET /facturation/meta-periodes` · `GET /flux/c15`.
 
-### Identité du client (titulaire, SIRET, NAF, payeur, groupement)
+### Identité du client (titulaire, SIRET, activité, payeur, groupement)
 
-- **Statut** : ailleurs. Le C15 ne porte pas le titulaire.
-- **Où** : l'ERP ou le logiciel de facturation du fournisseur ; formulaire de
-  souscription.
+- **Statut** : à construire pour le titulaire ; ailleurs pour le payeur et le groupement.
+- **Où** : le bloc `Titulaire_Contrat` du C15 (guide GUI.0300) porte la personne
+  physique (civilité, nom, prénom) ou morale (raison sociale, nom commercial, activité,
+  secteur d'activité, SIRET de l'établissement principal), les coordonnées, l'adresse et
+  la référence externe du fournisseur. `flux_c15` n'en extrait que la catégorie
+  (`categorie`) : le reste est dans le brut, à exposer dans le modèle dbt. Pour le C4,
+  `flux_c12` porte déjà la raison sociale et le code APE. Le payeur et le groupement de
+  facturation sont des notions du fournisseur : ERP ou logiciel de facturation.
+- **Pièges** : données personnelles — à exposer avec les mêmes précautions que le reste
+  de l'API (authentification, pas de copie hors instance) ; le titulaire est celui de la
+  RSC, il change avec elle.
 
 ## Montants et taxes
 
