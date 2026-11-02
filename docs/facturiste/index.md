@@ -1,5 +1,5 @@
 ---
-fraicheur: 2026-07-05
+fraicheur: 2026-11-02
 ---
 
 # Facturer
@@ -56,6 +56,9 @@ Odoo tant que tu n'as pas regardé puis cliqué.
 - **Bot Telegram**, ton cockpit **en lecture seule** : fraîcheur des données, contrôles,
   téléchargement de rapports, estimation de provision. Il n'écrit jamais dans Odoo.
   Voir le [guide du bot](../guide-bot-facturiste.md).
+- **[Trouver la donnée](../donnees/index.md)** — quand on te pose une question de
+  données (consos sur trois ans, budget décomposé, déclaration) : où regarder, comment
+  y accéder, et quoi faire quand l'historique manque.
 - **Exports Excel / Arrow** (rapport + détail) pour la facturation, l'accise et la CTA
   — pour auditer ou traiter hors de l'outillage ElectriCore.
 - **Check pré-facturation** : vérifications côté Odoo avant d'émettre (RSC manquante,

@@ -51,6 +51,10 @@ nav:
       - Ce qui a changé: facturiste/changelog-facturiste.md
       - Bot Telegram (facturiste): guide-bot-facturiste.md
       - Notebook opérateur: operateur-notebook.md
+      - Trouver la donnée:
+          - donnees/index.md
+          - Catalogue des besoins: donnees/besoins.md
+          - Obtenir les données Enedis: donnees/sources-enedis.md
   - Déployer:
       - deployer/index.md
       - Déploiement VPS: deploiement.md
