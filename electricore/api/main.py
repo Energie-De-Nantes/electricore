@@ -104,7 +104,7 @@ app = FastAPI(
         {"name": "flux", "description": "Accès aux données flux Enedis (authentification requise)"},
         {
             "name": "releves",
-            "description": "Mart de relevés canonique `releves` (union arbitrée C15/R64/R151, "
+            "description": "Mart de relevés canonique `releves` (union C15/R64/R151 dédoublonnée par source, "
             "ADR-0029/0032 ; authentification requise)",
         },
         {"name": "ingestion", "description": "Lancement et suivi de l'ingestion des flux (authentification requise)"},
