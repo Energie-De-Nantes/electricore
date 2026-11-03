@@ -19,7 +19,7 @@ from pathlib import Path
 from electricore.api.main import app
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-PAGES = sorted((REPO_ROOT / "docs" / "donnees").glob("*.md"))
+PAGES = sorted((REPO_ROOT / "docs" / "donnees").rglob("*.md"))
 CODE = "\n".join(
     f.read_text(encoding="utf-8")
     for racine in ("electricore", "packages")

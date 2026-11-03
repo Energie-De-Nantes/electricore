@@ -11,16 +11,16 @@ Fichier de données émis périodiquement par Enedis aux fournisseurs, au format
 Flux d'événements contractuels (MES, RES, MCT…). Source de l'historique du périmètre.
 
 **R151** :
-Flux de relevés périodiques mensuels (index Linky par cadran). Source principale du calcul de consommation. Convention de date « fin de journée » — voir [ADR-0003](../../docs/adr/0003-r151-date-harmonisation.md).
+Flux de relevés périodiques des Linky communicants, sur abonnement quotidien ou mensuel (index par cadran, et Pmax non extraite). Source principale du calcul de consommation. Convention de date « fin de journée » — voir [ADR-0003](../../docs/adr/0003-r151-date-harmonisation.md).
 
 **R15** :
-Flux de relevés à la demande + événements ponctuels (déplacements, contestations).
+Flux de relevés C5 publiés à chaque relevé — surtout cyclique (moisniversaire, au moins tous les deux mois), plus les relevés d'événements (mise en service, changement de fournisseur, contestation…).
 
 **R64** :
 Flux de relevés au format JSON, séries temporelles plus granulaires.
 
 **F12** :
-Synthèse mensuelle de facturation distributeur (volumes agrégés).
+Facturation distributeur C2-C4, émise au fil de l'eau (quotidienne dès qu'un élément est à facturer), détaillée par sous-lot et par élément valorisé ; reliée au R17 par sous-lot.
 
 **F15** :
 Facturation distributeur détaillée, utilisée pour valider les calculs TURPE.

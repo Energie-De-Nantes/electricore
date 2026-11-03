@@ -185,8 +185,9 @@ absente (landing partiel, smoke `max_files`).
 
 **Limites à connaître avant d'agir sur une ligne :**
 
-- **R64/R67 hors champ.** Publications ponctuelles (à la demande M023) — leur séquence est
-  toujours figée à `00001`, elles ne portent aucune notion de continuité. Ne pas les
+- **R64/R67 hors champ.** Publications ponctuelles (à la demande M023) — leur séquence
+  repart de `00001` à chaque demande (incrémentée par fichier d'une même demande), sans
+  continuité d'une demande à l'autre. Ne pas les
   chercher dans la vue, ne pas s'étonner de leur absence.
 - **`trou` = « à vérifier », pas certain.** Un trou signale qu'Enedis a annoncé un numéro
   jamais atterri — mais une re-livraison sous un nom de zip *différent* pour le même
