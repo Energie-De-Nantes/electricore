@@ -55,6 +55,13 @@ nav:
           - donnees/index.md
           - Catalogue des besoins: donnees/besoins.md
           - Obtenir les données Enedis: donnees/sources-enedis.md
+          - Flux Enedis:
+              - donnees/flux/index.md
+              - Contractuels (C15, C12, C68): donnees/flux/contractuel.md
+              - Relevés (R15, R151, R17…): donnees/flux/releves.md
+              - Mesures à la demande (R63-R67, M023): donnees/flux/mesures-m023.md
+              - Facturation (F15, F12, TURPE7HC): donnees/flux/facturation.md
+              - Affaires, réclamations, accès: donnees/flux/affaires-acces.md
   - Déployer:
       - deployer/index.md
       - Déploiement VPS: deploiement.md

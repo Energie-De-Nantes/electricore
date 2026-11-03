@@ -1,5 +1,5 @@
 ---
-fraicheur: 2026-11-02
+fraicheur: 2026-11-03
 ---
 
 # Catalogue des besoins
@@ -70,7 +70,8 @@ plutôt qu'un script refait à chaque fois).
 
 ### Courbe de charge, puissance maximale atteinte
 
-- **Statut** : à construire. R63 (courbe) et R66 (Pmax) ne sont pas ingérés.
+- **Statut** : à construire. R63 (courbe) et R66 (Pmax) ne sont pas ingérés ; la Pmax
+  quotidienne des Linky est aussi dans le brut du R151, mais pas encore extraite.
 - **Profondeur** : 24 mois pour la courbe, 36 pour la Pmax, côté Enedis.
 - **Où** : demande M023 sur le portail SGE, fichier traité hors ElectriCore —
   [Obtenir les données Enedis](sources-enedis.md).
@@ -84,8 +85,10 @@ plutôt qu'un script refait à chaque fois).
 - **Où** : `flux_r15_acc` pour les C5 (énergies mensuelles par classe de mesure, pas des
   index) ; `flux_f12_detail` pour les C4 ; R17 (relevés C4) n'est pas ingéré.
 - **Accès** : `GET /flux/r15_acc` et exports `.xlsx` / `.arrow` · loader `r15_acc()`.
-- **Pièges** : le F15 ne distingue pas autoproduit et alloproduit, le F12 si ; les
-  volumes suivent les périodes de relevé, pas le mois civil.
+- **Pièges** : le guide F15 prévoit des éléments d'autoconsommation collective
+  distincts pour l'autoproduit et l'alloproduit, mais un fournisseur a constaté leur
+  absence (à confirmer) ; le F12 les distingue ; les volumes suivent les périodes de
+  relevé, pas le mois civil.
 
 ## Contrat et périmètre
 
@@ -108,8 +111,8 @@ plutôt qu'un script refait à chaque fois).
 - **Accès** : `GET /flux/c15?prm=…`, `GET /flux/c12?prm=…` · loaders `c15()`, `c12()`,
   `spine_contrat()`.
 - **Pièges** : `flux_c12` n'alimente pas encore la chaîne de facturation (C4 à
-  construire) ; le C15 donne l'identifiant du calendrier distributeur, pas le détail des
-  plages heures creuses ; une photo de tout le périmètre à une date passe par un C68
+  construire) ; le C15 porte les plages heures creuses saison haute et saison basse
+  (depuis la v5.1.1 de son guide, TURPE 7), mais `flux_c15` ne les extrait pas ; une photo de tout le périmètre à une date passe par un C68
   (non ingéré, demande M023).
 
 ### Affaires SGE en cours, résolution d'une affaire en RSC
@@ -130,7 +133,7 @@ plutôt qu'un script refait à chaque fois).
 ### Identité du client (titulaire, SIRET, activité, payeur, groupement)
 
 - **Statut** : à construire pour le titulaire ; ailleurs pour le payeur et le groupement.
-- **Où** : le bloc `Titulaire_Contrat` du C15 (guide GUI.0300) porte la personne
+- **Où** : le bloc *Titulaire_Contrat* du C15 (guide GUI.0300) porte la personne
   physique (civilité, nom, prénom) ou morale (raison sociale, nom commercial, activité,
   secteur d'activité, SIRET de l'établissement principal), les coordonnées, l'adresse et
   la référence externe du fournisseur. `flux_c15` n'en extrait que la catégorie

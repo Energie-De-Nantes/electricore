@@ -1,5 +1,5 @@
 ---
-fraicheur: 2026-11-02
+fraicheur: 2026-11-03
 ---
 
 # Obtenir les données Enedis
@@ -21,9 +21,11 @@ quelles conditions, et où le résultat atterrit.
 
 ## Trois règles qui bornent tout
 
-1. **Seulement les PDL au périmètre.** Une demande M023 pour un PDL qui n'est plus (ou
-   n'a jamais été) chez le fournisseur est refusée par Enedis : le demandeur doit être
-   le **fournisseur titulaire actif**.
+1. **Seulement les PDL au périmètre.** Une demande M023 de mesures pour un PDL qui n'est
+   plus (ou n'a jamais été) chez le fournisseur est refusée par Enedis : le demandeur doit
+   être le **fournisseur titulaire actif**. Exception documentée : la photo C68, qu'un
+   fournisseur non titulaire peut commander en déclarant l'accord du client, avec un accès
+   partiel ([fiche C68](flux/contractuel.md)).
 2. **36 mois glissants au plus**, et **coupés à la dernière mise en service** du PDL :
    un nouvel occupant efface l'accès à tout ce qui précède son arrivée (le « mur
    occupant »). Un client arrivé il y a deux ans rendra deux ans. Un client resté sur
@@ -44,9 +46,9 @@ Seulement à partir de l'entrée au périmètre, sans rattrapage d'historique.
 | C15 | Événements contractuels C5, index avant/après | GUI.0300 | `flux_c15` → `releves`, `spine_contrat` |
 | C12 | Description contractuelle C2-C4 | GUI.0129 | `flux_c12` |
 | R15 | Index et consommations C5 à chaque relevé | GUI.0292 | `flux_r15`, `flux_r15_acc` (hors `releves`) |
-| R151 | Index quotidiens C5 communicants (abonnement F305, consentement) | GUI.0317 | `flux_r151` → `releves` |
+| R151 | Index quotidiens C5 communicants (abonnement, consentement) | GUI.0317 | `flux_r151` → `releves` ; successeurs annoncés R64B / R66B, non captés (à confirmer) |
 | F12 | Facturation distributeur C2-C4 | GUI.0124 | `flux_f12_detail` |
-| F15 | Facturation TURPE C5 détaillée | GUI.0298 | `flux_f15_detail` |
+| F15 | Facturation TURPE C5 détaillée (et P4 en injection) | GUI.0298 | `flux_f15_detail` |
 | X12 / X13 | Suivi des affaires SGE | GUI.0322 | `flux_affaires` |
 | R17 | Index et consommations C2-C4 | GUI.0131 | **non ingéré** |
 
@@ -56,17 +58,17 @@ Toutes ces demandes supposent un PDL au périmètre (règle 1).
 
 | Flux | Contenu | Profondeur | Accord du client | Dans ElectriCore |
 |---|---|---|---|---|
-| **R67** mesures facturantes | Énergie par période de relevé et par cadran | 36 mois constatés | — (données mensuelles) | `flux_r67` (hors `releves`) — [recette](../ingestion.md) § R67 |
+| **R67** mesures facturantes | Énergie par période de relevé et par cadran | 36 mois constatés | autorisation | `flux_r67` (hors `releves`) — [recette](../ingestion.md) § R67 |
 | **R64** index quotidiens | Index par cadran, compteur communicant | 36 mois | consentement | `flux_r64` → `releves` |
 | R63 | Courbe de charge | 24 mois, si la collecte était active | consentement | non ingéré |
 | R65 | Énergie quotidienne, sans cadran | 36 mois (non confirmé en M023) | consentement | non ingéré |
 | R66 | Pmax quotidienne | 36 mois | consentement | non ingéré |
 | C68 | Données techniques et contractuelles du point, à la date de la commande | situation courante | selon la donnée | non ingéré |
 
-Les guides de référence : R6X GUI.0503, compte rendu M023 GUI.0505, C68 GUI.0504. Le
-compte rendu d'une demande M023 indique, par PDL, « publié » ou le motif de rejet
-(point inexistant, demandeur non éligible sur la période, dernière mise en service
-postérieure à la fin de la demande, aucun service souscrit…). Le résultat est livré sur
+Les guides de référence : R6X GUI.0503, compte rendu M023 GUI.0505, C68 GUI.0504 — résumés
+dans les [fiches de flux](flux/index.md). Le
+compte rendu d'une demande M023 indique, par PDL, s'il a été publié ou rejeté, et
+pourquoi. Le résultat est livré sur
 le portail **et** sur le SFTP. Commander au format **JSON** : c'est celui que
 l'ingestion lit, et R64 / R67 sont alors landés au prochain run. Un ZIP téléchargé du
 portail est en clair et peut être landé à la main.
@@ -75,8 +77,8 @@ Pour préparer une demande groupée : `GET /perimetre/pdls.csv` donne la liste d
 au périmètre à une date.
 
 !!! info "C2-C4 (> 36 kVA)"
-    Par le portail, l'historique mensuel et la courbe de charge sont plafonnés à
-    **12 mois**. L'API Mesures Enedis annonce davantage, mais ElectriCore n'a pas de
+    Par le portail, l'historique mensuel et la courbe de charge sont limités à
+    **12 mois**, portés à 24 par Enedis (NMO-CF_015E). L'API Mesures Enedis annonce davantage, mais ElectriCore n'a pas de
     client pour cette API.
 
 ## Obtenir un historique manquant

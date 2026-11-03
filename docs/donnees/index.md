@@ -1,5 +1,5 @@
 ---
-fraicheur: 2026-11-02
+fraicheur: 2026-11-03
 ---
 
 # Trouver la donnée
@@ -19,6 +19,8 @@ le fait — elles disent **où regarder et comment y accéder**.
   profondeur, où regarder, comment accéder, pièges.
 - **[Obtenir les données Enedis](sources-enedis.md)** — flux et services Enedis,
   profondeurs d'historique, conditions, et quoi faire quand l'historique manque.
+- **[Flux Enedis](flux/index.md)** — une fiche par guide Enedis : contenu, obtention,
+  pièges, ce qu'ElectriCore en extrait et ce qu'il laisse dans le brut.
 
 ## La méthode en cinq questions
 
